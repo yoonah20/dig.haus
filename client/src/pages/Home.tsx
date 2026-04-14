@@ -206,6 +206,10 @@ export default function Home() {
 
       <footer className="max-w-6xl mx-auto mt-8 py-4 text-center text-gray-600 text-xs">
         dig.haus &copy; 2026
+        {' · '}
+        <a href="/privacy.html" className="hover:text-amber-500">개인정보처리방침</a>
+        {' · '}
+        <a href="/terms.html" className="hover:text-amber-500">서비스 약관</a>
       </footer>
     </div>
   );
