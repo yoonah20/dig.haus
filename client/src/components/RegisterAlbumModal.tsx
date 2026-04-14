@@ -134,6 +134,8 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
                       <img
                         src={album.coverArtUrl}
                         alt={album.title}
+                        loading="lazy"
+                        decoding="async"
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';

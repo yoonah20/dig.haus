@@ -2,7 +2,7 @@ import axios from 'axios';
 import https from 'https';
 import { memoAsync } from '../utils/memoCache.js';
 
-const LFM_TTL = 5 * 60 * 1000; // 5 minutes
+const LFM_TTL = 60 * 60 * 1000; // 1 hour
 
 const LASTFM_BASE = 'https://ws.audioscrobbler.com/2.0/';
 const httpsAgent = new https.Agent({ family: 4 });

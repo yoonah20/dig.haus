@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 let _client: Anthropic | null = null;
-function getClient(): Anthropic {
+export function getClient(): Anthropic {
   if (!_client) _client = new Anthropic({ maxRetries: 5 });
   return _client;
 }

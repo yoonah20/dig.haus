@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { resolveAlbumPk } from '../utils/slug.js';
-import { convertToKrw } from '../services/exchangeRates.js';
+import { convertToKrw, getRates, convertToKrwSync } from '../services/exchangeRates.js';
 
 const router = Router();
 
@@ -58,29 +58,25 @@ router.get('/albums/:id/purchase-links', async (req, res) => {
     [albumPk]
   );
 
-  const enriched = await Promise.all(
-    rows.map(async (r: any) => {
-      const priceKrw =
-        r.price != null && r.currency
-          ? await convertToKrw(r.price, r.currency)
-          : null;
-      return {
-        id: r.id,
-        url: r.url,
-        storeName: r.store_name,
-        storeFaviconUrl: r.store_favicon_url,
-        price: r.price,
-        currency: r.currency,
-        priceKrw,
-        format: r.format,
-        note: r.note,
-        userId: r.user_id,
-        userName: r.user_name,
-        userAvatar: r.user_avatar,
-        createdAt: r.created_at,
-      };
-    })
-  );
+  const rates = await getRates();
+  const enriched = rows.map((r: any) => ({
+    id: r.id,
+    url: r.url,
+    storeName: r.store_name,
+    storeFaviconUrl: r.store_favicon_url,
+    price: r.price,
+    currency: r.currency,
+    priceKrw:
+      r.price != null && r.currency
+        ? convertToKrwSync(r.price, r.currency, rates)
+        : null,
+    format: r.format,
+    note: r.note,
+    userId: r.user_id,
+    userName: r.user_name,
+    userAvatar: r.user_avatar,
+    createdAt: r.created_at,
+  }));
 
   res.json({ purchaseLinks: enriched });
 });

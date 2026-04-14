@@ -1,6 +1,17 @@
 import { Router } from 'express';
 import axios from 'axios';
 import https from 'https';
+import rateLimit from 'express-rate-limit';
+
+// Rate limiter for admin endpoints that call Claude or scrape external pages.
+// 20 calls per minute per IP — generous for legit admin work, blocks runaway loops.
+const adminClaudeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many admin requests, slow down.' },
+});
 
 const httpsAgent = new https.Agent({ family: 4 });
 import { getRelease, getLabelByName, getArtistReleases, searchAlbums } from '../services/musicbrainz.js';
@@ -10,7 +21,7 @@ import { searchBandcamp } from '../services/bandcamp.js';
 import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
 import { searchReviews, scrapeReviewFromUrl } from '../services/reviews.js';
-import { generateSimilarDescriptions, generatePronunciation } from '../services/claude.js';
+import { generateSimilarDescriptions, generatePronunciation, getClient as getAnthropicClient } from '../services/claude.js';
 import {
   getCachedAlbum,
   cacheAlbum,
@@ -21,7 +32,7 @@ import {
 import { execute, queryAll, queryGet, transaction } from '../db/index.js';
 import { generateSlug, resolveAlbumId } from '../utils/slug.js';
 import { requireAdmin } from '../middleware/auth.js';
-import { convertToKrw, convertToUsd } from '../services/exchangeRates.js';
+import { convertToKrw, convertToUsd, getRates, convertToKrwSync, convertToUsdSync } from '../services/exchangeRates.js';
 import { searchAlbumsInDb } from '../utils/albumSearch.js';
 
 const router = Router();
@@ -400,9 +411,10 @@ router.get('/', async (req, res) => {
          WHERE price IS NOT NULL AND currency IS NOT NULL`
       ) as any[];
 
+      const rates = await getRates();
       const minUsdByAlbum = new Map<number, number>();
       for (const l of allLinks) {
-        const usd = await convertToUsd(l.price, l.currency);
+        const usd = convertToUsdSync(l.price, l.currency, rates);
         if (usd == null) continue;
         const prev = minUsdByAlbum.get(l.album_id);
         if (prev == null || usd < prev) minUsdByAlbum.set(l.album_id, usd);
@@ -440,22 +452,21 @@ router.get('/', async (req, res) => {
         albums.map((a: any) => a.id)
       );
 
-      const enriched = await Promise.all(
-        linkRows.map(async (l: any) => ({
-          albumId: l.album_id,
-          id: l.id,
-          url: l.url,
-          storeName: l.store_name,
-          storeFaviconUrl: l.store_favicon_url,
-          price: l.price,
-          currency: l.currency,
-          priceKrw:
-            l.price != null && l.currency
-              ? await convertToKrw(l.price, l.currency)
-              : null,
-          format: l.format,
-        }))
-      );
+      const listRates = await getRates();
+      const enriched = linkRows.map((l: any) => ({
+        albumId: l.album_id,
+        id: l.id,
+        url: l.url,
+        storeName: l.store_name,
+        storeFaviconUrl: l.store_favicon_url,
+        price: l.price,
+        currency: l.currency,
+        priceKrw:
+          l.price != null && l.currency
+            ? convertToKrwSync(l.price, l.currency, listRates)
+            : null,
+        format: l.format,
+      }));
 
       for (const link of enriched) {
         const bucket = topLinksByAlbum.get(link.albumId) || [];
@@ -531,7 +542,7 @@ router.get('/search', (req, res) => {
 
 // ─── POST /api/albums/:id/regenerate-pronunciation — admin re-run Claude ──
 
-router.post('/:id/regenerate-pronunciation', requireAdmin, async (req, res) => {
+router.post('/:id/regenerate-pronunciation', adminClaudeLimiter, requireAdmin, async (req, res) => {
   const resolved = resolveAlbumId(req.params.id as string);
   const mbid = resolved?.mbid || (req.params.id as string);
 
@@ -647,7 +658,7 @@ router.patch('/:id/cover-art', requireAdmin, (req, res) => {
 
 // ─── POST /api/albums/:id/reviews/add-url — admin add review by URL ─────
 
-router.post('/:id/reviews/add-url', requireAdmin, async (req, res) => {
+router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req, res) => {
   const resolved = resolveAlbumId(req.params.id as string);
   const mbid = resolved?.mbid || (req.params.id as string);
 
@@ -860,7 +871,7 @@ router.patch('/reviews/:reviewId/excerpt', requireAdmin, (req, res) => {
 
 // ─── POST /api/albums/reviews/:reviewId/retranslate — re-translate excerpt ──
 
-router.post('/reviews/:reviewId/retranslate', requireAdmin, async (req, res) => {
+router.post('/reviews/:reviewId/retranslate', adminClaudeLimiter, requireAdmin, async (req, res) => {
   const reviewId = parseInt((req.params.reviewId as string), 10);
   if (isNaN(reviewId)) {
     return res.status(400).json({ error: 'Invalid review ID' });
@@ -872,8 +883,7 @@ router.post('/reviews/:reviewId/retranslate', requireAdmin, async (req, res) => 
       return res.status(404).json({ error: 'Review not found' });
     }
 
-    const Anthropic = (await import('@anthropic-ai/sdk')).default;
-    const client = new Anthropic({ maxRetries: 5 });
+    const client = getAnthropicClient();
     const message = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
@@ -974,7 +984,6 @@ router.get('/:id', async (req, res) => {
     }
 
     // Discography: MusicBrainz first, fallback to Discogs
-    console.log(`[disco] artistMbid=${result.album.artistMbid}, discogsArtistId=${result.discogsArtistId}`);
     const artistMbid = result.album.artistMbid;
     if (artistMbid) {
       try {
@@ -995,12 +1004,9 @@ router.get('/:id', async (req, res) => {
     }
 
     // Fallback: Discogs artist discography
-    console.log(`[disco] MB discography: ${result.discography.length} items, trying Discogs fallback: ${result.discography.length === 0 && !!result.discogsArtistId}`);
     if (result.discography.length === 0 && result.discogsArtistId) {
       try {
-        console.log(`[disco] Calling getDiscogsArtistReleases(${result.discogsArtistId})...`);
         const dcReleases = await getDiscogsArtistReleases(result.discogsArtistId);
-        console.log(`[disco] Discogs returned ${dcReleases.length} releases`);
         result.discography = dcReleases.map((r) => ({
           mbid: r.masterId ? `discogs-master-${r.masterId}` : '',
           title: r.title,
@@ -1070,8 +1076,6 @@ router.get('/:id/reviews', async (req, res) => {
     const cached = getCachedAlbum(mbid);
     const artistName = cached?.artist_name || '';
     const albumTitle = cached?.title || '';
-
-    console.log(`[reviews-endpoint] mbid=${mbid}, artist="${artistName}", album="${albumTitle}", cached=${!!cached}`);
 
     // Check cached reviews
     let reviews = getCachedReviews(mbid);
@@ -1207,20 +1211,30 @@ router.get('/:id/similar', async (req, res) => {
                 }
               }
 
-              // Fetch streaming links + Discogs master/release in parallel (5 concurrent calls)
-              const [spResult, ytResult, bcResult, dcMasterResult, dcReleaseResult] = await Promise.allSettled([
+              // Fetch streaming links + Discogs master in parallel (4 concurrent).
+              // Discogs release is a fallback — only called if master lookup misses,
+              // saving one external call per similar album with a master URL.
+              const [spResult, ytResult, bcResult, dcMasterResult] = await Promise.allSettled([
                 searchTrack(a.artist, a.title),
                 searchVideo(a.artist, a.title),
                 searchBandcamp(a.artist, a.title),
                 searchMasterUrl(a.artist, a.title),
-                searchRelease(a.artist, a.title),
               ]);
               const spotifyLink = spResult.status === 'fulfilled' ? spResult.value?.url || null : null;
               const youtubeLink = ytResult.status === 'fulfilled' ? ytResult.value || null : null;
               const bandcampLink = bcResult.status === 'fulfilled' ? bcResult.value?.url || null : null;
               const masterUrl = dcMasterResult.status === 'fulfilled' ? dcMasterResult.value : null;
-              const releaseUrl = dcReleaseResult.status === 'fulfilled' ? dcReleaseResult.value?.url || null : null;
-              // Prefer master URL; fall back to release URL, then to a search page
+
+              let releaseUrl: string | null = null;
+              if (!masterUrl) {
+                try {
+                  const dcRelease = await searchRelease(a.artist, a.title);
+                  releaseUrl = dcRelease?.url || null;
+                } catch {
+                  releaseUrl = null;
+                }
+              }
+
               const discogsLink = masterUrl
                 || releaseUrl
                 || `https://www.discogs.com/search/?q=${encodeURIComponent(`${a.artist} ${a.title}`)}&type=master`;
@@ -1319,7 +1333,7 @@ router.patch('/:id/similar/:index', requireAdmin, (req, res) => {
 
 // ─── POST /api/albums/:id/refresh-reviews — add new reviews (keep existing) ─
 
-router.post('/:id/refresh-reviews', requireAdmin, async (req, res) => {
+router.post('/:id/refresh-reviews', adminClaudeLimiter, requireAdmin, async (req, res) => {
   const resolved = resolveAlbumId((req.params.id as string));
   const mbid = resolved?.mbid || (req.params.id as string);
 

@@ -2,4 +2,14 @@ node_modules/
 dist/
 .env
 *.db
+*.db-shm
+*.db-wal
 .DS_Store
+
+# IDE / OS
+.vscode/
+.idea/
+*.log
+
+# Local Claude Code settings
+.claude/settings.local.json

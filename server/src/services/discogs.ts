@@ -1,5 +1,8 @@
 import axios from 'axios';
 import https from 'https';
+import { memoAsync } from '../utils/memoCache.js';
+
+const DISCOGS_MEMO_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
 const DISCOGS_BASE = 'https://api.discogs.com';
 const httpsAgent = new https.Agent({ family: 4 });
@@ -67,7 +70,7 @@ export async function getDiscogsReleaseDetail(discogsId: number): Promise<{
 /**
  * Get artist discography from Discogs.
  */
-export async function getDiscogsArtistReleases(artistId: number): Promise<
+async function _getDiscogsArtistReleases(artistId: number): Promise<
   Array<{
     title: string;
     year: string;
@@ -83,7 +86,6 @@ export async function getDiscogsArtistReleases(artistId: number): Promise<
       params: { sort: 'year', sort_order: 'desc', per_page: '50' },
     });
     const releases = res.data?.releases || [];
-    // Deduplicate by master_id, keep only main releases
     const seen = new Set<number>();
     const results: Array<{ title: string; year: string; type: string; thumbUrl: string; masterId: number | null }> = [];
     for (const r of releases) {
@@ -92,7 +94,6 @@ export async function getDiscogsArtistReleases(artistId: number): Promise<
       seen.add(mid);
       if (r.role !== 'Main') continue;
       const fmt = (r.format || '').toLowerCase();
-      // Skip digital-only, singles, compilations, DVDs
       if (fmt.includes('file') || fmt.includes('digital') || fmt === 'wav' || fmt === 'flac' || fmt === 'mp3') continue;
       if (fmt.includes('single') || fmt.includes('7"') || fmt.includes('compilation') || fmt.includes('dvd')) continue;
       results.push({
@@ -109,6 +110,12 @@ export async function getDiscogsArtistReleases(artistId: number): Promise<
     return [];
   }
 }
+
+export const getDiscogsArtistReleases = memoAsync(
+  'discogs:artistReleases',
+  _getDiscogsArtistReleases,
+  DISCOGS_MEMO_TTL
+);
 
 export async function searchDiscogsAlbums(
   query: string

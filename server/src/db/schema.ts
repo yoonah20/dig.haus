@@ -388,6 +388,7 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_album_votes_album_id ON album_votes(album_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_album_votes_user_id ON album_votes(user_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_album_votes_created_at ON album_votes(created_at DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_links_album_id ON purchase_links(album_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_albums_rank_score ON albums(rank_score DESC)');
 }

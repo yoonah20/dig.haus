@@ -1,5 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
 import axios from 'axios';
+import { getClient } from './claude.js';
 
 export interface ReviewResult {
   sourceName: string;
@@ -18,11 +18,6 @@ interface ReviewSearchResult {
   titleMeaning: string | null;
 }
 
-let _client: Anthropic | null = null;
-function getClient(): Anthropic {
-  if (!_client) _client = new Anthropic({ maxRetries: 5 });
-  return _client;
-}
 
 // Non-editorial sources to exclude (shopping/marketplace/aggregators)
 // Match against the lowercased sourceName via substring.
@@ -77,7 +72,25 @@ function isExcludedSource(sourceName: string, url: string): boolean {
   return false;
 }
 
-export async function searchReviews(
+// Coalesce concurrent searches for the same album so we don't burn tokens
+// calling Claude twice when two users hit the reviews endpoint simultaneously.
+const _inflightSearches = new Map<string, Promise<ReviewSearchResult>>();
+
+export function searchReviews(
+  artist: string,
+  album: string,
+): Promise<ReviewSearchResult> {
+  const key = `${artist}\u0001${album}`.toLowerCase();
+  const existing = _inflightSearches.get(key);
+  if (existing) return existing;
+  const p = _searchReviewsImpl(artist, album).finally(() => {
+    _inflightSearches.delete(key);
+  });
+  _inflightSearches.set(key, p);
+  return p;
+}
+
+async function _searchReviewsImpl(
   artist: string,
   album: string,
 ): Promise<ReviewSearchResult> {
@@ -89,7 +102,7 @@ export async function searchReviews(
     console.log(`[reviews] Step 1: Haiku web search...`);
     const searchResponse = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
+      max_tokens: 2000,
       tools: [
         {
           type: 'web_search_20250305' as const,
@@ -133,7 +146,7 @@ For each review found: source name, score (X/10 etc), 1-2 sentence excerpt, URL.
     console.log(`[reviews] Step 2: Haiku structuring...`);
     const structureResponse = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 4096,
+      max_tokens: 2000,
       messages: [{ role: 'user', content: `Raw review data for "${album}" by ${artist}:
 ---
 ${rawReviewData}

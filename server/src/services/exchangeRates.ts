@@ -1,14 +1,14 @@
 import axios from 'axios';
 
 const API_URL = 'https://open.er-api.com/v6/latest/USD';
-const TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const FRESH_MS = 6 * 60 * 60 * 1000;   // 6h — considered fresh
+const STALE_MS = 24 * 60 * 60 * 1000;  // 24h — acceptable stale window while refreshing
 
 interface RatesCache {
-  rates: Record<string, number>; // relative to USD: 1 USD = rates[X] X
+  rates: Record<string, number>; // 1 USD = rates[X] X
   fetchedAt: number;
 }
 
-// Fallback static rates — used only if the API is unreachable on first load.
 const FALLBACK_RATES: Record<string, number> = {
   USD: 1,
   JPY: 150,
@@ -31,66 +31,82 @@ async function fetchFresh(): Promise<RatesCache> {
   };
 }
 
-async function getRatesCache(): Promise<RatesCache> {
-  if (cache && Date.now() - cache.fetchedAt < TTL_MS) return cache;
-
-  if (!inflight) {
-    inflight = fetchFresh()
-      .then((fresh) => {
-        cache = fresh;
-        console.log('[rates] refreshed from open.er-api.com');
-        return fresh;
-      })
-      .catch((err) => {
-        console.warn('[rates] fetch failed, using fallback:', (err as Error).message);
-        // Only populate the fallback if we have no cache at all — never overwrite
-        // a previously-successful response with the static numbers.
-        if (!cache) cache = { rates: { ...FALLBACK_RATES }, fetchedAt: Date.now() };
-        return cache;
-      })
-      .finally(() => {
-        inflight = null;
-      });
-  }
-  return inflight;
+function refreshAsync(): void {
+  if (inflight) return;
+  inflight = fetchFresh()
+    .then((fresh) => {
+      cache = fresh;
+      console.log('[rates] refreshed from open.er-api.com');
+      return fresh;
+    })
+    .catch((err) => {
+      console.warn('[rates] fetch failed:', (err as Error).message);
+      if (!cache) cache = { rates: { ...FALLBACK_RATES }, fetchedAt: Date.now() };
+      return cache;
+    })
+    .finally(() => {
+      inflight = null;
+    });
 }
 
 /**
- * Convert a price from `fromCurrency` into KRW. Returns null if either the
- * source or target currency is missing from the rate table.
+ * Get current exchange rates. Stale-while-revalidate:
+ *   - Fresh (<6h): return immediately
+ *   - Stale (<24h): return stale AND kick off background refresh
+ *   - Very stale / missing: block until fetch or fallback
  */
-export async function convertToKrw(price: number, fromCurrency: string): Promise<number | null> {
+async function getRatesCache(): Promise<RatesCache> {
+  const now = Date.now();
+  if (cache && now - cache.fetchedAt < FRESH_MS) return cache;
+  if (cache && now - cache.fetchedAt < STALE_MS) {
+    refreshAsync();
+    return cache;
+  }
+  if (!inflight) refreshAsync();
+  return inflight!;
+}
+
+export async function getRates(): Promise<Record<string, number>> {
+  const { rates } = await getRatesCache();
+  return rates;
+}
+
+function toKrw(price: number, fromCurrency: string, rates: Record<string, number>): number | null {
   if (price == null || !isFinite(price)) return null;
   const from = (fromCurrency || '').toUpperCase();
   if (from === 'KRW') return Math.round(price);
-
-  const { rates } = await getRatesCache();
   const fromRate = rates[from];
   const krwRate = rates['KRW'];
   if (!fromRate || !krwRate) return null;
-
   const usd = price / fromRate;
   return Math.round(usd * krwRate);
 }
 
-/**
- * Convert a price from `fromCurrency` into USD. Returns null if the source
- * currency is missing from the rate table.
- */
-export async function convertToUsd(price: number, fromCurrency: string): Promise<number | null> {
+function toUsd(price: number, fromCurrency: string, rates: Record<string, number>): number | null {
   if (price == null || !isFinite(price)) return null;
   const from = (fromCurrency || '').toUpperCase();
   if (from === 'USD') return price;
-
-  const { rates } = await getRatesCache();
   const fromRate = rates[from];
   if (!fromRate) return null;
   return price / fromRate;
 }
 
-/**
- * Warm the cache at server startup so the first request doesn't block.
- */
+/** Sync converters — preferred when batching multiple conversions. */
+export const convertToKrwSync = toKrw;
+export const convertToUsdSync = toUsd;
+
+/** Convenience one-off async wrappers (back-compat). */
+export async function convertToKrw(price: number, fromCurrency: string): Promise<number | null> {
+  const rates = await getRates();
+  return toKrw(price, fromCurrency, rates);
+}
+
+export async function convertToUsd(price: number, fromCurrency: string): Promise<number | null> {
+  const rates = await getRates();
+  return toUsd(price, fromCurrency, rates);
+}
+
+/** Warm the cache at server startup so the first request doesn't block. */
 export function warmExchangeRates(): void {
   getRatesCache().catch(() => {});
 }
