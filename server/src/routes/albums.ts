@@ -21,7 +21,7 @@ import {
 import { execute, queryAll, queryGet, transaction } from '../db/index.js';
 import { generateSlug, resolveAlbumId } from '../utils/slug.js';
 import { requireAdmin } from '../middleware/auth.js';
-import { convertToKrw } from '../services/exchangeRates.js';
+import { convertToKrw, convertToUsd } from '../services/exchangeRates.js';
 import { searchAlbumsInDb } from '../utils/albumSearch.js';
 
 const router = Router();
@@ -355,15 +355,31 @@ const ALBUM_PAGE_SIZE = 20;
 const SORT_CLAUSES: Record<string, string> = {
   release_date_desc: `COALESCE(a.release_date, a.release_year || '-01-01') DESC, a.id DESC`,
   release_date_asc:  `COALESCE(a.release_date, a.release_year || '-01-01') ASC, a.id ASC`,
+  artist_az:         `LOWER(a.artist_name) ASC, a.id ASC`,
+  artist_za:         `LOWER(a.artist_name) DESC, a.id DESC`,
   score_desc:        `avg_score IS NULL, avg_score DESC, a.id DESC`,
   score_asc:         `avg_score IS NULL, avg_score ASC, a.id ASC`,
   upvotes_desc:      `upvotes DESC, a.id DESC`,
   downvotes_desc:    `downvotes DESC, a.id DESC`,
 };
 
+const ALBUM_ROW_SELECT = `
+  SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.release_date, a.release_year,
+         a.cover_art_url, a.cover_art_fallbacks, a.genres,
+         COALESCE((SELECT SUM(CASE WHEN vote='up' THEN 1 ELSE 0 END) FROM album_votes WHERE album_id = a.id), 0) AS upvotes,
+         COALESCE((SELECT SUM(CASE WHEN vote='down' THEN 1 ELSE 0 END) FROM album_votes WHERE album_id = a.id), 0) AS downvotes,
+         (SELECT AVG(CASE
+                       WHEN COALESCE(r.manual_score, r.score) IS NOT NULL AND r.score_max > 0
+                       THEN (COALESCE(r.manual_score, r.score) * 1.0 / r.score_max) * 100
+                     END)
+          FROM reviews r WHERE r.album_mbid = a.mbid) AS avg_score
+  FROM albums a
+`;
+
 router.get('/', async (req, res) => {
   try {
     const sortKey = (req.query.sort as string) || 'release_date_desc';
+    const isPriceSort = sortKey === 'price_asc' || sortKey === 'price_desc';
     const orderBy = SORT_CLAUSES[sortKey] || SORT_CLAUSES.release_date_desc;
 
     const pageRaw = parseInt((req.query.page as string) || '1', 10);
@@ -373,20 +389,44 @@ router.get('/', async (req, res) => {
     const total = (queryGet('SELECT COUNT(*) AS c FROM albums')?.c as number) || 0;
     const totalPages = Math.max(1, Math.ceil(total / ALBUM_PAGE_SIZE));
 
-    const albums = queryAll(`
-      SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.release_date, a.release_year,
-             a.cover_art_url, a.cover_art_fallbacks, a.genres,
-             COALESCE((SELECT SUM(CASE WHEN vote='up' THEN 1 ELSE 0 END) FROM album_votes WHERE album_id = a.id), 0) AS upvotes,
-             COALESCE((SELECT SUM(CASE WHEN vote='down' THEN 1 ELSE 0 END) FROM album_votes WHERE album_id = a.id), 0) AS downvotes,
-             (SELECT AVG(CASE
-                           WHEN COALESCE(r.manual_score, r.score) IS NOT NULL AND r.score_max > 0
-                           THEN (COALESCE(r.manual_score, r.score) * 1.0 / r.score_max) * 100
-                         END)
-              FROM reviews r WHERE r.album_mbid = a.mbid) AS avg_score
-      FROM albums a
-      ORDER BY ${orderBy}
-      LIMIT ? OFFSET ?
-    `, [ALBUM_PAGE_SIZE, offset]);
+    let albums: any[];
+    if (isPriceSort) {
+      // Currency conversion has to happen in-app, so fetch all albums + all
+      // purchase links, compute min USD price per album, sort, then paginate.
+      const allAlbums = queryAll(ALBUM_ROW_SELECT) as any[];
+      const allLinks = queryAll(
+        `SELECT album_id, price, currency FROM purchase_links
+         WHERE price IS NOT NULL AND currency IS NOT NULL`
+      ) as any[];
+
+      const minUsdByAlbum = new Map<number, number>();
+      for (const l of allLinks) {
+        const usd = await convertToUsd(l.price, l.currency);
+        if (usd == null) continue;
+        const prev = minUsdByAlbum.get(l.album_id);
+        if (prev == null || usd < prev) minUsdByAlbum.set(l.album_id, usd);
+      }
+
+      const sign = sortKey === 'price_asc' ? 1 : -1;
+      allAlbums.sort((a, b) => {
+        const pa = minUsdByAlbum.get(a.id);
+        const pb = minUsdByAlbum.get(b.id);
+        // Nulls last regardless of direction
+        if (pa == null && pb == null) return a.id - b.id;
+        if (pa == null) return 1;
+        if (pb == null) return -1;
+        return (pa - pb) * sign;
+      });
+
+      albums = allAlbums.slice(offset, offset + ALBUM_PAGE_SIZE);
+    } else {
+      albums = queryAll(
+        `${ALBUM_ROW_SELECT}
+         ORDER BY ${orderBy}
+         LIMIT ? OFFSET ?`,
+        [ALBUM_PAGE_SIZE, offset]
+      );
+    }
 
     // Batch-fetch all purchase links for the listed albums, then group + sort
     // by KRW-converted price to pick each album's top 3 for the cover stickers.

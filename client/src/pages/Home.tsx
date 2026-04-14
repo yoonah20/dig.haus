@@ -17,8 +17,12 @@ interface AlbumListResponse {
 const SORT_OPTIONS = [
   { value: 'release_date_desc', label: '발매일 최신순' },
   { value: 'release_date_asc', label: '발매일 오래된순' },
+  { value: 'artist_az', label: '아티스트 A-Z' },
+  { value: 'artist_za', label: '아티스트 Z-A' },
   { value: 'score_desc', label: '리뷰 평점 높은순' },
   { value: 'score_asc', label: '리뷰 평점 낮은순' },
+  { value: 'price_asc', label: '가격 낮은순' },
+  { value: 'price_desc', label: '가격 높은순' },
   { value: 'upvotes_desc', label: '굿굿 많은순' },
   { value: 'downvotes_desc', label: '별루 많은순' },
 ] as const;

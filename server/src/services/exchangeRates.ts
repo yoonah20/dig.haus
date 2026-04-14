@@ -74,6 +74,21 @@ export async function convertToKrw(price: number, fromCurrency: string): Promise
 }
 
 /**
+ * Convert a price from `fromCurrency` into USD. Returns null if the source
+ * currency is missing from the rate table.
+ */
+export async function convertToUsd(price: number, fromCurrency: string): Promise<number | null> {
+  if (price == null || !isFinite(price)) return null;
+  const from = (fromCurrency || '').toUpperCase();
+  if (from === 'USD') return price;
+
+  const { rates } = await getRatesCache();
+  const fromRate = rates[from];
+  if (!fromRate) return null;
+  return price / fromRate;
+}
+
+/**
  * Warm the cache at server startup so the first request doesn't block.
  */
 export function warmExchangeRates(): void {
