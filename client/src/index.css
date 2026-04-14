@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #0f0f0f;
+  --color-background-secondary: #1a1a1a;
+  --color-background-tertiary: #252525;
+  --color-accent: #e8a020;
+  --color-accent-hover: #f0b040;
+  --color-accent-muted: #e8a02033;
+  --color-foreground: #e5e5e5;
+  --color-foreground-muted: #999999;
+  --color-border: #2a2a2a;
+
+  --font-sans: "Pretendard", "Noto Sans KR", "Inter", sans-serif;
+  --font-serif: "Playfair Display", "Noto Serif KR", "Georgia", serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+
+  --text-editorial-xl: 3rem;
+  --text-editorial-lg: 2.25rem;
+  --text-editorial-md: 1.5rem;
+  --text-editorial-sm: 1.125rem;
+
+  --leading-editorial: 1.2;
+  --tracking-editorial: -0.02em;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.album-flip {
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
+}
+.album-flip-outer:hover .album-flip,
+.album-flip-outer:focus-visible .album-flip {
+  transform: rotateY(180deg);
+}
+
+/* Keyboard focus ring (accessible) */
+*:focus-visible {
+  outline: 2px solid #e8a020;
+  outline-offset: 2px;
+}
+/* Inputs/textareas already style their border on focus — use a thinner inset */
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline-offset: 0;
+}

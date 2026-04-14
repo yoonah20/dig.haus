@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make --version)",
+      "Bash(g++ --version)",
+      "Bash(gcc --version)",
+      "Bash(dpkg -l)",
+      "Bash(npm install:*)",
+      "Bash(npx --yes prebuild-install --runtime napi --target 9 -d better-sqlite3)",
+      "Bash(npx tsc:*)",
+      "Bash(npm i:*)",
+      "Bash(timeout 5 npx tsx src/index.ts)",
+      "Bash(npx vite:*)",
+      "Bash(curl -s http://localhost:3001/api/search?q=radiohead)",
+      "Bash(curl -s http://localhost:3000/api/search?q=radiohead)",
+      "Bash(curl -s -H \"User-Agent: Diggershaus/1.0 \\(contact@diggershaus.com\\)\" -H \"Accept: application/json\" \"https://musicbrainz.org/ws/2/release?query=radiohead&fmt=json&limit=5\")",
+      "Bash(node -e ':*)",
+      "Bash(node:*)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f'albums: {len\\(d[\\\\\"albums\\\\\"]\\)}, artists: {len\\(d[\\\\\"artists\\\\\"]\\)}'\\)\")",
+      "Bash(curl -s \"http://localhost:3001/api/search?q=archspire+too+fast+to+die\")",
+      "Bash(python3 -c ':*)",
+      "Bash(curl -s \"http://localhost:3001/api/albums/3d02c63a-98bf-44ec-8dd4-2d4458381c0a\")",
+      "Bash(kill -SIGHUP 5004)",
+      "Bash(curl -s \"http://localhost:3001/api/search?q=test\")",
+      "Bash(kill 7218)",
+      "Bash(npx tsx:*)",
+      "Bash(curl -s http://localhost:3001/api/search?q=test)",
+      "Bash(pkill -f \"tsx watch\")",
+      "Bash(pkill -f \"node.*index.ts\")",
+      "Bash(echo \"Server starting, PID: $!\")",
+      "Bash(break)",
+      "Bash(curl -s http://localhost:3000/api/albums/3d02c63a-98bf-44ec-8dd4-2d4458381c0a)"
+    ]
+  }
+}
