@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { AlbumSearchResult } from '../types';
 import CoverArt from './CoverArt';
@@ -9,6 +9,24 @@ type VinylPhase = 'idle' | 'eject' | 'fly';
 
 const EJECT_MS = 500;
 const FLY_MS = 250;
+
+// Cross-card active state for touch devices: only one card can show its overlay at a time.
+let activeCardId: string | null = null;
+const activeCardListeners = new Set<() => void>();
+function setActiveCardId(id: string | null) {
+  if (activeCardId === id) return;
+  activeCardId = id;
+  activeCardListeners.forEach((l) => l());
+}
+function subscribeActiveCard(listener: () => void) {
+  activeCardListeners.add(listener);
+  return () => {
+    activeCardListeners.delete(listener);
+  };
+}
+function getActiveCardSnapshot() {
+  return activeCardId;
+}
 
 function VinylSvg() {
   return (
@@ -53,7 +71,14 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const phaseRef = useRef<VinylPhase>('idle');
   const cardRef = useRef<HTMLDivElement>(null);
   const vinylRef = useRef<HTMLDivElement>(null);
-  const isCoarsePointerRef = useRef(false);
+  const isHoverNoneRef = useRef(false);
+
+  const activeId = useSyncExternalStore(
+    subscribeActiveCard,
+    getActiveCardSnapshot,
+    getActiveCardSnapshot
+  );
+  const isActive = activeId === album.mbid;
 
   const HOVER_SHADOW =
     '0 20px 40px rgba(0,0,0,0.6), 0 0 0 2px rgba(232,160,32,0.55)';
@@ -68,7 +93,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   }, []);
 
   const handleMouseEnter = useCallback(() => {
-    if (phaseRef.current !== 'idle' || isCoarsePointerRef.current) return;
+    if (phaseRef.current !== 'idle' || isHoverNoneRef.current) return;
     const el = cardRef.current;
     if (!el) return;
     el.style.transform = baseHoverTransform();
@@ -76,7 +101,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (phaseRef.current !== 'idle' || isCoarsePointerRef.current) return;
+    if (phaseRef.current !== 'idle' || isHoverNoneRef.current) return;
     const el = cardRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -92,10 +117,22 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   }, [resetCardTransform]);
 
   useEffect(() => {
-    isCoarsePointerRef.current =
+    isHoverNoneRef.current =
       typeof window !== 'undefined' &&
-      window.matchMedia('(pointer: coarse)').matches;
+      window.matchMedia('(hover: none)').matches;
   }, []);
+
+  // Touch-only: close this card's overlay when user taps outside any album card.
+  useEffect(() => {
+    if (!isActive) return;
+    function onDocPointerDown(e: PointerEvent) {
+      const target = e.target as Element | null;
+      if (target?.closest?.('.album-card-outer')) return;
+      setActiveCardId(null);
+    }
+    document.addEventListener('pointerdown', onDocPointerDown);
+    return () => document.removeEventListener('pointerdown', onDocPointerDown);
+  }, [isActive]);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -103,8 +140,19 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      // Touch devices: skip animation, let Link navigate
-      if (isCoarsePointerRef.current) return;
+      // Touch devices: first tap reveals overlay, second tap on the same card navigates.
+      // Tapping a different card switches activeCardId via this same handler.
+      if (isHoverNoneRef.current) {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+        if (activeCardId !== album.mbid) {
+          e.preventDefault();
+          setActiveCardId(album.mbid);
+          return;
+        }
+        // Second tap on already-active card: clear and let Link navigate.
+        setActiveCardId(null);
+        return;
+      }
       // Let middle/right/modified clicks fall through (open-in-new-tab, etc)
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
       if (phaseRef.current !== 'idle') {
@@ -157,7 +205,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   return (
     <Link
       to={`/album/${album.mbid}`}
-      className="block album-card-outer relative"
+      className={`block album-card-outer relative${isActive ? ' is-active' : ''}`}
       onClick={handleClick}
       style={phase !== 'idle' ? { zIndex: 20 } : undefined}
     >

@@ -46,6 +46,9 @@ body {
 .album-card-outer:focus-visible .album-card-info {
   opacity: 1;
 }
+.album-card-outer.is-active .album-card-info {
+  opacity: 1;
+}
 
 /* 3D lift on hover — transform applied via JS for dynamic mouse-move tilt */
 .album-card-outer .album-card-3d {
