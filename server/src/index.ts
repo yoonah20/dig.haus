@@ -41,9 +41,23 @@ async function start() {
   const db = getDb();
 
   app.use(compression());
+
+  const allowedOrigins = [
+    process.env.CLIENT_URL,
+    'https://dig.haus',
+    'https://www.dig.haus',
+    'http://localhost:3000',
+  ].filter(Boolean);
+
   app.use(
     cors({
-      origin: process.env.CLIENT_URL || 'http://localhost:3000',
+      origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true,
     })
   );
