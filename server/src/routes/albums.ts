@@ -9,7 +9,7 @@ import { searchVideo } from '../services/youtube.js';
 import { searchBandcamp } from '../services/bandcamp.js';
 import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
-import { searchReviews } from '../services/reviews.js';
+import { searchReviews, scrapeReviewFromUrl } from '../services/reviews.js';
 import { generateSimilarDescriptions, generatePronunciation } from '../services/claude.js';
 import {
   getCachedAlbum,
@@ -353,10 +353,11 @@ async function getOrFetchAlbumBase(mbid: string) {
 const ALBUM_PAGE_SIZE = 20;
 
 const SORT_CLAUSES: Record<string, string> = {
+  registered_desc:   `a.id DESC`,
+  registered_asc:    `a.id ASC`,
   release_date_desc: `COALESCE(a.release_date, a.release_year || '-01-01') DESC, a.id DESC`,
   release_date_asc:  `COALESCE(a.release_date, a.release_year || '-01-01') ASC, a.id ASC`,
   artist_az:         `LOWER(a.artist_name) ASC, a.id ASC`,
-  artist_za:         `LOWER(a.artist_name) DESC, a.id DESC`,
   score_desc:        `avg_score IS NULL, avg_score DESC, a.id DESC`,
   score_asc:         `avg_score IS NULL, avg_score ASC, a.id ASC`,
   upvotes_desc:      `upvotes DESC, a.id DESC`,
@@ -378,9 +379,9 @@ const ALBUM_ROW_SELECT = `
 
 router.get('/', async (req, res) => {
   try {
-    const sortKey = (req.query.sort as string) || 'release_date_desc';
+    const sortKey = (req.query.sort as string) || 'registered_desc';
     const isPriceSort = sortKey === 'price_asc' || sortKey === 'price_desc';
-    const orderBy = SORT_CLAUSES[sortKey] || SORT_CLAUSES.release_date_desc;
+    const orderBy = SORT_CLAUSES[sortKey] || SORT_CLAUSES.registered_desc;
 
     const pageRaw = parseInt((req.query.page as string) || '1', 10);
     const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
@@ -641,6 +642,157 @@ router.patch('/:id/cover-art', requireAdmin, (req, res) => {
   } catch (error) {
     console.error('Update cover art error:', error);
     res.status(500).json({ error: 'Failed to update cover art' });
+  }
+});
+
+// ─── POST /api/albums/:id/reviews/add-url — admin add review by URL ─────
+
+router.post('/:id/reviews/add-url', requireAdmin, async (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const albumRow = queryGet(
+    'SELECT title, artist_name FROM albums WHERE mbid = ?',
+    [mbid]
+  );
+  if (!albumRow) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  const urlRaw = (req.body ?? {}).url;
+  if (typeof urlRaw !== 'string') {
+    return res.status(400).json({ error: 'url is required' });
+  }
+  const url = urlRaw.trim();
+  if (!/^https?:\/\//i.test(url)) {
+    return res.status(400).json({ error: 'URL must start with http:// or https://' });
+  }
+  if (url.length > 2000) {
+    return res.status(400).json({ error: 'URL too long' });
+  }
+
+  try {
+    const scraped = await scrapeReviewFromUrl(url, albumRow.artist_name, albumRow.title);
+    if (!scraped) {
+      return res.status(422).json({ error: 'URL에서 리뷰를 추출하지 못했습니다.' });
+    }
+
+    execute(
+      `INSERT INTO reviews (album_mbid, source_name, score, score_max, excerpt, excerpt_ko, full_review_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(album_mbid, source_name) DO UPDATE SET
+         score = excluded.score,
+         score_max = excluded.score_max,
+         excerpt = excluded.excerpt,
+         excerpt_ko = excluded.excerpt_ko,
+         full_review_url = excluded.full_review_url,
+         scraped_at = datetime('now')`,
+      [
+        mbid,
+        scraped.sourceName,
+        scraped.score,
+        scraped.scoreMax,
+        scraped.excerpt,
+        scraped.excerptKo,
+        scraped.fullReviewUrl,
+      ]
+    );
+
+    const saved = queryGet(
+      `SELECT id, source_name, score, manual_score, score_max, excerpt, excerpt_ko, full_review_url
+       FROM reviews WHERE album_mbid = ? AND source_name = ?`,
+      [mbid, scraped.sourceName]
+    );
+
+    if (!saved) {
+      return res.status(500).json({ error: 'Failed to retrieve saved review' });
+    }
+
+    res.json({
+      ok: true,
+      review: {
+        id: saved.id,
+        source: saved.source_name,
+        score: saved.manual_score ?? saved.score,
+        scoreMax: saved.score_max,
+        excerpt: saved.excerpt,
+        excerptKo: saved.excerpt_ko || null,
+        url: saved.full_review_url,
+        isManualScore: saved.manual_score != null,
+      },
+    });
+  } catch (err) {
+    console.error('Add review URL error:', err);
+    res.status(500).json({ error: 'Failed to add review' });
+  }
+});
+
+// ─── PATCH /api/albums/:id/tags — admin replace genre tag list ──────────
+
+router.patch('/:id/tags', requireAdmin, (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const row = queryGet('SELECT mbid FROM albums WHERE mbid = ?', [mbid]);
+  if (!row) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  const raw = (req.body ?? {}).tags;
+  if (!Array.isArray(raw)) {
+    return res.status(400).json({ error: 'tags must be an array of strings' });
+  }
+
+  const cleaned: string[] = [];
+  const seen = new Set<string>();
+  for (const t of raw) {
+    if (typeof t !== 'string') continue;
+    const trimmed = t.trim();
+    if (!trimmed || trimmed.length > 80) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cleaned.push(trimmed);
+    if (cleaned.length >= 30) break;
+  }
+
+  try {
+    updateAlbumFields(mbid, { genres: JSON.stringify(cleaned) });
+    res.json({ ok: true, tags: cleaned });
+  } catch (error) {
+    console.error('Update tags error:', error);
+    res.status(500).json({ error: 'Failed to update tags' });
+  }
+});
+
+// ─── PATCH /api/albums/:id/korean-summary — admin edit AI summary text ───
+
+router.patch('/:id/korean-summary', requireAdmin, (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const row = queryGet('SELECT mbid FROM albums WHERE mbid = ?', [mbid]);
+  if (!row) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  const raw = (req.body ?? {}).korean_summary;
+  let value: string | null;
+  if (raw === null) {
+    value = null;
+  } else if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    value = trimmed ? trimmed.slice(0, 4000) : null;
+  } else {
+    return res.status(400).json({ error: 'korean_summary must be a string or null' });
+  }
+
+  try {
+    updateAlbumFields(mbid, { korean_summary: value });
+    res.json({ ok: true, koreanSummary: value });
+  } catch (error) {
+    console.error('Update korean summary error:', error);
+    res.status(500).json({ error: 'Failed to update korean summary' });
   }
 });
 

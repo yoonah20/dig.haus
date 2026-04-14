@@ -17,7 +17,13 @@ function formatPrice(price: number | null, currency: string): string {
   return `${sym}${price.toFixed(2)}`;
 }
 
-export default function PriceTagStack({ links }: { links: PriceTagLink[] }) {
+interface PriceTagStackProps {
+  links: PriceTagLink[];
+  maxVisible?: number;
+  showOverflow?: boolean;
+}
+
+export default function PriceTagStack({ links, maxVisible = 3, showOverflow = true }: PriceTagStackProps) {
   if (links.length === 0) return null;
 
   // Sort by KRW-converted price ascending (cheapest first). Links without a
@@ -29,7 +35,7 @@ export default function PriceTagStack({ links }: { links: PriceTagLink[] }) {
     return aKrw - bKrw;
   });
 
-  const visible = sorted.slice(0, 3);
+  const visible = sorted.slice(0, Math.max(1, maxVisible));
   const overflow = sorted.length - visible.length;
 
   return (
@@ -63,7 +69,7 @@ export default function PriceTagStack({ links }: { links: PriceTagLink[] }) {
           <span className="tabular-nums">{formatPrice(link.price, link.currency)}</span>
         </a>
       ))}
-      {overflow > 0 && (
+      {showOverflow && overflow > 0 && (
         <div className="pointer-events-auto bg-black/80 text-white text-[10px] leading-none font-semibold px-2.5 py-1.5 rounded-sm shadow ring-1 ring-white/10">
           +{overflow}
         </div>

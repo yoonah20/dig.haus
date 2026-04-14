@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
@@ -8,9 +8,145 @@ import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSearchOverlay } from '../../contexts/SearchOverlayContext';
 import VoteButtons from '../VoteButtons';
-import PriceTagStack from '../PriceTagSticker';
 import CopyTitleButton from '../CopyTitleButton';
-import { usePurchaseLinks } from '../../hooks/usePurchaseLinks';
+
+function TagEditor({
+  tags,
+  albumId,
+  isAdmin,
+}: {
+  tags: string[];
+  albumId: string;
+  isAdmin: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [input, setInput] = useState('');
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (adding) inputRef.current?.focus();
+  }, [adding]);
+
+  const persist = useCallback(
+    async (nextTags: string[]) => {
+      setSaving(true);
+      try {
+        await axios.patch(`/api/albums/${albumId}/tags`, { tags: nextTags });
+        await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
+        await queryClient.invalidateQueries({ queryKey: ['album-list'] });
+      } catch (err) {
+        console.error('Update tags error:', err);
+        alert('태그 저장에 실패했습니다.');
+      } finally {
+        setSaving(false);
+      }
+    },
+    [albumId, queryClient]
+  );
+
+  const removeTag = (tag: string) => {
+    if (saving) return;
+    void persist(tags.filter((t) => t !== tag));
+  };
+
+  const commitAdd = () => {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      setAdding(false);
+      return;
+    }
+    if (tags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
+      setInput('');
+      setAdding(false);
+      return;
+    }
+    void persist([...tags, trimmed]);
+    setInput('');
+    setAdding(false);
+  };
+
+  const cancelAdd = () => {
+    setInput('');
+    setAdding(false);
+  };
+
+  if (tags.length === 0 && !isAdmin) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 mb-6">
+      {tags.map((g) => (
+        <span
+          key={g}
+          className="group/tag flex items-center gap-1 px-3 py-1 bg-white/5 text-gray-300 text-xs rounded-full"
+        >
+          <span>{g}</span>
+          {isAdmin && (
+            <button
+              onClick={() => removeTag(g)}
+              disabled={saving}
+              className="text-gray-500 hover:text-red-400 disabled:opacity-40 cursor-pointer leading-none"
+              title={`"${g}" 삭제`}
+              aria-label={`"${g}" 태그 삭제`}
+            >
+              ×
+            </button>
+          )}
+        </span>
+      ))}
+      {isAdmin &&
+        (adding ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/5 rounded-full">
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitAdd();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancelAdd();
+                }
+              }}
+              disabled={saving}
+              maxLength={80}
+              placeholder="태그 이름"
+              className="bg-transparent text-gray-200 text-xs px-1 py-0.5 outline-none focus:outline-none w-28"
+            />
+            <button
+              onClick={commitAdd}
+              disabled={saving}
+              className="text-xs text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+              aria-label="태그 저장"
+            >
+              {saving ? '...' : '✓'}
+            </button>
+            <button
+              onClick={cancelAdd}
+              disabled={saving}
+              className="text-xs text-gray-500 hover:text-white disabled:opacity-40 cursor-pointer"
+              aria-label="취소"
+            >
+              ✕
+            </button>
+          </span>
+        ) : (
+          <button
+            onClick={() => setAdding(true)}
+            disabled={saving}
+            className="px-3 py-1 border border-dashed border-gray-600 hover:border-[#e8a020] text-gray-500 hover:text-[#e8a020] text-xs rounded-full transition-colors cursor-pointer disabled:opacity-40"
+          >
+            + 태그 추가
+          </button>
+        ))}
+    </div>
+  );
+}
 
 function formatReleaseDate(date: string): string {
   // "2026-03-14" → "2026년 3월 14일", "2026-03" → "2026년 3월", "2026" → "2026"
@@ -130,8 +266,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const { openOverlay } = useSearchOverlay();
 
   const albumId = album.slug || album.mbid;
-  const { data: linksData } = usePurchaseLinks(albumId);
-  const purchaseLinks = linksData?.purchaseLinks || [];
 
   const handleRefreshReviews = useCallback(async () => {
     if (!confirm('추가 리뷰를 검색할까요? 기존 리뷰는 유지됩니다.')) return;
@@ -299,7 +433,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             alt={album.title}
             className="w-full h-full object-cover transition-all duration-300 group-hover/cover:scale-[1.02] group-hover/cover:brightness-110"
           />
-          <PriceTagStack links={purchaseLinks} />
           {user?.isAdmin && !editingCover && (
             <button
               onClick={startEditCover}
@@ -499,18 +632,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             />
           </div>
 
-          {album.genres.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-6">
-              {album.genres.map((g) => (
-                <span
-                  key={g}
-                  className="px-3 py-1 bg-white/5 text-gray-300 text-xs rounded-full"
-                >
-                  {g}
-                </span>
-              ))}
-            </div>
-          )}
+          <TagEditor tags={album.genres} albumId={albumId} isAdmin={!!user?.isAdmin} />
         </div>
 
         {/* Link buttons: Discogs + streaming */}

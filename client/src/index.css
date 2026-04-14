@@ -37,13 +37,53 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.album-flip {
-  transform-style: preserve-3d;
-  transition: transform 0.5s ease;
+/* Album card — hover reveals info overlay over the cover (no flip) */
+.album-card-outer .album-card-info {
+  opacity: 0;
+  transition: opacity 200ms ease;
 }
-.album-flip-outer:hover .album-flip,
-.album-flip-outer:focus-visible .album-flip {
-  transform: rotateY(180deg);
+.album-card-outer:hover .album-card-info,
+.album-card-outer:focus-visible .album-card-info {
+  opacity: 1;
+}
+
+/* 3D lift on hover — transform applied via JS for dynamic mouse-move tilt */
+.album-card-outer .album-card-3d {
+  transition: transform 200ms cubic-bezier(0.2, 0, 0.2, 1),
+              box-shadow 200ms ease;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.album-card-outer:hover {
+  z-index: 10;
+}
+
+/* Vinyl — always peeks slightly out to the right of the cover */
+.album-card-outer .vinyl {
+  transform: translateX(0);
+  opacity: 0;
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+
+/* Phase 1: vinyl ejects right from behind the cover */
+@keyframes vinylEject {
+  to {
+    transform: translate3d(60%, 0, 0) rotate(15deg) scale(1);
+    opacity: 1;
+  }
+}
+
+/* Phase 2: vinyl flies to viewport center, spins full rotation, scales up, fades out.
+   --fly-x / --fly-y are set per-click via inline CSS custom properties. */
+@keyframes vinylFly {
+  from {
+    transform: translate3d(60%, 0, 0) rotate(15deg) scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: translate3d(calc(60% + var(--fly-x, 0px)), var(--fly-y, 0px), 0) rotate(360deg) scale(2.5);
+    opacity: 0;
+  }
 }
 
 /* Keyboard focus ring (accessible) */

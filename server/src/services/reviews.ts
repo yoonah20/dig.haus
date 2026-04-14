@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
+import axios from 'axios';
 
-interface ReviewResult {
+export interface ReviewResult {
   sourceName: string;
   score: number | null;
   scoreMax: number;
@@ -235,5 +236,125 @@ Max 15 reviews. Deduplicate by source.` }],
   } catch (error) {
     console.error('[reviews] Error:', error);
     return { reviews: [], koreanSummary: null, artistKo: null, titleKo: null, titleMeaning: null };
+  }
+}
+
+// ─── Admin: scrape a single review from an arbitrary URL ─────────────────
+
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export async function scrapeReviewFromUrl(
+  url: string,
+  artist: string,
+  album: string
+): Promise<ReviewResult | null> {
+  console.log(`[reviews] scrapeReviewFromUrl: ${url}`);
+
+  let html = '';
+  try {
+    const resp = await axios.get(url, {
+      timeout: 15000,
+      maxContentLength: 4_000_000,
+      responseType: 'text',
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml',
+      },
+    });
+    html = typeof resp.data === 'string' ? resp.data : String(resp.data);
+  } catch (err) {
+    console.error('[reviews] URL fetch failed:', (err as Error).message);
+    return null;
+  }
+
+  const pageText = stripHtml(html).slice(0, 20000);
+  if (pageText.length < 100) {
+    console.warn('[reviews] stripped page text too short');
+    return null;
+  }
+
+  let hostname = '';
+  try {
+    hostname = new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    // ignore
+  }
+
+  try {
+    const client = getClient();
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2000,
+      messages: [
+        {
+          role: 'user',
+          content: `Extract a single album review's info from this page about "${album}" by ${artist}.
+
+URL: ${url}
+PAGE TEXT (HTML stripped):
+---
+${pageText}
+---
+
+Return ONLY JSON, no prose:
+{
+  "sourceName": "Publication name (e.g. Pitchfork, Angry Metal Guy). Derive from the page or the domain '${hostname}' if unclear.",
+  "score": 85,
+  "scoreMax": 100,
+  "excerpt": "One or two sentences quoted or paraphrased from the review body, English.",
+  "excerptKo": "2-3 문장 한국어 요약. 매체명 언급 금지, 평론가 시점."
+}
+
+Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). If no explicit score, set null.
+Excerpt: pick the most evaluative sentence(s) from the review body; skip headlines/bylines/ads.
+If this page is clearly NOT a review (shop listing, forum post, directory), return {"error":"not a review"} instead.`,
+        },
+      ],
+    });
+
+    const block = response.content.find((b) => b.type === 'text');
+    if (!block || block.type !== 'text') return null;
+
+    let jsonText = block.text.trim();
+    const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) jsonText = fenceMatch[1].trim();
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (parsed.error) {
+      console.warn('[reviews] Claude flagged URL as not a review:', parsed.error);
+      return null;
+    }
+
+    return {
+      sourceName:
+        (typeof parsed.sourceName === 'string' && parsed.sourceName.trim()) ||
+        hostname ||
+        'Unknown',
+      score: typeof parsed.score === 'number' ? parsed.score : null,
+      scoreMax: typeof parsed.scoreMax === 'number' ? parsed.scoreMax : 100,
+      excerpt: typeof parsed.excerpt === 'string' ? parsed.excerpt : '',
+      excerptKo: typeof parsed.excerptKo === 'string' ? parsed.excerptKo : '',
+      fullReviewUrl: url,
+    };
+  } catch (err) {
+    console.error('[reviews] Claude extract failed:', (err as Error).message);
+    return null;
   }
 }

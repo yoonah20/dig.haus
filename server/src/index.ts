@@ -21,6 +21,7 @@ import authRouter from './routes/auth.js';
 import votesRouter from './routes/votes.js';
 import purchaseLinksRouter from './routes/purchaseLinks.js';
 import adminRouter from './routes/admin.js';
+import reviewsRouter from './routes/reviews.js';
 
 let server: Server;
 
@@ -78,6 +79,7 @@ async function start() {
   app.use('/api/albums', albumsRouter);
   app.use('/api/labels', labelsRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/reviews', reviewsRouter);
 
   startRankScheduler();
   warmExchangeRates();
