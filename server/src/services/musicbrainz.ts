@@ -6,7 +6,7 @@ const MB_TTL = 60 * 1000; // 1 minute coalescing window
 
 const MB_BASE = 'https://musicbrainz.org/ws/2';
 const headers = {
-  'User-Agent': 'Diggershaus/1.0 (contact@diggershaus.com)',
+  'User-Agent': 'dig.haus/1.0 (contact@dig.haus)',
   'Accept': 'application/json',
 };
 const httpsAgent = new https.Agent({ family: 4 });

@@ -10,7 +10,7 @@ const httpsAgent = new https.Agent({ family: 4 });
 function getHeaders(): Record<string, string> {
   const token = process.env.DISCOGS_TOKEN || '';
   const headers: Record<string, string> = {
-    'User-Agent': 'Diggershaus/1.0',
+    'User-Agent': 'dig.haus/1.0',
   };
   // Only include Authorization if the token looks like a valid personal access token
   if (token && token.length > 20) {

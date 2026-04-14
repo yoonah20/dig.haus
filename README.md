@@ -44,8 +44,8 @@ nvm use 20
 
 ```bash
 cd ~/
-git clone <repo-url> diggershaus
-cd diggershaus
+git clone <repo-url> dig.haus
+cd dig.haus
 
 # Install server dependencies
 cd server && npm install && cd ..
@@ -100,7 +100,7 @@ Open http://localhost:3000
 ## 프로젝트 구조 (Project Structure)
 
 ```
-diggershaus/
+dig.haus/
 ├── .env.example
 ├── .gitignore
 ├── client/

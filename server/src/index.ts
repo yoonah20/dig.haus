@@ -85,7 +85,7 @@ async function start() {
   warmExchangeRates();
 
   server = app.listen(PORT, () => {
-    console.log(`Diggershaus server running on port ${PORT}`);
+    console.log(`dig.haus server running on port ${PORT}`);
   });
 }
 
