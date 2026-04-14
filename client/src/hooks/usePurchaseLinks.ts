@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import axios from '../lib/axios';
 import type { PurchaseLink } from '../types';
 
 export function usePurchaseLinks(albumId: string, enabled = true) {

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import axios from '../../lib/axios';
 import type { Review } from '../../types';
 import { getScoreColor as scoreColor, getScoreBgColor as scoreBgColor } from '../../utils/score';
 import { useAuth } from '../../contexts/AuthContext';

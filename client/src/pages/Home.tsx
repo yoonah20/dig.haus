@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import axios from 'axios';
+import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import type { AlbumSearchResult } from '../types';

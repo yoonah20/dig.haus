@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import axios from 'axios';
+import axios from '../../lib/axios';
 import type { AlbumDetail, StreamingLinks, BuyInfo } from '../../types';
 import CoverArt from '../CoverArt';
 import { openSpotifyAlbum } from '../../utils/spotify';

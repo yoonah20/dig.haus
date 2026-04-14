@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import axios from 'axios';
+import axios from '../lib/axios';
 import type { SearchResults } from '../types';
 
 // DB-only search over registered albums. Used by the homepage SearchBar.

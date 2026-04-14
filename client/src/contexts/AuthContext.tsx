@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
-import axios from 'axios';
+import axios from '../lib/axios';
 import type { AuthUser } from '../types';
 
 axios.defaults.withCredentials = true;
