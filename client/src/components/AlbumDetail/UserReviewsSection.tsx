@@ -282,14 +282,6 @@ export default function UserReviewsSection({ albumId }: { albumId: string }) {
           50자 평 남기기
         </button>
       )}
-      {user && !editing && myReview && (
-        <button
-          onClick={() => setEditing(true)}
-          className="text-xs md:text-sm text-gray-400 hover:text-[#e8a020] cursor-pointer"
-        >
-          내 평 수정
-        </button>
-      )}
     </div>
   );
 
