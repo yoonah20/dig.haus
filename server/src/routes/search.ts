@@ -117,8 +117,12 @@ router.get('/', async (req, res) => {
     // MusicBrainz first, then splits, then Discogs
     addUnique(mbAlbums);
     addUnique(splitResults);
+    // searchDiscogsAlbums queries type=master, so d.discogsId is a MASTER id.
+    // Prefix accordingly so the resolver doesn't treat it as a release id —
+    // otherwise we'd call /releases/{masterId} and happily return a totally
+    // unrelated release that happens to share that numeric id.
     addUnique(discogsAlbums.map((d) => ({
-      mbid: `discogs-${d.discogsId}`,
+      mbid: `discogs-master-${d.discogsId}`,
       title: d.title,
       artist: d.artist,
       year: d.year,

@@ -25,6 +25,24 @@ function cleanArtistName(name: string): string {
 }
 
 /**
+ * Resolve a Discogs master ID to its canonical main_release ID.
+ * Returns null if the master is broken or has no main_release set.
+ */
+export async function getDiscogsMasterMainRelease(masterId: number): Promise<number | null> {
+  try {
+    const res = await axios.get(`${DISCOGS_BASE}/masters/${masterId}`, {
+      headers: getHeaders(),
+      httpsAgent,
+    });
+    const mainRelease = res.data?.main_release;
+    return typeof mainRelease === 'number' && mainRelease > 0 ? mainRelease : null;
+  } catch (err) {
+    console.warn(`[discogs] getDiscogsMasterMainRelease failed for master=${masterId}:`, (err as Error).message);
+    return null;
+  }
+}
+
+/**
  * Fetch full release details from Discogs by release ID.
  */
 export async function getDiscogsReleaseDetail(discogsId: number): Promise<{

@@ -18,7 +18,7 @@ import { getRelease, getLabelByName, getArtistReleases, searchAlbums } from '../
 import { searchTrack } from '../services/spotify.js';
 import { searchVideo } from '../services/youtube.js';
 import { searchBandcamp } from '../services/bandcamp.js';
-import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases } from '../services/discogs.js';
+import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases, getDiscogsMasterMainRelease } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
 import { searchReviews, scrapeReviewFromUrl } from '../services/reviews.js';
 import { generateSimilarDescriptions, generatePronunciation, getClient as getAnthropicClient } from '../services/claude.js';
@@ -205,8 +205,25 @@ async function getOrFetchAlbumBase(mbid: string) {
   let discogsArtistId: number | null = null;
 
   if (isDiscogs) {
-    const discogsId = parseInt(mbid.replace('discogs-', ''), 10);
-    const detail = await getDiscogsReleaseDetail(discogsId);
+    // Two shapes accepted:
+    //   discogs-master-{id}  → a MASTER id (from search / discography lookups)
+    //   discogs-{id}         → a RELEASE id (legacy)
+    // Master ids need one extra hop to resolve to main_release before we can
+    // pull the release detail; otherwise we'd fetch /releases/{masterId} which
+    // is a completely different release with the same numeric id.
+    const raw = mbid.replace(/^discogs-/, '');
+    let releaseId: number;
+    if (raw.startsWith('master-')) {
+      const masterId = parseInt(raw.replace('master-', ''), 10);
+      if (!Number.isFinite(masterId) || !masterId) return null;
+      const mainRelease = await getDiscogsMasterMainRelease(masterId);
+      if (!mainRelease) return null;
+      releaseId = mainRelease;
+    } else {
+      releaseId = parseInt(raw, 10);
+      if (!Number.isFinite(releaseId) || !releaseId) return null;
+    }
+    const detail = await getDiscogsReleaseDetail(releaseId);
     if (!detail) return null;
 
     artistName = detail.artist;
