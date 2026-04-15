@@ -7,8 +7,8 @@ import { getScoreColor } from '../utils/score';
 
 type VinylPhase = 'idle' | 'eject' | 'fly';
 
-const EJECT_MS = 500;
-const FLY_MS = 250;
+const EJECT_MS = 1000;
+const FLY_MS = 500;
 
 // Cross-card active state for touch devices: only one card can show its overlay at a time.
 let activeCardId: string | null = null;
@@ -85,8 +85,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
 
   const HOVER_SHADOW =
     '0 20px 40px rgba(0,0,0,0.6), 0 0 0 2px rgba(232,160,32,0.55)';
-  const baseHoverTransform = (rotateX = 4, rotateY = 0) =>
-    `perspective(800px) scale(1.06) translateY(-6px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+  const HOVER_TRANSFORM = 'scale(1.09) translateY(-8px)';
 
   const resetCardTransform = useCallback(() => {
     const el = cardRef.current;
@@ -99,20 +98,8 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     if (phaseRef.current !== 'idle' || isHoverNoneRef.current) return;
     const el = cardRef.current;
     if (!el) return;
-    el.style.transform = baseHoverTransform();
+    el.style.transform = HOVER_TRANSFORM;
     el.style.boxShadow = HOVER_SHADOW;
-  }, []);
-
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (phaseRef.current !== 'idle' || isHoverNoneRef.current) return;
-    const el = cardRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const nx = (e.clientX - rect.left) / rect.width - 0.5; // -0.5 ~ 0.5
-    const ny = (e.clientY - rect.top) / rect.height - 0.5;
-    const rotateY = +(nx * 20).toFixed(2); // -10 ~ 10
-    const rotateX = +(4 - ny * 20).toFixed(2); // baseline 4°, modulate ±10
-    el.style.transform = baseHoverTransform(rotateX, rotateY);
   }, []);
 
   const handleMouseLeave = useCallback(() => {
@@ -256,7 +243,6 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
         className="relative aspect-square album-card-3d rounded-xl"
         ref={cardRef}
         onMouseEnter={handleMouseEnter}
-        onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >
         {/* Vinyl — absolute sibling, behind the cover by default */}
@@ -266,7 +252,9 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
           style={vinylStyle}
           aria-hidden
         >
-          <VinylSvg />
+          <div className="vinyl-spinner">
+            <VinylSvg />
+          </div>
         </div>
 
         {/* Cover — always visible; price tags live here so hover overlay darkens them too */}
