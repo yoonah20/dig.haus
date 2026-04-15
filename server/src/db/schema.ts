@@ -302,6 +302,20 @@ export function initializeDatabase(db: Database.Database): void {
   `);
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS user_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(album_id, user_id)
+    )
+  `);
+
+  db.exec('CREATE INDEX IF NOT EXISTS idx_user_reviews_album_id ON user_reviews(album_id)');
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS album_dna (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       from_album_id INTEGER REFERENCES albums(id),

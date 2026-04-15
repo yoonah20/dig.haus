@@ -5,6 +5,7 @@ import { useInView } from '../hooks/useInView';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import HeaderSection from '../components/AlbumDetail/HeaderSection';
 import BuySection from '../components/AlbumDetail/BuySection';
+import UserReviewsSection from '../components/AlbumDetail/UserReviewsSection';
 import ReviewSection from '../components/AlbumDetail/ReviewSection';
 import Discography from '../components/AlbumDetail/Discography';
 import SimilarAlbums from '../components/AlbumDetail/SimilarAlbums';
@@ -138,6 +139,7 @@ export default function Album() {
         {/* Stage 1: instant */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
         <BuySection buy={base.buy} albumId={albumId} />
+        <UserReviewsSection albumId={albumId} />
 
         {/* Stage 2: reviews (slow) */}
         {reviewsLoading ? (
