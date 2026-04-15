@@ -40,8 +40,8 @@ function normalizeEmoji(raw: unknown): string | null {
   return trimmed;
 }
 
-function normalizeRating(raw: unknown): 'up' | 'down' | null {
-  if (raw === 'up' || raw === 'down') return raw;
+function normalizeRating(raw: unknown): 'up' | 'down' | 'soso' | null {
+  if (raw === 'up' || raw === 'down' || raw === 'soso') return raw;
   return null;
 }
 
@@ -49,7 +49,7 @@ interface Row {
   id: number;
   body: string;
   emoji: string | null;
-  rating: 'up' | 'down' | null;
+  rating: 'up' | 'down' | 'soso' | null;
   created_at: string;
   user_id: number;
   user_name: string | null;
@@ -106,7 +106,7 @@ router.post('/albums/:id/user-reviews', requireAuth, (req, res) => {
   const emoji = normalizeEmoji((req.body ?? {}).emoji);
   const rating = normalizeRating((req.body ?? {}).rating);
   if (!rating) {
-    return res.status(400).json({ error: '이 앨범에 대해 굿굿/별루를 선택해주세요.' });
+    return res.status(400).json({ error: '이 앨범에 대해 굿굿/쏘쏘/별루를 선택해주세요.' });
   }
 
   try {
@@ -121,20 +121,31 @@ router.post('/albums/:id/user-reviews', requireAuth, (req, res) => {
       [albumPk, user.id, body, emoji, rating]
     );
 
-    // Keep album_votes in sync — the thumbs-up/down chosen on the review IS
-    // the user's 굿굿/별루 vote on the album.
-    const existingVote = queryGet(
-      `SELECT id, vote FROM album_votes WHERE user_id = ? AND album_id = ?`,
-      [user.id, albumPk]
-    ) as { id: number; vote: 'up' | 'down' } | null;
-    if (existingVote) {
-      if (existingVote.vote !== rating) {
-        execute(`UPDATE album_votes SET vote = ? WHERE id = ?`, [rating, existingVote.id]);
+    // Keep album_votes in sync with the review's rating:
+    //   up   → upvote row
+    //   down → downvote row
+    //   soso → no row (doesn't count toward up/down tallies)
+    if (rating === 'up' || rating === 'down') {
+      const existingVote = queryGet(
+        `SELECT id, vote FROM album_votes WHERE user_id = ? AND album_id = ?`,
+        [user.id, albumPk]
+      ) as { id: number; vote: 'up' | 'down' } | null;
+      if (existingVote) {
+        if (existingVote.vote !== rating) {
+          execute(`UPDATE album_votes SET vote = ? WHERE id = ?`, [rating, existingVote.id]);
+        }
+      } else {
+        execute(
+          `INSERT INTO album_votes (user_id, album_id, vote) VALUES (?, ?, ?)`,
+          [user.id, albumPk, rating]
+        );
       }
     } else {
+      // 'soso' — explicitly remove the user's up/down vote so it does not
+      // influence the album's tallies.
       execute(
-        `INSERT INTO album_votes (user_id, album_id, vote) VALUES (?, ?, ?)`,
-        [user.id, albumPk, rating]
+        `DELETE FROM album_votes WHERE user_id = ? AND album_id = ?`,
+        [user.id, albumPk]
       );
     }
 

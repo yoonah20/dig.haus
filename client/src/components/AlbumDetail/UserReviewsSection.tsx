@@ -49,6 +49,13 @@ function Avatar({ src, name, size = 52 }: { src: string | null; name: string | n
   );
 }
 
+const RATING_META: Record<'up' | 'down' | 'soso', { emoji: string; label: string }> = {
+  up: { emoji: '👍', label: '굿굿' },
+  down: { emoji: '👎', label: '별루' },
+  soso: { emoji: '🤷', label: '쏘쏘' },
+};
+const RATING_ORDER: Array<'up' | 'soso' | 'down'> = ['up', 'soso', 'down'];
+
 function SpeechBubble({
   review,
   canAdminDelete,
@@ -62,8 +69,8 @@ function SpeechBubble({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const isUp = review.rating === 'up';
-  const hasRating = review.rating === 'up' || review.rating === 'down';
+  const ratingMeta = review.rating ? RATING_META[review.rating] : null;
+  const hasRating = !!ratingMeta;
   return (
     <div className="flex items-start gap-3">
       <div className="flex flex-col items-center gap-1 pt-1 shrink-0 w-[108px]">
@@ -82,15 +89,13 @@ function SpeechBubble({
               on the left, emoji on the right. */}
           {(hasRating || review.emoji) && (
             <div className="absolute -top-3 -right-2 flex items-center gap-1.5 pointer-events-none select-none">
-              {hasRating && (
+              {hasRating && ratingMeta && (
                 <span
-                  className={`text-xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)] ${
-                    isUp ? '' : 'opacity-90'
-                  }`}
-                  title={isUp ? '굿굿' : '별루'}
-                  aria-label={isUp ? '굿굿' : '별루'}
+                  className="text-xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
+                  title={ratingMeta.label}
+                  aria-label={ratingMeta.label}
                 >
-                  {isUp ? '👍' : '👎'}
+                  {ratingMeta.emoji}
                 </span>
               )}
               {review.emoji && (
@@ -150,12 +155,12 @@ function Editor({
 }: {
   initialBody: string;
   initialEmoji: string | null;
-  initialRating: 'up' | 'down' | null;
+  initialRating: 'up' | 'down' | 'soso' | null;
   saving: boolean;
   onCancel: () => void;
-  onSave: (body: string, emoji: string | null, rating: 'up' | 'down') => void;
+  onSave: (body: string, emoji: string | null, rating: 'up' | 'down' | 'soso') => void;
 }) {
-  const [rating, setRating] = useState<'up' | 'down' | null>(initialRating);
+  const [rating, setRating] = useState<'up' | 'down' | 'soso' | null>(initialRating);
   const [body, setBody] = useState(initialBody);
   const [emoji, setEmoji] = useState<string | null>(initialEmoji);
   const [step, setStep] = useState<EditorStep>('rating');
@@ -164,7 +169,7 @@ function Editor({
   const over = count > MAX_CHARS;
   const tooShort = count < MIN_CHARS;
 
-  const selectRating = (r: 'up' | 'down') => {
+  const selectRating = (r: 'up' | 'down' | 'soso') => {
     if (saving) return;
     setRating(r);
     setStep('text');
@@ -199,8 +204,8 @@ function Editor({
       }`}
       title="수정하려면 클릭"
     >
-      <span aria-hidden>{rating === 'up' ? '👍' : '👎'}</span>
-      <span>{rating === 'up' ? '굿굿' : '별루'}</span>
+      <span aria-hidden>{RATING_META[rating].emoji}</span>
+      <span>{RATING_META[rating].label}</span>
     </button>
   );
 
@@ -257,13 +262,19 @@ function Editor({
       <div key={step} className="animate-[fadeInUp_200ms_ease-out] space-y-2.5">
         {step === 'rating' && (
           <>
-            <div className="font-serif italic text-xl md:text-2xl text-gray-100 leading-snug">
+            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
               “이 앨범 어땠어요?”
             </div>
-            <div className="flex justify-center gap-3 pt-1">
-              {(['up', 'down'] as const).map((r) => {
-                const isUp = r === 'up';
+            <div className="flex justify-center gap-2 pt-1">
+              {RATING_ORDER.map((r) => {
                 const selected = rating === r;
+                const selectedStyle =
+                  r === 'up'
+                    ? 'bg-[#e8a020]/20 border-[#e8a020]/60 text-[#e8a020]'
+                    : r === 'down'
+                      ? 'bg-white/10 border-white/30 text-white'
+                      : 'bg-white/10 border-white/25 text-gray-100';
+                const { emoji, label } = RATING_META[r];
                 return (
                   <button
                     key={r}
@@ -271,18 +282,17 @@ function Editor({
                     onClick={() => selectRating(r)}
                     disabled={saving}
                     aria-pressed={selected}
-                    className={`aspect-square w-28 md:w-32 flex flex-col items-center justify-center gap-1.5 rounded-2xl text-sm font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    aria-label={label}
+                    className={`aspect-square w-20 md:w-24 flex flex-col items-center justify-center gap-1 rounded-2xl text-xs md:text-sm font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border ${
                       selected
-                        ? isUp
-                          ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 text-[#e8a020]'
-                          : 'bg-white/10 border border-white/30 text-white'
-                        : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
+                        ? selectedStyle
+                        : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
                     }`}
                   >
-                    <span className="text-5xl md:text-6xl leading-none" aria-hidden>
-                      {isUp ? '👍' : '👎'}
+                    <span className="text-4xl md:text-5xl leading-none" aria-hidden>
+                      {emoji}
                     </span>
-                    <span>{isUp ? '굿굿' : '별루'}</span>
+                    <span>{label}</span>
                   </button>
                 );
               })}
@@ -293,8 +303,8 @@ function Editor({
 
         {step === 'text' && (
           <>
-            <div className="font-serif italic text-xl md:text-2xl text-gray-100 leading-snug">
-              “한 줄로 들려주세요~”
+            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
+              “이 앨범에 대해 하고 싶은 말?”
             </div>
             <textarea
               autoFocus
@@ -354,13 +364,8 @@ function Editor({
 
         {step === 'emoji' && (
           <>
-            <div className="flex items-baseline justify-between gap-2">
-              <div className="font-serif italic text-xl md:text-2xl text-gray-100 leading-snug">
-                “마지막으로, 들었을 때 기분!”
-              </div>
-              {saving && (
-                <div className="text-[11px] text-gray-500 shrink-0">등록 중…</div>
-              )}
+            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
+              “마지막으로, 들었을 때 기분!”
             </div>
             <div className="flex flex-wrap justify-center gap-2 py-1">
               {EMOJI_PALETTE.map((e) => {
@@ -385,6 +390,7 @@ function Editor({
               })}
             </div>
             <div className="flex items-center justify-end gap-1 text-[11px]">
+              {saving && <span className="text-gray-500 mr-auto">등록 중…</span>}
               {cancelButton}
               <button
                 onClick={goBack}
@@ -436,7 +442,7 @@ export default function UserReviewsSection({
     return () => clearInterval(t);
   }, [reviews.length, paused, editing]);
 
-  const handleSave = async (body: string, emoji: string | null, rating: 'up' | 'down') => {
+  const handleSave = async (body: string, emoji: string | null, rating: 'up' | 'down' | 'soso') => {
     if (!body) return;
     try {
       await upsert.mutateAsync({ body, emoji, rating });

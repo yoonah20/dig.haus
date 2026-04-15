@@ -5,7 +5,7 @@ export interface UserReview {
   id: number;
   body: string;
   emoji: string | null;
-  rating: 'up' | 'down' | null;
+  rating: 'up' | 'down' | 'soso' | null;
   userId: number;
   userName: string | null;
   userAvatar: string | null;
@@ -26,7 +26,7 @@ export function useUserReviews(albumId: string, enabled = true) {
 export function useUpsertUserReview(albumId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { body: string; emoji: string | null; rating: 'up' | 'down' }) => {
+    mutationFn: async (payload: { body: string; emoji: string | null; rating: 'up' | 'down' | 'soso' }) => {
       const { data } = await axios.post(`/api/albums/${albumId}/user-reviews`, payload);
       return data.userReview as UserReview;
     },

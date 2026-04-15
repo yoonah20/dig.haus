@@ -31,7 +31,7 @@ interface AdminStats {
     id: number;
     body: string;
     emoji: string | null;
-    rating: 'up' | 'down' | null;
+    rating: 'up' | 'down' | 'soso' | null;
     createdAt: string;
     updatedAt: string;
     albumSlug: string | null;
@@ -167,8 +167,14 @@ export default function Admin() {
                 <div className="p-6 text-sm text-gray-500">없음</div>
               )}
               {data.recentReviews.map((r) => {
-                const isUp = r.rating === 'up';
-                const isDown = r.rating === 'down';
+                const ratingMeta =
+                  r.rating === 'up'
+                    ? { emoji: '👍', label: '굿굿', accent: true }
+                    : r.rating === 'down'
+                      ? { emoji: '👎', label: '별루', accent: false }
+                      : r.rating === 'soso'
+                        ? { emoji: '🤷', label: '쏘쏘', accent: false }
+                        : null;
                 return (
                   <div key={r.id} className="flex items-start gap-4 p-4">
                     {r.userAvatar ? (
@@ -189,16 +195,16 @@ export default function Admin() {
                         <span className="text-white text-sm font-medium truncate">
                           {r.userName || r.userEmail || '익명'}
                         </span>
-                        {r.rating && (
+                        {ratingMeta && (
                           <span
                             className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border ${
-                              isUp
+                              ratingMeta.accent
                                 ? 'bg-[#e8a020]/15 text-[#e8a020] border-[#e8a020]/30'
                                 : 'bg-white/5 text-gray-300 border-white/10'
                             }`}
                           >
-                            <span aria-hidden>{isUp ? '👍' : '👎'}</span>
-                            <span>{isUp ? '굿굿' : isDown ? '별루' : ''}</span>
+                            <span aria-hidden>{ratingMeta.emoji}</span>
+                            <span>{ratingMeta.label}</span>
                           </span>
                         )}
                         <span className="text-gray-500 text-xs">
