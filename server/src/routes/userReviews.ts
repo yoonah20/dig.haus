@@ -39,10 +39,16 @@ function normalizeEmoji(raw: unknown): string | null {
   return trimmed;
 }
 
+function normalizeRating(raw: unknown): 'up' | 'down' | null {
+  if (raw === 'up' || raw === 'down') return raw;
+  return null;
+}
+
 interface Row {
   id: number;
   body: string;
   emoji: string | null;
+  rating: 'up' | 'down' | null;
   created_at: string;
   user_id: number;
   user_name: string | null;
@@ -54,6 +60,7 @@ function serialize(row: Row) {
     id: row.id,
     body: row.body,
     emoji: row.emoji,
+    rating: row.rating,
     userId: row.user_id,
     userName: row.user_name,
     userAvatar: row.user_avatar,
@@ -66,7 +73,7 @@ router.get('/albums/:id/user-reviews', (req, res) => {
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
 
   const rows = queryAll(
-    `SELECT ur.id, ur.body, ur.emoji, ur.created_at, ur.user_id,
+    `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
             u.name AS user_name, u.avatar_url AS user_avatar
      FROM user_reviews ur
      LEFT JOIN users u ON u.id = ur.user_id
@@ -90,20 +97,42 @@ router.post('/albums/:id/user-reviews', requireAuth, (req, res) => {
     return res.status(400).json({ error: '공백을 제외하고 50자 이하로 작성해주세요.' });
   }
   const emoji = normalizeEmoji((req.body ?? {}).emoji);
+  const rating = normalizeRating((req.body ?? {}).rating);
+  if (!rating) {
+    return res.status(400).json({ error: '이 앨범에 대해 굿굿/별루를 선택해주세요.' });
+  }
 
   try {
     execute(
-      `INSERT INTO user_reviews (album_id, user_id, body, emoji)
-       VALUES (?, ?, ?, ?)
+      `INSERT INTO user_reviews (album_id, user_id, body, emoji, rating)
+       VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(album_id, user_id) DO UPDATE SET
          body = excluded.body,
          emoji = excluded.emoji,
+         rating = excluded.rating,
          updated_at = datetime('now')`,
-      [albumPk, user.id, body, emoji]
+      [albumPk, user.id, body, emoji, rating]
     );
 
+    // Keep album_votes in sync — the thumbs-up/down chosen on the review IS
+    // the user's 굿굿/별루 vote on the album.
+    const existingVote = queryGet(
+      `SELECT id, vote FROM album_votes WHERE user_id = ? AND album_id = ?`,
+      [user.id, albumPk]
+    ) as { id: number; vote: 'up' | 'down' } | null;
+    if (existingVote) {
+      if (existingVote.vote !== rating) {
+        execute(`UPDATE album_votes SET vote = ? WHERE id = ?`, [rating, existingVote.id]);
+      }
+    } else {
+      execute(
+        `INSERT INTO album_votes (user_id, album_id, vote) VALUES (?, ?, ?)`,
+        [user.id, albumPk, rating]
+      );
+    }
+
     const row = queryGet(
-      `SELECT ur.id, ur.body, ur.emoji, ur.created_at, ur.user_id,
+      `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
               u.name AS user_name, u.avatar_url AS user_avatar
        FROM user_reviews ur
        LEFT JOIN users u ON u.id = ur.user_id

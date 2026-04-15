@@ -310,12 +310,14 @@ export function initializeDatabase(db: Database.Database): void {
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       emoji TEXT,
+      rating TEXT,
       UNIQUE(album_id, user_id)
     )
   `);
 
   db.exec('CREATE INDEX IF NOT EXISTS idx_user_reviews_album_id ON user_reviews(album_id)');
-  migrateTable(db, 'user_reviews', ['emoji TEXT']);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_user_reviews_created_at ON user_reviews(created_at DESC)');
+  migrateTable(db, 'user_reviews', ['emoji TEXT', 'rating TEXT']);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS album_dna (

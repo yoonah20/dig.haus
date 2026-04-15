@@ -45,6 +45,33 @@ router.get('/stats', (_req, res) => {
     createdAt: u.created_at,
   }));
 
+  const recentReviews = queryAll(
+    `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.updated_at,
+            a.slug AS album_slug, a.mbid AS album_mbid,
+            a.title AS album_title, a.artist_name AS album_artist,
+            u.id AS user_id, u.name AS user_name, u.email AS user_email,
+            u.avatar_url AS user_avatar
+     FROM user_reviews ur
+     LEFT JOIN albums a ON a.id = ur.album_id
+     LEFT JOIN users u ON u.id = ur.user_id
+     ORDER BY ur.updated_at DESC, ur.id DESC
+     LIMIT 30`
+  ).map((r: any) => ({
+    id: r.id,
+    body: r.body,
+    emoji: r.emoji,
+    rating: r.rating,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    albumSlug: r.album_slug || r.album_mbid,
+    albumTitle: r.album_title,
+    albumArtist: r.album_artist,
+    userId: r.user_id,
+    userName: r.user_name,
+    userEmail: r.user_email,
+    userAvatar: r.user_avatar,
+  }));
+
   res.json({
     totalAlbums,
     albumsToday,
@@ -55,6 +82,7 @@ router.get('/stats', (_req, res) => {
     },
     recentAlbums,
     recentUsers,
+    recentReviews,
   });
 });
 

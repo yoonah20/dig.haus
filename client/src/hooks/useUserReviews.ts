@@ -5,6 +5,7 @@ export interface UserReview {
   id: number;
   body: string;
   emoji: string | null;
+  rating: 'up' | 'down' | null;
   userId: number;
   userName: string | null;
   userAvatar: string | null;
@@ -25,12 +26,14 @@ export function useUserReviews(albumId: string, enabled = true) {
 export function useUpsertUserReview(albumId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: { body: string; emoji: string | null }) => {
+    mutationFn: async (payload: { body: string; emoji: string | null; rating: 'up' | 'down' }) => {
       const { data } = await axios.post(`/api/albums/${albumId}/user-reviews`, payload);
       return data.userReview as UserReview;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['user-reviews', albumId] });
+      // Review's thumbs selection also updates the album's 굿굿/별루 vote counts.
+      qc.invalidateQueries({ queryKey: ['album', albumId] });
     },
   });
 }

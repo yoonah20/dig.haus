@@ -27,6 +27,21 @@ interface AdminStats {
     isAdmin: boolean;
     createdAt: string;
   }>;
+  recentReviews: Array<{
+    id: number;
+    body: string;
+    emoji: string | null;
+    rating: 'up' | 'down' | null;
+    createdAt: string;
+    updatedAt: string;
+    albumSlug: string | null;
+    albumTitle: string | null;
+    albumArtist: string | null;
+    userId: number | null;
+    userName: string | null;
+    userEmail: string | null;
+    userAvatar: string | null;
+  }>;
 }
 
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
@@ -135,6 +150,82 @@ export default function Admin() {
                   </button>
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section className="mb-10">
+            <h2 className="text-xl font-semibold text-white mb-4">
+              최근 50자 평
+              {data.recentReviews.length > 0 && (
+                <span className="ml-2 text-sm text-gray-500 font-normal">
+                  {data.recentReviews.length}
+                </span>
+              )}
+            </h2>
+            <div className="bg-[#1a1a1a] rounded-xl divide-y divide-white/5">
+              {data.recentReviews.length === 0 && (
+                <div className="p-6 text-sm text-gray-500">없음</div>
+              )}
+              {data.recentReviews.map((r) => {
+                const isUp = r.rating === 'up';
+                const isDown = r.rating === 'down';
+                return (
+                  <div key={r.id} className="flex items-start gap-4 p-4">
+                    {r.userAvatar ? (
+                      <img
+                        src={r.userAvatar}
+                        alt=""
+                        aria-hidden
+                        className="w-10 h-10 rounded-full flex-shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-sm font-bold flex-shrink-0">
+                        {(r.userName || r.userEmail || '?')[0]?.toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-white text-sm font-medium truncate">
+                          {r.userName || r.userEmail || '익명'}
+                        </span>
+                        {r.rating && (
+                          <span
+                            className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border ${
+                              isUp
+                                ? 'bg-[#e8a020]/15 text-[#e8a020] border-[#e8a020]/30'
+                                : 'bg-white/5 text-gray-300 border-white/10'
+                            }`}
+                          >
+                            <span aria-hidden>{isUp ? '👍' : '👎'}</span>
+                            <span>{isUp ? '굿굿' : isDown ? '별루' : ''}</span>
+                          </span>
+                        )}
+                        <span className="text-gray-500 text-xs">
+                          {new Date(r.updatedAt).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="text-gray-100 text-sm leading-relaxed break-words">
+                        {r.emoji && (
+                          <span className="mr-1.5" aria-hidden>
+                            {r.emoji}
+                          </span>
+                        )}
+                        {r.body}
+                      </div>
+                      {r.albumSlug && (
+                        <Link
+                          to={`/album/${r.albumSlug}`}
+                          className="mt-1 inline-block text-xs text-gray-500 hover:text-[#e8a020] truncate"
+                        >
+                          {r.albumArtist ? `${r.albumArtist} — ` : ''}
+                          {r.albumTitle || r.albumSlug}
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
 
