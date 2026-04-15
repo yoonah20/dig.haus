@@ -144,6 +144,14 @@ export default function Home() {
 
   function handleSortChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const v = e.target.value as SortValue;
+    // Clear storage synchronously — otherwise the sort memo falls back to the
+    // stale stored value after we strip the URL param for DEFAULT_SORT.
+    try {
+      if (v === DEFAULT_SORT) localStorage.removeItem(SORT_STORAGE_KEY);
+      else localStorage.setItem(SORT_STORAGE_KEY, v);
+    } catch {
+      // ignore storage errors
+    }
     updateParams({
       sort: v === DEFAULT_SORT ? null : v,
       page: null,
