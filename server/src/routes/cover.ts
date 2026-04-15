@@ -2,6 +2,8 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import https from 'https';
+import http from 'http';
 import axios from 'axios';
 import sharp from 'sharp';
 
@@ -14,6 +16,13 @@ const TARGET_SIZE = 600;
 const CACHE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_UPSTREAM_BYTES = 12 * 1024 * 1024;
+
+// Force IPv4 — upstreams (coverartarchive.org → archive.org) advertise AAAA
+// records whose routes time out on some hosts (e.g. WSL2), while IPv4 works.
+// Node's happy-eyeballs still stalls for several seconds per request, so we
+// pin the agent to v4.
+const httpsAgent = new https.Agent({ family: 4, keepAlive: true });
+const httpAgent = new http.Agent({ family: 4, keepAlive: true });
 
 const ALLOWED_HOSTS = new Set([
   'coverartarchive.org',
@@ -34,7 +43,17 @@ function isAllowedHost(hostname: string): boolean {
 
 const inflight = new Map<string, Promise<Buffer>>();
 
-async function fetchAndResize(src: string): Promise<Buffer> {
+// Cover Art Archive exposes several fixed-size variants. Our cached cover
+// is downscaled to 600px, so fetch a source that's at least that large.
+function upgradeUpstreamUrl(src: string): string {
+  if (src.includes('coverartarchive.org/')) {
+    return src.replace(/\/front-(250|500)(\?|$)/, '/front-1200$2');
+  }
+  return src;
+}
+
+async function fetchAndResize(srcRaw: string): Promise<Buffer> {
+  const src = upgradeUpstreamUrl(srcRaw);
   const response = await axios.get<ArrayBuffer>(src, {
     responseType: 'arraybuffer',
     timeout: FETCH_TIMEOUT_MS,
@@ -42,6 +61,8 @@ async function fetchAndResize(src: string): Promise<Buffer> {
     maxContentLength: MAX_UPSTREAM_BYTES,
     headers: { 'User-Agent': 'dig.haus-cover-proxy/1.0' },
     validateStatus: (s) => s >= 200 && s < 300,
+    httpsAgent,
+    httpAgent,
   });
   const input = Buffer.from(response.data);
   return await sharp(input)
