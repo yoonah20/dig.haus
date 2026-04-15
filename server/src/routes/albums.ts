@@ -391,7 +391,11 @@ const ALBUM_ROW_SELECT = `
                        WHEN COALESCE(r.manual_score, r.score) IS NOT NULL AND r.score_max > 0
                        THEN (COALESCE(r.manual_score, r.score) * 1.0 / r.score_max) * 100
                      END)
-          FROM reviews r WHERE r.album_mbid = a.mbid) AS avg_score
+          FROM reviews r WHERE r.album_mbid = a.mbid) AS avg_score,
+         (SELECT COUNT(*) FROM reviews r
+          WHERE r.album_mbid = a.mbid
+            AND COALESCE(r.manual_score, r.score) IS NOT NULL
+            AND r.score_max > 0) AS review_count
   FROM albums a
 `;
 
@@ -513,6 +517,7 @@ router.get('/', async (req, res) => {
         coverArtUrl: a.cover_art_url,
         coverArtFallbacks: a.cover_art_fallbacks ? JSON.parse(a.cover_art_fallbacks) : [],
         averageScore: a.avg_score != null ? Math.round(a.avg_score) : null,
+        reviewCount: a.review_count || 0,
         upvotes: a.upvotes || 0,
         downvotes: a.downvotes || 0,
         priceTagLinks: topLinksByAlbum.get(a.id) || [],

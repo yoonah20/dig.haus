@@ -22,6 +22,7 @@ export interface AlbumSearchResult {
   coverArtUrl: string | null;
   coverArtFallbacks?: string[];
   averageScore?: number | null;
+  reviewCount?: number;
   upvotes?: number;
   downvotes?: number;
   isVinylWall?: boolean;

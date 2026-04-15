@@ -3,7 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { AlbumSearchResult } from '../types';
 import CoverArt from './CoverArt';
 import PriceTagStack from './PriceTagSticker';
-import { getScoreColor } from '../utils/score';
+import { getScoreColor, getScoreGlowRgb } from '../utils/score';
+
+const GLOW_MIN_REVIEWS = 3;
 
 // Cross-card active state for touch devices: only one card can show its
 // flipped back at a time. First tap flips; second tap on the active card
@@ -31,6 +33,14 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
   const priceTagLinks = album.priceTagLinks ?? [];
+
+  // Flip-side glow follows the review score — cyan > green > yellow > red.
+  // If there aren't at least 3 scored reviews yet, leave the back plain dark
+  // so a single outlier rating doesn't mislead the color.
+  const hasGlow =
+    album.averageScore != null && (album.reviewCount ?? 0) >= GLOW_MIN_REVIEWS;
+  const glowRgb = hasGlow ? getScoreGlowRgb(album.averageScore!) : null;
+  const ctaColor = glowRgb ? `rgb(${glowRgb})` : '#9a9a9a';
 
   const navigate = useNavigate();
   const isHoverNoneRef = useRef(false);
@@ -173,21 +183,23 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 className="w-full h-full object-cover"
               />
             </div>
-            {/* Subtle amber wash */}
-            <div
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background:
-                  'linear-gradient(135deg, rgba(232,160,32,0.12), rgba(232,160,32,0.04))',
-              }}
-              aria-hidden
-            />
-            {/* Soft amber glow hugging the cover's inner rim */}
-            <div
-              className="absolute inset-0 pointer-events-none rounded-xl"
-              style={{ boxShadow: 'inset 0 0 24px rgba(232,160,32,0.32)' }}
-              aria-hidden
-            />
+            {/* Score-colored wash — only when the album has ≥3 scored reviews. */}
+            {glowRgb && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  background: `linear-gradient(135deg, rgba(${glowRgb},0.12), rgba(${glowRgb},0.04))`,
+                }}
+                aria-hidden
+              />
+            )}
+            {glowRgb && (
+              <div
+                className="absolute inset-0 pointer-events-none rounded-xl"
+                style={{ boxShadow: `inset 0 0 24px rgba(${glowRgb},0.32)` }}
+                aria-hidden
+              />
+            )}
 
             <div className="absolute inset-0 flex flex-col">
               {/* Info — title / artist / score stacked tightly at the top */}
@@ -234,11 +246,12 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 style={{ padding: '0 16px 18px' }}
               >
                 <div
-                  className="flex items-center justify-center text-[#e8a020] transition-colors hover:bg-[#e8a020]/15"
+                  className="flex items-center justify-center transition-colors hover:bg-white/5"
                   style={{
                     width: '58%',
                     padding: '4px 0',
-                    border: '1px solid #e8a020',
+                    border: `1px solid ${ctaColor}`,
+                    color: ctaColor,
                     fontSize: '12px',
                     fontWeight: 600,
                     letterSpacing: '0.02em',
