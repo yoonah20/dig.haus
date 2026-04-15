@@ -83,15 +83,12 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   );
   const isActive = activeId === album.mbid;
 
-  const HOVER_SHADOW =
-    '0 20px 40px rgba(0,0,0,0.6), 0 0 0 2px rgba(232,160,32,0.55)';
   const HOVER_TRANSFORM = 'scale(1.09) translateY(-8px)';
 
   const resetCardTransform = useCallback(() => {
     const el = cardRef.current;
     if (!el) return;
     el.style.transform = '';
-    el.style.boxShadow = '';
   }, []);
 
   const handleMouseEnter = useCallback(() => {
@@ -99,7 +96,6 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     const el = cardRef.current;
     if (!el) return;
     el.style.transform = HOVER_TRANSFORM;
-    el.style.boxShadow = HOVER_SHADOW;
   }, []);
 
   const handleMouseLeave = useCallback(() => {
@@ -252,12 +248,15 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
           style={vinylStyle}
           aria-hidden
         >
-          <div className="vinyl-spinner">
+          <div
+            className="vinyl-spinner"
+            style={phase !== 'idle' ? { animation: 'none' } : undefined}
+          >
             <VinylSvg />
           </div>
         </div>
 
-        {/* Cover — always visible; price tags live here so hover overlay darkens them too */}
+        {/* Cover */}
         <div className="absolute inset-0 bg-[#1a1a1a] rounded-xl overflow-hidden">
           <CoverArt
             src={album.coverArtUrl}
@@ -267,30 +266,29 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
           />
           <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
         </div>
+      </div>
 
-        {/* Info overlay — fades in on hover; semi-transparent so cover + price tags stay visible (dimmed) underneath */}
-        <div
-          className="album-card-info absolute inset-0 rounded-xl overflow-hidden pointer-events-none"
-          style={{ background: 'rgba(0, 0, 0, 0.86)' }}
-        >
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                'linear-gradient(135deg, rgba(232,160,32,0.08), rgba(232,160,32,0.02))',
-            }}
-            aria-hidden
-          />
-          <div className="absolute inset-0 flex flex-col" style={{ padding: '36px 14px' }}>
-            <h3 className="text-white line-clamp-2" style={{ fontSize: '18px', fontWeight: 700, lineHeight: 1.25 }}>
-              {album.title}
-            </h3>
-            <p className="text-gray-300 line-clamp-1" style={{ fontSize: '14px', marginTop: '4px' }}>
-              {album.artist}
-              {album.year && <> · {album.year}</>}
-            </p>
-            <div style={{ flexGrow: 1 }} />
-            <div className="flex items-center gap-3 tabular-nums" style={{ fontSize: '13px' }}>
+      {/* Info popup — slides down below the cover on hover / active */}
+      <div className="album-card-info absolute left-0 right-0 top-full pointer-events-none">
+        <div className="bg-[#141414] rounded-lg px-3 py-2.5 ring-1 ring-white/5">
+          <h3
+            className="text-white line-clamp-1"
+            style={{ fontSize: '14px', fontWeight: 600, lineHeight: 1.3 }}
+          >
+            {album.title}
+          </h3>
+          <p
+            className="text-gray-400 line-clamp-1"
+            style={{ fontSize: '12px', marginTop: '2px' }}
+          >
+            {album.artist}
+            {album.year && <> · {album.year}</>}
+          </p>
+          {(album.averageScore != null || up > 0 || down > 0) && (
+            <div
+              className="flex items-center gap-2 tabular-nums mt-1.5"
+              style={{ fontSize: '12px' }}
+            >
               {album.averageScore != null && (
                 <span className={`font-semibold ${getScoreColor(album.averageScore)}`}>
                   ★ {album.averageScore}/100
@@ -303,9 +301,8 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 </>
               )}
             </div>
-          </div>
+          )}
         </div>
-
       </div>
     </Link>
   );

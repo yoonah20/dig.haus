@@ -37,17 +37,19 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Album card — hover reveals info overlay over the cover (no flip) */
+/* Album card — info popup slides down below the cover on hover */
 .album-card-outer .album-card-info {
+  margin-top: 10px;
   opacity: 0;
-  transition: opacity 400ms ease;
+  transform: translateY(-6px);
+  transition: opacity 400ms ease, transform 400ms ease;
+  z-index: 5;
 }
 .album-card-outer:hover .album-card-info,
-.album-card-outer:focus-visible .album-card-info {
-  opacity: 1;
-}
+.album-card-outer:focus-visible .album-card-info,
 .album-card-outer.is-active .album-card-info {
   opacity: 1;
+  transform: translateY(0);
 }
 
 /* Lift on hover — transform applied via JS so phase animations can override */
