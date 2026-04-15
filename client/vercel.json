@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/sitemap.xml", "destination": "https://api.dig.haus/sitemap.xml" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

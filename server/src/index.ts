@@ -24,6 +24,7 @@ import adminRouter from './routes/admin.js';
 import reviewsRouter from './routes/reviews.js';
 import coverRouter from './routes/cover.js';
 import customCoversRouter from './routes/customCovers.js';
+import sitemapRouter from './routes/sitemap.js';
 
 let server: Server;
 
@@ -98,6 +99,7 @@ async function start() {
   app.use('/api/reviews', reviewsRouter);
   app.use('/api/cover', coverRouter);
   app.use('/api/custom-covers', customCoversRouter);
+  app.use(sitemapRouter);
 
   startRankScheduler();
   warmExchangeRates();
