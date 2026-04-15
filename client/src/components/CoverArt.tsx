@@ -27,6 +27,12 @@ const PROXIED_HOSTS = [
 ];
 
 function proxify(url: string): string {
+  // Admin-replaced covers are persisted by the backend under
+  // /api/custom-covers/<hash>.webp. The DB stores that site-relative path —
+  // resolve it against API_BASE so the <img> loads from the backend origin.
+  if (url.startsWith('/api/custom-covers/')) {
+    return `${API_BASE}${url}`;
+  }
   try {
     const u = new URL(url);
     const host = u.hostname;

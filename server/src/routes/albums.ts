@@ -22,6 +22,7 @@ import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseD
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
 import { searchReviews, scrapeReviewFromUrl } from '../services/reviews.js';
 import { generateSimilarDescriptions, generatePronunciation, getClient as getAnthropicClient } from '../services/claude.js';
+import { hostCustomCover, CustomCoverError } from '../services/customCoverHost.js';
 import {
   getCachedAlbum,
   cacheAlbum,
@@ -627,7 +628,7 @@ router.patch('/:id/metadata', requireAdmin, (req, res) => {
 
 // ─── PATCH /api/albums/:id/cover-art — admin replace cover image URL ─────
 
-router.patch('/:id/cover-art', requireAdmin, (req, res) => {
+router.patch('/:id/cover-art', requireAdmin, async (req, res) => {
   const resolved = resolveAlbumId(req.params.id as string);
   const mbid = resolved?.mbid || (req.params.id as string);
 
@@ -649,9 +650,16 @@ router.patch('/:id/cover-art', requireAdmin, (req, res) => {
   }
 
   try {
-    updateAlbumFields(mbid, { cover_art_url: url });
-    res.json({ ok: true, coverArtUrl: url });
+    // Fetch, resize, and persist the image under server/data/custom-covers/.
+    // The DB then points at our own /api/custom-covers/<hash>.webp — avoiding
+    // hotlinking, host-allowlist restrictions, and uncached originals.
+    const hostedUrl = await hostCustomCover(url);
+    updateAlbumFields(mbid, { cover_art_url: hostedUrl });
+    res.json({ ok: true, coverArtUrl: hostedUrl });
   } catch (error) {
+    if (error instanceof CustomCoverError) {
+      return res.status(error.status).json({ error: error.message });
+    }
     console.error('Update cover art error:', error);
     res.status(500).json({ error: 'Failed to update cover art' });
   }
