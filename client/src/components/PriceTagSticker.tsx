@@ -15,9 +15,8 @@ function formatPrice(price: number | null, currency: string): string {
     currency === 'JPY' || currency === 'KRW'
       ? Math.round(price).toLocaleString()
       : price.toFixed(2);
-  // Symbol always prefixes the number with a hair of space — matches the
-  // "$ 2.89" look printed on real record-shop price tags.
-  return sym ? `${sym} ${amount}` : amount;
+  // Symbol sits flush against the amount, e.g. "$2.89" / "₩3,200".
+  return `${sym}${amount}`;
 }
 
 interface PriceTagStackProps {
@@ -28,7 +27,7 @@ interface PriceTagStackProps {
 
 // Semi-circle notches on the left/right mid-edges. Two radial gradients are
 // composited with `intersect` so only the two small circles get cut out of
-// the element — everything else (including the red rules) stays painted.
+// the element.
 const NOTCH_R = 5;
 const NOTCH_MASK =
   `radial-gradient(circle ${NOTCH_R}px at 0 50%, transparent 98%, #000 100%),` +
@@ -80,8 +79,6 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
                 title={`${link.isSoldOut ? '품절 · ' : ''}${link.format ? link.format + ' · ' : ''}${link.storeName}`}
                 className="flex items-center justify-center bg-white text-black select-none hover:brightness-95 transition"
                 style={{
-                  borderTop: '1.5px solid #c8321f',
-                  borderBottom: '1.5px solid #c8321f',
                   padding: '7px 14px',
                   minWidth: '56px',
                   fontFamily: "'Courier New', 'Courier', ui-monospace, monospace",
