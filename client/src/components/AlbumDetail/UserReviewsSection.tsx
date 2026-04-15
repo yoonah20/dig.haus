@@ -10,9 +10,10 @@ import {
 const MAX_CHARS = 50;
 const ROTATE_INTERVAL_MS = 6000;
 
-// All-face emotion palette — spans ecstasy → warmth → bittersweet → shock.
+// All-face emotion palette — spans laughter → love → chill → warmth →
+// content → bittersweet → touched → sob → shock → overwhelm.
 const EMOJI_PALETTE = [
-  '🤩', '🥰', '😍', '😊', '😌',
+  '😂', '🥰', '😎', '😊', '😌',
   '🥲', '🥹', '😭', '🤯', '🫠',
 ];
 
@@ -124,7 +125,7 @@ function EmojiPalette({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div className="flex flex-wrap gap-2">
       {EMOJI_PALETTE.map((emoji) => {
         const selected = value === emoji;
         return (
@@ -135,7 +136,7 @@ function EmojiPalette({
             disabled={disabled}
             aria-pressed={selected}
             aria-label={`${emoji} ${selected ? '선택 해제' : '선택'}`}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center text-[18px] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+            className={`w-11 h-11 rounded-xl flex items-center justify-center text-[26px] leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
               selected
                 ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
                 : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-105'
@@ -173,16 +174,21 @@ function Editor({
       <textarea
         autoFocus
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          const next = e.target.value;
+          // Hard-stop at MAX_CHARS non-whitespace — don't let the user type
+          // past the limit at all. Deletes stay free because they never grow
+          // the count.
+          if (countNonWhitespace(next) > MAX_CHARS) return;
+          setValue(next);
+        }}
         placeholder="이 앨범에 대한 한 줄 감상 (공백 제외 50자)"
         rows={2}
         disabled={saving}
         className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
       />
       <div>
-        <div className="text-[11px] text-gray-500 mb-1.5">
-          기분 이모지 {emoji && <span className="ml-1 text-gray-300">· 선택됨 {emoji}</span>}
-        </div>
+        <div className="text-xs text-gray-400 mb-2">들으면 어떤 기분이에요?</div>
         <EmojiPalette value={emoji} onChange={setEmoji} disabled={saving} />
       </div>
       <div className="flex items-center justify-between text-xs">
@@ -199,7 +205,8 @@ function Editor({
           </button>
           <button
             onClick={() => onSave(flattenBody(value), emoji)}
-            disabled={saving || over || empty}
+            disabled={saving || over || empty || !emoji}
+            title={!emoji ? '감정 이모지를 하나 선택해주세요' : undefined}
             className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-3 py-1 font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {saving ? '저장 중...' : '저장'}
