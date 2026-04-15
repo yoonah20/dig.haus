@@ -483,7 +483,7 @@ export default function UserReviewsSection({
 
   if (editing) {
     return (
-      <section>
+      <section className="max-w-2xl">
         {heading}
         <Editor
           initialBody={myReview?.body || ''}
@@ -502,7 +502,7 @@ export default function UserReviewsSection({
 
   if (reviews.length === 0) {
     return (
-      <section>
+      <section className="max-w-2xl">
         {heading}
         <div className="bg-[#1d140a]/60 border border-dashed border-[#e8a020]/20 rounded-2xl px-5 py-8 text-center text-gray-500 text-sm">
           {user ? (
@@ -520,6 +520,7 @@ export default function UserReviewsSection({
 
   return (
     <section
+      className="max-w-2xl"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
