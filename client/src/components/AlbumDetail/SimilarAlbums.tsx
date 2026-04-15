@@ -284,11 +284,8 @@ export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbu
 
   return (
     <section>
-      <h2
-        className="text-2xl font-bold text-white mb-6 font-serif"
-        title="비슷한 앨범 추천"
-      >
-        비앨추
+      <h2 className="text-2xl font-bold text-white mb-6 font-serif">
+        비앨추(비슷한 앨범 추천)
       </h2>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
