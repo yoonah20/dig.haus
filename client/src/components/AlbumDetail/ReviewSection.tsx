@@ -365,7 +365,7 @@ export default function ReviewSection({ reviews, koreanSummary, averageScore }: 
       <h2
         className="text-2xl font-bold text-white mb-6 font-serif"
       >
-        리뷰
+        리뷰 모음집
       </h2>
 
       {!hasContent ? (

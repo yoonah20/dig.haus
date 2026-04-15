@@ -96,6 +96,28 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
   const [youtube, setYoutube] = useState('');
   const [bandcamp, setBandcamp] = useState('');
   const [reason, setReason] = useState('');
+  const [registering, setRegistering] = useState(false);
+  const [registered, setRegistered] = useState(false);
+
+  const registerAlbum = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!album.mbid || registering || registered) return;
+    setRegistering(true);
+    try {
+      // Hitting GET /api/albums/:mbid caches the album in the DB (same flow
+      // as RegisterAlbumModal). We don't navigate — admin usually wants to
+      // keep triaging the similar list.
+      await axios.get(`/api/albums/${encodeURIComponent(album.mbid)}`);
+      await queryClient.invalidateQueries({ queryKey: ['album-list'] });
+      setRegistered(true);
+    } catch (err) {
+      console.error('Register album error:', err);
+      alert('앨범 등록에 실패했습니다.');
+    } finally {
+      setRegistering(false);
+    }
+  }, [album.mbid, registering, registered, queryClient]);
 
   const startEdit = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -229,14 +251,29 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
         </div>
       </div>
       {isAdmin && (
-        <button
-          onClick={startEdit}
-          className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-xs bg-black/70 text-gray-200 rounded opacity-0 group-hover/card:opacity-100 hover:!opacity-100 transition-opacity"
-          title="수정"
-          aria-label="수정"
-        >
-          ✏️
-        </button>
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+          {album.mbid && (
+            <button
+              onClick={registerAlbum}
+              disabled={registering || registered}
+              className={`w-6 h-6 flex items-center justify-center text-xs bg-black/70 rounded hover:!opacity-100 disabled:cursor-not-allowed ${
+                registered ? 'text-green-400' : 'text-[#e8a020]'
+              }`}
+              title={registered ? '등록됨' : '이 앨범 등록'}
+              aria-label={registered ? '등록됨' : '이 앨범 등록'}
+            >
+              {registering ? '…' : registered ? '✓' : '+'}
+            </button>
+          )}
+          <button
+            onClick={startEdit}
+            className="w-6 h-6 flex items-center justify-center text-xs bg-black/70 text-gray-200 rounded hover:!opacity-100"
+            title="수정"
+            aria-label="수정"
+          >
+            ✏️
+          </button>
+        </div>
       )}
     </a>
   );
@@ -249,8 +286,9 @@ export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbu
     <section>
       <h2
         className="text-2xl font-bold text-white mb-6 font-serif"
+        title="비슷한 앨범 추천"
       >
-        비슷한 앨범
+        비앨추
       </h2>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
