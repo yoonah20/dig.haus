@@ -34,13 +34,15 @@ const NOTCH_MASK =
   `radial-gradient(circle ${NOTCH_R}px at 100% 50%, transparent 98%, #000 100%)`;
 
 // Top + bottom red rules, centered, spanning the middle 70% of the sticker
-// width. Rendered as background linear-gradients layered over the white
-// fill — the red ends at 85% of width, well clear of the side notches at
-// x=0 / x=100%, so the mask never clips them.
+// width, and inset ~3px from the top/bottom edges so they sit clearly inside
+// the sticker body without crowding the price text. Rendered as background
+// linear-gradients layered over the white fill — the red ends at 85% of
+// width, well clear of the side notches at x=0 / x=100%, so the mask never
+// clips them.
 const RED = '#c8321f';
 const RULES_BG =
-  `linear-gradient(to right, transparent 15%, ${RED} 15%, ${RED} 85%, transparent 85%) top / 100% 1.25px no-repeat,` +
-  `linear-gradient(to right, transparent 15%, ${RED} 15%, ${RED} 85%, transparent 85%) bottom / 100% 1.25px no-repeat`;
+  `linear-gradient(to right, transparent 15%, ${RED} 15%, ${RED} 85%, transparent 85%) left 0 top 3px / 100% 1.25px no-repeat,` +
+  `linear-gradient(to right, transparent 15%, ${RED} 15%, ${RED} 85%, transparent 85%) left 0 bottom 3px / 100% 1.25px no-repeat`;
 
 export default function PriceTagStack({ links, maxVisible = 3, showOverflow = true }: PriceTagStackProps) {
   if (links.length === 0) return null;
@@ -88,8 +90,8 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
                 title={`${link.isSoldOut ? '품절 · ' : ''}${link.format ? link.format + ' · ' : ''}${link.storeName}`}
                 className="flex items-center justify-center text-black select-none hover:brightness-95 transition"
                 style={{
-                  padding: '4px 7px',
-                  minWidth: '48px',
+                  padding: '7px 10px',
+                  minWidth: '52px',
                   fontFamily: "'Courier New', 'Courier', ui-monospace, monospace",
                   fontSize: '11px',
                   fontWeight: 700,
