@@ -10,12 +10,17 @@ import {
 const MAX_CHARS = 50;
 const MIN_CHARS = 5;
 const ROTATE_INTERVAL_MS = 6000;
+const REVIEWS_PER_PAGE = 3;
 
-// All-face emotion palette — spans laughter → love → chill → warmth →
-// content → bittersweet → touched → sob → shock → overwhelm.
+// All-face emotion palette arranged as a gradient from most positive on
+// the left to meltdown on the right, with 쏘쏘 (neutral) in the middle.
+// 12 tiles total — renders as a 6×2 grid on every screen size so the
+// first row is positive-leaning and the second row slides into negative.
+//   row 1 (positive → mild):  🥰 😂 😎 😊 😌 🙂
+//   row 2 (neutral → meltdown): 😐 🥲 🥹 😭 🤯 🫠
 const EMOJI_PALETTE = [
-  '😂', '🥰', '😎', '😊', '😌',
-  '🥲', '🥹', '😭', '🤯', '🫠',
+  '🥰', '😂', '😎', '😊', '😌', '🙂',
+  '😐', '🥲', '🥹', '😭', '🤯', '🫠',
 ];
 
 function countNonWhitespace(s: string): number {
@@ -70,73 +75,70 @@ function SpeechBubble({
   onDelete: () => void;
 }) {
   const ratingMeta = review.rating ? RATING_META[review.rating] : null;
-  const hasRating = !!ratingMeta;
+  const hasBadges = !!(ratingMeta || review.emoji);
   return (
-    <div className="flex items-start gap-3">
-      <div className="flex flex-col items-center gap-1 pt-1 shrink-0 w-[108px]">
-        <Avatar src={review.userAvatar} name={review.userName} />
-        <span className="text-[11px] text-gray-400 text-center max-w-full truncate">
-          {review.userName || '익명'}
-        </span>
-      </div>
-      <div className="relative group flex-1 min-w-0 pt-3">
-        {/* w-fit makes the bubble hug its content; max-w-full caps at available space */}
-        <div className="relative inline-block w-fit max-w-full bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl rounded-tl-sm px-4 py-3 md:px-5 md:py-3.5">
-          {/* tail */}
-          <span className="absolute left-[-8px] top-5 w-0 h-0 border-y-[8px] border-y-transparent border-r-[8px] border-r-[#1d140a]" />
-
-          {/* Floating badges at the top-right of the bubble: rating (굿굿/별루)
-              on the left, emoji on the right. */}
-          {(hasRating || review.emoji) && (
-            <div className="absolute -top-3 -right-2 flex items-center gap-1.5 pointer-events-none select-none">
-              {hasRating && ratingMeta && (
-                <span
-                  className="text-xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
-                  title={ratingMeta.label}
-                  aria-label={ratingMeta.label}
-                >
-                  {ratingMeta.emoji}
-                </span>
-              )}
-              {review.emoji && (
-                <span
-                  className="text-2xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
-                  aria-hidden="true"
-                >
-                  {review.emoji}
-                </span>
-              )}
-            </div>
+    <div className="relative group h-full">
+      {/* Floating badges at the top-right: rating (굿굿/쏘쏘/별루) on the
+          left, feeling emoji on the right. Sit above the card's top edge. */}
+      {hasBadges && (
+        <div className="absolute -top-3 right-2 z-10 flex items-center gap-1.5 pointer-events-none select-none">
+          {ratingMeta && (
+            <span
+              className="text-lg leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
+              title={ratingMeta.label}
+              aria-label={ratingMeta.label}
+            >
+              {ratingMeta.emoji}
+            </span>
           )}
-
-          <p className="text-gray-100 text-[15px] leading-relaxed break-words">
-            {review.body}
-          </p>
-
-          {/* hover action row, bottom-right so it doesn't collide with badges */}
-          {(canOwnerEdit || canAdminDelete) && (
-            <div className="absolute bottom-1 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              {canOwnerEdit && (
-                <button
-                  onClick={onEdit}
-                  title="수정"
-                  aria-label="수정"
-                  className="text-xs text-gray-500 hover:text-[#e8a020] px-1 cursor-pointer"
-                >
-                  ✏️
-                </button>
-              )}
-              <button
-                onClick={onDelete}
-                title="삭제"
-                aria-label="삭제"
-                className="text-xs text-gray-500 hover:text-red-400 px-1 cursor-pointer"
-              >
-                🗑️
-              </button>
-            </div>
+          {review.emoji && (
+            <span
+              className="text-xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
+              aria-hidden="true"
+            >
+              {review.emoji}
+            </span>
           )}
         </div>
+      )}
+
+      <div className="bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl px-3.5 py-3 h-full flex flex-col min-w-0">
+        {/* body — expands to fill the card so the footer stays pinned */}
+        <p className="text-gray-100 text-[14px] leading-relaxed break-words flex-1">
+          {review.body}
+        </p>
+
+        {/* footer — avatar + name anchored to the bottom so cards in a row
+            visually align even with uneven body lengths */}
+        <div className="flex items-center gap-2 min-w-0 mt-2.5 pt-2 border-t border-white/5">
+          <Avatar src={review.userAvatar} name={review.userName} size={24} />
+          <span className="text-[11px] text-gray-400 truncate">
+            {review.userName || '익명'}
+          </span>
+        </div>
+
+        {(canOwnerEdit || canAdminDelete) && (
+          <div className="absolute bottom-1.5 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {canOwnerEdit && (
+              <button
+                onClick={onEdit}
+                title="수정"
+                aria-label="수정"
+                className="text-xs text-gray-500 hover:text-[#e8a020] px-1 cursor-pointer"
+              >
+                ✏️
+              </button>
+            )}
+            <button
+              onClick={onDelete}
+              title="삭제"
+              aria-label="삭제"
+              className="text-xs text-gray-500 hover:text-red-400 px-1 cursor-pointer"
+            >
+              🗑️
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -367,7 +369,7 @@ function Editor({
             <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
               “마지막으로, 들었을 때 기분!”
             </div>
-            <div className="flex flex-wrap justify-center gap-2 py-1">
+            <div className="grid grid-cols-6 gap-2 justify-items-center py-1">
               {EMOJI_PALETTE.map((e) => {
                 const selected = emoji === e;
                 return (
@@ -378,7 +380,7 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={e}
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center text-[30px] leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`w-11 h-11 md:w-12 md:h-12 rounded-xl flex items-center justify-center text-[28px] md:text-[30px] leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
                         ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
                         : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-110'
@@ -425,22 +427,25 @@ export default function UserReviewsSection({
     [reviews, user]
   );
 
-  const [index, setIndex] = useState(0);
+  const [page, setPage] = useState(0);
   const [paused, setPaused] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  useEffect(() => {
-    if (reviews.length === 0) setIndex(0);
-    else if (index >= reviews.length) setIndex(0);
-  }, [reviews.length, index]);
+  const pageCount = Math.max(1, Math.ceil(reviews.length / REVIEWS_PER_PAGE));
 
   useEffect(() => {
-    if (reviews.length < 2 || paused || editing) return;
+    if (page >= pageCount) setPage(0);
+  }, [pageCount, page]);
+
+  useEffect(() => {
+    if (pageCount < 2 || paused || editing) return;
     const t = setInterval(() => {
-      setIndex((i) => (i + 1) % reviews.length);
+      setPage((p) => (p + 1) % pageCount);
     }, ROTATE_INTERVAL_MS);
     return () => clearInterval(t);
-  }, [reviews.length, paused, editing]);
+  }, [pageCount, paused, editing]);
+
+  const visibleReviews = reviews.slice(page * REVIEWS_PER_PAGE, (page + 1) * REVIEWS_PER_PAGE);
 
   const handleSave = async (body: string, emoji: string | null, rating: 'up' | 'down' | 'soso') => {
     if (!body) return;
@@ -515,9 +520,6 @@ export default function UserReviewsSection({
     );
   }
 
-  const current = reviews[Math.min(index, reviews.length - 1)];
-  const isMine = user?.id === current.userId;
-
   return (
     <section
       className="max-w-2xl"
@@ -527,22 +529,35 @@ export default function UserReviewsSection({
       onBlur={() => setPaused(false)}
     >
       {heading}
-      <SpeechBubble
-        review={current}
-        canAdminDelete={!!user?.isAdmin && !isMine}
-        canOwnerEdit={isMine}
-        onEdit={() => setEditing(true)}
-        onDelete={() => handleDelete(current)}
-      />
-      {reviews.length > 1 && (
-        <div className="flex justify-center gap-1.5 mt-4">
-          {reviews.map((r, i) => (
-            <button
+      {/* Up to 3 reviews per row (stacks on mobile). Pages auto-rotate
+          just like the old single-card carousel. */}
+      <div
+        key={page}
+        className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch animate-[fadeInUp_200ms_ease-out]"
+      >
+        {visibleReviews.map((r) => {
+          const isMine = user?.id === r.userId;
+          return (
+            <SpeechBubble
               key={r.id}
-              onClick={() => setIndex(i)}
-              aria-label={`${i + 1}번째 평으로 이동`}
+              review={r}
+              canAdminDelete={!!user?.isAdmin && !isMine}
+              canOwnerEdit={isMine}
+              onEdit={() => setEditing(true)}
+              onDelete={() => handleDelete(r)}
+            />
+          );
+        })}
+      </div>
+      {pageCount > 1 && (
+        <div className="flex justify-center gap-1.5 mt-4">
+          {Array.from({ length: pageCount }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => setPage(i)}
+              aria-label={`${i + 1}번째 페이지로 이동`}
               className={`w-1.5 h-1.5 rounded-full transition-colors cursor-pointer ${
-                i === index ? 'bg-[#e8a020]' : 'bg-white/20 hover:bg-white/40'
+                i === page ? 'bg-[#e8a020]' : 'bg-white/20 hover:bg-white/40'
               }`}
             />
           ))}
