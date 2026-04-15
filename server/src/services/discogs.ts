@@ -265,55 +265,67 @@ export interface MasterMarketData {
  */
 export async function getMasterMarketData(
   artist: string,
-  title: string
+  title: string,
+  knownMasterId?: number | null
 ): Promise<MasterMarketData | null> {
   try {
-    // Step 1: find master release.
-    //
-    // Structured search (artist + release_title) is normally the cleanest path,
-    // but Discogs has a quirk where ALL-CAPS titles containing special chars
-    // (e.g. "WOR$T GIRL IN AMERICA") return 0 results even though the master
-    // exists. Fall back to free-text q= in that case, then filter by artist so
-    // we don't accept a random unrelated master.
-    const searchRes = await axios.get(`${DISCOGS_BASE}/database/search`, {
-      headers: getHeaders(),
-      httpsAgent,
-      params: {
-        artist,
-        release_title: title,
-        type: 'master',
-        per_page: '5',
-      },
-    });
+    let masterId: number;
+    let label = '';
+    let year = '';
 
-    let results = searchRes.data?.results || [];
-
-    if (results.length === 0) {
-      const fallback = await axios.get(`${DISCOGS_BASE}/database/search`, {
+    if (knownMasterId && knownMasterId > 0) {
+      // Admin pinned (or a prior fetch already resolved) a specific master →
+      // skip the search step. Avoids wrong-master mis-resolution for albums
+      // with ambiguous names / same-name artists.
+      masterId = knownMasterId;
+    } else {
+      // Step 1: find master release.
+      //
+      // Structured search (artist + release_title) is normally the cleanest path,
+      // but Discogs has a quirk where ALL-CAPS titles containing special chars
+      // (e.g. "WOR$T GIRL IN AMERICA") return 0 results even though the master
+      // exists. Fall back to free-text q= in that case, then filter by artist so
+      // we don't accept a random unrelated master.
+      const searchRes = await axios.get(`${DISCOGS_BASE}/database/search`, {
         headers: getHeaders(),
         httpsAgent,
         params: {
-          q: `${artist} ${title}`,
+          artist,
+          release_title: title,
           type: 'master',
-          per_page: '10',
+          per_page: '5',
         },
       });
-      const artistLower = artist.toLowerCase();
-      results = (fallback.data?.results || []).filter((r: any) => {
-        const t = (r.title || '').toLowerCase();
-        return t.startsWith(`${artistLower} -`) || t.startsWith(`${artistLower} feat`);
-      });
-      if (results.length > 0) {
-        console.log(`[discogs] search fallback (q=) matched "${artist} - ${title}" → master ${results[0].id}`);
+
+      let results = searchRes.data?.results || [];
+
+      if (results.length === 0) {
+        const fallback = await axios.get(`${DISCOGS_BASE}/database/search`, {
+          headers: getHeaders(),
+          httpsAgent,
+          params: {
+            q: `${artist} ${title}`,
+            type: 'master',
+            per_page: '10',
+          },
+        });
+        const artistLower = artist.toLowerCase();
+        results = (fallback.data?.results || []).filter((r: any) => {
+          const t = (r.title || '').toLowerCase();
+          return t.startsWith(`${artistLower} -`) || t.startsWith(`${artistLower} feat`);
+        });
+        if (results.length > 0) {
+          console.log(`[discogs] search fallback (q=) matched "${artist} - ${title}" → master ${results[0].id}`);
+        }
       }
+
+      if (results.length === 0) return null;
+
+      const master = results[0];
+      masterId = master.id;
+      label = master.label?.[0] || '';
+      year = master.year || '';
     }
-
-    if (results.length === 0) return null;
-
-    const master = results[0];
-    const masterId: number = master.id;
-    const label = master.label?.[0] || '';
-    const year = master.year || '';
 
     // Step 2: get all versions and group by major_formats
     const versionsRes = await axios.get(`${DISCOGS_BASE}/masters/${masterId}/versions`, {

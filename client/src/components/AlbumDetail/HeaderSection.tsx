@@ -294,6 +294,11 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [releaseDateInput, setReleaseDateInput] = useState('');
   const [labelInput, setLabelInput] = useState('');
   const [formatInput, setFormatInput] = useState('');
+  const [discogsUrlInput, setDiscogsUrlInput] = useState('');
+  const [spotifyUrlInput, setSpotifyUrlInput] = useState('');
+  const [appleMusicUrlInput, setAppleMusicUrlInput] = useState('');
+  const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
+  const [bandcampUrlInput, setBandcampUrlInput] = useState('');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -477,8 +482,13 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     );
     setLabelInput(album.label || '');
     setFormatInput(album.format || '');
+    setDiscogsUrlInput(album.discogsUrl || '');
+    setSpotifyUrlInput(streaming.spotify || '');
+    setAppleMusicUrlInput(streaming.appleMusic || '');
+    setYoutubeUrlInput(streaming.youtube || '');
+    setBandcampUrlInput(streaming.bandcamp || '');
     setEditingAlbum(true);
-  }, [album]);
+  }, [album, streaming]);
 
   const cancelEditAlbum = useCallback(() => {
     if (savingAlbum) return;
@@ -508,6 +518,24 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       return;
     }
 
+    const urlOrNull = (s: string): string | null => {
+      const t = s.trim();
+      if (!t) return null;
+      if (!/^https?:\/\//i.test(t)) return t; // server will reject with a clear message
+      return t;
+    };
+    const badUrl = [
+      ['Discogs', discogsUrlInput],
+      ['Spotify', spotifyUrlInput],
+      ['Apple Music', appleMusicUrlInput],
+      ['YouTube', youtubeUrlInput],
+      ['Bandcamp', bandcampUrlInput],
+    ].find(([, u]) => u.trim() && !/^https?:\/\//i.test(u.trim()));
+    if (badUrl) {
+      alert(`${badUrl[0]} URL은 http:// 또는 https:// 로 시작해야 합니다.`);
+      return;
+    }
+
     setSavingAlbum(true);
     try {
       await axios.patch(`/api/albums/${albumId}`, {
@@ -517,6 +545,11 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
         release_date: releaseDate || null,
         label_name: labelInput.trim() || null,
         format: formatInput.trim() || null,
+        discogs_url: urlOrNull(discogsUrlInput),
+        spotify_url: urlOrNull(spotifyUrlInput),
+        apple_music_url: urlOrNull(appleMusicUrlInput),
+        youtube_url: urlOrNull(youtubeUrlInput),
+        bandcamp_url: urlOrNull(bandcampUrlInput),
       });
       await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
       await queryClient.invalidateQueries({ queryKey: ['album-list'] });
@@ -531,7 +564,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     } finally {
       setSavingAlbum(false);
     }
-  }, [albumId, titleInput, artistInput, releaseYearInput, releaseDateInput, labelInput, formatInput, queryClient]);
+  }, [albumId, titleInput, artistInput, releaseYearInput, releaseDateInput, labelInput, formatInput, discogsUrlInput, spotifyUrlInput, appleMusicUrlInput, youtubeUrlInput, bandcampUrlInput, queryClient]);
 
   // Build link list: Discogs (from buy data) + streaming services
   const allLinks: Array<{ key: string; name: string; color: string; icon: React.ReactNode; url: string }> = [];
@@ -886,9 +919,55 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 placeholder="예: Vinyl, CD"
                 className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
+              <div className="col-span-2 mt-1 mb-0.5 text-[11px] uppercase tracking-wider text-gray-500">외부 링크</div>
+              <label className="text-gray-400">Discogs</label>
+              <input
+                type="url"
+                value={discogsUrlInput}
+                onChange={(e) => setDiscogsUrlInput(e.target.value)}
+                disabled={savingAlbum}
+                placeholder="https://www.discogs.com/master/..."
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <label className="text-gray-400">Spotify</label>
+              <input
+                type="url"
+                value={spotifyUrlInput}
+                onChange={(e) => setSpotifyUrlInput(e.target.value)}
+                disabled={savingAlbum}
+                placeholder="https://open.spotify.com/album/..."
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <label className="text-gray-400">Apple Music</label>
+              <input
+                type="url"
+                value={appleMusicUrlInput}
+                onChange={(e) => setAppleMusicUrlInput(e.target.value)}
+                disabled={savingAlbum}
+                placeholder="https://music.apple.com/..."
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <label className="text-gray-400">YouTube</label>
+              <input
+                type="url"
+                value={youtubeUrlInput}
+                onChange={(e) => setYoutubeUrlInput(e.target.value)}
+                disabled={savingAlbum}
+                placeholder="https://youtube.com/..."
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <label className="text-gray-400">Bandcamp</label>
+              <input
+                type="url"
+                value={bandcampUrlInput}
+                onChange={(e) => setBandcampUrlInput(e.target.value)}
+                disabled={savingAlbum}
+                placeholder="https://artist.bandcamp.com/album/..."
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
             </div>
             <p className="text-xs text-gray-500 mt-4">
-              커버/장르/한국어 번역은 각 전용 수정 버튼을 사용하세요.
+              커버/장르/한국어 번역은 각 전용 수정 버튼을 사용하세요. Discogs URL을 master 링크로 바꾸면 저장 후 ⚙️ 관리 → 💰 시세 갱신으로 바로 재크롤링됩니다.
             </p>
             <div className="flex justify-end gap-2 mt-5">
               <button

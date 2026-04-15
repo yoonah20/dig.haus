@@ -122,7 +122,7 @@ async function getOrFetchAlbumBase(mbid: string) {
     const formatsStale = !formatsUpdatedAt ||
       (Date.now() - new Date(formatsUpdatedAt).getTime()) > 6 * 60 * 60 * 1000;
     if (formatsStale && cached.artist_name && cached.title) {
-      getMasterMarketData(cached.artist_name, cached.title).then((fresh) => {
+      getMasterMarketData(cached.artist_name, cached.title, cached.discogs_id || null).then((fresh) => {
         if (fresh && fresh.formats.length > 0) {
           updateAlbumFields(mbid, {
             discogs_url: fresh.discogsUrl,
@@ -168,6 +168,7 @@ async function getOrFetchAlbumBase(mbid: string) {
         releaseDate: cached.release_date || cached.release_year?.toString() || '',
         releaseYear: cached.release_year ?? null,
         format: cached.format || null,
+        discogsUrl: cached.discogs_url || null,
         label: cached.label_name,
         genres: cleanGenres(genres, cached.artist_name),
         coverArtUrl: cached.cover_art_url,
@@ -299,6 +300,7 @@ async function getOrFetchAlbumBase(mbid: string) {
     releaseDate,
     releaseYear: releaseYear ? parseInt(releaseYear, 10) : null,
     format: format || null,
+    discogsUrl: masterMarket?.discogsUrl || discogsRelease?.url || null,
     label: labelName,
     genres: cleanGenres(genres, artistName),
     coverArtUrl: primaryCoverArtUrl,
@@ -688,6 +690,50 @@ router.patch('/:id', requireAdmin, (req, res) => {
     }
   }
 
+  const urlField = (key: string) => {
+    if (!(key in body)) return null;
+    const v = body[key];
+    if (v === null || v === '') {
+      fields[key] = null;
+      return null;
+    }
+    if (typeof v !== 'string') return `${key} must be a string`;
+    const trimmed = v.trim();
+    if (!trimmed) {
+      fields[key] = null;
+      return null;
+    }
+    if (trimmed.length > 2000) return `${key} is too long`;
+    if (!/^https?:\/\//i.test(trimmed)) return `${key} must start with http(s)://`;
+    fields[key] = trimmed;
+    return null;
+  };
+
+  err = urlField('discogs_url') || err;
+  err = urlField('spotify_url') || err;
+  err = urlField('apple_music_url') || err;
+  err = urlField('youtube_url') || err;
+  err = urlField('bandcamp_url') || err;
+
+  // If the Discogs URL changed, try to pull the master ID out of it so the
+  // price crawler can skip the artist/title search and pin to this exact
+  // master on next 시세 갱신. Non-master URLs (release/, search) clear the
+  // stored master ID so the crawler falls back to name-based search.
+  if ('discogs_url' in fields) {
+    const url: string | null = fields.discogs_url;
+    if (!url) {
+      fields.discogs_id = null;
+    } else {
+      const m = url.match(/discogs\.com\/(?:[a-z]{2}\/)?master\/(\d+)/i);
+      fields.discogs_id = m ? parseInt(m[1], 10) : null;
+    }
+    // Any Discogs link edit invalidates the cached prices — clear the
+    // timestamp so the next page view picks them up, and admins can hit
+    // 시세 갱신 explicitly for an instant refresh.
+    fields.discogs_formats_json = null;
+    fields.discogs_formats_updated_at = null;
+  }
+
   if (err) return res.status(400).json({ error: err });
   if (Object.keys(fields).length === 0) {
     return res.status(400).json({ error: 'No valid fields to update' });
@@ -696,7 +742,9 @@ router.patch('/:id', requireAdmin, (req, res) => {
   try {
     updateAlbumFields(mbid, fields);
     const updated = queryGet(
-      'SELECT mbid, title, artist_name, release_year, release_date, label_name, format FROM albums WHERE mbid = ?',
+      `SELECT mbid, title, artist_name, release_year, release_date, label_name, format,
+              discogs_url, discogs_id, spotify_url, apple_music_url, youtube_url, bandcamp_url
+       FROM albums WHERE mbid = ?`,
       [mbid]
     );
     res.json({ ok: true, album: updated });
@@ -752,7 +800,7 @@ router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
   const mbid = resolved?.mbid || (req.params.id as string);
 
   const row = queryGet(
-    'SELECT mbid, artist_name, title FROM albums WHERE mbid = ?',
+    'SELECT mbid, artist_name, title, discogs_id FROM albums WHERE mbid = ?',
     [mbid]
   );
   if (!row) {
@@ -763,7 +811,7 @@ router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
   }
 
   try {
-    const fresh = await getMasterMarketData(row.artist_name, row.title);
+    const fresh = await getMasterMarketData(row.artist_name, row.title, row.discogs_id || null);
     const formats = fresh?.formats || [];
     updateAlbumFields(mbid, {
       discogs_url: fresh?.discogsUrl || null,
