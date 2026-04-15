@@ -20,15 +20,23 @@ router.post('/albums/:id/vote', requireAuth, (req, res) => {
   try {
     if (vote === null) {
       execute(`DELETE FROM album_votes WHERE user_id = ? AND album_id = ?`, [user.id, albumPk]);
+      // Review's thumbs IS the user's 굿굿/별루 vote — clearing the vote also
+      // clears any rating stored on their review. The review itself stays.
+      execute(
+        `UPDATE user_reviews SET rating = NULL WHERE user_id = ? AND album_id = ?`,
+        [user.id, albumPk]
+      );
     } else {
       const existing = queryGet(
         `SELECT id, vote FROM album_votes WHERE user_id = ? AND album_id = ?`,
         [user.id, albumPk]
       );
+      let nextUserVote: 'up' | 'down' | null = vote;
       if (existing) {
         if (existing.vote === vote) {
           // Same vote twice → toggle off
           execute(`DELETE FROM album_votes WHERE id = ?`, [existing.id]);
+          nextUserVote = null;
         } else {
           execute(`UPDATE album_votes SET vote = ? WHERE id = ?`, [vote, existing.id]);
         }
@@ -38,6 +46,12 @@ router.post('/albums/:id/vote', requireAuth, (req, res) => {
           [user.id, albumPk, vote]
         );
       }
+      // Mirror into the review row so the speech bubble badge stays in sync
+      // with the user's current album vote.
+      execute(
+        `UPDATE user_reviews SET rating = ? WHERE user_id = ? AND album_id = ?`,
+        [nextUserVote, user.id, albumPk]
+      );
     }
 
     const counts = queryGet(

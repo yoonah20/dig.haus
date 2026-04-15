@@ -49,6 +49,9 @@ export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: P
       setLocalDown(data.downvotes);
       setLocalVote(data.userVote);
       queryClient.invalidateQueries({ queryKey: ['album', albumId] });
+      // The 굿굿/별루 vote is mirrored onto the user's 50자 평 — refresh the
+      // speech-bubble badge to reflect the change.
+      queryClient.invalidateQueries({ queryKey: ['user-reviews', albumId] });
     } catch {
       // Revert
       setLocalVote(prevVote);

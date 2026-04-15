@@ -139,7 +139,7 @@ export default function Album() {
         {/* Stage 1: instant */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
         <BuySection buy={base.buy} albumId={albumId} />
-        <UserReviewsSection albumId={albumId} />
+        <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
 
         {/* Stage 2: reviews (slow) */}
         {reviewsLoading ? (

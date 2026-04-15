@@ -303,7 +303,13 @@ function Editor({
   );
 }
 
-export default function UserReviewsSection({ albumId }: { albumId: string }) {
+export default function UserReviewsSection({
+  albumId,
+  userAlbumVote,
+}: {
+  albumId: string;
+  userAlbumVote?: 'up' | 'down' | null;
+}) {
   const { user } = useAuth();
   const { data } = useUserReviews(albumId);
   const upsert = useUpsertUserReview(albumId);
@@ -378,7 +384,10 @@ export default function UserReviewsSection({ albumId }: { albumId: string }) {
         <Editor
           initialBody={myReview?.body || ''}
           initialEmoji={myReview?.emoji || null}
-          initialRating={myReview?.rating || null}
+          // Prefer the rating stored on the review; otherwise fall back to the
+          // user's existing album vote so writing a review pre-selects what
+          // they already picked via the 굿굿/별루 buttons.
+          initialRating={myReview?.rating || userAlbumVote || null}
           saving={upsert.isPending}
           onCancel={() => setEditing(false)}
           onSave={handleSave}
