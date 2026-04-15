@@ -22,6 +22,7 @@ import votesRouter from './routes/votes.js';
 import purchaseLinksRouter from './routes/purchaseLinks.js';
 import adminRouter from './routes/admin.js';
 import reviewsRouter from './routes/reviews.js';
+import coverRouter from './routes/cover.js';
 
 let server: Server;
 
@@ -94,6 +95,7 @@ async function start() {
   app.use('/api/labels', labelsRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/reviews', reviewsRouter);
+  app.use('/api/cover', coverRouter);
 
   startRankScheduler();
   warmExchangeRates();

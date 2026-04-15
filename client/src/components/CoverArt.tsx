@@ -16,9 +16,36 @@ function getInitials(text: string): string {
     .join('');
 }
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
+const PROXIED_HOSTS = [
+  'coverartarchive.org',
+  '.archive.org',
+  '.scdn.co',
+  '.discogs.com',
+  'lastfm.freetls.fastly.net',
+];
+
+function proxify(url: string): string {
+  try {
+    const u = new URL(url);
+    const host = u.hostname;
+    const match = PROXIED_HOSTS.some((h) =>
+      h.startsWith('.') ? host.endsWith(h) : host === h
+    );
+    if (!match) return url;
+    return `${API_BASE}/api/cover?src=${encodeURIComponent(url)}`;
+  } catch {
+    return url;
+  }
+}
+
 export default function CoverArt({ src, fallbacks = [], alt, className = '' }: CoverArtProps) {
   const allSrcs = useMemo(
-    () => [src, ...fallbacks].filter((u): u is string => !!u && u.length > 0),
+    () =>
+      [src, ...fallbacks]
+        .filter((u): u is string => !!u && u.length > 0)
+        .map(proxify),
     [src, fallbacks]
   );
   const [srcIdx, setSrcIdx] = useState(0);
