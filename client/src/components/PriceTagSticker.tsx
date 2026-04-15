@@ -96,15 +96,10 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
                   // a hand-stamped tag.
                   padding: '8px 10px 6px 10px',
                   minWidth: '52px',
-                  // Classic printed-serif stack. Didot / Bodoni land on
-                  // macOS first (high-contrast, elegant, very "printed"),
-                  // Georgia handles Windows/Linux without hairline loss
-                  // at small sizes, falling through to generic serif.
-                  fontFamily:
-                    "'Didot', 'Bodoni 72', 'Playfair Display', Georgia, 'Times New Roman', serif",
+                  fontFamily: "'Courier New', 'Courier', ui-monospace, monospace",
                   fontSize: '11px',
                   fontWeight: 700,
-                  letterSpacing: '0.01em',
+                  letterSpacing: '0.03em',
                   lineHeight: 1,
                   background: `${RULES_BG}, #fff`,
                   maskImage: NOTCH_MASK,
