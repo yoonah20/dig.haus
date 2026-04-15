@@ -5,7 +5,9 @@ import CoverArt from './CoverArt';
 import PriceTagStack from './PriceTagSticker';
 import { getScoreColor } from '../utils/score';
 
-// Cross-card active state for touch devices: only one card can show its overlay at a time.
+// Cross-card active state for touch devices: only one card can show its
+// flipped back at a time. First tap flips; second tap on the active card
+// navigates to the album page (handled in touchEnd below).
 let activeCardId: string | null = null;
 const activeCardListeners = new Set<() => void>();
 function setActiveCardId(id: string | null) {
@@ -23,17 +25,16 @@ function getActiveCardSnapshot() {
   return activeCardId;
 }
 
+const TAP_THRESHOLD_PX = 10;
+
 export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
   const priceTagLinks = album.priceTagLinks ?? [];
 
   const navigate = useNavigate();
-  const cardRef = useRef<HTMLDivElement>(null);
   const isHoverNoneRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-
-  const TAP_THRESHOLD_PX = 10;
 
   const activeId = useSyncExternalStore(
     subscribeActiveCard,
@@ -42,33 +43,14 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   );
   const isActive = activeId === album.mbid;
 
-  const HOVER_TRANSFORM = 'scale(1.09) translateY(-8px)';
-
-  const resetCardTransform = useCallback(() => {
-    const el = cardRef.current;
-    if (!el) return;
-    el.style.transform = '';
-  }, []);
-
-  const handleMouseEnter = useCallback(() => {
-    if (isHoverNoneRef.current) return;
-    const el = cardRef.current;
-    if (!el) return;
-    el.style.transform = HOVER_TRANSFORM;
-  }, []);
-
-  const handleMouseLeave = useCallback(() => {
-    resetCardTransform();
-  }, [resetCardTransform]);
-
   useEffect(() => {
     isHoverNoneRef.current =
       typeof window !== 'undefined' &&
       window.matchMedia('(hover: none)').matches;
   }, []);
 
-  // Touch-only: close this card's overlay when user taps outside any album card
-  // or starts scrolling.
+  // While a card is flipped on touch, clear it when the user taps outside
+  // any card or starts scrolling.
   useEffect(() => {
     if (!isActive) return;
     function onDocPointerDown(e: PointerEvent) {
@@ -113,7 +95,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
       const dy = t.clientY - start.y;
       if (Math.hypot(dx, dy) > TAP_THRESHOLD_PX) return;
 
-      // Treat as tap: suppress the synthetic click and drive navigation ourselves.
+      // Treat as tap. First tap flips; second tap navigates.
       e.preventDefault();
       if (activeCardId !== album.mbid) {
         setActiveCardId(album.mbid);
@@ -126,9 +108,8 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   );
 
   const handleClick = useCallback((e: React.MouseEvent) => {
-    // Touch devices route activation through touchend so a single tap
-    // reveals the info popup instead of navigating. Suppress the synthetic
-    // click here so <Link> doesn't immediately navigate on first tap.
+    // Touch devices route navigation through touchend so the first tap
+    // flips instead of navigating. Suppress the synthetic click.
     if (isHoverNoneRef.current) {
       e.preventDefault();
     }
@@ -143,56 +124,131 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
       onTouchEnd={handleTouchEnd}
     >
       <div
-        className="relative aspect-square album-card-3d rounded-xl"
-        ref={cardRef}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
+        className="relative aspect-square"
+        style={{ perspective: '1000px' }}
       >
-        <div className="absolute inset-0 bg-[#1a1a1a] rounded-xl overflow-hidden">
-          <CoverArt
-            src={album.coverArtUrl}
-            fallbacks={album.coverArtFallbacks}
-            alt={album.title}
-            className="w-full h-full object-cover"
-          />
-          <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
-        </div>
-      </div>
+        <div className="album-flip relative w-full h-full">
+          {/* Front — cover art + price stickers */}
+          <div
+            className="absolute inset-0 bg-[#1a1a1a] rounded-xl overflow-hidden"
+            style={{
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
+          >
+            <CoverArt
+              src={album.coverArtUrl}
+              fallbacks={album.coverArtFallbacks}
+              alt={album.title}
+              className="w-full h-full object-cover"
+            />
+            <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
+          </div>
 
-      {/* Info popup — slides down below the cover on hover / active */}
-      <div className="album-card-info absolute left-0 right-0 top-full pointer-events-none">
-        <div className="bg-[#141414] rounded-lg px-3 py-2.5 ring-1 ring-white/5">
-          <h3
-            className="text-white line-clamp-1"
-            style={{ fontSize: '14px', fontWeight: 600, lineHeight: 1.3 }}
+          {/* Back — mirrored darkened cover + amber wash + info (70%) +
+              "자세히 보기" CTA (30%). Whole card is the Link, so tapping
+              anywhere on the back navigates. */}
+          <div
+            className="absolute inset-0 rounded-xl overflow-hidden"
+            style={{
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+              transform: 'rotateY(180deg)',
+              background: '#0f0f0f',
+            }}
           >
-            {album.title}
-          </h3>
-          <p
-            className="text-gray-400 line-clamp-1"
-            style={{ fontSize: '12px', marginTop: '2px' }}
-          >
-            {album.artist}
-            {album.year && <> · {album.year}</>}
-          </p>
-          {(album.averageScore != null || up > 0 || down > 0) && (
+            {/* Mirrored, desaturated, slightly-darker cover as base */}
             <div
-              className="flex items-center gap-2 tabular-nums mt-1.5"
-              style={{ fontSize: '12px' }}
+              className="absolute inset-0"
+              style={{
+                transform: 'scaleX(-1)',
+                filter: 'grayscale(1) brightness(0.2)',
+              }}
+              aria-hidden
             >
-              {album.averageScore != null && (
-                <span className={`font-semibold ${getScoreColor(album.averageScore)}`}>
-                  ★ {album.averageScore}/100
-                </span>
-              )}
-              {(up > 0 || down > 0) && (
-                <>
-                  <span className="text-[#e8a020]">▲{up}</span>
-                  <span className="text-[#9a9a9a]">▼{down}</span>
-                </>
-              )}
+              <CoverArt
+                src={album.coverArtUrl}
+                fallbacks={album.coverArtFallbacks}
+                alt=""
+                className="w-full h-full object-cover"
+              />
             </div>
-          )}
+            {/* Subtle amber wash */}
+            <div
+              className="absolute inset-0 pointer-events-none"
+              style={{
+                background:
+                  'linear-gradient(135deg, rgba(232,160,32,0.12), rgba(232,160,32,0.04))',
+              }}
+              aria-hidden
+            />
+            {/* Soft amber glow hugging the cover's inner rim */}
+            <div
+              className="absolute inset-0 pointer-events-none rounded-xl"
+              style={{ boxShadow: 'inset 0 0 24px rgba(232,160,32,0.32)' }}
+              aria-hidden
+            />
+
+            <div className="absolute inset-0 flex flex-col">
+              {/* Info — title / artist / score stacked tightly at the top */}
+              <div style={{ padding: '18px 14px 0' }}>
+                <h3
+                  className="text-white line-clamp-2"
+                  style={{ fontSize: '18px', fontWeight: 700, lineHeight: 1.25 }}
+                >
+                  {album.title}
+                </h3>
+                <p
+                  className="text-gray-300 line-clamp-1"
+                  style={{ fontSize: '13px', marginTop: '4px' }}
+                >
+                  {album.artist}
+                  {album.year && <> · {album.year}</>}
+                </p>
+                {(album.averageScore != null || up > 0 || down > 0) && (
+                  <div
+                    className="flex items-center gap-2 tabular-nums"
+                    style={{ marginTop: '6px', fontSize: '12px' }}
+                  >
+                    {album.averageScore != null && (
+                      <span className={`font-semibold ${getScoreColor(album.averageScore)}`}>
+                        ★ {album.averageScore}/100
+                      </span>
+                    )}
+                    {(up > 0 || down > 0) && (
+                      <>
+                        <span className="text-[#e8a020]">▲{up}</span>
+                        <span className="text-[#9a9a9a]">▼{down}</span>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ flex: 1 }} />
+
+              {/* "자세히 보기" CTA — compact outlined button, symmetric
+                  bottom padding to the top title spacing. */}
+              <div
+                className="flex items-center justify-center"
+                style={{ padding: '0 16px 18px' }}
+              >
+                <div
+                  className="flex items-center justify-center text-[#e8a020] transition-colors hover:bg-[#e8a020]/15"
+                  style={{
+                    width: '58%',
+                    padding: '4px 0',
+                    border: '1px solid #e8a020',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  자세히 보기
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </Link>

@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #0f0f0f;
+  --color-background: #15110a;
   --color-background-secondary: #1a1a1a;
   --color-background-tertiary: #252525;
   --color-accent: #e8a020;
@@ -37,28 +37,20 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Album card — info popup slides down below the cover on hover */
-.album-card-outer .album-card-info {
-  margin-top: 10px;
-  opacity: 0;
-  transform: translateY(-6px);
-  transition: opacity 400ms ease, transform 400ms ease;
-  z-index: 5;
+/* Album card — hover / tap flips the card 180° on Y axis to reveal
+   info on the back. Touch devices add `.is-active` via JS after the
+   first tap; a second tap (anywhere on the card) navigates. */
+.album-card-outer .album-flip {
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease;
 }
-.album-card-outer:hover .album-card-info,
-.album-card-outer:focus-visible .album-card-info,
-.album-card-outer.is-active .album-card-info {
-  opacity: 1;
-  transform: translateY(0);
+.album-card-outer:hover .album-flip,
+.album-card-outer:focus-visible .album-flip,
+.album-card-outer.is-active .album-flip {
+  transform: rotateY(180deg);
 }
-
-/* Lift on hover — transform applied via JS so `(hover: none)` devices don't fire it */
-.album-card-outer .album-card-3d {
-  transition: transform 400ms cubic-bezier(0.2, 0, 0.2, 1),
-              box-shadow 400ms ease;
-  will-change: transform;
-}
-.album-card-outer:hover {
+.album-card-outer:hover,
+.album-card-outer.is-active {
   z-index: 10;
 }
 

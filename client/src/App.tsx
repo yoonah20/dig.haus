@@ -20,7 +20,7 @@ export default function App() {
   return (
     <AuthProvider>
       <SearchOverlayProvider>
-        <div className="min-h-screen flex flex-col bg-[#0f0f0f] text-gray-100">
+        <div className="min-h-screen flex flex-col bg-[#15110a] text-gray-100">
           <TopNav />
           <Suspense fallback={<RouteFallback />}>
             <Routes>
