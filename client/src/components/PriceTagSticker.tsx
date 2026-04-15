@@ -34,16 +34,15 @@ const NOTCH_MASK =
   `radial-gradient(circle ${NOTCH_R}px at 100% 50%, transparent 98%, #000 100%)`;
 
 // Top + bottom red rules, centered, spanning the middle 80% of the sticker
-// width. Top rule is inset 3px from the top edge; bottom rule is inset 4px
-// (a pixel higher than the top inset so the visual spacing around the price
-// text reads more even once the type's baseline offset is factored in).
-// Rendered as background linear-gradients layered over the white fill —
-// the red ends at 90% of width, clear of the side notches at x=0 / x=100%,
-// so the mask never clips them.
+// width. Both rules sit 4px inside the top / bottom edges. Stroke is a
+// hairline 0.75px so the rules read printed-on-paper thin instead of a
+// solid band. Rendered as background linear-gradients layered over the
+// white fill — the red ends at 90% of width, clear of the side notches at
+// x=0 / x=100%, so the mask never clips them.
 const RED = '#c8321f';
 const RULES_BG =
-  `linear-gradient(to right, transparent 10%, ${RED} 10%, ${RED} 90%, transparent 90%) left 0 top 3px / 100% 1.25px no-repeat,` +
-  `linear-gradient(to right, transparent 10%, ${RED} 10%, ${RED} 90%, transparent 90%) left 0 bottom 4px / 100% 1.25px no-repeat`;
+  `linear-gradient(to right, transparent 10%, ${RED} 10%, ${RED} 90%, transparent 90%) left 0 top 4px / 100% 0.75px no-repeat,` +
+  `linear-gradient(to right, transparent 10%, ${RED} 10%, ${RED} 90%, transparent 90%) left 0 bottom 4px / 100% 0.75px no-repeat`;
 
 export default function PriceTagStack({ links, maxVisible = 3, showOverflow = true }: PriceTagStackProps) {
   if (links.length === 0) return null;
@@ -91,12 +90,21 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
                 title={`${link.isSoldOut ? '품절 · ' : ''}${link.format ? link.format + ' · ' : ''}${link.storeName}`}
                 className="flex items-center justify-center text-black select-none hover:brightness-95 transition"
                 style={{
-                  padding: '7px 10px',
+                  // Asymmetric vertical padding (8/6 instead of 7/7) nudges
+                  // the price digits 1px lower so they sit a touch below
+                  // the geometric centre of the sticker — reads more like
+                  // a hand-stamped tag.
+                  padding: '8px 10px 6px 10px',
                   minWidth: '52px',
-                  fontFamily: "'Courier New', 'Courier', ui-monospace, monospace",
+                  // Classic printed-serif stack. Didot / Bodoni land on
+                  // macOS first (high-contrast, elegant, very "printed"),
+                  // Georgia handles Windows/Linux without hairline loss
+                  // at small sizes, falling through to generic serif.
+                  fontFamily:
+                    "'Didot', 'Bodoni 72', 'Playfair Display', Georgia, 'Times New Roman', serif",
                   fontSize: '11px',
                   fontWeight: 700,
-                  letterSpacing: '0.03em',
+                  letterSpacing: '0.01em',
                   lineHeight: 1,
                   background: `${RULES_BG}, #fff`,
                   maskImage: NOTCH_MASK,
