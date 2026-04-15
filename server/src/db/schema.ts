@@ -347,7 +347,17 @@ export function initializeDatabase(db: Database.Database): void {
     'format TEXT',
     'note TEXT',
     'is_sold_out INTEGER DEFAULT 0',
+    'status TEXT',
   ]);
+
+  // Backfill: pre-existing sold-out rows lose no fidelity when we swap to the
+  // `status` enum. Idempotent — admins who later edit the row can only do so
+  // via `status`, so once it's set this WHERE clause no longer matches.
+  try {
+    db.exec(
+      "UPDATE purchase_links SET status = 'soldout' WHERE is_sold_out = 1 AND (status IS NULL OR status = '')"
+    );
+  } catch {}
 
   // One-time FK migration: recreate album_votes / purchase_links with ON DELETE CASCADE
   // if an older database was created without it. Safe: preserves existing rows.

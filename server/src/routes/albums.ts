@@ -448,12 +448,13 @@ router.get('/', async (req, res) => {
     if (albums.length > 0) {
       const placeholders = albums.map(() => '?').join(',');
       const linkRows = queryAll(
-        `SELECT album_id, id, url, store_name, store_favicon_url, price, currency, format, is_sold_out
+        `SELECT album_id, id, url, store_name, store_favicon_url, price, currency, format, status
          FROM purchase_links WHERE album_id IN (${placeholders})`,
         albums.map((a: any) => a.id)
       );
 
       const listRates = await getRates();
+      const allowedStatus = new Set(['upcoming', 'sale', 'soldout']);
       const enriched = linkRows.map((l: any) => ({
         albumId: l.album_id,
         id: l.id,
@@ -467,7 +468,7 @@ router.get('/', async (req, res) => {
             ? convertToKrwSync(l.price, l.currency, listRates)
             : null,
         format: l.format,
-        isSoldOut: !!l.is_sold_out,
+        status: allowedStatus.has(l.status) ? l.status : null,
       }));
 
       for (const link of enriched) {

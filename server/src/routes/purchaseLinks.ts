@@ -8,6 +8,13 @@ const router = Router();
 
 const ALLOWED_CURRENCIES = new Set(['USD', 'JPY', 'GBP', 'EUR', 'KRW']);
 const ALLOWED_FORMATS = new Set(['Vinyl', 'CD', 'Cassette', 'Box', 'Other']);
+const ALLOWED_STATUSES = new Set(['upcoming', 'sale', 'soldout']);
+
+function normalizeStatus(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const v = raw.trim().toLowerCase();
+  return ALLOWED_STATUSES.has(v) ? v : null;
+}
 
 const STORE_RULES: Array<{ match: RegExp; name: string }> = [
   { match: /discogs\.com/i, name: 'Discogs' },
@@ -49,7 +56,7 @@ router.get('/albums/:id/purchase-links', async (req, res) => {
 
   const rows = queryAll(
     `SELECT pl.id, pl.url, pl.store_name, pl.store_favicon_url, pl.price, pl.currency,
-            pl.format, pl.note, pl.is_sold_out, pl.user_id, pl.created_at,
+            pl.format, pl.note, pl.status, pl.user_id, pl.created_at,
             u.name AS user_name, u.avatar_url AS user_avatar
      FROM purchase_links pl
      LEFT JOIN users u ON u.id = pl.user_id
@@ -72,7 +79,7 @@ router.get('/albums/:id/purchase-links', async (req, res) => {
         : null,
     format: r.format,
     note: r.note,
-    isSoldOut: !!r.is_sold_out,
+    status: normalizeStatus(r.status),
     userId: r.user_id,
     userName: r.user_name,
     userAvatar: r.user_avatar,
@@ -88,13 +95,13 @@ router.post('/albums/:id/purchase-links', requireAdmin, async (req, res) => {
   const albumPk = resolveAlbumPk((req.params.id as string));
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
 
-  const { url, price, currency, format, note, isSoldOut } = req.body as {
+  const { url, price, currency, format, note, status } = req.body as {
     url?: string;
     price?: number;
     currency?: string;
     format?: string;
     note?: string;
-    isSoldOut?: boolean;
+    status?: string;
   };
 
   if (!url || typeof url !== 'string') {
@@ -120,13 +127,14 @@ router.post('/albums/:id/purchase-links', requireAdmin, async (req, res) => {
       : null;
 
   const { name: storeName, faviconUrl } = detectStore(url);
+  const statusNorm = normalizeStatus(status);
 
   try {
     execute(
       `INSERT INTO purchase_links
-       (album_id, user_id, url, store_name, store_favicon_url, price, currency, format, note, is_sold_out)
+       (album_id, user_id, url, store_name, store_favicon_url, price, currency, format, note, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [albumPk, user.id, url, storeName, faviconUrl, priceNum, currencyNorm, formatNorm, noteNorm, isSoldOut ? 1 : 0]
+      [albumPk, user.id, url, storeName, faviconUrl, priceNum, currencyNorm, formatNorm, noteNorm, statusNorm]
     );
     const row = queryGet(
       `SELECT * FROM purchase_links WHERE rowid = last_insert_rowid()`
@@ -146,7 +154,7 @@ router.post('/albums/:id/purchase-links', requireAdmin, async (req, res) => {
         priceKrw,
         format: row.format,
         note: row.note,
-        isSoldOut: !!row.is_sold_out,
+        status: normalizeStatus(row.status),
         userId: row.user_id,
         userName: user.name,
         userAvatar: user.avatar_url,
@@ -156,6 +164,112 @@ router.post('/albums/:id/purchase-links', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('[purchase-links] insert failed:', err);
     res.status(500).json({ error: 'Failed to save purchase link' });
+  }
+});
+
+// PATCH /api/purchase-links/:id (owner or admin) — partial update
+router.patch('/purchase-links/:id', requireAuth, async (req, res) => {
+  const user = req.user!;
+  const linkId = parseInt((req.params.id as string), 10);
+  if (isNaN(linkId)) return res.status(400).json({ error: 'Invalid id' });
+
+  const existing = queryGet(`SELECT * FROM purchase_links WHERE id = ?`, [linkId]);
+  if (!existing) return res.status(404).json({ error: 'Link not found' });
+  if (existing.user_id !== user.id && !user.is_admin) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const body = req.body as Record<string, unknown>;
+  const sets: string[] = [];
+  const values: any[] = [];
+
+  if (typeof body.url === 'string') {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(body.url);
+    } catch {
+      return res.status(400).json({ error: 'Invalid URL' });
+    }
+    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+      return res.status(400).json({ error: 'URL must be http(s)' });
+    }
+    const { name: storeName, faviconUrl } = detectStore(body.url);
+    sets.push('url = ?', 'store_name = ?', 'store_favicon_url = ?');
+    values.push(body.url, storeName, faviconUrl);
+  }
+
+  if ('price' in body) {
+    const p = body.price;
+    const priceNum = typeof p === 'number' && isFinite(p) && p >= 0 ? p : null;
+    sets.push('price = ?');
+    values.push(priceNum);
+  }
+
+  if ('currency' in body) {
+    const c = body.currency;
+    const norm = typeof c === 'string' && ALLOWED_CURRENCIES.has(c) ? c : 'USD';
+    sets.push('currency = ?');
+    values.push(norm);
+  }
+
+  if ('format' in body) {
+    const f = body.format;
+    const norm = typeof f === 'string' && ALLOWED_FORMATS.has(f) ? f : null;
+    sets.push('format = ?');
+    values.push(norm);
+  }
+
+  if ('note' in body) {
+    const n = body.note;
+    const norm =
+      typeof n === 'string' && n.trim().length > 0 ? n.trim().slice(0, 200) : null;
+    sets.push('note = ?');
+    values.push(norm);
+  }
+
+  if ('status' in body) {
+    sets.push('status = ?');
+    values.push(normalizeStatus(body.status));
+  }
+
+  if (sets.length === 0) {
+    return res.status(400).json({ error: 'No updatable fields provided' });
+  }
+
+  try {
+    values.push(linkId);
+    execute(`UPDATE purchase_links SET ${sets.join(', ')} WHERE id = ?`, values);
+    const row = queryGet(
+      `SELECT pl.*, u.name AS user_name, u.avatar_url AS user_avatar
+       FROM purchase_links pl LEFT JOIN users u ON u.id = pl.user_id
+       WHERE pl.id = ?`,
+      [linkId]
+    );
+    const priceKrw =
+      row.price != null && row.currency
+        ? await convertToKrw(row.price, row.currency)
+        : null;
+    res.json({
+      purchaseLink: {
+        id: row.id,
+        url: row.url,
+        storeName: row.store_name,
+        storeFaviconUrl: row.store_favicon_url,
+        price: row.price,
+        currency: row.currency,
+        priceKrw,
+        format: row.format,
+        note: row.note,
+        status: normalizeStatus(row.status),
+        userId: row.user_id,
+        userName: row.user_name,
+        userAvatar: row.user_avatar,
+        createdAt: row.created_at,
+      },
+    });
+  } catch (err) {
+    console.error('[purchase-links] update failed:', err);
+    res.status(500).json({ error: 'Failed to update purchase link' });
   }
 });
 

@@ -3,10 +3,11 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   usePurchaseLinks,
   useCreatePurchaseLink,
+  useUpdatePurchaseLink,
   useDeletePurchaseLink,
+  type PurchaseLinkPayload,
 } from '../hooks/usePurchaseLinks';
-import type { PurchaseLink, FormatPrice } from '../types';
-import LoginRequiredTooltip from './LoginRequiredTooltip';
+import type { PurchaseLink, FormatPrice, PurchaseLinkStatus } from '../types';
 
 const CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'KRW'] as const;
 type Currency = (typeof CURRENCIES)[number];
@@ -19,6 +20,12 @@ const FORMAT_EMOJI: Record<Format, string> = {
   CD: '💿',
   Cassette: '📼',
 };
+
+const STATUSES: ReadonlyArray<{ value: PurchaseLinkStatus; label: string; emoji: string }> = [
+  { value: 'upcoming', label: '발매예정', emoji: '🔜' },
+  { value: 'sale', label: '세일', emoji: '🏷️' },
+  { value: 'soldout', label: '품절', emoji: '🚫' },
+];
 
 const CURRENCY_SYMBOL: Record<string, string> = {
   USD: '$',
@@ -42,6 +49,12 @@ function formatKrw(price: number | null): string {
   return `₩${Math.round(price).toLocaleString()}`;
 }
 
+const STATUS_LABEL: Record<PurchaseLinkStatus, string> = {
+  upcoming: '발매예정',
+  sale: '세일',
+  soldout: '품절',
+};
+
 function Subline({ parts }: { parts: Array<string | null | undefined> }) {
   const visible = parts.filter((p): p is string => !!p && p.length > 0);
   if (visible.length === 0) return null;
@@ -59,11 +72,13 @@ function Subline({ parts }: { parts: Array<string | null | undefined> }) {
 
 function LinkButton({
   link,
-  canDelete,
+  canManage,
+  onEdit,
   onDelete,
 }: {
   link: PurchaseLink;
-  canDelete: boolean;
+  canManage: boolean;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const showKrwConversion =
@@ -102,23 +117,36 @@ function LinkButton({
           <Subline
             parts={[
               link.format,
+              link.status ? STATUS_LABEL[link.status] : null,
               showKrwConversion ? formatKrw(link.priceKrw) : null,
               link.note,
             ]}
           />
         </div>
       </a>
-      {canDelete && (
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            if (confirm('이 구매처 링크를 삭제할까요?')) onDelete();
-          }}
-          className="text-red-700 hover:text-red-400 text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer px-2"
-          title="삭제"
-        >
-          ×
-        </button>
+      {canManage && (
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              onEdit();
+            }}
+            className="text-gray-400 hover:text-[#e8a020] text-xs cursor-pointer px-2"
+            title="수정"
+          >
+            ✎
+          </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              if (confirm('이 구매처 링크를 삭제할까요?')) onDelete();
+            }}
+            className="text-red-700 hover:text-red-400 text-xs cursor-pointer px-2"
+            title="삭제"
+          >
+            ×
+          </button>
+        </div>
       )}
     </div>
   );
@@ -193,14 +221,37 @@ function SegButton({
   );
 }
 
-function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void }) {
-  const create = useCreatePurchaseLink(albumId);
-  const [url, setUrl] = useState('');
-  const [priceInput, setPriceInput] = useState('');
-  const [currency, setCurrency] = useState<Currency>('USD');
-  const [format, setFormat] = useState<Format | null>('Vinyl');
-  const [note, setNote] = useState('');
-  const [isSoldOut, setIsSoldOut] = useState(false);
+function LinkForm({
+  initial,
+  submitting,
+  errored,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: {
+  initial?: PurchaseLink;
+  submitting: boolean;
+  errored: boolean;
+  submitLabel: string;
+  onSubmit: (payload: PurchaseLinkPayload) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [url, setUrl] = useState(initial?.url ?? '');
+  const [priceInput, setPriceInput] = useState(
+    initial?.price != null ? String(initial.price) : ''
+  );
+  const [currency, setCurrency] = useState<Currency>(
+    (initial && CURRENCIES.includes(initial.currency as Currency))
+      ? (initial.currency as Currency)
+      : 'USD'
+  );
+  const [format, setFormat] = useState<Format | null>(
+    (initial?.format && (FORMATS as readonly string[]).includes(initial.format))
+      ? (initial.format as Format)
+      : 'Vinyl'
+  );
+  const [note, setNote] = useState(initial?.note ?? '');
+  const [status, setStatus] = useState<PurchaseLinkStatus | null>(initial?.status ?? null);
 
   const canSubmit = url.trim().length > 0;
 
@@ -208,23 +259,14 @@ function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void 
     e.preventDefault();
     if (!canSubmit) return;
     const priceNum = priceInput.trim() === '' ? null : parseFloat(priceInput);
-    try {
-      await create.mutateAsync({
-        url: url.trim(),
-        price: priceNum !== null && isFinite(priceNum) ? priceNum : null,
-        currency,
-        format,
-        note: note.trim() || null,
-        isSoldOut,
-      });
-      setUrl('');
-      setPriceInput('');
-      setCurrency('USD');
-      setFormat('Vinyl');
-      setNote('');
-      setIsSoldOut(false);
-      onDone();
-    } catch {}
+    await onSubmit({
+      url: url.trim(),
+      price: priceNum !== null && isFinite(priceNum) ? priceNum : null,
+      currency,
+      format,
+      note: note.trim() || null,
+      status,
+    });
   };
 
   return (
@@ -242,7 +284,7 @@ function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void 
           required
         />
 
-        {/* Price + currency: one attached pill group */}
+        {/* Price + currency */}
         <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 focus-within:border-[#e8a020]/60 divide-x divide-white/10">
           <input
             type="number"
@@ -265,12 +307,26 @@ function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void 
           ))}
         </div>
 
-        {/* Format: attached pill group */}
+        {/* Format */}
         <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
           {FORMATS.map((f) => (
             <SegButton key={f} active={format === f} onClick={() => setFormat(f)}>
               <span className="mr-1">{FORMAT_EMOJI[f]}</span>
               {f}
+            </SegButton>
+          ))}
+        </div>
+
+        {/* Status — optional; clicking the active one clears it */}
+        <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
+          {STATUSES.map((s) => (
+            <SegButton
+              key={s.value}
+              active={status === s.value}
+              onClick={() => setStatus(status === s.value ? null : s.value)}
+            >
+              <span className="mr-1">{s.emoji}</span>
+              {s.label}
             </SegButton>
           ))}
         </div>
@@ -283,37 +339,72 @@ function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void 
           className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-[2] min-w-[140px]"
         />
 
-        <label className="flex items-center gap-1.5 h-9 px-2.5 rounded-md bg-black/30 border border-white/10 text-xs text-gray-300 select-none cursor-pointer hover:border-[#e8a020]/60">
-          <input
-            type="checkbox"
-            checked={isSoldOut}
-            onChange={(e) => setIsSoldOut(e.target.checked)}
-            className="accent-[#e8a020] cursor-pointer"
-          />
-          현재 품절
-        </label>
-
         <button
           type="submit"
-          disabled={!canSubmit || create.isPending}
+          disabled={!canSubmit || submitting}
           className="bg-[#e8a020] text-black font-semibold text-sm rounded-md px-3 h-9 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
         >
-          {create.isPending ? '...' : '저장'}
+          {submitting ? '...' : submitLabel}
         </button>
 
         <button
           type="button"
-          onClick={onDone}
+          onClick={onCancel}
           className="text-gray-500 hover:text-gray-300 text-sm h-9 px-2 cursor-pointer"
           title="취소"
         >
           ×
         </button>
       </form>
-      {create.isError && (
+      {errored && (
         <div className="text-red-400 text-xs pl-2">저장 실패. URL을 확인해 주세요.</div>
       )}
     </div>
+  );
+}
+
+function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void }) {
+  const create = useCreatePurchaseLink(albumId);
+  return (
+    <LinkForm
+      submitting={create.isPending}
+      errored={create.isError}
+      submitLabel="저장"
+      onSubmit={async (payload) => {
+        try {
+          await create.mutateAsync(payload);
+          onDone();
+        } catch {}
+      }}
+      onCancel={onDone}
+    />
+  );
+}
+
+function EditLinkForm({
+  albumId,
+  link,
+  onDone,
+}: {
+  albumId: string;
+  link: PurchaseLink;
+  onDone: () => void;
+}) {
+  const update = useUpdatePurchaseLink(albumId);
+  return (
+    <LinkForm
+      initial={link}
+      submitting={update.isPending}
+      errored={update.isError}
+      submitLabel="수정"
+      onSubmit={async (payload) => {
+        try {
+          await update.mutateAsync({ id: link.id, ...payload });
+          onDone();
+        } catch {}
+      }}
+      onCancel={onDone}
+    />
   );
 }
 
@@ -330,15 +421,14 @@ export default function PurchaseLinksPanel({
   const { data } = usePurchaseLinks(albumId);
   const del = useDeletePurchaseLink(albumId);
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
-  // User-registered links: cheapest first by KRW-converted price.
   const sortedLinks = [...(data?.purchaseLinks || [])].sort(
     (a, b) =>
       (a.priceKrw ?? Number.POSITIVE_INFINITY) -
       (b.priceKrw ?? Number.POSITIVE_INFINITY)
   );
 
-  // Discogs cards always at the end, in fixed format order.
   const discogsCards = discogsFormats
     .filter((f) => f.copiesForSale > 0 && f.lowestPrice !== null)
     .sort(
@@ -353,14 +443,29 @@ export default function PurchaseLinksPanel({
     <div className="space-y-3">
       {hasAnyCard && (
         <div className="flex flex-wrap gap-3">
-          {sortedLinks.map((link) => (
-            <LinkButton
-              key={link.id}
-              link={link}
-              canDelete={!!user && (user.id === link.userId || user.isAdmin)}
-              onDelete={() => del.mutate(link.id)}
-            />
-          ))}
+          {sortedLinks.map((link) => {
+            const canManage = !!user && (user.id === link.userId || user.isAdmin);
+            if (editingId === link.id) {
+              return (
+                <div key={link.id} className="w-full">
+                  <EditLinkForm
+                    albumId={albumId}
+                    link={link}
+                    onDone={() => setEditingId(null)}
+                  />
+                </div>
+              );
+            }
+            return (
+              <LinkButton
+                key={link.id}
+                link={link}
+                canManage={canManage}
+                onEdit={() => setEditingId(link.id)}
+                onDelete={() => del.mutate(link.id)}
+              />
+            );
+          })}
           {discogsCards.map((fmt) => (
             <DiscogsFormatCard key={fmt.format} fmt={fmt} />
           ))}

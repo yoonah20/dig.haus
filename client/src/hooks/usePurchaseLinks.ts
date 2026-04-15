@@ -1,6 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
-import type { PurchaseLink } from '../types';
+import type { PurchaseLink, PurchaseLinkStatus } from '../types';
+
+export interface PurchaseLinkPayload {
+  url: string;
+  price: number | null;
+  currency: string;
+  format: string | null;
+  note: string | null;
+  status: PurchaseLinkStatus | null;
+}
 
 export function usePurchaseLinks(albumId: string, enabled = true) {
   return useQuery<{ purchaseLinks: PurchaseLink[] }>({
@@ -17,21 +26,26 @@ export function usePurchaseLinks(albumId: string, enabled = true) {
 export function useCreatePurchaseLink(albumId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload: {
-      url: string;
-      price: number | null;
-      currency: string;
-      format: string | null;
-      note: string | null;
-      isSoldOut: boolean;
-    }) => {
+    mutationFn: async (payload: PurchaseLinkPayload) => {
       const { data } = await axios.post(`/api/albums/${albumId}/purchase-links`, payload);
       return data.purchaseLink as PurchaseLink;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchase-links', albumId] });
-      // Homepage album grid shows top price-tag stickers — refetch so
-      // newly added links appear without a hard reload.
+      qc.invalidateQueries({ queryKey: ['album-list'] });
+    },
+  });
+}
+
+export function useUpdatePurchaseLink(albumId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: PurchaseLinkPayload & { id: number }) => {
+      const { data } = await axios.patch(`/api/purchase-links/${id}`, payload);
+      return data.purchaseLink as PurchaseLink;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['purchase-links', albumId] });
       qc.invalidateQueries({ queryKey: ['album-list'] });
     },
   });

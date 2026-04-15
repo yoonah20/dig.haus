@@ -1,3 +1,5 @@
+export type PurchaseLinkStatus = 'upcoming' | 'sale' | 'soldout';
+
 export interface PriceTagLink {
   id: number;
   url: string;
@@ -7,7 +9,7 @@ export interface PriceTagLink {
   currency: string;
   priceKrw: number | null;
   format: string | null;
-  isSoldOut: boolean;
+  status: PurchaseLinkStatus | null;
 }
 
 export interface AlbumSearchResult {
@@ -45,7 +47,7 @@ export interface PurchaseLink {
   priceKrw: number | null;
   format: string | null;
   note: string | null;
-  isSoldOut: boolean;
+  status: PurchaseLinkStatus | null;
   userId: number;
   userName: string | null;
   userAvatar: string | null;
