@@ -41,7 +41,7 @@ export default function TopNav() {
 
   return (
     <>
-      <nav className="sticky top-0 z-40 bg-[#14110a]/90 backdrop-blur-sm border-b border-[#e8a020]/25 px-4 py-3">
+      <nav className="sticky top-0 z-40 bg-[#24180a]/90 backdrop-blur-sm border-b border-[#e8a020]/30 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-baseline gap-3">
             <Link

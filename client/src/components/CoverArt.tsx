@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 
 interface CoverArtProps {
   src: string | null;
@@ -54,8 +54,17 @@ export default function CoverArt({ src, fallbacks = [], alt, className = '' }: C
         .map(proxify),
     [src, fallbacks]
   );
+  const srcsKey = allSrcs.join('\n');
   const [srcIdx, setSrcIdx] = useState(0);
   const [failed, setFailed] = useState(allSrcs.length === 0);
+
+  // Reset retry/failed state whenever the source list changes (e.g. admin
+  // pastes a new cover URL). Without this, a previously-failed card would
+  // stay stuck on its initials placeholder even after the URL is fixed.
+  useEffect(() => {
+    setSrcIdx(0);
+    setFailed(allSrcs.length === 0);
+  }, [srcsKey, allSrcs.length]);
 
   if (failed || allSrcs.length === 0) {
     const initials = getInitials(alt);

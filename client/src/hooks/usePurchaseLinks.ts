@@ -32,7 +32,10 @@ export function useCreatePurchaseLink(albumId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchase-links', albumId] });
-      qc.invalidateQueries({ queryKey: ['album-list'] });
+      // refetchType 'all' refreshes the Home listing even while it's
+      // unmounted, so a browser-back to the home page shows the edit
+      // immediately instead of the pre-edit cached snapshot.
+      qc.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
     },
   });
 }
@@ -46,7 +49,10 @@ export function useUpdatePurchaseLink(albumId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchase-links', albumId] });
-      qc.invalidateQueries({ queryKey: ['album-list'] });
+      // refetchType 'all' refreshes the Home listing even while it's
+      // unmounted, so a browser-back to the home page shows the edit
+      // immediately instead of the pre-edit cached snapshot.
+      qc.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
     },
   });
 }
@@ -60,7 +66,10 @@ export function useDeletePurchaseLink(albumId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['purchase-links', albumId] });
-      qc.invalidateQueries({ queryKey: ['album-list'] });
+      // refetchType 'all' refreshes the Home listing even while it's
+      // unmounted, so a browser-back to the home page shows the edit
+      // immediately instead of the pre-edit cached snapshot.
+      qc.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
     },
   });
 }

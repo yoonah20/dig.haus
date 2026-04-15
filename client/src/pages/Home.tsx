@@ -30,9 +30,19 @@ const SORT_OPTIONS = [
 
 type SortValue = (typeof SORT_OPTIONS)[number]['value'];
 const DEFAULT_SORT: SortValue = 'registered_desc';
+const SORT_STORAGE_KEY = 'home:sort';
 
 function isSortValue(v: string): v is SortValue {
   return SORT_OPTIONS.some((o) => o.value === v);
+}
+
+function readStoredSort(): SortValue | null {
+  try {
+    const raw = localStorage.getItem(SORT_STORAGE_KEY) || '';
+    return isSortValue(raw) ? raw : null;
+  } catch {
+    return null;
+  }
 }
 
 function useAlbumList(sort: SortValue, page: number) {
@@ -73,8 +83,34 @@ export default function Home() {
 
   const sort: SortValue = useMemo(() => {
     const raw = searchParams.get('sort') || '';
-    return isSortValue(raw) ? raw : DEFAULT_SORT;
+    if (isSortValue(raw)) return raw;
+    return readStoredSort() ?? DEFAULT_SORT;
   }, [searchParams]);
+
+  // Rehydrate URL from stored sort on initial mount so pagination, share-links,
+  // and back-nav all see a canonical URL. Only runs when the URL is missing a
+  // sort and localStorage has a non-default pick.
+  useEffect(() => {
+    if (searchParams.get('sort')) return;
+    const stored = readStoredSort();
+    if (!stored || stored === DEFAULT_SORT) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('sort', stored);
+    setSearchParams(next, { replace: true });
+    // Intentional: only on first mount — avoids a feedback loop with handleSortChange.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mirror sort selection into localStorage so it survives sessions and any
+  // edge case where the URL param is lost during navigation.
+  useEffect(() => {
+    try {
+      if (sort === DEFAULT_SORT) localStorage.removeItem(SORT_STORAGE_KEY);
+      else localStorage.setItem(SORT_STORAGE_KEY, sort);
+    } catch {
+      // ignore storage errors
+    }
+  }, [sort]);
 
   const page = useMemo(() => {
     const raw = parseInt(searchParams.get('page') || '1', 10);

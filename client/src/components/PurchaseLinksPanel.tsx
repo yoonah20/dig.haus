@@ -85,7 +85,7 @@ function LinkButton({
     link.priceKrw != null && link.currency && link.currency !== 'KRW';
 
   return (
-    <div className="group flex items-center gap-3 bg-[#1a1a1a] hover:bg-[#252525] rounded-xl px-4 py-3 transition-colors">
+    <div className="group relative flex items-center gap-3 bg-[#1a1a1a] hover:bg-[#252525] rounded-xl px-4 py-3 transition-colors">
       <a
         href={link.url}
         target="_blank"
@@ -125,13 +125,13 @@ function LinkButton({
         </div>
       </a>
       {canManage && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute bottom-1 right-1.5 flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={(e) => {
               e.preventDefault();
               onEdit();
             }}
-            className="text-gray-400 hover:text-[#e8a020] text-xs cursor-pointer px-2"
+            className="text-gray-400 hover:text-[#e8a020] text-xs cursor-pointer px-1.5 leading-none"
             title="수정"
           >
             ✎
@@ -141,7 +141,7 @@ function LinkButton({
               e.preventDefault();
               if (confirm('이 구매처 링크를 삭제할까요?')) onDelete();
             }}
-            className="text-red-700 hover:text-red-400 text-xs cursor-pointer px-2"
+            className="text-red-700 hover:text-red-400 text-xs cursor-pointer px-1.5 leading-none"
             title="삭제"
           >
             ×

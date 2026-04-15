@@ -11,7 +11,7 @@ fs.mkdirSync(CACHE_DIR, { recursive: true });
 
 // Bump whenever the output format changes (target size, fit mode, codec).
 // Cache keys are `v{N}:${src}` so old low-res artifacts on disk get ignored.
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 
 const ALLOWED_HOSTS = new Set([
   'coverartarchive.org',
