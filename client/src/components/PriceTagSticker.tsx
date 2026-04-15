@@ -11,10 +11,13 @@ const CURRENCY_SYMBOL: Record<string, string> = {
 function formatPrice(price: number | null, currency: string): string {
   if (price === null || price === undefined) return '-';
   const sym = CURRENCY_SYMBOL[currency] || '';
-  if (currency === 'JPY' || currency === 'KRW') {
-    return `${sym}${Math.round(price).toLocaleString()}`;
-  }
-  return `${sym}${price.toFixed(2)}`;
+  const amount =
+    currency === 'JPY' || currency === 'KRW'
+      ? Math.round(price).toLocaleString()
+      : price.toFixed(2);
+  // Symbol always prefixes the number with a hair of space — matches the
+  // "$ 2.89" look printed on real record-shop price tags.
+  return sym ? `${sym} ${amount}` : amount;
 }
 
 interface PriceTagStackProps {
@@ -22,6 +25,14 @@ interface PriceTagStackProps {
   maxVisible?: number;
   showOverflow?: boolean;
 }
+
+// Semi-circle notches on the left/right mid-edges. Two radial gradients are
+// composited with `intersect` so only the two small circles get cut out of
+// the element — everything else (including the red rules) stays painted.
+const NOTCH_R = 5;
+const NOTCH_MASK =
+  `radial-gradient(circle ${NOTCH_R}px at 0 50%, transparent 98%, #000 100%),` +
+  `radial-gradient(circle ${NOTCH_R}px at 100% 50%, transparent 98%, #000 100%)`;
 
 export default function PriceTagStack({ links, maxVisible = 3, showOverflow = true }: PriceTagStackProps) {
   if (links.length === 0) return null;
@@ -46,36 +57,47 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
           <div key={link.id} className="flex flex-col items-end">
             {link.isSoldOut && (
               <span
-                className="pointer-events-auto relative z-10 -mb-2 mr-1 bg-[#c8321f] text-white text-[9px] leading-none font-bold tracking-wider px-1.5 py-1 select-none"
+                className="pointer-events-auto relative z-10 -mb-2 mr-2 bg-[#c8321f] text-white text-[9px] leading-none font-bold tracking-wider px-1.5 py-1 select-none"
                 style={{ transform: `rotate(${(-rotation).toFixed(1)}deg)` }}
               >
                 품절
               </span>
             )}
-            <a
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              title={`${link.isSoldOut ? '품절 · ' : ''}${link.format ? link.format + ' · ' : ''}${link.storeName}`}
-              className="pointer-events-auto flex items-center gap-1.5 bg-white text-black text-[10px] leading-none font-semibold px-2.5 py-1.5 select-none hover:brightness-95 transition"
-              style={{ transform: `rotate(${rotation.toFixed(1)}deg)` }}
+            {/* The notch mask also clips box-shadows, so put the drop-shadow
+                on a parent filter — it follows the notched silhouette. */}
+            <div
+              className="pointer-events-auto"
+              style={{
+                filter: 'drop-shadow(0 1px 1.5px rgba(0,0,0,0.35))',
+                transform: `rotate(${rotation.toFixed(1)}deg)`,
+              }}
             >
-              {link.storeFaviconUrl ? (
-                <img
-                  src={link.storeFaviconUrl}
-                  alt=""
-                  aria-hidden
-                  className="w-3 h-3"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <span className="w-3 h-3 bg-gray-300" />
-              )}
-              {link.format === 'CD' && <span className="text-[10px] leading-none">💿</span>}
-              {link.format === 'Cassette' && <span className="text-[10px] leading-none">📼</span>}
-              <span className="tabular-nums">{formatPrice(link.price, link.currency)}</span>
-            </a>
+              <a
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title={`${link.isSoldOut ? '품절 · ' : ''}${link.format ? link.format + ' · ' : ''}${link.storeName}`}
+                className="flex items-center justify-center bg-white text-black select-none hover:brightness-95 transition"
+                style={{
+                  borderTop: '1.5px solid #c8321f',
+                  borderBottom: '1.5px solid #c8321f',
+                  padding: '7px 14px',
+                  minWidth: '56px',
+                  fontFamily: "'Courier New', 'Courier', ui-monospace, monospace",
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.03em',
+                  lineHeight: 1,
+                  maskImage: NOTCH_MASK,
+                  WebkitMaskImage: NOTCH_MASK,
+                  maskComposite: 'intersect',
+                  WebkitMaskComposite: 'source-in',
+                }}
+              >
+                <span className="tabular-nums">{formatPrice(link.price, link.currency)}</span>
+              </a>
+            </div>
           </div>
         );
       })}
