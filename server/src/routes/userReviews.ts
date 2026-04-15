@@ -5,7 +5,7 @@ import { resolveAlbumPk } from '../utils/slug.js';
 
 const router = Router();
 
-const MAX_NON_WHITESPACE_CHARS = 100;
+const MAX_NON_WHITESPACE_CHARS = 50;
 
 function flattenBody(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
@@ -17,9 +17,32 @@ function nonWhitespaceLength(s: string): number {
   return s.replace(/\s/g, '').length;
 }
 
+function normalizeEmoji(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  // Emojis can be multi-codepoint (ZWJ sequences, skin tones). Count grapheme
+  // clusters and require exactly one. 24 UTF-16 units is a generous ceiling.
+  if (trimmed.length > 24) return null;
+  try {
+    const SegmenterCtor = (Intl as unknown as { Segmenter?: new (locale: string, opts: { granularity: string }) => { segment: (s: string) => Iterable<unknown> } }).Segmenter;
+    if (SegmenterCtor) {
+      const seg = new SegmenterCtor('und', { granularity: 'grapheme' });
+      const count = [...seg.segment(trimmed)].length;
+      if (count !== 1) return null;
+    } else if (trimmed.length > 12) {
+      return null;
+    }
+  } catch {
+    if (trimmed.length > 12) return null;
+  }
+  return trimmed;
+}
+
 interface Row {
   id: number;
   body: string;
+  emoji: string | null;
   created_at: string;
   user_id: number;
   user_name: string | null;
@@ -30,6 +53,7 @@ function serialize(row: Row) {
   return {
     id: row.id,
     body: row.body,
+    emoji: row.emoji,
     userId: row.user_id,
     userName: row.user_name,
     userAvatar: row.user_avatar,
@@ -42,7 +66,7 @@ router.get('/albums/:id/user-reviews', (req, res) => {
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
 
   const rows = queryAll(
-    `SELECT ur.id, ur.body, ur.created_at, ur.user_id,
+    `SELECT ur.id, ur.body, ur.emoji, ur.created_at, ur.user_id,
             u.name AS user_name, u.avatar_url AS user_avatar
      FROM user_reviews ur
      LEFT JOIN users u ON u.id = ur.user_id
@@ -63,21 +87,23 @@ router.post('/albums/:id/user-reviews', requireAuth, (req, res) => {
   const body = flattenBody((req.body ?? {}).body);
   if (!body) return res.status(400).json({ error: '본문을 입력해주세요.' });
   if (nonWhitespaceLength(body) > MAX_NON_WHITESPACE_CHARS) {
-    return res.status(400).json({ error: '공백을 제외하고 100자 이하로 작성해주세요.' });
+    return res.status(400).json({ error: '공백을 제외하고 50자 이하로 작성해주세요.' });
   }
+  const emoji = normalizeEmoji((req.body ?? {}).emoji);
 
   try {
     execute(
-      `INSERT INTO user_reviews (album_id, user_id, body)
-       VALUES (?, ?, ?)
+      `INSERT INTO user_reviews (album_id, user_id, body, emoji)
+       VALUES (?, ?, ?, ?)
        ON CONFLICT(album_id, user_id) DO UPDATE SET
          body = excluded.body,
+         emoji = excluded.emoji,
          updated_at = datetime('now')`,
-      [albumPk, user.id, body]
+      [albumPk, user.id, body, emoji]
     );
 
     const row = queryGet(
-      `SELECT ur.id, ur.body, ur.created_at, ur.user_id,
+      `SELECT ur.id, ur.body, ur.emoji, ur.created_at, ur.user_id,
               u.name AS user_name, u.avatar_url AS user_avatar
        FROM user_reviews ur
        LEFT JOIN users u ON u.id = ur.user_id
