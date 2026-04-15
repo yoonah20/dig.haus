@@ -257,8 +257,10 @@ function Editor({
       <div key={step} className="animate-[fadeInUp_200ms_ease-out] space-y-2.5">
         {step === 'rating' && (
           <>
-            <div className="text-sm text-gray-200">이 앨범 어땠어요?</div>
-            <div className="flex gap-2">
+            <div className="font-serif italic text-xl md:text-2xl text-gray-100 leading-snug">
+              “이 앨범 어땠어요?”
+            </div>
+            <div className="flex justify-center gap-3 pt-1">
               {(['up', 'down'] as const).map((r) => {
                 const isUp = r === 'up';
                 const selected = rating === r;
@@ -269,15 +271,15 @@ function Editor({
                     onClick={() => selectRating(r)}
                     disabled={saving}
                     aria-pressed={selected}
-                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`aspect-square w-28 md:w-32 flex flex-col items-center justify-center gap-1.5 rounded-2xl text-sm font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
                         ? isUp
                           ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 text-[#e8a020]'
                           : 'bg-white/10 border border-white/30 text-white'
-                        : 'bg-white/5 border border-transparent text-gray-300 hover:bg-white/10'
+                        : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
                     }`}
                   >
-                    <span className="text-lg leading-none" aria-hidden>
+                    <span className="text-5xl md:text-6xl leading-none" aria-hidden>
                       {isUp ? '👍' : '👎'}
                     </span>
                     <span>{isUp ? '굿굿' : '별루'}</span>
@@ -291,7 +293,9 @@ function Editor({
 
         {step === 'text' && (
           <>
-            <div className="text-sm text-gray-200">한 줄로 들려주세요</div>
+            <div className="font-serif italic text-xl md:text-2xl text-gray-100 leading-snug">
+              “한 줄로 들려주세요~”
+            </div>
             <textarea
               autoFocus
               value={body}
@@ -351,7 +355,9 @@ function Editor({
         {step === 'emoji' && (
           <>
             <div className="flex items-baseline justify-between gap-2">
-              <div className="text-sm text-gray-200">들으면 어떤 기분이에요?</div>
+              <div className="font-serif italic text-xl md:text-2xl text-gray-100 leading-snug">
+                “마지막으로, 들었을 때 기분!”
+              </div>
               {saving && (
                 <div className="text-[11px] text-gray-500 shrink-0">등록 중…</div>
               )}
