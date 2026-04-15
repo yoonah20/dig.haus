@@ -49,7 +49,7 @@ router.get('/albums/:id/purchase-links', async (req, res) => {
 
   const rows = queryAll(
     `SELECT pl.id, pl.url, pl.store_name, pl.store_favicon_url, pl.price, pl.currency,
-            pl.format, pl.note, pl.user_id, pl.created_at,
+            pl.format, pl.note, pl.is_sold_out, pl.user_id, pl.created_at,
             u.name AS user_name, u.avatar_url AS user_avatar
      FROM purchase_links pl
      LEFT JOIN users u ON u.id = pl.user_id
@@ -72,6 +72,7 @@ router.get('/albums/:id/purchase-links', async (req, res) => {
         : null,
     format: r.format,
     note: r.note,
+    isSoldOut: !!r.is_sold_out,
     userId: r.user_id,
     userName: r.user_name,
     userAvatar: r.user_avatar,
@@ -87,12 +88,13 @@ router.post('/albums/:id/purchase-links', requireAdmin, async (req, res) => {
   const albumPk = resolveAlbumPk((req.params.id as string));
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
 
-  const { url, price, currency, format, note } = req.body as {
+  const { url, price, currency, format, note, isSoldOut } = req.body as {
     url?: string;
     price?: number;
     currency?: string;
     format?: string;
     note?: string;
+    isSoldOut?: boolean;
   };
 
   if (!url || typeof url !== 'string') {
@@ -122,9 +124,9 @@ router.post('/albums/:id/purchase-links', requireAdmin, async (req, res) => {
   try {
     execute(
       `INSERT INTO purchase_links
-       (album_id, user_id, url, store_name, store_favicon_url, price, currency, format, note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [albumPk, user.id, url, storeName, faviconUrl, priceNum, currencyNorm, formatNorm, noteNorm]
+       (album_id, user_id, url, store_name, store_favicon_url, price, currency, format, note, is_sold_out)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [albumPk, user.id, url, storeName, faviconUrl, priceNum, currencyNorm, formatNorm, noteNorm, isSoldOut ? 1 : 0]
     );
     const row = queryGet(
       `SELECT * FROM purchase_links WHERE rowid = last_insert_rowid()`
@@ -144,6 +146,7 @@ router.post('/albums/:id/purchase-links', requireAdmin, async (req, res) => {
         priceKrw,
         format: row.format,
         note: row.note,
+        isSoldOut: !!row.is_sold_out,
         userId: row.user_id,
         userName: user.name,
         userAvatar: user.avatar_url,

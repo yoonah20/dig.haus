@@ -23,6 +23,7 @@ export function useCreatePurchaseLink(albumId: string) {
       currency: string;
       format: string | null;
       note: string | null;
+      isSoldOut: boolean;
     }) => {
       const { data } = await axios.post(`/api/albums/${albumId}/purchase-links`, payload);
       return data.purchaseLink as PurchaseLink;

@@ -7,6 +7,7 @@ export interface PriceTagLink {
   currency: string;
   priceKrw: number | null;
   format: string | null;
+  isSoldOut: boolean;
 }
 
 export interface AlbumSearchResult {
@@ -44,6 +45,7 @@ export interface PurchaseLink {
   priceKrw: number | null;
   format: string | null;
   note: string | null;
+  isSoldOut: boolean;
   userId: number;
   userName: string | null;
   userAvatar: string | null;

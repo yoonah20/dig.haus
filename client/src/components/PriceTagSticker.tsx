@@ -40,35 +40,45 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
 
   return (
     <div className="absolute bottom-2 right-2 flex flex-col items-end gap-1 pointer-events-none">
-      {visible.map((link, i) => (
-        <a
-          key={link.id}
-          href={link.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          title={`${link.format ? link.format + ' · ' : ''}${link.storeName}`}
-          className="pointer-events-auto flex items-center gap-1.5 bg-white text-black text-[10px] leading-none font-semibold px-2.5 py-1.5 rounded-sm shadow-[0_2px_6px_rgba(0,0,0,0.5)] ring-1 ring-black/10 select-none hover:brightness-95 transition"
-          style={{
-            transform: `rotate(${((i % 2 === 0 ? -1 : 1) * (2 + i)).toFixed(1)}deg)`,
-          }}
-        >
-          {link.storeFaviconUrl ? (
-            <img
-              src={link.storeFaviconUrl}
-              alt=""
-              aria-hidden
-              className="w-3 h-3 rounded-sm"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <span className="w-3 h-3 rounded-sm bg-gray-300" />
-          )}
-          {link.format === 'CD' && <span className="text-[10px] leading-none">💿</span>}
-          {link.format === 'Cassette' && <span className="text-[10px] leading-none">📼</span>}
-          <span className="tabular-nums">{formatPrice(link.price, link.currency)}</span>
-        </a>
-      ))}
+      {visible.map((link, i) => {
+        const rotation = (i % 2 === 0 ? -1 : 1) * (2 + i);
+        return (
+          <div key={link.id} className="flex flex-col items-end">
+            {link.isSoldOut && (
+              <span
+                className="pointer-events-auto relative z-10 -mb-2 mr-1 bg-[#c8321f] text-white text-[9px] leading-none font-bold tracking-wider px-1.5 py-1 select-none"
+                style={{ transform: `rotate(${(-rotation).toFixed(1)}deg)` }}
+              >
+                품절
+              </span>
+            )}
+            <a
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`${link.isSoldOut ? '품절 · ' : ''}${link.format ? link.format + ' · ' : ''}${link.storeName}`}
+              className="pointer-events-auto flex items-center gap-1.5 bg-white text-black text-[10px] leading-none font-semibold px-2.5 py-1.5 select-none hover:brightness-95 transition"
+              style={{ transform: `rotate(${rotation.toFixed(1)}deg)` }}
+            >
+              {link.storeFaviconUrl ? (
+                <img
+                  src={link.storeFaviconUrl}
+                  alt=""
+                  aria-hidden
+                  className="w-3 h-3"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <span className="w-3 h-3 bg-gray-300" />
+              )}
+              {link.format === 'CD' && <span className="text-[10px] leading-none">💿</span>}
+              {link.format === 'Cassette' && <span className="text-[10px] leading-none">📼</span>}
+              <span className="tabular-nums">{formatPrice(link.price, link.currency)}</span>
+            </a>
+          </div>
+        );
+      })}
       {showOverflow && overflow > 0 && (
         <div className="pointer-events-auto bg-black/80 text-white text-[10px] leading-none font-semibold px-2.5 py-1.5 rounded-sm shadow ring-1 ring-white/10">
           +{overflow}

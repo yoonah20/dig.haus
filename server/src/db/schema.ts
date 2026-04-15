@@ -346,6 +346,7 @@ export function initializeDatabase(db: Database.Database): void {
     'store_favicon_url TEXT',
     'format TEXT',
     'note TEXT',
+    'is_sold_out INTEGER DEFAULT 0',
   ]);
 
   // One-time FK migration: recreate album_votes / purchase_links with ON DELETE CASCADE

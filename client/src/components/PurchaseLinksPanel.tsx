@@ -200,6 +200,7 @@ function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void 
   const [currency, setCurrency] = useState<Currency>('USD');
   const [format, setFormat] = useState<Format | null>('Vinyl');
   const [note, setNote] = useState('');
+  const [isSoldOut, setIsSoldOut] = useState(false);
 
   const canSubmit = url.trim().length > 0;
 
@@ -214,12 +215,14 @@ function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void 
         currency,
         format,
         note: note.trim() || null,
+        isSoldOut,
       });
       setUrl('');
       setPriceInput('');
       setCurrency('USD');
       setFormat('Vinyl');
       setNote('');
+      setIsSoldOut(false);
       onDone();
     } catch {}
   };
@@ -279,6 +282,16 @@ function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void 
           placeholder="black, 180g, red/blue split..."
           className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-[2] min-w-[140px]"
         />
+
+        <label className="flex items-center gap-1.5 h-9 px-2.5 rounded-md bg-black/30 border border-white/10 text-xs text-gray-300 select-none cursor-pointer hover:border-[#e8a020]/60">
+          <input
+            type="checkbox"
+            checked={isSoldOut}
+            onChange={(e) => setIsSoldOut(e.target.checked)}
+            className="accent-[#e8a020] cursor-pointer"
+          />
+          현재 품절
+        </label>
 
         <button
           type="submit"
