@@ -72,6 +72,9 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const vinylRef = useRef<HTMLDivElement>(null);
   const isHoverNoneRef = useRef(false);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const TAP_THRESHOLD_PX = 10;
 
   const activeId = useSyncExternalStore(
     subscribeActiveCard,
@@ -138,19 +141,42 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     phaseRef.current = phase;
   }, [phase]);
 
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isHoverNoneRef.current) return;
+    const t = e.touches[0];
+    if (!t) return;
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isHoverNoneRef.current) return;
+      const start = touchStartRef.current;
+      touchStartRef.current = null;
+      if (!start) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (Math.hypot(dx, dy) > TAP_THRESHOLD_PX) return;
+
+      // Treat as tap: suppress the synthetic click and drive navigation ourselves.
+      e.preventDefault();
+      if (activeCardId !== album.mbid) {
+        setActiveCardId(album.mbid);
+      } else {
+        setActiveCardId(null);
+        navigate(`/album/${album.mbid}`);
+      }
+    },
+    [album.mbid, navigate]
+  );
+
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      // Touch devices: first tap reveals overlay, second tap on the same card navigates.
-      // Tapping a different card switches activeCardId via this same handler.
+      // Touch devices handle activation + navigation in touchend; block any synthetic click.
       if (isHoverNoneRef.current) {
-        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
-        if (activeCardId !== album.mbid) {
-          e.preventDefault();
-          setActiveCardId(album.mbid);
-          return;
-        }
-        // Second tap on already-active card: clear and let Link navigate.
-        setActiveCardId(null);
+        e.preventDefault();
         return;
       }
       // Let middle/right/modified clicks fall through (open-in-new-tab, etc)
@@ -207,6 +233,8 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
       to={`/album/${album.mbid}`}
       className={`block album-card-outer relative${isActive ? ' is-active' : ''}`}
       onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       style={phase !== 'idle' ? { zIndex: 20 } : undefined}
     >
       <div
