@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
+import { useDocumentHead } from '../hooks/useDocumentHead';
 import type { AlbumSearchResult } from '../types';
 
 interface AlbumListResponse {
@@ -73,9 +74,12 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { openOverlay } = useSearchOverlay();
 
-  useEffect(() => {
-    document.title = 'Home | dig.haus';
-  }, []);
+  useDocumentHead({
+    title: 'dig.haus — 레코드 컬렉터를 위한 음악 리서치 허브',
+    description: '앨범 커버로 파고, 감으로 찾는 레코드 컬렉터의 음악 리서치 허브.',
+    url: 'https://dig.haus/',
+    type: 'website',
+  });
 
   const sort: SortValue = useMemo(() => {
     const raw = searchParams.get('sort') || '';

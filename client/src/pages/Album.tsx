@@ -2,6 +2,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAlbumBase, useAlbumReviews, useAlbumSimilar } from '../hooks/useAlbum';
 import { useInView } from '../hooks/useInView';
+import { useDocumentHead } from '../hooks/useDocumentHead';
 import HeaderSection from '../components/AlbumDetail/HeaderSection';
 import BuySection from '../components/AlbumDetail/BuySection';
 import ReviewSection from '../components/AlbumDetail/ReviewSection';
@@ -45,14 +46,26 @@ export default function Album() {
     window.scrollTo(0, 0);
   }, [slug]);
 
-  // Browser tab title
-  useEffect(() => {
-    if (base?.album) {
-      document.title = `${base.album.title} by ${base.album.artist} | dig.haus`;
-    } else {
-      document.title = 'Loading... | dig.haus';
-    }
-  }, [base?.album]);
+  const headImage = album?.coverArtUrl?.replace(
+    /^(https:\/\/coverartarchive\.org\/release(?:-group)?\/[^/]+\/front)-250(\.[a-z]+)?$/i,
+    '$1-500$2'
+  ) ?? album?.coverArtUrl ?? null;
+  const headYear = album?.releaseDate?.slice(0, 4) || '';
+  const headDescription = album
+    ? [
+        headYear,
+        album.label,
+        '리뷰, 구매처, 유사 앨범 정보',
+      ].filter(Boolean).join(' · ')
+    : undefined;
+
+  useDocumentHead({
+    title: album ? `${album.title} — ${album.artist} | dig.haus` : 'Loading... | dig.haus',
+    description: headDescription,
+    image: headImage,
+    url: album ? `https://dig.haus/album/${albumId}` : undefined,
+    type: 'music.album',
+  });
 
   // Replace URL with slug if we arrived via mbid/discogs-id
   useEffect(() => {
