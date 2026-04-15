@@ -48,25 +48,6 @@ function Avatar({ src, name, size = 52 }: { src: string | null; name: string | n
   );
 }
 
-function RatingBadge({ rating, size = 'sm' }: { rating: 'up' | 'down' | null; size?: 'sm' | 'md' }) {
-  if (!rating) return null;
-  const isUp = rating === 'up';
-  const dim = size === 'md' ? 'text-sm px-2 py-0.5' : 'text-[11px] px-1.5 py-0.5';
-  return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full ${dim} ${
-        isUp
-          ? 'bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30'
-          : 'bg-white/5 text-gray-300 border border-white/10'
-      }`}
-      title={isUp ? '굿굿' : '별루'}
-    >
-      <span aria-hidden>{isUp ? '👍' : '👎'}</span>
-      <span>{isUp ? '굿굿' : '별루'}</span>
-    </span>
-  );
-}
-
 function SpeechBubble({
   review,
   canAdminDelete,
@@ -80,6 +61,8 @@ function SpeechBubble({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const isUp = review.rating === 'up';
+  const hasRating = review.rating === 'up' || review.rating === 'down';
   return (
     <div className="flex items-start gap-3">
       <div className="flex flex-col items-center gap-1 pt-1 shrink-0 w-[108px]">
@@ -87,30 +70,44 @@ function SpeechBubble({
         <span className="text-[11px] text-gray-400 text-center max-w-full truncate">
           {review.userName || '익명'}
         </span>
-        {review.rating && (
-          <div className="mt-0.5">
-            <RatingBadge rating={review.rating} />
-          </div>
-        )}
       </div>
       <div className="relative group flex-1 min-w-0 pt-3">
         {/* w-fit makes the bubble hug its content; max-w-full caps at available space */}
         <div className="relative inline-block w-fit max-w-full bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl rounded-tl-sm px-4 py-3 md:px-5 md:py-3.5">
           {/* tail */}
           <span className="absolute left-[-8px] top-5 w-0 h-0 border-y-[8px] border-y-transparent border-r-[8px] border-r-[#1d140a]" />
+
+          {/* Floating badges at the top-right of the bubble: rating (굿굿/별루)
+              on the left, emoji on the right. */}
+          {(hasRating || review.emoji) && (
+            <div className="absolute -top-3 -right-2 flex items-center gap-1.5 pointer-events-none select-none">
+              {hasRating && (
+                <span
+                  className={`text-xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)] ${
+                    isUp ? '' : 'opacity-90'
+                  }`}
+                  title={isUp ? '굿굿' : '별루'}
+                  aria-label={isUp ? '굿굿' : '별루'}
+                >
+                  {isUp ? '👍' : '👎'}
+                </span>
+              )}
+              {review.emoji && (
+                <span
+                  className="text-2xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
+                  aria-hidden="true"
+                >
+                  {review.emoji}
+                </span>
+              )}
+            </div>
+          )}
+
           <p className="text-gray-100 text-[15px] leading-relaxed break-words">
             {review.body}
           </p>
-          {/* emoji badge, overlapping top-right */}
-          {review.emoji && (
-            <span
-              className="absolute -top-3 -right-2 text-2xl select-none pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
-              aria-hidden="true"
-            >
-              {review.emoji}
-            </span>
-          )}
-          {/* hover action row, bottom-right so it doesn't collide with emoji badge */}
+
+          {/* hover action row, bottom-right so it doesn't collide with badges */}
           {(canOwnerEdit || canAdminDelete) && (
             <div className="absolute bottom-1 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
               {canOwnerEdit && (
@@ -139,84 +136,6 @@ function SpeechBubble({
   );
 }
 
-function EmojiPalette({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: string | null;
-  onChange: (emoji: string | null) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {EMOJI_PALETTE.map((emoji) => {
-        const selected = value === emoji;
-        return (
-          <button
-            key={emoji}
-            type="button"
-            onClick={() => onChange(selected ? null : emoji)}
-            disabled={disabled}
-            aria-pressed={selected}
-            aria-label={`${emoji} ${selected ? '선택 해제' : '선택'}`}
-            className={`w-11 h-11 rounded-xl flex items-center justify-center text-[26px] leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-              selected
-                ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
-                : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-105'
-            }`}
-          >
-            {emoji}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function ThumbPicker({
-  value,
-  onChange,
-  disabled,
-}: {
-  value: 'up' | 'down' | null;
-  onChange: (rating: 'up' | 'down') => void;
-  disabled?: boolean;
-}) {
-  const option = (rating: 'up' | 'down', emoji: string, label: string) => {
-    const selected = value === rating;
-    const isUp = rating === 'up';
-    return (
-      <button
-        key={rating}
-        type="button"
-        onClick={() => onChange(rating)}
-        disabled={disabled}
-        aria-pressed={selected}
-        aria-label={label}
-        className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-          selected
-            ? isUp
-              ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 text-[#e8a020] scale-[1.02]'
-              : 'bg-white/10 border border-white/30 text-white scale-[1.02]'
-            : 'bg-white/5 border border-transparent text-gray-300 hover:bg-white/10'
-        }`}
-      >
-        <span className="text-xl leading-none" aria-hidden>
-          {emoji}
-        </span>
-        <span>{label}</span>
-      </button>
-    );
-  };
-  return (
-    <div className="flex gap-2">
-      {option('up', '👍', '굿굿')}
-      {option('down', '👎', '별루')}
-    </div>
-  );
-}
-
 function Editor({
   initialBody,
   initialEmoji,
@@ -239,61 +158,118 @@ function Editor({
   const over = count > MAX_CHARS;
   const empty = value.trim().length === 0;
 
+  const missing = !rating
+    ? '굿굿/별루'
+    : empty
+      ? '한 줄 감상'
+      : !emoji
+        ? '감정 이모지'
+        : null;
+  const canSave = !saving && !over && !missing;
+
+  const thumbButton = (target: 'up' | 'down') => {
+    const selected = rating === target;
+    const isUp = target === 'up';
+    return (
+      <button
+        type="button"
+        onClick={() => setRating(target)}
+        disabled={saving}
+        aria-pressed={selected}
+        aria-label={isUp ? '굿굿' : '별루'}
+        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+          selected
+            ? isUp
+              ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 text-[#e8a020]'
+              : 'bg-white/10 border border-white/30 text-white'
+            : 'bg-white/5 border border-transparent text-gray-400 hover:bg-white/10 hover:text-gray-200'
+        }`}
+      >
+        <span aria-hidden>{isUp ? '👍' : '👎'}</span>
+        <span>{isUp ? '굿굿' : '별루'}</span>
+      </button>
+    );
+  };
+
   return (
-    <div className="bg-[#1d140a] border border-[#e8a020]/20 rounded-2xl p-3 md:p-4 space-y-4">
-      <div>
-        <div className="text-xs text-gray-400 mb-2">이 앨범 마음에 드세요?</div>
-        <ThumbPicker value={rating} onChange={setRating} disabled={saving} />
-      </div>
-      <div className={rating ? '' : 'opacity-50 pointer-events-none select-none'}>
-        <textarea
-          autoFocus={!!rating}
-          value={value}
-          onChange={(e) => {
-            const next = e.target.value;
-            // Hard-stop at MAX_CHARS non-whitespace — don't let the user type
-            // past the limit at all. Deletes stay free because they never grow
-            // the count.
-            if (countNonWhitespace(next) > MAX_CHARS) return;
-            setValue(next);
-          }}
-          placeholder={
-            rating
-              ? '이 앨범에 대한 한 줄 감상 (공백 제외 50자)'
-              : '먼저 굿굿 / 별루를 선택해주세요'
-          }
-          rows={2}
-          disabled={saving || !rating}
-          className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
-        />
-        <div className="mt-3">
-          <div className="text-xs text-gray-400 mb-2">들으면 어떤 기분이에요?</div>
-          <EmojiPalette value={emoji} onChange={setEmoji} disabled={saving || !rating} />
+    <div className="bg-[#1d140a] border border-[#e8a020]/20 rounded-2xl p-4 md:p-5 space-y-3">
+      {/* Rating row — inline label + compact pill toggles */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-xs text-gray-400 shrink-0">이 앨범 어땠어요?</span>
+        <div className="flex gap-1.5">
+          {thumbButton('up')}
+          {thumbButton('down')}
         </div>
       </div>
-      <div className="flex items-center justify-between text-xs">
-        <span className={over ? 'text-red-400' : 'text-gray-500'}>
-          {count} / {MAX_CHARS} 공백 제외
-        </span>
-        <div className="flex gap-2">
+
+      {/* Main input — the focus of the card */}
+      <textarea
+        autoFocus
+        value={value}
+        onChange={(e) => {
+          const next = e.target.value;
+          // Hard-stop at MAX_CHARS non-whitespace — don't let the user type
+          // past the limit at all. Deletes stay free because they never grow
+          // the count.
+          if (countNonWhitespace(next) > MAX_CHARS) return;
+          setValue(next);
+        }}
+        placeholder="한 줄 감상을 적어주세요"
+        rows={2}
+        disabled={saving}
+        className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2.5 text-[15px] text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
+      />
+
+      {/* Emoji row — inline mini-label + compact chips */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-gray-400 shrink-0">기분</span>
+        <div className="flex flex-wrap gap-1">
+          {EMOJI_PALETTE.map((e) => {
+            const selected = emoji === e;
+            return (
+              <button
+                key={e}
+                type="button"
+                onClick={() => setEmoji(selected ? null : e)}
+                disabled={saving}
+                aria-pressed={selected}
+                aria-label={e}
+                className={`w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                  selected
+                    ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
+                    : 'bg-white/5 border border-transparent hover:bg-white/10'
+                }`}
+              >
+                {e}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Footer — counter + hint + actions, all in one row */}
+      <div className="flex items-center justify-between gap-3 pt-1 text-xs">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className={`tabular-nums shrink-0 ${over ? 'text-red-400' : 'text-gray-500'}`}>
+            {count}/{MAX_CHARS}
+          </span>
+          {missing && (
+            <span className="text-gray-500 truncate">{missing} 선택해주세요</span>
+          )}
+        </div>
+        <div className="flex gap-2 shrink-0">
           <button
             onClick={onCancel}
             disabled={saving}
-            className="text-gray-400 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
+            className="text-gray-400 hover:text-white px-3 py-1 disabled:opacity-40 cursor-pointer"
           >
             취소
           </button>
           <button
-            onClick={() => rating && onSave(flattenBody(value), emoji, rating)}
-            disabled={saving || over || empty || !emoji || !rating}
-            title={
-              !rating
-                ? '굿굿 / 별루를 선택해주세요'
-                : !emoji
-                  ? '감정 이모지를 하나 선택해주세요'
-                  : undefined
-            }
-            className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-3 py-1 font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            onClick={() => rating && emoji && onSave(flattenBody(value), emoji, rating)}
+            disabled={!canSave}
+            title={missing ? `${missing} 선택해주세요` : undefined}
+            className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-4 py-1 font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {saving ? '저장 중...' : '저장'}
           </button>
