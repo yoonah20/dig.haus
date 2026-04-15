@@ -260,6 +260,14 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [artistKoInput, setArtistKoInput] = useState('');
   const [titleKoInput, setTitleKoInput] = useState('');
   const [titleMeaningInput, setTitleMeaningInput] = useState('');
+  const [editingAlbum, setEditingAlbum] = useState(false);
+  const [savingAlbum, setSavingAlbum] = useState(false);
+  const [titleInput, setTitleInput] = useState('');
+  const [artistInput, setArtistInput] = useState('');
+  const [releaseYearInput, setReleaseYearInput] = useState('');
+  const [releaseDateInput, setReleaseDateInput] = useState('');
+  const [labelInput, setLabelInput] = useState('');
+  const [formatInput, setFormatInput] = useState('');
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -395,6 +403,74 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     }
   }, [albumId, navigate, queryClient, album.mbid, album.slug]);
 
+  const startEditAlbum = useCallback(() => {
+    setTitleInput(album.title || '');
+    setArtistInput(album.artist || '');
+    const yearFromDate = album.releaseDate?.match(/^(\d{4})/)?.[1] || '';
+    setReleaseYearInput(
+      album.releaseYear != null ? String(album.releaseYear) : yearFromDate
+    );
+    setReleaseDateInput(
+      /^\d{4}-\d{2}-\d{2}$/.test(album.releaseDate || '') ? album.releaseDate : ''
+    );
+    setLabelInput(album.label || '');
+    setFormatInput(album.format || '');
+    setEditingAlbum(true);
+  }, [album]);
+
+  const cancelEditAlbum = useCallback(() => {
+    if (savingAlbum) return;
+    setEditingAlbum(false);
+  }, [savingAlbum]);
+
+  const saveEditAlbum = useCallback(async () => {
+    const title = titleInput.trim();
+    const artist = artistInput.trim();
+    if (!title || !artist) {
+      alert('타이틀과 아티스트는 필수입니다.');
+      return;
+    }
+    const yearStr = releaseYearInput.trim();
+    let releaseYear: number | null = null;
+    if (yearStr) {
+      const n = parseInt(yearStr, 10);
+      if (!Number.isInteger(n) || n < 1900 || n > 2100) {
+        alert('발매년도는 1900~2100 사이의 숫자여야 합니다.');
+        return;
+      }
+      releaseYear = n;
+    }
+    const releaseDate = releaseDateInput.trim();
+    if (releaseDate && !/^\d{4}-\d{2}-\d{2}$/.test(releaseDate)) {
+      alert('발매일은 YYYY-MM-DD 형식이어야 합니다.');
+      return;
+    }
+
+    setSavingAlbum(true);
+    try {
+      await axios.patch(`/api/albums/${albumId}`, {
+        title,
+        artist_name: artist,
+        release_year: releaseYear,
+        release_date: releaseDate || null,
+        label_name: labelInput.trim() || null,
+        format: formatInput.trim() || null,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
+      await queryClient.invalidateQueries({ queryKey: ['album-list'] });
+      setEditingAlbum(false);
+    } catch (err) {
+      console.error('Update album error:', err);
+      const detail =
+        axios.isAxiosError(err) && typeof err.response?.data?.error === 'string'
+          ? err.response.data.error
+          : null;
+      alert(detail ? `앨범 수정에 실패했습니다.\n\n${detail}` : '앨범 수정에 실패했습니다.');
+    } finally {
+      setSavingAlbum(false);
+    }
+  }, [albumId, titleInput, artistInput, releaseYearInput, releaseDateInput, labelInput, formatInput, queryClient]);
+
   // Build link list: Discogs (from buy data) + streaming services
   const allLinks: Array<{ key: string; name: string; color: string; icon: React.ReactNode; url: string }> = [];
 
@@ -417,6 +493,12 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     <div className="relative flex flex-col md:flex-row gap-8">
       {user?.isAdmin && (
         <div className="absolute top-0 right-0 flex gap-3">
+          <button
+            onClick={startEditAlbum}
+            className="text-xs text-gray-600 hover:text-[#e8a020] transition-colors"
+          >
+            ✏️ 앨범 수정
+          </button>
           <button
             onClick={handleRefreshReviews}
             disabled={refreshingReviews}
@@ -657,6 +739,94 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
           </div>
         )}
       </div>
+
+      {user?.isAdmin && editingAlbum && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={cancelEditAlbum}
+        >
+          <div
+            className="bg-[#111] border border-white/10 rounded-xl w-full max-w-lg p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-white mb-4">앨범 정보 수정</h2>
+            <div className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 items-center text-sm">
+              <label className="text-gray-400">타이틀</label>
+              <input
+                type="text"
+                value={titleInput}
+                onChange={(e) => setTitleInput(e.target.value)}
+                disabled={savingAlbum}
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <label className="text-gray-400">아티스트</label>
+              <input
+                type="text"
+                value={artistInput}
+                onChange={(e) => setArtistInput(e.target.value)}
+                disabled={savingAlbum}
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <label className="text-gray-400">발매년도</label>
+              <input
+                type="number"
+                min={1900}
+                max={2100}
+                value={releaseYearInput}
+                onChange={(e) => setReleaseYearInput(e.target.value)}
+                disabled={savingAlbum}
+                placeholder="예: 2025"
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <label className="text-gray-400">발매일</label>
+              <input
+                type="text"
+                value={releaseDateInput}
+                onChange={(e) => setReleaseDateInput(e.target.value)}
+                disabled={savingAlbum}
+                placeholder="YYYY-MM-DD (선택)"
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <label className="text-gray-400">레이블</label>
+              <input
+                type="text"
+                value={labelInput}
+                onChange={(e) => setLabelInput(e.target.value)}
+                disabled={savingAlbum}
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <label className="text-gray-400">포맷</label>
+              <input
+                type="text"
+                value={formatInput}
+                onChange={(e) => setFormatInput(e.target.value)}
+                disabled={savingAlbum}
+                placeholder="예: Vinyl, CD"
+                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-4">
+              커버/장르/한국어 번역은 각 전용 수정 버튼을 사용하세요.
+            </p>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={cancelEditAlbum}
+                disabled={savingAlbum}
+                className="px-3 py-1.5 text-sm text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
+              >
+                취소
+              </button>
+              <button
+                onClick={saveEditAlbum}
+                disabled={savingAlbum}
+                className="px-3 py-1.5 text-sm text-[#e8a020] border border-[#e8a020]/40 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 cursor-pointer transition-colors"
+              >
+                {savingAlbum ? '저장 중...' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

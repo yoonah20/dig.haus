@@ -166,6 +166,8 @@ async function getOrFetchAlbumBase(mbid: string) {
         artist: cached.artist_name,
         artistMbid: cached.artist_mbid,
         releaseDate: cached.release_date || cached.release_year?.toString() || '',
+        releaseYear: cached.release_year ?? null,
+        format: cached.format || null,
         label: cached.label_name,
         genres: cleanGenres(genres, cached.artist_name),
         coverArtUrl: cached.cover_art_url,
@@ -295,6 +297,8 @@ async function getOrFetchAlbumBase(mbid: string) {
     artist: artistName,
     artistMbid: artistMbid,
     releaseDate,
+    releaseYear: releaseYear ? parseInt(releaseYear, 10) : null,
+    format: format || null,
     label: labelName,
     genres: cleanGenres(genres, artistName),
     coverArtUrl: primaryCoverArtUrl,
@@ -624,6 +628,81 @@ router.patch('/:id/metadata', requireAdmin, (req, res) => {
   } catch (error) {
     console.error('Update metadata error:', error);
     res.status(500).json({ error: 'Failed to update metadata' });
+  }
+});
+
+// ─── PATCH /api/albums/:id — admin edit core album metadata ─────────────
+
+router.patch('/:id', requireAdmin, (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const row = queryGet('SELECT mbid FROM albums WHERE mbid = ?', [mbid]);
+  if (!row) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const fields: Record<string, any> = {};
+
+  const strField = (key: string, max: number, required = false) => {
+    if (!(key in body)) return null;
+    const v = body[key];
+    if (v === null || v === '') return required ? `${key} is required` : (fields[key] = null, null);
+    if (typeof v !== 'string') return `${key} must be a string`;
+    const trimmed = v.trim();
+    if (required && !trimmed) return `${key} is required`;
+    if (trimmed.length > max) return `${key} is too long (max ${max})`;
+    fields[key] = trimmed || null;
+    return null;
+  };
+
+  let err: string | null = null;
+  err = strField('title', 500, true) || err;
+  err = strField('artist_name', 500, true) || err;
+  err = strField('label_name', 500) || err;
+  err = strField('format', 200) || err;
+
+  if ('release_year' in body) {
+    const v = body.release_year;
+    if (v === null || v === '') {
+      fields.release_year = null;
+    } else {
+      const n = typeof v === 'number' ? v : parseInt(String(v), 10);
+      if (!Number.isInteger(n) || n < 1900 || n > 2100) {
+        err = err || 'release_year must be an integer between 1900 and 2100';
+      } else {
+        fields.release_year = n;
+      }
+    }
+  }
+
+  if ('release_date' in body) {
+    const v = body.release_date;
+    if (v === null || v === '') {
+      fields.release_date = null;
+    } else if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) {
+      err = err || 'release_date must be YYYY-MM-DD';
+    } else {
+      fields.release_date = v.trim();
+    }
+  }
+
+  if (err) return res.status(400).json({ error: err });
+  if (Object.keys(fields).length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' });
+  }
+
+  try {
+    updateAlbumFields(mbid, fields);
+    const updated = queryGet(
+      'SELECT mbid, title, artist_name, release_year, release_date, label_name, format FROM albums WHERE mbid = ?',
+      [mbid]
+    );
+    res.json({ ok: true, album: updated });
+  } catch (error) {
+    console.error('Update album error:', error);
+    res.status(500).json({ error: 'Failed to update album' });
   }
 });
 

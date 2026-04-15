@@ -127,6 +127,8 @@ export interface AlbumDetail {
     artist: string;
     artistMbid: string | null;
     releaseDate: string;
+    releaseYear?: number | null;
+    format?: string | null;
     label: string | null;
     genres: string[];
     coverArtUrl: string | null;
