@@ -1,14 +1,9 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { AlbumSearchResult } from '../types';
 import CoverArt from './CoverArt';
 import PriceTagStack from './PriceTagSticker';
 import { getScoreColor } from '../utils/score';
-
-type VinylPhase = 'idle' | 'eject' | 'fly';
-
-const EJECT_MS = 1000;
-const FLY_MS = 500;
 
 // Cross-card active state for touch devices: only one card can show its overlay at a time.
 let activeCardId: string | null = null;
@@ -28,49 +23,13 @@ function getActiveCardSnapshot() {
   return activeCardId;
 }
 
-function VinylSvg() {
-  return (
-    <svg
-      viewBox="0 0 100 100"
-      className="w-full h-full"
-      style={{ filter: 'drop-shadow(2px 2px 8px rgba(0,0,0,0.8))' }}
-      aria-hidden
-    >
-      <circle cx="50" cy="50" r="50" fill="#1a1a1a" />
-      {[10, 20, 30, 40, 45].map((r) => (
-        <circle key={r} cx="50" cy="50" r={r} fill="none" stroke="#2a2a2a" strokeWidth="0.5" />
-      ))}
-      <circle cx="50" cy="50" r="15" fill="#e8a020" />
-      <text
-        x="50"
-        y="50"
-        textAnchor="middle"
-        dominantBaseline="central"
-        style={{
-          fontFamily: "'Syne', 'Inter', sans-serif",
-          fontWeight: 700,
-          fontSize: '14px',
-          letterSpacing: '-0.03em',
-          fill: '#000',
-        }}
-      >
-        dig
-      </text>
-      <circle cx="50" cy="50" r="2" fill="#0f0f0f" />
-    </svg>
-  );
-}
-
 export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
   const priceTagLinks = album.priceTagLinks ?? [];
 
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<VinylPhase>('idle');
-  const phaseRef = useRef<VinylPhase>('idle');
   const cardRef = useRef<HTMLDivElement>(null);
-  const vinylRef = useRef<HTMLDivElement>(null);
   const isHoverNoneRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -92,7 +51,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   }, []);
 
   const handleMouseEnter = useCallback(() => {
-    if (phaseRef.current !== 'idle' || isHoverNoneRef.current) return;
+    if (isHoverNoneRef.current) return;
     const el = cardRef.current;
     if (!el) return;
     el.style.transform = HOVER_TRANSFORM;
@@ -135,10 +94,6 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     };
   }, [isActive]);
 
-  useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
-
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!isHoverNoneRef.current) return;
     const t = e.touches[0];
@@ -170,61 +125,14 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     [album.mbid, navigate]
   );
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent) => {
-      // Touch devices handle activation + navigation in touchend; block any synthetic click.
-      if (isHoverNoneRef.current) {
-        e.preventDefault();
-        return;
-      }
-      // Let middle/right/modified clicks fall through (open-in-new-tab, etc)
-      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
-      if (phaseRef.current !== 'idle') {
-        e.preventDefault();
-        return;
-      }
-
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    // Touch devices route activation through touchend so a single tap
+    // reveals the info popup instead of navigating. Suppress the synthetic
+    // click here so <Link> doesn't immediately navigate on first tap.
+    if (isHoverNoneRef.current) {
       e.preventDefault();
-
-      const cardEl = cardRef.current;
-      const vinylEl = vinylRef.current;
-      if (!cardEl || !vinylEl) {
-        navigate(`/album/${album.mbid}`);
-        return;
-      }
-
-      const rect = cardEl.getBoundingClientRect();
-      const cardCenterX = rect.left + rect.width / 2;
-      const cardCenterY = rect.top + rect.height / 2;
-      const dx = window.innerWidth / 2 - cardCenterX;
-      const dy = window.innerHeight / 2 - cardCenterY;
-
-      vinylEl.style.setProperty('--fly-x', `${dx}px`);
-      vinylEl.style.setProperty('--fly-y', `${dy}px`);
-
-      // Reset 3D hover transform so vinyl animates in un-transformed parent
-      resetCardTransform();
-
-      setPhase('eject');
-      window.setTimeout(() => setPhase('fly'), EJECT_MS);
-      window.setTimeout(() => {
-        navigate(`/album/${album.mbid}`);
-      }, EJECT_MS + FLY_MS);
-    },
-    [album.mbid, navigate, resetCardTransform]
-  );
-
-  let vinylStyle: React.CSSProperties | undefined;
-  if (phase === 'eject') {
-    vinylStyle = {
-      animation: `vinylEject ${EJECT_MS}ms cubic-bezier(0.4, 0, 0.2, 1) forwards`,
-    };
-  } else if (phase === 'fly') {
-    vinylStyle = {
-      animation: `vinylFly ${FLY_MS}ms cubic-bezier(0.4, 0, 0.6, 1) forwards`,
-      zIndex: 50,
-    };
-  }
+    }
+  }, []);
 
   return (
     <Link
@@ -233,7 +141,6 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
       onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      style={phase !== 'idle' ? { zIndex: 20 } : undefined}
     >
       <div
         className="relative aspect-square album-card-3d rounded-xl"
@@ -241,22 +148,6 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {/* Vinyl — absolute sibling, behind the cover by default */}
-        <div
-          ref={vinylRef}
-          className="vinyl absolute inset-0 pointer-events-none"
-          style={vinylStyle}
-          aria-hidden
-        >
-          <div
-            className="vinyl-spinner"
-            style={phase !== 'idle' ? { animation: 'none' } : undefined}
-          >
-            <VinylSvg />
-          </div>
-        </div>
-
-        {/* Cover */}
         <div className="absolute inset-0 bg-[#1a1a1a] rounded-xl overflow-hidden">
           <CoverArt
             src={album.coverArtUrl}
