@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../../lib/axios';
@@ -9,6 +10,28 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSearchOverlay } from '../../contexts/SearchOverlayContext';
 import VoteButtons from '../VoteButtons';
 import CopyTitleButton from '../CopyTitleButton';
+
+function AdminMenuItem({
+  onClick,
+  disabled,
+  danger,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  children: ReactNode;
+}) {
+  const base = 'w-full text-left px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer';
+  const color = danger
+    ? 'text-red-400 hover:bg-red-900/30 hover:text-red-300'
+    : 'text-gray-300 hover:bg-white/5 hover:text-[#e8a020]';
+  return (
+    <button role="menuitem" onClick={onClick} disabled={disabled} className={`${base} ${color}`}>
+      {children}
+    </button>
+  );
+}
 
 function TagEditor({
   tags,
@@ -262,6 +285,9 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [titleMeaningInput, setTitleMeaningInput] = useState('');
   const [editingAlbum, setEditingAlbum] = useState(false);
   const [savingAlbum, setSavingAlbum] = useState(false);
+  const [refreshingDiscogs, setRefreshingDiscogs] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const adminMenuRef = useRef<HTMLDivElement>(null);
   const [titleInput, setTitleInput] = useState('');
   const [artistInput, setArtistInput] = useState('');
   const [releaseYearInput, setReleaseYearInput] = useState('');
@@ -284,6 +310,42 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     } catch {}
     setRefreshingReviews(false);
   }, [albumId, queryClient]);
+
+  const handleRefreshDiscogs = useCallback(async () => {
+    if (refreshingDiscogs) return;
+    setRefreshingDiscogs(true);
+    try {
+      const { data } = await axios.post(`/api/albums/${albumId}/refresh-discogs`);
+      await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
+      const n = data?.formatsFound ?? 0;
+      if (n === 0) {
+        alert('Discogs에서 시세 정보를 찾지 못했습니다.');
+      }
+    } catch (err) {
+      console.error('Refresh discogs error:', err);
+      alert('시세 갱신에 실패했습니다.');
+    } finally {
+      setRefreshingDiscogs(false);
+    }
+  }, [albumId, queryClient, refreshingDiscogs]);
+
+  useEffect(() => {
+    if (!adminMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (adminMenuRef.current && !adminMenuRef.current.contains(e.target as Node)) {
+        setAdminMenuOpen(false);
+      }
+    };
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAdminMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onEsc);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onEsc);
+    };
+  }, [adminMenuOpen]);
 
   const startEditKo = useCallback(() => {
     setArtistKoInput(album.artistKo || '');
@@ -492,27 +554,47 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   return (
     <div className="relative flex flex-col md:flex-row gap-8">
       {user?.isAdmin && (
-        <div className="absolute top-0 right-0 flex gap-3">
+        <div ref={adminMenuRef} className="absolute top-0 right-0">
           <button
-            onClick={startEditAlbum}
-            className="text-xs text-gray-600 hover:text-[#e8a020] transition-colors"
+            onClick={() => setAdminMenuOpen((v) => !v)}
+            className="text-xs text-gray-600 hover:text-[#e8a020] transition-colors px-2 py-1 rounded-md border border-transparent hover:border-white/10 cursor-pointer"
+            aria-haspopup="menu"
+            aria-expanded={adminMenuOpen}
           >
-            ✏️ 앨범 수정
+            ⚙️ 관리
           </button>
-          <button
-            onClick={handleRefreshReviews}
-            disabled={refreshingReviews}
-            className="text-xs text-gray-600 hover:text-gray-400 disabled:text-gray-700 transition-colors"
-          >
-            {refreshingReviews ? '검색 중...' : '🔍 리뷰 추가 검색'}
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="text-xs text-red-900 hover:text-red-500 disabled:text-gray-700 transition-colors"
-          >
-            {deleting ? '삭제 중...' : '🗑️ 삭제'}
-          </button>
+          {adminMenuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 mt-1 w-48 bg-[#111] border border-white/10 rounded-md shadow-xl py-1 z-30"
+            >
+              <AdminMenuItem
+                onClick={() => { setAdminMenuOpen(false); startEditAlbum(); }}
+              >
+                ✏️ 앨범 수정
+              </AdminMenuItem>
+              <AdminMenuItem
+                onClick={() => { setAdminMenuOpen(false); void handleRefreshDiscogs(); }}
+                disabled={refreshingDiscogs}
+              >
+                {refreshingDiscogs ? '갱신 중...' : '💰 시세 갱신'}
+              </AdminMenuItem>
+              <AdminMenuItem
+                onClick={() => { setAdminMenuOpen(false); void handleRefreshReviews(); }}
+                disabled={refreshingReviews}
+              >
+                {refreshingReviews ? '검색 중...' : '🔍 리뷰 추가 검색'}
+              </AdminMenuItem>
+              <div className="my-1 border-t border-white/10" />
+              <AdminMenuItem
+                onClick={() => { setAdminMenuOpen(false); void handleDelete(); }}
+                disabled={deleting}
+                danger
+              >
+                {deleting ? '삭제 중...' : '🗑️ 삭제'}
+              </AdminMenuItem>
+            </div>
+          )}
         </div>
       )}
 

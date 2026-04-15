@@ -745,6 +745,39 @@ router.patch('/:id/cover-art', requireAdmin, async (req, res) => {
   }
 });
 
+// ─── POST /api/albums/:id/refresh-discogs — admin re-fetch Discogs prices ───
+
+router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const row = queryGet(
+    'SELECT mbid, artist_name, title FROM albums WHERE mbid = ?',
+    [mbid]
+  );
+  if (!row) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+  if (!row.artist_name || !row.title) {
+    return res.status(400).json({ error: 'Album is missing artist or title' });
+  }
+
+  try {
+    const fresh = await getMasterMarketData(row.artist_name, row.title);
+    const formats = fresh?.formats || [];
+    updateAlbumFields(mbid, {
+      discogs_url: fresh?.discogsUrl || null,
+      discogs_id: fresh?.masterId || null,
+      discogs_formats_json: formats.length > 0 ? JSON.stringify(formats) : null,
+      discogs_formats_updated_at: new Date().toISOString(),
+    });
+    res.json({ ok: true, formatsFound: formats.length, formats });
+  } catch (error) {
+    console.error('Refresh discogs error:', error);
+    res.status(500).json({ error: 'Failed to refresh Discogs data' });
+  }
+});
+
 // ─── POST /api/albums/:id/reviews/add-url — admin add review by URL ─────
 
 router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req, res) => {
