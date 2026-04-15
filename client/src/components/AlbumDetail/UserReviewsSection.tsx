@@ -522,7 +522,7 @@ export default function UserReviewsSection({
 
   return (
     <section
-      className="max-w-2xl"
+      className="max-w-4xl"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
@@ -530,7 +530,8 @@ export default function UserReviewsSection({
     >
       {heading}
       {/* Up to 3 reviews per row (stacks on mobile). Pages auto-rotate
-          just like the old single-card carousel. */}
+          just like the old single-card carousel. Section width is sized
+          so a full 50자 review wraps to ~3 lines within each card. */}
       <div
         key={page}
         className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch animate-[fadeInUp_200ms_ease-out]"
