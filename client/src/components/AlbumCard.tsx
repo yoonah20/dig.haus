@@ -125,7 +125,8 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
       window.matchMedia('(hover: none)').matches;
   }, []);
 
-  // Touch-only: close this card's overlay when user taps outside any album card.
+  // Touch-only: close this card's overlay when user taps outside any album card
+  // or starts scrolling.
   useEffect(() => {
     if (!isActive) return;
     function onDocPointerDown(e: PointerEvent) {
@@ -133,8 +134,22 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
       if (target?.closest?.('.album-card-outer')) return;
       setActiveCardId(null);
     }
+    const isTouch =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(hover: none)').matches;
+    function onScroll() {
+      setActiveCardId(null);
+    }
     document.addEventListener('pointerdown', onDocPointerDown);
-    return () => document.removeEventListener('pointerdown', onDocPointerDown);
+    if (isTouch) {
+      window.addEventListener('scroll', onScroll, { passive: true });
+    }
+    return () => {
+      document.removeEventListener('pointerdown', onDocPointerDown);
+      if (isTouch) {
+        window.removeEventListener('scroll', onScroll);
+      }
+    };
   }, [isActive]);
 
   useEffect(() => {
