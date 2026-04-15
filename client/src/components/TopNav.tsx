@@ -41,22 +41,21 @@ export default function TopNav() {
 
   return (
     <>
-      <nav className="sticky top-0 z-40 bg-[#24180a]/90 backdrop-blur-sm border-b border-[#e8a020]/30 px-4 py-3">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-baseline gap-3">
+      <nav className="sticky top-0 z-40 bg-[#120c05]/95 backdrop-blur-sm border-b border-[#e8a020]/15 px-4 py-3">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-2 sm:gap-3 min-w-0">
             <Link
               to="/"
-              className="text-[#e8a020] text-3xl lowercase tracking-tight leading-none"
+              className="text-[#e8a020] text-2xl md:text-3xl lowercase tracking-tight leading-none shrink-0"
               style={{ fontFamily: "'Syne', 'Inter', sans-serif", fontWeight: 700, letterSpacing: '-0.03em' }}
             >
               dig.haus
             </Link>
             <span
-              className="hidden sm:inline whitespace-nowrap"
+              className="whitespace-nowrap text-[11px] sm:text-[13px] truncate"
               style={{
                 fontFamily: "'Syne', 'Inter', sans-serif",
                 fontWeight: 600,
-                fontSize: '13px',
                 letterSpacing: '-0.01em',
                 color: '#d4c090',
                 opacity: 0.9,
