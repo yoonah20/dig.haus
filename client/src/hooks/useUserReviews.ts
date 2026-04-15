@@ -47,6 +47,9 @@ export function useDeleteUserReview(albumId: string) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['user-reviews', albumId] });
+      // Deleting a review also withdraws the author's 굿굿/별루 vote, so the
+      // album's up/down counts and the user's own vote state change.
+      qc.invalidateQueries({ queryKey: ['album', albumId] });
     },
   });
 }

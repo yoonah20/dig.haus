@@ -155,9 +155,9 @@ router.delete('/user-reviews/:id', requireAuth, (req, res) => {
   if (isNaN(reviewId)) return res.status(400).json({ error: 'Invalid id' });
 
   const existing = queryGet(
-    `SELECT user_id FROM user_reviews WHERE id = ?`,
+    `SELECT user_id, album_id FROM user_reviews WHERE id = ?`,
     [reviewId]
-  ) as { user_id: number } | null;
+  ) as { user_id: number; album_id: number } | null;
 
   if (!existing) return res.status(404).json({ error: 'Review not found' });
   if (existing.user_id !== user.id && !user.is_admin) {
@@ -166,6 +166,14 @@ router.delete('/user-reviews/:id', requireAuth, (req, res) => {
 
   try {
     execute(`DELETE FROM user_reviews WHERE id = ?`, [reviewId]);
+    // The review's thumbs IS the author's 굿굿/별루 vote on the album —
+    // deleting the review also withdraws their vote so the album's count
+    // drops by 1. Always targets the review author, even when an admin
+    // performs the delete.
+    execute(
+      `DELETE FROM album_votes WHERE user_id = ? AND album_id = ?`,
+      [existing.user_id, existing.album_id]
+    );
     res.json({ ok: true });
   } catch (err) {
     console.error('[user-reviews] delete failed:', err);
