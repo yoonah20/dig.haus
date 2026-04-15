@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../../lib/axios';
 import type { SimilarAlbum } from '../../types';
@@ -90,6 +91,7 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [spotify, setSpotify] = useState('');
@@ -106,18 +108,19 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
     setRegistering(true);
     try {
       // Hitting GET /api/albums/:mbid caches the album in the DB (same flow
-      // as RegisterAlbumModal). We don't navigate — admin usually wants to
-      // keep triaging the similar list.
+      // as RegisterAlbumModal). Navigate into the freshly-registered page so
+      // admins can immediately verify metadata / kick off review collection.
       await axios.get(`/api/albums/${encodeURIComponent(album.mbid)}`);
       await queryClient.invalidateQueries({ queryKey: ['album-list'] });
       setRegistered(true);
+      navigate(`/album/${album.mbid}`);
     } catch (err) {
       console.error('Register album error:', err);
       alert('앨범 등록에 실패했습니다.');
     } finally {
       setRegistering(false);
     }
-  }, [album.mbid, registering, registered, queryClient]);
+  }, [album.mbid, registering, registered, queryClient, navigate]);
 
   const startEdit = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
