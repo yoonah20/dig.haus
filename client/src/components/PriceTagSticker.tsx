@@ -33,16 +33,17 @@ const NOTCH_MASK =
   `radial-gradient(circle ${NOTCH_R}px at 0 50%, transparent 98%, #000 100%),` +
   `radial-gradient(circle ${NOTCH_R}px at 100% 50%, transparent 98%, #000 100%)`;
 
-// Top + bottom red rules, centered, spanning the middle 70% of the sticker
-// width, and inset ~3px from the top/bottom edges so they sit clearly inside
-// the sticker body without crowding the price text. Rendered as background
-// linear-gradients layered over the white fill — the red ends at 85% of
-// width, well clear of the side notches at x=0 / x=100%, so the mask never
-// clips them.
+// Top + bottom red rules, centered, spanning the middle 80% of the sticker
+// width. Top rule is inset 3px from the top edge; bottom rule is inset 4px
+// (a pixel higher than the top inset so the visual spacing around the price
+// text reads more even once the type's baseline offset is factored in).
+// Rendered as background linear-gradients layered over the white fill —
+// the red ends at 90% of width, clear of the side notches at x=0 / x=100%,
+// so the mask never clips them.
 const RED = '#c8321f';
 const RULES_BG =
-  `linear-gradient(to right, transparent 15%, ${RED} 15%, ${RED} 85%, transparent 85%) left 0 top 3px / 100% 1.25px no-repeat,` +
-  `linear-gradient(to right, transparent 15%, ${RED} 15%, ${RED} 85%, transparent 85%) left 0 bottom 3px / 100% 1.25px no-repeat`;
+  `linear-gradient(to right, transparent 10%, ${RED} 10%, ${RED} 90%, transparent 90%) left 0 top 3px / 100% 1.25px no-repeat,` +
+  `linear-gradient(to right, transparent 10%, ${RED} 10%, ${RED} 90%, transparent 90%) left 0 bottom 4px / 100% 1.25px no-repeat`;
 
 export default function PriceTagStack({ links, maxVisible = 3, showOverflow = true }: PriceTagStackProps) {
   if (links.length === 0) return null;
