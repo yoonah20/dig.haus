@@ -1,3 +1,4 @@
+import axios from 'axios';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -61,10 +62,20 @@ export async function hostCustomCover(sourceUrl: string): Promise<string> {
   try {
     buffer = await fetchAndResize(sourceUrl);
   } catch (err) {
-    console.warn(`[custom-cover] fetch failed for ${sourceUrl}:`, (err as Error).message);
-    throw new CustomCoverError(502, 'Failed to fetch image from URL');
+    const detail = describeFetchError(err);
+    console.warn(`[custom-cover] fetch failed for ${sourceUrl}:`, detail);
+    throw new CustomCoverError(502, `Failed to fetch image: ${detail}`);
   }
 
   await fs.promises.writeFile(filePath, buffer);
   return publicUrl;
+}
+
+function describeFetchError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    if (err.response) return `upstream returned ${err.response.status}`;
+    if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') return 'upstream timed out';
+    if (err.code) return `network error (${err.code})`;
+  }
+  return (err as Error)?.message || 'unknown error';
 }
