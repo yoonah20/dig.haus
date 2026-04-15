@@ -125,7 +125,7 @@ export default function Home() {
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div className="flex items-center mb-6 flex-wrap gap-3">
           <div className="text-sm text-gray-500">
             {total > 0 && (
               <>
