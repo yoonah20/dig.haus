@@ -308,23 +308,52 @@ export async function getMasterMarketData(
 
     console.log(`[discogs] Master ${masterId}: ${versions.length} versions, formats: ${[...formatReleases.entries()].map(([f, ids]) => `${f}(${ids.length})`).join(', ')}`);
 
-    // Step 3: get marketplace stats for ALL releases of each format, then aggregate
+    // Step 3: get marketplace stats per format, then aggregate.
+    //
+    // Discogs caps authenticated callers at 60 req/min. A popular master can have
+    // 100+ versions per format, which — if fired fully in parallel — guarantees
+    // 429s and makes Vinyl/CD silently disappear for new albums. So cap samples
+    // per format and run them with small concurrency. The stats are a rough
+    // "at a glance" indicator anyway (totals get slightly underestimated, lowest
+    // price is barely affected).
+    const SAMPLE_PER_FORMAT = 12;
+    const STATS_CONCURRENCY = 3;
     const formats: FormatStats[] = [];
 
+    async function mapLimit<T, R>(
+      items: T[],
+      limit: number,
+      fn: (item: T) => Promise<R>
+    ): Promise<PromiseSettledResult<R>[]> {
+      const out: PromiseSettledResult<R>[] = new Array(items.length);
+      let cursor = 0;
+      const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+        while (cursor < items.length) {
+          const idx = cursor++;
+          try {
+            out[idx] = { status: 'fulfilled', value: await fn(items[idx]) };
+          } catch (err) {
+            out[idx] = { status: 'rejected', reason: err };
+          }
+        }
+      });
+      await Promise.all(workers);
+      return out;
+    }
+
     for (const [fmt, releaseIds] of formatReleases) {
-      const statsResults = await Promise.allSettled(
-        releaseIds.map(async (rid) => {
-          const res = await axios.get(`${DISCOGS_BASE}/marketplace/stats/${rid}`, {
-            headers: getHeaders(),
-            httpsAgent,
-            params: { curr_abbr: 'USD' },
-          });
-          return {
-            numForSale: res.data.num_for_sale || 0,
-            lowestPrice: res.data.lowest_price?.value ?? null,
-          };
-        })
-      );
+      const sampled = releaseIds.slice(0, SAMPLE_PER_FORMAT);
+      const statsResults = await mapLimit(sampled, STATS_CONCURRENCY, async (rid) => {
+        const res = await axios.get(`${DISCOGS_BASE}/marketplace/stats/${rid}`, {
+          headers: getHeaders(),
+          httpsAgent,
+          params: { curr_abbr: 'USD' },
+        });
+        return {
+          numForSale: res.data.num_for_sale || 0,
+          lowestPrice: res.data.lowest_price?.value ?? null,
+        };
+      });
 
       let totalForSale = 0;
       let overallLowest: number | null = null;
@@ -339,7 +368,8 @@ export async function getMasterMarketData(
         }
       }
 
-      console.log(`[discogs] ${fmt}: ${releaseIds.length} releases → ${totalForSale} for sale, lowest=$${overallLowest}`);
+      const ok = statsResults.filter((r) => r.status === 'fulfilled').length;
+      console.log(`[discogs] ${fmt}: sampled ${ok}/${sampled.length} of ${releaseIds.length} releases → ${totalForSale} for sale, lowest=$${overallLowest}`);
 
       if (totalForSale > 0) {
         formats.push({
