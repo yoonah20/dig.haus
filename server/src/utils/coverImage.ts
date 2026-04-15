@@ -40,12 +40,31 @@ export function upgradeUpstreamUrl(src: string): string {
  */
 export async function fetchAndResize(srcRaw: string): Promise<Buffer> {
   const src = upgradeUpstreamUrl(srcRaw);
+  // Mozilla-compatible UA: the product string identifies us (so abuse
+  // reports can reach us) but the "Mozilla/5.0 (compatible; …)" envelope
+  // gets us past CDNs that 403 anything that doesn't claim to be a browser
+  // (Bandcamp's bcbits.com is the canonical example).
+  const headers: Record<string, string> = {
+    'User-Agent': 'Mozilla/5.0 (compatible; dig.haus/1.0; +https://dig.haus/)',
+    Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+  };
+  // Some image hosts (Bandcamp, a handful of other storefronts) enforce a
+  // Referer check to block hotlinking. Forge one that matches the source's
+  // own site so the fetch looks like an in-page image load.
+  try {
+    const parsed = new URL(src);
+    if (parsed.hostname.endsWith('.bcbits.com')) {
+      headers.Referer = 'https://bandcamp.com/';
+    }
+  } catch {
+    // Ignore — axios will surface the error separately.
+  }
   const response = await axios.get<ArrayBuffer>(src, {
     responseType: 'arraybuffer',
     timeout: FETCH_TIMEOUT_MS,
     maxRedirects: 5,
     maxContentLength: MAX_UPSTREAM_BYTES,
-    headers: { 'User-Agent': 'dig.haus-cover-proxy/1.0' },
+    headers,
     validateStatus: (s) => s >= 200 && s < 300,
     httpsAgent,
     httpAgent,

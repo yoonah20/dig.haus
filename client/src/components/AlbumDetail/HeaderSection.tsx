@@ -350,7 +350,17 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       setEditingCover(false);
     } catch (err) {
       console.error('Update cover art error:', err);
-      alert('커버 이미지 변경에 실패했습니다.');
+      // Surface the server's specific error (e.g. "upstream returned 403") so
+      // admins know whether to retry a different URL vs. debug the server.
+      const detail =
+        axios.isAxiosError(err) && typeof err.response?.data?.error === 'string'
+          ? err.response.data.error
+          : null;
+      alert(
+        detail
+          ? `커버 이미지 변경에 실패했습니다.\n\n${detail}`
+          : '커버 이미지 변경에 실패했습니다.'
+      );
     } finally {
       setUpdatingCover(false);
     }
