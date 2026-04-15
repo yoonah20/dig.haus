@@ -6,6 +6,7 @@ import { resolveAlbumPk } from '../utils/slug.js';
 const router = Router();
 
 const MAX_NON_WHITESPACE_CHARS = 50;
+const MIN_NON_WHITESPACE_CHARS = 5;
 
 function flattenBody(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
@@ -93,7 +94,13 @@ router.post('/albums/:id/user-reviews', requireAuth, (req, res) => {
 
   const body = flattenBody((req.body ?? {}).body);
   if (!body) return res.status(400).json({ error: '본문을 입력해주세요.' });
-  if (nonWhitespaceLength(body) > MAX_NON_WHITESPACE_CHARS) {
+  const bodyLen = nonWhitespaceLength(body);
+  if (bodyLen < MIN_NON_WHITESPACE_CHARS) {
+    return res.status(400).json({
+      error: `공백을 제외하고 최소 ${MIN_NON_WHITESPACE_CHARS}자 이상 작성해주세요.`,
+    });
+  }
+  if (bodyLen > MAX_NON_WHITESPACE_CHARS) {
     return res.status(400).json({ error: '공백을 제외하고 50자 이하로 작성해주세요.' });
   }
   const emoji = normalizeEmoji((req.body ?? {}).emoji);

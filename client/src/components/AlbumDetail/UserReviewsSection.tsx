@@ -8,6 +8,7 @@ import {
 } from '../../hooks/useUserReviews';
 
 const MAX_CHARS = 50;
+const MIN_CHARS = 5;
 const ROTATE_INTERVAL_MS = 6000;
 
 // All-face emotion palette — spans laughter → love → chill → warmth →
@@ -161,7 +162,7 @@ function Editor({
 
   const count = countNonWhitespace(body);
   const over = count > MAX_CHARS;
-  const empty = body.trim().length === 0;
+  const tooShort = count < MIN_CHARS;
 
   const selectRating = (r: 'up' | 'down') => {
     if (saving) return;
@@ -170,12 +171,12 @@ function Editor({
   };
 
   const goToEmoji = () => {
-    if (saving || empty || over || !rating) return;
+    if (saving || tooShort || over || !rating) return;
     setStep('emoji');
   };
 
   const selectEmoji = (chosen: string) => {
-    if (saving || !rating || empty || over) return;
+    if (saving || !rating || tooShort || over) return;
     setEmoji(chosen);
     onSave(flattenBody(body), chosen, rating);
   };
@@ -300,21 +301,32 @@ function Editor({
                 setBody(next);
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !empty && !over && !saving) {
+                if (e.key === 'Enter' && !e.shiftKey && !tooShort && !over && !saving) {
                   e.preventDefault();
                   goToEmoji();
                 }
               }}
-              placeholder="공백 제외 50자까지"
+              placeholder={`공백 제외 최소 ${MIN_CHARS}자, 최대 ${MAX_CHARS}자`}
               rows={2}
               disabled={saving}
               className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
             />
             <div className="flex items-center justify-between gap-2 text-[11px]">
-              <span className={`tabular-nums ${over ? 'text-red-400' : 'text-gray-500'}`}>
-                {count}/{MAX_CHARS}
-              </span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`tabular-nums shrink-0 ${
+                    over ? 'text-red-400' : tooShort ? 'text-gray-400' : 'text-gray-500'
+                  }`}
+                >
+                  {count}/{MAX_CHARS}
+                </span>
+                {tooShort && (
+                  <span className="text-gray-500 truncate">
+                    최소 {MIN_CHARS}자 이상 써주세요
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
                 {cancelButton}
                 <button
                   onClick={goBack}
@@ -325,7 +337,8 @@ function Editor({
                 </button>
                 <button
                   onClick={goToEmoji}
-                  disabled={saving || empty || over}
+                  disabled={saving || tooShort || over}
+                  title={tooShort ? `최소 ${MIN_CHARS}자 이상 써주세요` : undefined}
                   className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-3 py-1 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   다음
@@ -339,11 +352,11 @@ function Editor({
           <>
             <div className="flex items-baseline justify-between gap-2">
               <div className="text-sm text-gray-200">들으면 어떤 기분이에요?</div>
-              <div className="text-[11px] text-gray-500 shrink-0">
-                {saving ? '등록 중…' : '고르면 바로 등록'}
-              </div>
+              {saving && (
+                <div className="text-[11px] text-gray-500 shrink-0">등록 중…</div>
+              )}
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap justify-center gap-2 py-1">
               {EMOJI_PALETTE.map((e) => {
                 const selected = emoji === e;
                 return (
@@ -354,10 +367,10 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={e}
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center text-[30px] leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
                         ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
-                        : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-105'
+                        : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-110'
                     }`}
                   >
                     {e}
