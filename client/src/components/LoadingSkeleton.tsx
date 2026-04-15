@@ -1,6 +1,6 @@
 export default function LoadingSkeleton() {
   return (
-    <div className="min-h-screen bg-[#0f0f0f]">
+    <div className="flex-1">
       {/* Nav bar skeleton */}
       <nav className="border-b border-white/5">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">

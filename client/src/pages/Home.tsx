@@ -123,7 +123,7 @@ export default function Home() {
   const items = paginationItems(page, totalPages);
 
   return (
-    <div className="min-h-screen px-4 pt-8 pb-12">
+    <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div className="text-sm text-gray-500">
@@ -204,7 +204,7 @@ export default function Home() {
         )}
       </section>
 
-      <footer className="max-w-6xl mx-auto mt-8 py-4 text-center text-gray-600 text-xs">
+      <footer className="w-full max-w-6xl mx-auto mt-auto pt-8 pb-4 text-center text-gray-600 text-xs">
         dig.haus &copy; 2026
         {' · '}
         <a href="/privacy.html" className="hover:text-amber-500">개인정보처리방침</a>

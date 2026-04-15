@@ -108,7 +108,7 @@ export default function Album() {
 
   if (baseError || !base || !album) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-lg">앨범 정보를 불러올 수 없습니다</p>
           <Link to="/" className="text-[#e8a020] mt-4 inline-block hover:underline">
@@ -120,7 +120,7 @@ export default function Album() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="flex-1">
       <main className="max-w-6xl mx-auto px-4 py-8 space-y-10">
         {/* Stage 1: instant */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
