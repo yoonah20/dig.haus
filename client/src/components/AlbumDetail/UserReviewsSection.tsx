@@ -136,6 +136,9 @@ function SpeechBubble({
   );
 }
 
+type EditorStep = 'rating' | 'text' | 'emoji';
+const STEP_ORDER: EditorStep[] = ['rating', 'text', 'emoji'];
+
 function Editor({
   initialBody,
   initialEmoji,
@@ -151,129 +154,236 @@ function Editor({
   onCancel: () => void;
   onSave: (body: string, emoji: string | null, rating: 'up' | 'down') => void;
 }) {
-  const [value, setValue] = useState(initialBody);
-  const [emoji, setEmoji] = useState<string | null>(initialEmoji);
   const [rating, setRating] = useState<'up' | 'down' | null>(initialRating);
-  const count = countNonWhitespace(value);
+  const [body, setBody] = useState(initialBody);
+  const [emoji, setEmoji] = useState<string | null>(initialEmoji);
+  const [step, setStep] = useState<EditorStep>('rating');
+
+  const count = countNonWhitespace(body);
   const over = count > MAX_CHARS;
-  const empty = value.trim().length === 0;
+  const empty = body.trim().length === 0;
 
-  const missing = !rating
-    ? '굿굿/별루'
-    : empty
-      ? '한 줄 감상'
-      : !emoji
-        ? '감정 이모지'
-        : null;
-  const canSave = !saving && !over && !missing;
-
-  const thumbButton = (target: 'up' | 'down') => {
-    const selected = rating === target;
-    const isUp = target === 'up';
-    return (
-      <button
-        type="button"
-        onClick={() => setRating(target)}
-        disabled={saving}
-        aria-pressed={selected}
-        aria-label={isUp ? '굿굿' : '별루'}
-        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-          selected
-            ? isUp
-              ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 text-[#e8a020]'
-              : 'bg-white/10 border border-white/30 text-white'
-            : 'bg-white/5 border border-transparent text-gray-400 hover:bg-white/10 hover:text-gray-200'
-        }`}
-      >
-        <span aria-hidden>{isUp ? '👍' : '👎'}</span>
-        <span>{isUp ? '굿굿' : '별루'}</span>
-      </button>
-    );
+  const selectRating = (r: 'up' | 'down') => {
+    if (saving) return;
+    setRating(r);
+    setStep('text');
   };
 
+  const goToEmoji = () => {
+    if (saving || empty || over || !rating) return;
+    setStep('emoji');
+  };
+
+  const selectEmoji = (chosen: string) => {
+    if (saving || !rating || empty || over) return;
+    setEmoji(chosen);
+    onSave(flattenBody(body), chosen, rating);
+  };
+
+  const goBack = () => {
+    if (saving) return;
+    setStep(step === 'emoji' ? 'text' : 'rating');
+  };
+
+  // Summary pills for steps already answered — shown in the header so the
+  // user keeps context as they progress.
+  const ratingPill = rating && step !== 'rating' && (
+    <button
+      type="button"
+      onClick={() => !saving && setStep('rating')}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs cursor-pointer transition-colors ${
+        rating === 'up'
+          ? 'bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30 hover:bg-[#e8a020]/25'
+          : 'bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10'
+      }`}
+      title="수정하려면 클릭"
+    >
+      <span aria-hidden>{rating === 'up' ? '👍' : '👎'}</span>
+      <span>{rating === 'up' ? '굿굿' : '별루'}</span>
+    </button>
+  );
+
+  const bodyPill = body && step === 'emoji' && (
+    <button
+      type="button"
+      onClick={() => !saving && setStep('text')}
+      className="text-xs text-gray-300 bg-white/5 border border-white/10 rounded-full px-2 py-0.5 max-w-[220px] truncate cursor-pointer hover:bg-white/10"
+      title="수정하려면 클릭"
+    >
+      “{body}”
+    </button>
+  );
+
+  const progress = (
+    <div className="flex items-center gap-1.5" aria-hidden>
+      {STEP_ORDER.map((s) => {
+        const current = s === step;
+        const passed = STEP_ORDER.indexOf(step) > STEP_ORDER.indexOf(s);
+        return (
+          <span
+            key={s}
+            className={`h-1.5 rounded-full transition-all ${
+              current ? 'w-6 bg-[#e8a020]' : passed ? 'w-3 bg-[#e8a020]/50' : 'w-3 bg-white/15'
+            }`}
+          />
+        );
+      })}
+    </div>
+  );
+
   return (
-    <div className="bg-[#1d140a] border border-[#e8a020]/20 rounded-2xl p-4 md:p-5 space-y-3">
-      {/* Rating row — inline label + compact pill toggles */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs text-gray-400 shrink-0">이 앨범 어땠어요?</span>
-        <div className="flex gap-1.5">
-          {thumbButton('up')}
-          {thumbButton('down')}
+    <div className="bg-[#1d140a] border border-[#e8a020]/20 rounded-2xl p-4 md:p-5 space-y-4">
+      {/* Header: summary on left, progress on right */}
+      <div className="flex items-center justify-between gap-3 min-h-[24px]">
+        <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+          {ratingPill}
+          {bodyPill}
         </div>
+        {progress}
       </div>
 
-      {/* Main input — the focus of the card */}
-      <textarea
-        autoFocus
-        value={value}
-        onChange={(e) => {
-          const next = e.target.value;
-          // Hard-stop at MAX_CHARS non-whitespace — don't let the user type
-          // past the limit at all. Deletes stay free because they never grow
-          // the count.
-          if (countNonWhitespace(next) > MAX_CHARS) return;
-          setValue(next);
-        }}
-        placeholder="한 줄 감상을 적어주세요"
-        rows={2}
-        disabled={saving}
-        className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2.5 text-[15px] text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
-      />
+      {/* Step content — key forces a remount so the reveal feels fresh */}
+      <div key={step} className="animate-[fadeInUp_220ms_ease-out]">
+        {step === 'rating' && (
+          <div className="space-y-4">
+            <div className="text-base md:text-lg text-gray-100 font-medium">
+              이 앨범 어땠어요?
+            </div>
+            <div className="flex gap-2">
+              {(['up', 'down'] as const).map((r) => {
+                const isUp = r === 'up';
+                const selected = rating === r;
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => selectRating(r)}
+                    disabled={saving}
+                    aria-pressed={selected}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-4 text-base font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                      selected
+                        ? isUp
+                          ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 text-[#e8a020]'
+                          : 'bg-white/10 border border-white/30 text-white'
+                        : 'bg-white/5 border border-transparent text-gray-300 hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="text-2xl leading-none" aria-hidden>
+                      {isUp ? '👍' : '👎'}
+                    </span>
+                    <span>{isUp ? '굿굿' : '별루'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
-      {/* Emoji row — inline mini-label + compact chips */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-gray-400 shrink-0">기분</span>
-        <div className="flex flex-wrap gap-1">
-          {EMOJI_PALETTE.map((e) => {
-            const selected = emoji === e;
-            return (
+        {step === 'text' && (
+          <div className="space-y-3">
+            <div className="text-base md:text-lg text-gray-100 font-medium">
+              한 줄로 들려주세요
+            </div>
+            <textarea
+              autoFocus
+              value={body}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (countNonWhitespace(next) > MAX_CHARS) return;
+                setBody(next);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && !empty && !over && !saving) {
+                  e.preventDefault();
+                  goToEmoji();
+                }
+              }}
+              placeholder="공백 제외 50자까지"
+              rows={3}
+              disabled={saving}
+              className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2.5 text-[15px] text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
+            />
+            <div className="flex items-center justify-between text-xs">
+              <span className={`tabular-nums ${over ? 'text-red-400' : 'text-gray-500'}`}>
+                {count}/{MAX_CHARS}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={goBack}
+                  disabled={saving}
+                  className="text-gray-400 hover:text-white px-3 py-1 disabled:opacity-40 cursor-pointer"
+                >
+                  ← 뒤로
+                </button>
+                <button
+                  onClick={goToEmoji}
+                  disabled={saving || empty || over}
+                  className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-4 py-1 font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  다음
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 'emoji' && (
+          <div className="space-y-3">
+            <div>
+              <div className="text-base md:text-lg text-gray-100 font-medium">
+                들으면 어떤 기분이에요?
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                이모지를 고르면 바로 등록돼요
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {EMOJI_PALETTE.map((e) => {
+                const selected = emoji === e;
+                return (
+                  <button
+                    key={e}
+                    type="button"
+                    onClick={() => selectEmoji(e)}
+                    disabled={saving}
+                    aria-pressed={selected}
+                    aria-label={e}
+                    className={`w-11 h-11 rounded-xl flex items-center justify-center text-[26px] leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                      selected
+                        ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
+                        : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-105'
+                    }`}
+                  >
+                    {e}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-gray-500">
+                {saving ? '등록 중…' : '\u00a0'}
+              </span>
               <button
-                key={e}
-                type="button"
-                onClick={() => setEmoji(selected ? null : e)}
+                onClick={goBack}
                 disabled={saving}
-                aria-pressed={selected}
-                aria-label={e}
-                className={`w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center text-xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                  selected
-                    ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
-                    : 'bg-white/5 border border-transparent hover:bg-white/10'
-                }`}
+                className="text-gray-400 hover:text-white px-3 py-1 disabled:opacity-40 cursor-pointer"
               >
-                {e}
+                ← 뒤로
               </button>
-            );
-          })}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Footer — counter + hint + actions, all in one row */}
-      <div className="flex items-center justify-between gap-3 pt-1 text-xs">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className={`tabular-nums shrink-0 ${over ? 'text-red-400' : 'text-gray-500'}`}>
-            {count}/{MAX_CHARS}
-          </span>
-          {missing && (
-            <span className="text-gray-500 truncate">{missing} 선택해주세요</span>
-          )}
-        </div>
-        <div className="flex gap-2 shrink-0">
-          <button
-            onClick={onCancel}
-            disabled={saving}
-            className="text-gray-400 hover:text-white px-3 py-1 disabled:opacity-40 cursor-pointer"
-          >
-            취소
-          </button>
-          <button
-            onClick={() => rating && emoji && onSave(flattenBody(value), emoji, rating)}
-            disabled={!canSave}
-            title={missing ? `${missing} 선택해주세요` : undefined}
-            className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-4 py-1 font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-          >
-            {saving ? '저장 중...' : '저장'}
-          </button>
-        </div>
+      {/* Cancel — subtle, always reachable */}
+      <div className="flex justify-end pt-1">
+        <button
+          onClick={onCancel}
+          disabled={saving}
+          className="text-xs text-gray-500 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
+        >
+          취소
+        </button>
       </div>
     </div>
   );

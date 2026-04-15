@@ -41,6 +41,13 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Progressive wizard-style reveal — used by the 50자 평 editor when moving
+   between rating → text → emoji steps. */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Album card — hover / tap flips the card 180° on Y axis to reveal
    info on the back. Touch devices add `.is-active` via JS after the
    first tap; a second tap (anywhere on the card) navigates. */
