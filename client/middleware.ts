@@ -56,15 +56,44 @@ function escapeAttr(value: string): string {
   });
 }
 
+function buildJsonLd(params: {
+  url: string;
+  title: string;
+  artist: string;
+  releaseDate: string | null;
+  image: string | null;
+  genres: string[];
+}): string {
+  const { url, title, artist, releaseDate, image, genres } = params;
+  const payload: Record<string, unknown> = {
+    '@context': 'https://schema.org',
+    '@type': 'MusicAlbum',
+    name: title,
+    url,
+    byArtist: { '@type': 'MusicGroup', name: artist },
+  };
+  if (releaseDate && /^\d{4}-\d{2}-\d{2}$/.test(releaseDate)) {
+    payload.datePublished = releaseDate;
+  } else if (releaseDate && /^\d{4}$/.test(releaseDate)) {
+    payload.datePublished = releaseDate;
+  }
+  if (image) payload.image = image;
+  if (genres.length > 0) payload.genre = genres;
+  // Replace </ so we can't break the host <script> element.
+  return JSON.stringify(payload).replace(/<\//g, '<\\/');
+}
+
 function buildOgHtml(params: {
   url: string;
   title: string;
+  albumName: string;
   description: string;
   image: string | null;
   artist: string;
   releaseDate: string | null;
+  genres: string[];
 }): string {
-  const { url, title, description, image, artist, releaseDate } = params;
+  const { url, title, albumName, description, image, artist, releaseDate, genres } = params;
   const imgTags = image
     ? `
   <meta property="og:image" content="${escapeAttr(image)}" />
@@ -74,6 +103,15 @@ function buildOgHtml(params: {
     releaseDate && /^\d{4}-\d{2}-\d{2}$/.test(releaseDate)
       ? `<meta property="music:release_date" content="${escapeAttr(releaseDate)}" />`
       : '';
+
+  const jsonLd = buildJsonLd({
+    url,
+    title: albumName,
+    artist,
+    releaseDate,
+    image,
+    genres,
+  });
 
   return `<!doctype html>
 <html lang="ko">
@@ -93,6 +131,7 @@ function buildOgHtml(params: {
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="${escapeAttr(title)}" />
   <meta name="twitter:description" content="${escapeAttr(description)}" />${imgTags}
+  <script type="application/ld+json">${jsonLd}</script>
 </head>
 <body>
   <h1>${escapeAttr(title)}</h1>
@@ -125,6 +164,7 @@ export default async function middleware(request: Request): Promise<Response | u
         label?: string | null;
         coverArtUrl?: string | null;
         coverArtFallbacks?: string[];
+        genres?: string[];
       };
     };
     const album = data.album;
@@ -149,10 +189,12 @@ export default async function middleware(request: Request): Promise<Response | u
     const html = buildOgHtml({
       url: `${SITE_ORIGIN}/album/${slug}`,
       title: `${titleLine} | dig.haus`,
+      albumName: album.title,
       description,
       image,
       artist: album.artist,
       releaseDate: album.releaseDate || null,
+      genres: Array.isArray(album.genres) ? album.genres.slice(0, 10) : [],
     });
 
     return new Response(html, {
