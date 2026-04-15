@@ -61,7 +61,7 @@ export default function Album() {
     : undefined;
 
   useDocumentHead({
-    title: album ? `${album.title} — ${album.artist} | dig.haus` : 'Loading... | dig.haus',
+    title: album ? `${album.title} by ${album.artist} | dig.haus` : 'Loading... | dig.haus',
     description: headDescription,
     image: headImage,
     url: album ? `https://dig.haus/album/${albumId}` : undefined,

@@ -75,7 +75,7 @@ export default function Home() {
   const { openOverlay } = useSearchOverlay();
 
   useDocumentHead({
-    title: 'dig.haus — 레코드 컬렉터를 위한 음악 리서치 허브',
+    title: 'Home | dig.haus',
     description: '앨범 커버로 파고, 감으로 찾는 레코드 컬렉터의 음악 리서치 허브.',
     url: 'https://dig.haus/',
     type: 'website',
