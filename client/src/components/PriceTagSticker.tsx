@@ -28,10 +28,19 @@ interface PriceTagStackProps {
 // Semi-circle notches on the left/right mid-edges. Two radial gradients are
 // composited with `intersect` so only the two small circles get cut out of
 // the element.
-const NOTCH_R = 5;
+const NOTCH_R = 3.5;
 const NOTCH_MASK =
   `radial-gradient(circle ${NOTCH_R}px at 0 50%, transparent 98%, #000 100%),` +
   `radial-gradient(circle ${NOTCH_R}px at 100% 50%, transparent 98%, #000 100%)`;
+
+// Top + bottom red rules, centered, spanning the middle 70% of the sticker
+// width. Rendered as background linear-gradients layered over the white
+// fill — the red ends at 85% of width, well clear of the side notches at
+// x=0 / x=100%, so the mask never clips them.
+const RED = '#c8321f';
+const RULES_BG =
+  `linear-gradient(to right, transparent 15%, ${RED} 15%, ${RED} 85%, transparent 85%) top / 100% 1.25px no-repeat,` +
+  `linear-gradient(to right, transparent 15%, ${RED} 15%, ${RED} 85%, transparent 85%) bottom / 100% 1.25px no-repeat`;
 
 export default function PriceTagStack({ links, maxVisible = 3, showOverflow = true }: PriceTagStackProps) {
   if (links.length === 0) return null;
@@ -77,15 +86,16 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 title={`${link.isSoldOut ? '품절 · ' : ''}${link.format ? link.format + ' · ' : ''}${link.storeName}`}
-                className="flex items-center justify-center bg-white text-black select-none hover:brightness-95 transition"
+                className="flex items-center justify-center text-black select-none hover:brightness-95 transition"
                 style={{
-                  padding: '7px 14px',
-                  minWidth: '56px',
+                  padding: '4px 7px',
+                  minWidth: '48px',
                   fontFamily: "'Courier New', 'Courier', ui-monospace, monospace",
                   fontSize: '11px',
                   fontWeight: 700,
                   letterSpacing: '0.03em',
                   lineHeight: 1,
+                  background: `${RULES_BG}, #fff`,
                   maskImage: NOTCH_MASK,
                   WebkitMaskImage: NOTCH_MASK,
                   maskComposite: 'intersect',
