@@ -20,6 +20,19 @@ function buildParams(method: string, extra: Record<string, string> = {}): Record
   };
 }
 
+// Last.fm image sizes, smallest → largest: small(34), medium(64), large(174),
+// extralarge(300), mega(variable, often 500+). Pick the largest non-empty URL
+// so we don't cache a tiny 174px cover when a larger one is available.
+const LFM_IMAGE_SIZE_ORDER = ['mega', 'extralarge', 'large', 'medium', 'small'] as const;
+function pickLargestImage(images: any): string {
+  if (!Array.isArray(images)) return '';
+  for (const size of LFM_IMAGE_SIZE_ORDER) {
+    const url = images.find((img: any) => img?.size === size)?.['#text'];
+    if (url) return url;
+  }
+  return '';
+}
+
 async function _getSimilarAlbums(
   artist: string,
   album: string
@@ -47,7 +60,7 @@ async function _getSimilarAlbums(
             title: topAlbum.name,
             artist: sa.name,
             mbid: topAlbum.mbid || '',
-            imageUrl: topAlbum.image?.find((img: any) => img.size === 'large')?.['#text'] || '',
+            imageUrl: pickLargestImage(topAlbum.image),
           };
         }
         return null;
@@ -89,7 +102,7 @@ async function _getArtistInfo(
 
     return {
       bio: a.bio?.summary || '',
-      imageUrl: a.image?.find((img: any) => img.size === 'large')?.['#text'] || '',
+      imageUrl: pickLargestImage(a.image),
       similarArtists: (a.similar?.artist || []).map((sa: any) => sa.name),
       tags: (a.tags?.tag || []).map((t: any) => t.name),
       url: a.url || '',
@@ -123,7 +136,7 @@ async function _getAlbumInfo(
     return {
       summary: a.wiki?.summary || '',
       tags: (a.tags?.tag || []).map((t: any) => t.name),
-      imageUrl: a.image?.find((img: any) => img.size === 'large')?.['#text'] || '',
+      imageUrl: pickLargestImage(a.image),
       listeners: parseInt(a.listeners, 10) || 0,
       playcount: parseInt(a.playcount, 10) || 0,
       url: a.url || '',
