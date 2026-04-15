@@ -1,10 +1,32 @@
 import Database from 'better-sqlite3';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { initializeDatabase } from './schema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, '..', '..', 'diggershaus.db');
+
+// Live DB lives under server/data/ — a directory that's gitignored and meant
+// to hold mutable runtime state (cover cache + DB). Mount a Railway Volume
+// here so the DB survives deploys.
+//
+// The seed DB at server/seed/diggershaus.db ships with the repo and only
+// runs on first boot when the data path is empty. Once the Volume (or any
+// disk) has a DB file, the seed is ignored.
+const dbPath =
+  process.env.DB_PATH || path.join(__dirname, '..', '..', 'data', 'diggershaus.db');
+const seedPath = path.join(__dirname, '..', '..', 'seed', 'diggershaus.db');
+
+function ensureSeeded(): void {
+  if (fs.existsSync(dbPath)) return;
+  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+  if (fs.existsSync(seedPath)) {
+    fs.copyFileSync(seedPath, dbPath);
+    console.log(`[db] seeded ${dbPath} from ${seedPath}`);
+  } else {
+    console.log(`[db] no seed at ${seedPath}; starting with empty DB at ${dbPath}`);
+  }
+}
 
 let db: Database.Database;
 
@@ -25,6 +47,7 @@ export function execRaw(sql: string): void {
 }
 
 export async function initDb(): Promise<Database.Database> {
+  ensureSeeded();
   db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
   db.pragma('busy_timeout = 5000');

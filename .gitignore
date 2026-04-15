@@ -5,6 +5,10 @@ dist/
 *.db-shm
 *.db-wal
 server/data/
+
+# Seed DB ships with the repo so fresh boots / empty volumes have schema + data
+!server/seed/
+!server/seed/*.db
 .DS_Store
 
 # IDE / OS
