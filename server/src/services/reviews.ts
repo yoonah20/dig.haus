@@ -98,14 +98,15 @@ async function _searchReviewsImpl(
   try {
     const client = getClient();
 
-    // ── Step 1: Sonnet + web_search ──────────────────────────────────
-    // Sonnet (not Haiku) for this step: obscure/non-English releases (Italian
-    // post-hardcore, French black metal, Japanese indie) only get coverage
-    // on non-English music press, and the smaller model tends to over-apply
-    // an English-only reading of the allow-list and return nothing.
-    console.log(`[reviews] Step 1: Sonnet web search for "${artist} - ${album}"...`);
+    // ── Step 1: Haiku + web_search ───────────────────────────────────
+    // Prompt is phrased inclusively ("any editorial music review" + a hard
+    // blocklist) rather than as a named allow-list. An allow-list makes
+    // Haiku drop valid reviews from any publication not literally named
+    // (Treble, Paste, Revolver, Invisible Oranges, Stereogum, etc.), which
+    // previously caused otherwise well-covered albums to return 0 reviews.
+    console.log(`[reviews] Step 1: Haiku web search for "${artist} - ${album}"...`);
     const searchResponse = await client.messages.create({
-      model: SONNET,
+      model: HAIKU,
       max_tokens: 4000,
       tools: [
         {
@@ -117,24 +118,17 @@ async function _searchReviewsImpl(
       messages: [
         {
           role: 'user',
-          content: `Find reviews of the album "${album}" by ${artist}. Run 3–5 web searches, mixing:
-- "${artist}" "${album}" review
-- "${artist}" "${album}" recensione OR chronique OR kritik OR reseña   (non-English press for obscure releases)
-- "${artist}" "${album}" score OR rating OR "out of 10"
-- site-specific probes when the release is niche (e.g. pitchfork, sputnikmusic, angrymetalguy, ondarock, rockit, rumore, veglass, metalstorm, louder, theguardian, theneedledrop)
+          content: `Find editorial reviews of the album "${album}" by ${artist}. Run 3–5 web searches combining the artist + album title with words like "review", "rating", "score", "out of 10". Include genre keywords (metal/punk/rock/indie/electronic/jazz/etc.) only if the first searches return too little.
 
-INCLUDE any editorial music coverage:
-- Professional music publications and magazines in ANY language (English, Italian, French, German, Spanish, Japanese, Korean, etc.) — e.g. Pitchfork, AllMusic, Sputnikmusic, Angry Metal Guy, MetalStorm, Blabbermouth, Metal Hammer, Kerrang, Dead Rhetoric, Nine Circles, Heavy Blog is Heavy, New Noise, The Quietus, Loud and Quiet, Clash, NME, Drowned in Sound, Consequence, Stereogum, Tiny Mix Tapes, Ondarock, Rockit, Rumore, Rockol, Les Inrocks, Pop Matters, The Line of Best Fit, etc.
-- Dedicated music blogs with editorial reviews, including smaller genre blogs for underground releases.
-- For niche/obscure albums with little English press, prefer 2–3 non-English editorial reviews over returning nothing.
+INCLUDE: any editorial music coverage — professional music publications, magazines, and dedicated music blogs of any size. Pitchfork, AllMusic, Sputnikmusic, Angry Metal Guy, MetalStorm, Blabbermouth, Metal Hammer, Kerrang, Dead Rhetoric, Nine Circles, Heavy Blog is Heavy, New Noise, The Quietus, Loud and Quiet, Clash, NME, Drowned in Sound, Consequence, Stereogum, Tiny Mix Tapes, Treble, Paste, Revolver, Invisible Oranges, Slant, PopMatters, The Line of Best Fit, Exclaim, Louder Sound, and many others all count — the list above is illustrative, NOT exhaustive. If a site has a writer byline and an evaluative take, treat it as editorial.
 
-EXCLUDE — do not return any of these under any circumstances:
+EXCLUDE — never return any of these:
 - Shopping / marketplaces: Discogs, Amazon, eBay, Bandcamp store listings, Apple Music, iTunes, Spotify, HMV, Tower Records, Best Buy, Walmart, Target, YesAsia, CDJapan, Barnes & Noble
 - User-aggregated scores: albumoftheyear.org, rateyourmusic.com
 - Anything that is user ratings, customer reviews, product pages, or storefront listings
 
-For each review found, list: source name, score (e.g. "8/10", "4/5", "85/100"; omit if none), 1–2 sentence excerpt (in the review's original language is fine), URL.
-Aim for 5–15 editorial reviews. If the release is truly obscure and yields fewer, return whatever you can find — do not return an empty list unless there is literally nothing.`,
+For each review: source name, score (e.g. "8/10", "4/5", "85/100"; omit if the review has none), 1–2 sentence excerpt from the review body, URL.
+Aim for 8–15 reviews. Do not return an empty list if there are editorial reviews on the web — return whatever you find.`,
         },
       ],
     });
@@ -163,16 +157,15 @@ Aim for 5–15 editorial reviews. If the release is truly obscure and yields few
 ${rawReviewData}
 ---
 Return ONLY JSON:
-{"reviews":[{"sourceName":"Name","score":85,"scoreMax":100,"excerpt":"excerpt in original language","excerptKo":"한국어 요약","fullReviewUrl":"https://..."}],"artistKo":"발음","titleKo":"발음","titleMeaning":"뜻"}
+{"reviews":[{"sourceName":"Name","score":85,"scoreMax":100,"excerpt":"English excerpt","excerptKo":"한국어 요약","fullReviewUrl":"https://..."}],"artistKo":"발음","titleKo":"발음","titleMeaning":"뜻"}
 
 Score: 8.5/10→85, 4/5→80, 3.5/5→70, 7/10→70. null if none.
-excerpt: 1-2 sentences from the review body in its original language (English, Italian, French, etc.) — fine to leave non-English.
-excerptKo: 독립적으로 읽히는 2-3문장 한국어 재구성. 원문이 비영어여도 자연스러운 한국어로.
+excerptKo: 독립적으로 읽히는 2-3문장 한국어 재구성.
 artistKo: "${artist}" 한국어 발음 (예: Metallica→메탈리카)
 titleKo: "${album}" 한국어 발음
 titleMeaning: "${album}" 한국어 뜻 (고유명사면 "")
 
-Include reviews from editorial music press in any language (English, Italian, French, German, Spanish, Japanese, Korean, etc.) — Ondarock, Rockit, Rumore, Les Inrocks, as well as Pitchfork, AllMusic, Sputnikmusic, Angry Metal Guy, MetalStorm, Blabbermouth, Metal Hammer, Kerrang, Dead Rhetoric, Nine Circles, Heavy Blog is Heavy, New Noise Magazine, etc. — anything that reads as an editorial review is fair game.
+Include any editorial music review. The site does NOT need to be on a named allow-list — if the raw data shows a review with a writer/byline and an evaluative take, include it.
 
 CRITICAL EXCLUSIONS — never include:
 - Discogs, Amazon, eBay, Bandcamp, Apple Music, iTunes, Spotify, HMV, Tower Records, Best Buy, Walmart, Target, YesAsia, CDJapan, Barnes & Noble (쇼핑몰 / 마켓플레이스의 유저 평점)
