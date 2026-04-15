@@ -62,9 +62,11 @@ export async function searchTrack(
     if (albums.length === 0) return { url: null, imageUrl: null };
 
     const item = albums[0];
-    // Pick the 300px image, or the first available
+    // Prefer the largest variant (640px) so downstream resize to 600px doesn't
+    // upscale a tiny source. Spotify commonly returns 640/300/64.
     const images = item.images || [];
-    const imageUrl = images.find((i: any) => i.width === 300)?.url
+    const imageUrl = images.find((i: any) => i.width === 640)?.url
+      || images.find((i: any) => i.width === 300)?.url
       || images[0]?.url
       || null;
 
