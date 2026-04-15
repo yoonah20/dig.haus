@@ -77,7 +77,7 @@ export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: P
   const button = (direction: 'up' | 'down', label: string, count: number) => {
     const active = localVote === direction;
     const isUp = direction === 'up';
-    const emoji = isUp ? '🔥' : '💀';
+    const emoji = isUp ? '👍' : '👎';
     const arrow = isUp ? '▲' : '▼';
 
     let buttonStyle: React.CSSProperties;

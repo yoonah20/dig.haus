@@ -191,7 +191,7 @@ function Editor({
     <button
       type="button"
       onClick={() => !saving && setStep('rating')}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs cursor-pointer transition-colors ${
+      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] cursor-pointer transition-colors ${
         rating === 'up'
           ? 'bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30 hover:bg-[#e8a020]/25'
           : 'bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10'
@@ -207,7 +207,7 @@ function Editor({
     <button
       type="button"
       onClick={() => !saving && setStep('text')}
-      className="text-xs text-gray-300 bg-white/5 border border-white/10 rounded-full px-2 py-0.5 max-w-[220px] truncate cursor-pointer hover:bg-white/10"
+      className="text-[11px] text-gray-300 bg-white/5 border border-white/10 rounded-full px-1.5 py-0.5 max-w-[200px] truncate cursor-pointer hover:bg-white/10"
       title="수정하려면 클릭"
     >
       “{body}”
@@ -215,15 +215,15 @@ function Editor({
   );
 
   const progress = (
-    <div className="flex items-center gap-1.5" aria-hidden>
+    <div className="flex items-center gap-1" aria-hidden>
       {STEP_ORDER.map((s) => {
         const current = s === step;
         const passed = STEP_ORDER.indexOf(step) > STEP_ORDER.indexOf(s);
         return (
           <span
             key={s}
-            className={`h-1.5 rounded-full transition-all ${
-              current ? 'w-6 bg-[#e8a020]' : passed ? 'w-3 bg-[#e8a020]/50' : 'w-3 bg-white/15'
+            className={`h-1 rounded-full transition-all ${
+              current ? 'w-4 bg-[#e8a020]' : passed ? 'w-2 bg-[#e8a020]/50' : 'w-2 bg-white/15'
             }`}
           />
         );
@@ -231,11 +231,21 @@ function Editor({
     </div>
   );
 
+  const cancelButton = (
+    <button
+      onClick={onCancel}
+      disabled={saving}
+      className="text-[11px] text-gray-500 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
+    >
+      취소
+    </button>
+  );
+
   return (
-    <div className="bg-[#1d140a] border border-[#e8a020]/20 rounded-2xl p-4 md:p-5 space-y-4">
+    <div className="bg-[#1d140a] border border-[#e8a020]/20 rounded-2xl p-3 md:p-3.5 space-y-2.5">
       {/* Header: summary on left, progress on right */}
-      <div className="flex items-center justify-between gap-3 min-h-[24px]">
-        <div className="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+      <div className="flex items-center justify-between gap-2 min-h-[18px]">
+        <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-wrap">
           {ratingPill}
           {bodyPill}
         </div>
@@ -243,12 +253,10 @@ function Editor({
       </div>
 
       {/* Step content — key forces a remount so the reveal feels fresh */}
-      <div key={step} className="animate-[fadeInUp_220ms_ease-out]">
+      <div key={step} className="animate-[fadeInUp_200ms_ease-out] space-y-2.5">
         {step === 'rating' && (
-          <div className="space-y-4">
-            <div className="text-base md:text-lg text-gray-100 font-medium">
-              이 앨범 어땠어요?
-            </div>
+          <>
+            <div className="text-sm text-gray-200">이 앨범 어땠어요?</div>
             <div className="flex gap-2">
               {(['up', 'down'] as const).map((r) => {
                 const isUp = r === 'up';
@@ -260,7 +268,7 @@ function Editor({
                     onClick={() => selectRating(r)}
                     disabled={saving}
                     aria-pressed={selected}
-                    className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-4 text-base font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
                         ? isUp
                           ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 text-[#e8a020]'
@@ -268,7 +276,7 @@ function Editor({
                         : 'bg-white/5 border border-transparent text-gray-300 hover:bg-white/10'
                     }`}
                   >
-                    <span className="text-2xl leading-none" aria-hidden>
+                    <span className="text-lg leading-none" aria-hidden>
                       {isUp ? '👍' : '👎'}
                     </span>
                     <span>{isUp ? '굿굿' : '별루'}</span>
@@ -276,14 +284,13 @@ function Editor({
                 );
               })}
             </div>
-          </div>
+            <div className="flex justify-end">{cancelButton}</div>
+          </>
         )}
 
         {step === 'text' && (
-          <div className="space-y-3">
-            <div className="text-base md:text-lg text-gray-100 font-medium">
-              한 줄로 들려주세요
-            </div>
+          <>
+            <div className="text-sm text-gray-200">한 줄로 들려주세요</div>
             <textarea
               autoFocus
               value={body}
@@ -299,45 +306,44 @@ function Editor({
                 }
               }}
               placeholder="공백 제외 50자까지"
-              rows={3}
+              rows={2}
               disabled={saving}
-              className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2.5 text-[15px] text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
+              className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
             />
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center justify-between gap-2 text-[11px]">
               <span className={`tabular-nums ${over ? 'text-red-400' : 'text-gray-500'}`}>
                 {count}/{MAX_CHARS}
               </span>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-1">
+                {cancelButton}
                 <button
                   onClick={goBack}
                   disabled={saving}
-                  className="text-gray-400 hover:text-white px-3 py-1 disabled:opacity-40 cursor-pointer"
+                  className="text-gray-400 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
                 >
                   ← 뒤로
                 </button>
                 <button
                   onClick={goToEmoji}
                   disabled={saving || empty || over}
-                  className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-4 py-1 font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-3 py-1 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   다음
                 </button>
               </div>
             </div>
-          </div>
+          </>
         )}
 
         {step === 'emoji' && (
-          <div className="space-y-3">
-            <div>
-              <div className="text-base md:text-lg text-gray-100 font-medium">
-                들으면 어떤 기분이에요?
-              </div>
-              <div className="text-xs text-gray-500 mt-1">
-                이모지를 고르면 바로 등록돼요
+          <>
+            <div className="flex items-baseline justify-between gap-2">
+              <div className="text-sm text-gray-200">들으면 어떤 기분이에요?</div>
+              <div className="text-[11px] text-gray-500 shrink-0">
+                {saving ? '등록 중…' : '고르면 바로 등록'}
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {EMOJI_PALETTE.map((e) => {
                 const selected = emoji === e;
                 return (
@@ -348,7 +354,7 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={e}
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center text-[26px] leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center text-xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
                         ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
                         : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-105'
@@ -359,31 +365,18 @@ function Editor({
                 );
               })}
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-500">
-                {saving ? '등록 중…' : '\u00a0'}
-              </span>
+            <div className="flex items-center justify-end gap-1 text-[11px]">
+              {cancelButton}
               <button
                 onClick={goBack}
                 disabled={saving}
-                className="text-gray-400 hover:text-white px-3 py-1 disabled:opacity-40 cursor-pointer"
+                className="text-gray-400 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
               >
                 ← 뒤로
               </button>
             </div>
-          </div>
+          </>
         )}
-      </div>
-
-      {/* Cancel — subtle, always reachable */}
-      <div className="flex justify-end pt-1">
-        <button
-          onClick={onCancel}
-          disabled={saving}
-          className="text-xs text-gray-500 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
-        >
-          취소
-        </button>
       </div>
     </div>
   );
