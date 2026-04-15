@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from '../lib/axios';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,6 +18,18 @@ export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: P
   const [localUp, setLocalUp] = useState(upvotes);
   const [localDown, setLocalDown] = useState(downvotes);
   const [localVote, setLocalVote] = useState<'up' | 'down' | null>(userVote);
+
+  // When the parent's album query refetches (e.g. because a 50자 평 was
+  // submitted or deleted, which upserts/withdraws this user's vote on the
+  // server), sync the fresh server state into our local optimistic state.
+  // Skip while a vote request is in flight so we don't clobber the optimistic
+  // update mid-roundtrip.
+  useEffect(() => {
+    if (busy) return;
+    setLocalUp(upvotes);
+    setLocalDown(downvotes);
+    setLocalVote(userVote);
+  }, [upvotes, downvotes, userVote, busy]);
 
   const handleVote = async (direction: 'up' | 'down') => {
     if (!user) {

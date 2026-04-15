@@ -116,6 +116,34 @@ function migrateSlugsAppendYear(db: Database.Database): void {
   }
 }
 
+/**
+ * Run `fn` at most once per database, keyed by `name`. Uses the
+ * `schema_migrations` table as a marker so the effect is idempotent across
+ * server restarts. Intended for one-off data fixes (not schema DDL).
+ */
+function runOnce(db: Database.Database, name: string, fn: () => void): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      name TEXT PRIMARY KEY,
+      applied_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  const already = db
+    .prepare('SELECT 1 FROM schema_migrations WHERE name = ?')
+    .get(name);
+  if (already) return;
+  try {
+    db.exec('BEGIN');
+    fn();
+    db.prepare('INSERT INTO schema_migrations (name) VALUES (?)').run(name);
+    db.exec('COMMIT');
+    console.log(`[migration] applied: ${name}`);
+  } catch (err: any) {
+    db.exec('ROLLBACK');
+    console.error(`[migration] ${name} failed:`, err?.message || err);
+  }
+}
+
 export function initializeDatabase(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS labels (
@@ -420,4 +448,29 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_album_votes_created_at ON album_votes(created_at DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_links_album_id ON purchase_links(album_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_albums_rank_score ON albums(rank_score DESC)');
+
+  // One-off reset of stray votes on two specific albums. Runs once per DB
+  // (tracked in schema_migrations). Clears album_votes and the mirrored
+  // user_reviews.rating for each target; leaves review bodies intact.
+  runOnce(db, 'reset-votes-incubus-hblockx-2026-04-15', () => {
+    const slugs = [
+      'incubus-beyond-the-unknown-1990',
+      'h-blockx-time-to-move-1994',
+    ];
+    for (const slug of slugs) {
+      const album = db
+        .prepare('SELECT id FROM albums WHERE slug = ?')
+        .get(slug) as { id: number } | undefined;
+      if (!album) continue;
+      const delVotes = db
+        .prepare('DELETE FROM album_votes WHERE album_id = ?')
+        .run(album.id);
+      const clearRatings = db
+        .prepare('UPDATE user_reviews SET rating = NULL WHERE album_id = ?')
+        .run(album.id);
+      console.log(
+        `[migration] ${slug}: cleared ${delVotes.changes} votes, ${clearRatings.changes} review ratings`
+      );
+    }
+  });
 }
