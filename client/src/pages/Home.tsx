@@ -186,25 +186,38 @@ export default function Home() {
     : desktopQuery.isLoading;
 
   // Mobile: bottom sentinel that pulls the next page in when it scrolls into
-  // view. rootMargin pre-loads ~600px before the user actually hits the end.
+  // view. The previous setup used a 600px rootMargin AND re-created the
+  // observer on every page load — which on a typical phone left the sentinel
+  // already inside the observation zone after page 1, immediately auto-firing
+  // page 2 (so the user saw 20 albums on first paint).
+  //
+  // Now: rootMargin is small (200px) so the sentinel is below the
+  // observation zone on first paint, and the observer is created exactly
+  // once (after the first batch mounts) — `mobileQuery` is read through a
+  // ref so the callback always sees fresh hasNextPage / fetchNextPage.
   const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const mobileQueryRef = useRef(mobileQuery);
   useEffect(() => {
-    if (!isMobile) return;
+    mobileQueryRef.current = mobileQuery;
+  });
+  const hasAlbums = albums.length > 0;
+  useEffect(() => {
+    if (!isMobile || !hasAlbums) return;
     const node = sentinelRef.current;
     if (!node) return;
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0];
-        if (!entry?.isIntersecting) return;
-        if (mobileQuery.hasNextPage && !mobileQuery.isFetchingNextPage) {
-          mobileQuery.fetchNextPage();
+        if (!entries[0]?.isIntersecting) return;
+        const q = mobileQueryRef.current;
+        if (q.hasNextPage && !q.isFetchingNextPage) {
+          q.fetchNextPage();
         }
       },
-      { rootMargin: '600px 0px' }
+      { rootMargin: '200px 0px' }
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [isMobile, mobileQuery.hasNextPage, mobileQuery.isFetchingNextPage, mobileQuery.fetchNextPage, albums.length]);
+  }, [isMobile, hasAlbums]);
 
   function updateParams(patch: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams);

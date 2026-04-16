@@ -51,18 +51,6 @@ export default function TopNav() {
             >
               dig.haus
             </Link>
-            <span
-              className="whitespace-nowrap text-[11px] sm:text-[13px] truncate"
-              style={{
-                fontFamily: "'Syne', 'Inter', sans-serif",
-                fontWeight: 600,
-                letterSpacing: '-0.01em',
-                color: '#d4c090',
-                opacity: 0.9,
-              }}
-            >
-              dig by cover, find by feel
-            </span>
           </div>
           <div className="flex items-center gap-3">
             {isAdmin && (
