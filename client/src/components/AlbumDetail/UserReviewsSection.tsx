@@ -162,6 +162,28 @@ function AddReviewCard({ onClick }: { onClick: () => void }) {
   );
 }
 
+function LoginPromptCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/20 hover:bg-[#1d140a]/50 border border-dashed border-white/15 hover:border-[#e8a020]/40 rounded-2xl p-4 h-full min-h-[140px] transition-all cursor-pointer text-center"
+    >
+      <span
+        className="text-2xl opacity-70 group-hover:opacity-100 transition-opacity"
+        aria-hidden
+      >
+        🔑
+      </span>
+      <span className="text-xs md:text-sm text-gray-400 group-hover:text-[#e8a020] leading-relaxed">
+        로그인하면
+        <br />
+        50자 평을 남길 수 있어요
+      </span>
+    </button>
+  );
+}
+
 type EditorStep = 'rating' | 'text' | 'emoji';
 const STEP_ORDER: EditorStep[] = ['rating', 'text', 'emoji'];
 
@@ -427,7 +449,8 @@ function Editor({
 type GridItem =
   | { kind: 'review'; review: UserReview }
   | { kind: 'add' }
-  | { kind: 'editor' };
+  | { kind: 'editor' }
+  | { kind: 'login' };
 
 export default function UserReviewsSection({
   albumId,
@@ -436,7 +459,7 @@ export default function UserReviewsSection({
   albumId: string;
   userAlbumVote?: 'up' | 'down' | null;
 }) {
-  const { user } = useAuth();
+  const { user, login } = useAuth();
   const { data } = useUserReviews(albumId);
   const upsert = useUpsertUserReview(albumId);
   const del = useDeleteUserReview(albumId);
@@ -465,6 +488,11 @@ export default function UserReviewsSection({
       }
     } else if (user && !myReview) {
       list.push({ kind: 'add' });
+    } else if (!user) {
+      // Signed-out visitors get a compact login-prompt card at the tail
+      // so it matches the width of existing comment cards instead of a
+      // wide banner-style empty state.
+      list.push({ kind: 'login' });
     }
     return list;
   }, [reviews, myReview, editing, user]);
@@ -529,18 +557,6 @@ export default function UserReviewsSection({
     </div>
   );
 
-  // Empty + not-logged-in: keep the simple prompt to log in.
-  if (items.length === 0) {
-    return (
-      <section>
-        {heading}
-        <div className="bg-[#1d140a]/60 border border-dashed border-[#e8a020]/20 rounded-2xl px-5 py-8 text-center text-gray-500 text-sm">
-          로그인 후 50자 평을 남길 수 있습니다.
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section
       onMouseEnter={() => setPaused(true)}
@@ -572,6 +588,9 @@ export default function UserReviewsSection({
           }
           if (item.kind === 'add') {
             return <AddReviewCard key="add" onClick={() => setEditing(true)} />;
+          }
+          if (item.kind === 'login') {
+            return <LoginPromptCard key="login" onClick={login} />;
           }
           return (
             <Editor
