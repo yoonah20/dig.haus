@@ -152,7 +152,7 @@ function ProfileFields({
 }
 
 export default function Profile() {
-  const { user, loading } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -185,6 +185,9 @@ export default function Profile() {
         displayName: displayName || null,
         instagramHandle: instagram || null,
       });
+      // AuthContext hydrates from /auth/me into its own useState — not
+      // React Query — so we need to re-pull to refresh the nav avatar/name.
+      await refresh();
     } catch (err: any) {
       alert(err?.response?.data?.error || '저장에 실패했습니다.');
     }
@@ -193,6 +196,7 @@ export default function Profile() {
   const handleUpload = async (file: File) => {
     try {
       await upload.mutateAsync(file);
+      await refresh();
     } catch (err: any) {
       alert(err?.response?.data?.error || '아바타 업로드에 실패했습니다.');
     }
@@ -202,6 +206,7 @@ export default function Profile() {
     if (!confirm('Google 아바타로 되돌릴까요?')) return;
     try {
       await reset.mutateAsync();
+      await refresh();
     } catch {
       alert('복귀에 실패했습니다.');
     }

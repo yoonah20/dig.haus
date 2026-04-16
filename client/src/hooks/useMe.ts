@@ -47,6 +47,16 @@ export function useMyProfile() {
   });
 }
 
+// Any profile change should refresh the per-album comment lists so the
+// user's updated name/avatar shows up on cards they've already posted.
+// Also touches the hover-card cache and the auth/me snapshot.
+function invalidateNameOrAvatarDependants(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ['me-profile'] });
+  qc.invalidateQueries({ queryKey: ['auth-me'] });
+  qc.invalidateQueries({ queryKey: ['user-reviews'] });
+  qc.invalidateQueries({ queryKey: ['user-public'] });
+}
+
 export function useUpdateMyProfile() {
   const qc = useQueryClient();
   return useMutation({
@@ -57,10 +67,7 @@ export function useUpdateMyProfile() {
       const { data } = await axios.patch('/api/me/profile', patch);
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['me-profile'] });
-      qc.invalidateQueries({ queryKey: ['auth-me'] });
-    },
+    onSuccess: () => invalidateNameOrAvatarDependants(qc),
   });
 }
 
@@ -70,15 +77,14 @@ export function useUploadMyAvatar() {
     mutationFn: async (file: File) => {
       const fd = new FormData();
       fd.append('avatar', file);
-      const { data } = await axios.post('/api/me/avatar', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      // Intentionally NO explicit Content-Type — axios infers it with the
+      // correct multipart boundary from the FormData instance. Setting
+      // "multipart/form-data" manually strips the boundary and the server
+      // fails to parse the body.
+      const { data } = await axios.post('/api/me/avatar', fd);
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['me-profile'] });
-      qc.invalidateQueries({ queryKey: ['auth-me'] });
-    },
+    onSuccess: () => invalidateNameOrAvatarDependants(qc),
   });
 }
 
@@ -89,10 +95,7 @@ export function useResetMyAvatar() {
       const { data } = await axios.delete('/api/me/avatar');
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['me-profile'] });
-      qc.invalidateQueries({ queryKey: ['auth-me'] });
-    },
+    onSuccess: () => invalidateNameOrAvatarDependants(qc),
   });
 }
 

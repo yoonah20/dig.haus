@@ -91,9 +91,13 @@ router.get('/albums/:id/user-reviews', (req, res) => {
   const albumPk = resolveAlbumPk(req.params.id as string);
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
 
+  // COALESCE so the comment card picks up the user's customised
+  // display name / avatar if they set one in /profile. Google values
+  // stay as the fallback when no override exists.
   const rows = queryAll(
     `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
-            u.name AS user_name, u.avatar_url AS user_avatar
+            COALESCE(u.display_name, u.name) AS user_name,
+            COALESCE(u.custom_avatar_url, u.avatar_url) AS user_avatar
      FROM user_reviews ur
      LEFT JOIN users u ON u.id = ur.user_id
      WHERE ur.album_id = ?
@@ -169,7 +173,8 @@ router.post('/albums/:id/user-reviews', requireAuth, upsertLimiter, (req, res) =
 
     const row = queryGet(
       `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
-              u.name AS user_name, u.avatar_url AS user_avatar
+              COALESCE(u.display_name, u.name) AS user_name,
+              COALESCE(u.custom_avatar_url, u.avatar_url) AS user_avatar
        FROM user_reviews ur
        LEFT JOIN users u ON u.id = ur.user_id
        WHERE ur.album_id = ? AND ur.user_id = ?`,
