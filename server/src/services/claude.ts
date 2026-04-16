@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { memoAsync } from '../utils/memoCache.js';
 
 let _client: Anthropic | null = null;
 export function getClient(): Anthropic {
@@ -8,17 +9,22 @@ export function getClient(): Anthropic {
 
 export const HAIKU = 'claude-haiku-4-5-20251001';
 export const SONNET = 'claude-sonnet-4-5';
+// Cheap, older Haiku used for narrow mechanical tasks (Korean phonetic
+// transliteration). ~4× cheaper than HAIKU 4.5 ($0.25/$1.25 per 1M vs
+// $1/$5). Quality is lower, but the result is permanently cached per
+// album so any one-off awkward output is a one-time hit.
+export const HAIKU_LITE = 'claude-3-haiku-20240307';
 
 /**
  * Generate Korean pronunciation + meaning for artist/album.
  */
-export async function generatePronunciation(
+async function _generatePronunciation(
   artist: string,
   album: string
 ): Promise<{ artistKo: string; titleKo: string; titleMeaning: string } | null> {
   try {
     const message = await getClient().messages.create({
-      model: HAIKU,
+      model: HAIKU_LITE,
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -59,6 +65,12 @@ titleMeaning 규칙:
   }
 }
 
+// In-flight dedup so two simultaneous album loads for the same fresh
+// album (e.g. admin opens the page in two tabs, or a redirect lands
+// while the original request is still resolving) collapse into one
+// Claude call. 10s window covers the slow path.
+export const generatePronunciation = memoAsync('pron', _generatePronunciation, 10_000);
+
 /**
  * Generate Korean summary from cached reviews (fallback when reviews exist but no summary).
  */
@@ -92,7 +104,7 @@ export async function generateKoreanSummary(
 /**
  * Generate Korean descriptions for similar albums.
  */
-export async function generateSimilarDescriptions(
+async function _generateSimilarDescriptions(
   baseArtist: string,
   baseAlbum: string,
   similarAlbums: Array<{ title: string; artist: string }>
@@ -129,3 +141,11 @@ JSON array only: [{"title":"","artist":"","descriptionKo":""}]`,
     return null;
   }
 }
+
+// Same dedup pattern as generatePronunciation — keys on (artist, album,
+// list of similar). Concurrent /similar hits for the same album coalesce.
+export const generateSimilarDescriptions = memoAsync(
+  'sim-desc',
+  _generateSimilarDescriptions,
+  10_000
+);

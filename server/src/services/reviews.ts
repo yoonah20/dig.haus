@@ -109,12 +109,19 @@ async function _searchReviewsImpl(
     console.log(`[reviews] Step 1: Haiku web search for "${artist} - ${album}"...`);
     const searchResponse = await client.messages.create({
       model: HAIKU,
-      max_tokens: 4000,
+      // max_tokens is a billing-safe ceiling — Anthropic only charges for
+      // tokens actually generated, but capping prevents a runaway response.
+      // 2500 comfortably fits 8–15 review entries with URLs + excerpts.
+      max_tokens: 2500,
       tools: [
         {
+          // web_search is billed PER CALL ($10/1000 searches), separately
+          // from tokens — so this knob is a real cost lever. Empirically
+          // 3–4 searches finds the same coverage as 10; the model hardly
+          // ever benefits from the higher cap and we were overpaying.
           type: 'web_search_20250305' as const,
           name: 'web_search' as const,
-          max_uses: 10,
+          max_uses: 4,
         },
       ],
       messages: [
@@ -153,7 +160,11 @@ Aim for 8–15 reviews. Do not return an empty list if there are editorial revie
     console.log(`[reviews] Step 2: Haiku structuring...`);
     const structureResponse = await client.messages.create({
       model: HAIKU,
-      max_tokens: 3000,
+      // Output is a JSON object containing up to 15 reviews + pronunciation
+      // fields — comfortably under 1500 tokens in practice. Same logic as
+      // Step 1: a tighter ceiling caps cost in the runaway case without
+      // affecting normal responses.
+      max_tokens: 1500,
       messages: [{ role: 'user', content: `Raw review data for "${album}" by ${artist}:
 ---
 ${rawReviewData}

@@ -377,6 +377,21 @@ async function getOrFetchAlbumBase(mbid: string) {
     title_meaning: titleMeaning,
   });
 
+  // Fire-and-forget warm-up so the FIRST visitor (usually the admin who
+  // just registered, occasionally a public user) doesn't pay for review
+  // search synchronously. Shifts the cost to the moment of intent
+  // (registration) instead of leaking onto random user traffic.
+  // searchReviews has its own in-flight dedup, so a near-simultaneous
+  // /reviews call from the admin landing on the page collapses into the
+  // same Claude request.
+  if (mbid && artistName && albumTitle) {
+    setImmediate(() => {
+      warmUpAlbumReviews(mbid, artistName, albumTitle).catch((err) => {
+        console.warn(`[warm-up] reviews failed for ${mbid}:`, (err as Error).message);
+      });
+    });
+  }
+
   return {
     album: albumData,
     streaming: streamingData,
@@ -386,6 +401,43 @@ async function getOrFetchAlbumBase(mbid: string) {
     albumTitle,
     discogsArtistId,
   };
+}
+
+// Pre-populate reviews + Korean summary right after a fresh album cache.
+// Mirrors the lazy logic in GET /:id/reviews but runs without an HTTP
+// request behind it. No-op if reviews are already cached (defensive).
+async function warmUpAlbumReviews(
+  mbid: string,
+  artist: string,
+  title: string
+): Promise<void> {
+  if (getCachedReviews(mbid)) return;
+  const result = await searchReviews(artist, title);
+  if (result.reviews.length > 0) {
+    cacheReviews(
+      mbid,
+      result.reviews.map((r) => ({
+        source_name: r.sourceName,
+        score: r.score,
+        score_max: r.scoreMax,
+        excerpt: r.excerpt,
+        excerpt_ko: r.excerptKo,
+        full_review_url: r.fullReviewUrl,
+      }))
+    );
+  }
+  const fields: Record<string, any> = {};
+  if (result.koreanSummary) {
+    fields.korean_summary = result.koreanSummary;
+    fields.korean_summary_generated_at = new Date().toISOString();
+  }
+  if (result.artistKo) fields.artist_ko = result.artistKo;
+  if (result.titleKo) fields.title_ko = result.titleKo;
+  if (result.titleMeaning) fields.title_meaning = result.titleMeaning;
+  if (Object.keys(fields).length > 0) {
+    updateAlbumFields(mbid, fields);
+  }
+  console.log(`[warm-up] reviews ready for ${mbid}: ${result.reviews.length} reviews`);
 }
 
 // ─── GET /api/albums — list all albums (paginated + sorted) ─────────────
@@ -886,6 +938,31 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
   }
   if (url.length > 2000) {
     return res.status(400).json({ error: 'URL too long' });
+  }
+
+  // Avoid burning a Claude call when this URL is already saved against
+  // this album — accidental double-clicks or admins re-pasting the same
+  // link would otherwise re-scrape and overwrite an identical row.
+  const dup = queryGet(
+    `SELECT id, source_name, score, manual_score, score_max, excerpt, excerpt_ko, full_review_url
+     FROM reviews WHERE album_mbid = ? AND full_review_url = ?`,
+    [mbid, url]
+  );
+  if (dup) {
+    return res.json({
+      ok: true,
+      duplicate: true,
+      review: {
+        id: dup.id,
+        source: dup.source_name,
+        score: dup.manual_score ?? dup.score,
+        scoreMax: dup.score_max,
+        excerpt: dup.excerpt,
+        excerptKo: dup.excerpt_ko || null,
+        url: dup.full_review_url,
+        isManualScore: dup.manual_score != null,
+      },
+    });
   }
 
   try {
@@ -1557,6 +1634,21 @@ router.post('/:id/refresh-reviews', adminClaudeLimiter, requireAdmin, async (req
     const existingSources = new Set(
       existingReviews.map((r: any) => r.source_name.toLowerCase().trim())
     );
+
+    // Skip the (expensive) re-search when the album is already adequately
+    // covered. Each refresh runs Step 1 web_search + Step 2 + Step 3 — about
+    // $0.10 per click — so accidental double-clicks were a meaningful chunk
+    // of monthly spend. Admin can override by passing ?force=1 if they
+    // genuinely want to fish for additional sources.
+    const force = req.query.force === '1' || req.query.force === 'true';
+    const isWellCovered =
+      existingReviews.length >= 5 && !!cached.korean_summary;
+    if (isWellCovered && !force) {
+      console.log(
+        `[refresh-reviews] skip ${mbid}: ${existingReviews.length} reviews + summary already cached (pass ?force=1 to override)`
+      );
+      return res.json({ addedCount: 0, skipped: true, existingCount: existingReviews.length });
+    }
 
     let addedCount = 0;
     try {
