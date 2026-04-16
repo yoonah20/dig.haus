@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import CoverArt from '../components/CoverArt';
+import { resolveApiUrl } from '../utils/apiUrl';
 import {
   useMyProfile,
   useMyReviews,
@@ -42,11 +43,17 @@ function AvatarEditor({
   resetting: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  // Uploaded avatars are stored on the backend as "/api/avatars/…" site-
+  // relative URLs. When the client runs on a different origin than the API
+  // (VITE_API_URL is set), a bare <img src> resolves against the wrong host
+  // and never loads — resolveApiUrl prefixes the API origin so the image
+  // actually appears after upload.
+  const resolvedAvatarUrl = resolveApiUrl(avatarUrl);
   return (
     <div className="flex items-center gap-4">
-      {avatarUrl ? (
+      {resolvedAvatarUrl ? (
         <img
-          src={avatarUrl}
+          src={resolvedAvatarUrl}
           alt=""
           className="w-20 h-20 rounded-full object-cover border border-white/10"
           referrerPolicy="no-referrer"

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useUserPublic } from '../hooks/useMe';
+import { resolveApiUrl } from '../utils/apiUrl';
 
 function formatJoined(iso: string | null): string {
   if (!iso) return '';
@@ -114,7 +115,7 @@ export default function UserHoverCard({
               <div className="flex items-center gap-2 min-w-0">
                 {data.user.avatarUrl ? (
                   <img
-                    src={data.user.avatarUrl}
+                    src={resolveApiUrl(data.user.avatarUrl) ?? undefined}
                     alt=""
                     className="w-9 h-9 rounded-full object-cover border border-white/10"
                     referrerPolicy="no-referrer"

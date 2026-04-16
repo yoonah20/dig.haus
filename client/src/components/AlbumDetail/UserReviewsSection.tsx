@@ -6,6 +6,7 @@ import {
   useDeleteUserReview,
   type UserReview,
 } from '../../hooks/useUserReviews';
+import { resolveApiUrl } from '../../utils/apiUrl';
 import UserHoverCard from '../UserHoverCard';
 
 const MAX_CHARS = 50;
@@ -32,10 +33,11 @@ function flattenBody(s: string): string {
 
 function Avatar({ src, name, size = 52 }: { src: string | null; name: string | null; size?: number }) {
   const initial = (name || '?').trim().charAt(0).toUpperCase();
-  if (src) {
+  const resolved = resolveApiUrl(src);
+  if (resolved) {
     return (
       <img
-        src={src}
+        src={resolved}
         alt={name || ''}
         className="rounded-full object-cover shrink-0 border border-white/10"
         style={{ width: size, height: size }}

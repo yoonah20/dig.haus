@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import CoverArt from '../components/CoverArt';
+import { resolveApiUrl } from '../utils/apiUrl';
 
 interface AdminStats {
   totalAlbums: number;
@@ -179,7 +180,7 @@ export default function Admin() {
                   <div key={r.id} className="flex items-start gap-4 p-4">
                     {r.userAvatar ? (
                       <img
-                        src={r.userAvatar}
+                        src={resolveApiUrl(r.userAvatar) ?? undefined}
                         alt=""
                         aria-hidden
                         className="w-10 h-10 rounded-full flex-shrink-0"
@@ -245,7 +246,7 @@ export default function Admin() {
                 <div key={u.id} className="flex items-center gap-4 p-4">
                   {u.avatarUrl ? (
                     <img
-                      src={u.avatarUrl}
+                      src={resolveApiUrl(u.avatarUrl) ?? undefined}
                       alt=""
                       aria-hidden
                       className="w-10 h-10 rounded-full"
