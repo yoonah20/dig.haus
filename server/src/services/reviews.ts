@@ -24,6 +24,7 @@ interface ReviewSearchResult {
 const EXCLUDED_SOURCE_PATTERNS = [
   'album of the year', 'albumoftheyear', 'aoty',
   'rateyourmusic', 'rate your music', 'rym',
+  'metacritic',
   'discogs', 'amazon', 'ebay', 'bandcamp',
   'apple music', 'itunes', 'spotify',
   'hmv', 'tower records', 'towerrecords',
@@ -40,6 +41,7 @@ const EXCLUDED_URL_DOMAINS = [
   'ebay.',
   'rateyourmusic.com',
   'albumoftheyear.org',
+  'metacritic.com',
   'apple.com',
   'music.apple.com',
   'spotify.com',
@@ -124,7 +126,7 @@ INCLUDE: any editorial music coverage — professional music publications, magaz
 
 EXCLUDE — never return any of these:
 - Shopping / marketplaces: Discogs, Amazon, eBay, Bandcamp store listings, Apple Music, iTunes, Spotify, HMV, Tower Records, Best Buy, Walmart, Target, YesAsia, CDJapan, Barnes & Noble
-- User-aggregated scores: albumoftheyear.org, rateyourmusic.com
+- Aggregators / score collectors: Metacritic, albumoftheyear.org, rateyourmusic.com (we want primary editorial reviews, not sites that re-publish other publications' scores)
 - Anything that is user ratings, customer reviews, product pages, or storefront listings
 
 For each review: source name, score (e.g. "8/10", "4/5", "85/100"; omit if the review has none), 1–2 sentence excerpt from the review body, URL.
@@ -169,7 +171,7 @@ Include any editorial music review. The site does NOT need to be on a named allo
 
 CRITICAL EXCLUSIONS — never include:
 - Discogs, Amazon, eBay, Bandcamp, Apple Music, iTunes, Spotify, HMV, Tower Records, Best Buy, Walmart, Target, YesAsia, CDJapan, Barnes & Noble (쇼핑몰 / 마켓플레이스의 유저 평점)
-- albumoftheyear, rateyourmusic (유저 집계 점수)
+- Metacritic, albumoftheyear, rateyourmusic (점수 모아놓는 aggregator — primary editorial 리뷰만)
 - Any review whose sourceName contains a format/edition descriptor like "(Vinyl 2024 Reissue)", "(CD Release 435503)", "Release ###" — these are storefront listings, not reviews
 - Any URL on discogs.com, amazon.*, ebay.*, bandcamp.com, apple.com, spotify.com, hmv.*, towerrecords.*
 

@@ -449,6 +449,19 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_links_album_id ON purchase_links(album_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_albums_rank_score ON albums(rank_score DESC)');
 
+  // Purge any Metacritic rows that were ingested before we added it to the
+  // exclusion list. Metacritic is an aggregator (re-publishes other sites'
+  // scores) so we don't want it competing with primary editorial sources
+  // in the average. Idempotent via runOnce.
+  runOnce(db, 'purge-metacritic-reviews-2026-04-16', () => {
+    const purged = db
+      .prepare(`DELETE FROM reviews WHERE LOWER(source_name) LIKE '%metacritic%'`)
+      .run();
+    if (purged.changes > 0) {
+      console.log(`[migration] purge-metacritic-reviews: removed ${purged.changes} rows`);
+    }
+  });
+
   // Backfill 굿굿 (upvote) on Kj Ahn's pre-rating-field reviews. These four
   // reviews were left before the rating selector was wired into 50자 평, so
   // they have no album_votes row. Idempotent via runOnce; only touches
