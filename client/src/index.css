@@ -48,6 +48,37 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Homepage comment ticker — right→left marquee. Track renders its
+   content twice; translating -50% snaps the second copy into the first
+   copy's position so the loop is seamless. Duration is set inline on the
+   track so it can scale with the item count. */
+@keyframes commentTicker {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+.comment-ticker-track {
+  animation-name: commentTicker;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+/* Pause on hover so readers can actually finish a comment. The hover
+   target is the outer ticker wrapper, not the track, because the track
+   is wider than the viewport and the mouse can land on a gap between
+   items — those gaps shouldn't un-pause mid-read. */
+.comment-ticker:hover .comment-ticker-track,
+.comment-ticker:focus-within .comment-ticker-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .comment-ticker-track {
+    animation: none;
+  }
+}
+
 /* Album card — hover / tap flips the card 180° on Y axis to reveal
    info on the back. Touch devices add `.is-active` via JS after the
    first tap; a second tap (anywhere on the card) navigates. */

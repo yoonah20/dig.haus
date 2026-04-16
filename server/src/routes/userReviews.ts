@@ -88,6 +88,80 @@ function serialize(row: Row) {
   };
 }
 
+// GET /api/user-reviews/feed — public cross-album feed
+//
+// Powers the homepage comment ticker: recent 50자 평 across every album,
+// joined with the user's display bits and the album's cover/slug so one
+// round trip has everything the client needs to render each item.
+// Reviews with an empty body (shouldn't exist post-validation but
+// defensive) are skipped so the ticker never shows a blank bubble.
+
+router.get('/user-reviews/feed', (req, res) => {
+  const limitRaw = parseInt((req.query.limit as string) || '', 10);
+  const limit =
+    Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 60) : 30;
+
+  const rows = queryAll(
+    `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
+            COALESCE(u.display_name, u.name) AS user_name,
+            COALESCE(u.custom_avatar_url, u.avatar_url) AS user_avatar,
+            a.slug AS album_slug, a.mbid AS album_mbid,
+            a.title AS album_title, a.artist_name AS album_artist,
+            a.cover_art_url AS album_cover,
+            a.cover_art_fallbacks AS album_cover_fallbacks
+     FROM user_reviews ur
+     INNER JOIN albums a ON a.id = ur.album_id
+     LEFT JOIN users u ON u.id = ur.user_id
+     WHERE LENGTH(TRIM(ur.body)) > 0
+     ORDER BY ur.created_at DESC, ur.id DESC
+     LIMIT ?`,
+    [limit]
+  ) as Array<{
+    id: number;
+    body: string;
+    emoji: string | null;
+    rating: 'up' | 'down' | 'soso' | null;
+    created_at: string;
+    user_id: number | null;
+    user_name: string | null;
+    user_avatar: string | null;
+    album_slug: string | null;
+    album_mbid: string | null;
+    album_title: string;
+    album_artist: string | null;
+    album_cover: string | null;
+    album_cover_fallbacks: string | null;
+  }>;
+
+  res.json({
+    items: rows.map((r) => ({
+      id: r.id,
+      body: r.body,
+      emoji: r.emoji,
+      rating: r.rating,
+      createdAt: r.created_at,
+      userId: r.user_id,
+      userName: r.user_name,
+      userAvatar: r.user_avatar,
+      // Prefer the stable slug, fall back to mbid if slug backfill hasn't
+      // reached this album yet.
+      albumSlug: r.album_slug || r.album_mbid || '',
+      albumTitle: r.album_title,
+      albumArtist: r.album_artist,
+      albumCoverUrl: r.album_cover,
+      albumCoverFallbacks: r.album_cover_fallbacks
+        ? (() => {
+            try {
+              return JSON.parse(r.album_cover_fallbacks);
+            } catch {
+              return [];
+            }
+          })()
+        : [],
+    })),
+  });
+});
+
 // GET /api/albums/:id/user-reviews — public
 router.get('/albums/:id/user-reviews', (req, res) => {
   const albumPk = resolveAlbumPk(req.params.id as string);

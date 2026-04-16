@@ -7,6 +7,7 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
+import CommentTicker from '../components/Home/CommentTicker';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import type { AlbumSearchResult } from '../types';
@@ -36,10 +37,12 @@ const DEFAULT_SORT: SortValue = 'registered_desc';
 const SORT_STORAGE_KEY = 'home:sort';
 
 // Mobile/desktop split: desktop sticks with classic numbered pagination
-// (20 per page), mobile switches to infinite scroll (10 per batch). Tailwind
-// `md` breakpoint = 768px, so anything below counts as mobile here.
+// (15 per page — 3 rows × 5 cols at lg; leaves room under the grid for
+// the comment ticker). Mobile uses infinite scroll in 10-item batches.
+// Tailwind `md` breakpoint = 768px, so anything below counts as mobile
+// here.
 const MOBILE_QUERY = '(max-width: 767px)';
-const DESKTOP_PAGE_SIZE = 20;
+const DESKTOP_PAGE_SIZE = 15;
 const MOBILE_PAGE_SIZE = 10;
 
 function isSortValue(v: string): v is SortValue {
@@ -350,6 +353,15 @@ export default function Home() {
             ))}
           </div>
         )}
+
+        {/* Desktop-only comment ticker. Sits between the 15-card grid
+            and the pagination nav so the "meet the community" beat
+            lands after the user has skimmed this page's covers.
+            Intentionally gated with !isMobile (not CSS `hidden md:…`)
+            so the feed query doesn't fire on phones at all. Mobile
+            inlines comments into the infinite-scroll feed — tracked
+            separately. */}
+        {!isMobile && albums.length > 0 && <CommentTicker />}
 
         {/* Mobile infinite-scroll sentinel + status. Desktop renders the
             numbered pagination nav below instead. */}
