@@ -432,6 +432,26 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_album_requests_mbid ON album_requests(mbid)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_album_requests_user_id ON album_requests(user_id)');
 
+  // One row per Claude API call so the admin dashboard can show a
+  // rolling token / web-search / cost breakdown without hitting the
+  // Anthropic console. `operation` is a free-form string the call
+  // site passes (e.g. 'reviews_search', 'pronunciation') — used for
+  // per-operation cost attribution. No FK on model; it's just the
+  // string Anthropic returned in the response.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS claude_usage_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      operation TEXT NOT NULL,
+      model TEXT NOT NULL,
+      input_tokens INTEGER DEFAULT 0,
+      output_tokens INTEGER DEFAULT 0,
+      web_search_count INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_claude_usage_created_at ON claude_usage_log(created_at DESC)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_claude_usage_operation ON claude_usage_log(operation, created_at DESC)');
+
   // Auto-migrate
   migrateTable(db, 'albums', [
     'release_date TEXT',

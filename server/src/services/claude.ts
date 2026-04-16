@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { memoAsync } from '../utils/memoCache.js';
+import { execute } from '../db/index.js';
 
 let _client: Anthropic | null = null;
 export function getClient(): Anthropic {
@@ -15,6 +16,48 @@ export const SONNET = 'claude-sonnet-4-5';
 // meant the bad output stuck per album. Reverted to Haiku 4.5; the
 // extra cost on a permanently-cached, once-per-album call is fine.
 export const HAIKU_LITE = HAIKU;
+
+// Usage logger. Writes one row per Claude response so the admin
+// dashboard can surface a rolling token / web-search breakdown. Swallows
+// errors — usage logging should never break a user-facing Claude call.
+// `operation` is a free-form tag ("reviews_search", "pronunciation"…)
+// used for per-operation cost attribution.
+export function logClaudeUsage(
+  operation: string,
+  response: Anthropic.Messages.Message,
+  webSearchCount = 0
+): void {
+  try {
+    execute(
+      `INSERT INTO claude_usage_log
+         (operation, model, input_tokens, output_tokens, web_search_count)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        operation,
+        response.model || 'unknown',
+        response.usage?.input_tokens ?? 0,
+        response.usage?.output_tokens ?? 0,
+        webSearchCount,
+      ]
+    );
+  } catch (err) {
+    console.warn(`[claude-usage] log failed (${operation}):`, (err as Error).message);
+  }
+}
+
+// Count server_tool_use blocks in a response — one block per web_search
+// invocation. Used alongside logClaudeUsage for the web-search-billed
+// Step 1 of the review pipeline.
+export function countWebSearchUses(response: Anthropic.Messages.Message): number {
+  let n = 0;
+  for (const block of response.content) {
+    if ((block as { type?: string }).type === 'server_tool_use') {
+      const toolName = (block as { name?: string }).name;
+      if (toolName === 'web_search') n++;
+    }
+  }
+  return n;
+}
 
 /**
  * Generate Korean pronunciation + meaning for artist/album.
@@ -44,6 +87,7 @@ titleMeaning 규칙:
 - Datalysium → {"titleKo":"데이터리시움","titleMeaning":""}`,
       }],
     });
+    logClaudeUsage('pronunciation', message);
     const text = message.content.find((b) => b.type === 'text');
     if (!text || text.type !== 'text') return null;
     const match = text.text.match(/\{[\s\S]*\}/);
@@ -93,6 +137,7 @@ export async function generateKoreanSummary(
         content: `'${albumTitle}' by ${artist} 리뷰 3-4문장 한국어 요약. 매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술.\n${reviewsText}`,
       }],
     });
+    logClaudeUsage('summary_fallback', message);
 
     const textBlock = message.content.find((b) => b.type === 'text');
     return textBlock ? textBlock.text : null;
@@ -125,6 +170,7 @@ ${list}
 JSON array only: [{"title":"","artist":"","descriptionKo":""}]`,
       }],
     });
+    logClaudeUsage('similar_descriptions', message);
 
     const textBlock = message.content.find((b) => b.type === 'text');
     if (!textBlock) return null;

@@ -6,6 +6,23 @@ const router = Router();
 
 router.use(requireAdmin);
 
+// Hardcoded prices for token → USD conversion. Update when Anthropic's
+// pricing page changes. Rates are per 1M tokens (input / output) and
+// per 1000 calls (web search). If we see an unfamiliar model string in
+// the log, we fall back to Haiku 4.5 rates rather than dropping the
+// row — better to slightly misestimate than under-report.
+const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
+  'claude-haiku-4-5-20251001': { input: 1, output: 5 },
+  'claude-sonnet-4-5': { input: 3, output: 15 },
+  // Legacy / fallback
+  'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
+};
+const WEB_SEARCH_PER_1000 = 10; // $10 / 1000 calls
+
+function pricingFor(model: string) {
+  return PRICING_PER_1M[model] ?? PRICING_PER_1M['claude-haiku-4-5-20251001'];
+}
+
 // GET /api/admin/stats — dashboard overview
 router.get('/stats', (_req, res) => {
   const totalAlbums = queryGet(`SELECT COUNT(*) AS n FROM albums`)?.n || 0;
@@ -72,6 +89,139 @@ router.get('/stats', (_req, res) => {
     userAvatar: r.user_avatar,
   }));
 
+  // ── Claude API usage (rolling 7 days) ─────────────────────────────
+  // Aggregate per (operation, model) then translate tokens + web
+  // searches to USD client-side-friendly shape. `operation` labels
+  // come from the logClaudeUsage() call sites.
+  const usageRows = queryAll(
+    `SELECT operation, model,
+            SUM(input_tokens) AS in_tok,
+            SUM(output_tokens) AS out_tok,
+            SUM(web_search_count) AS search_n,
+            COUNT(*) AS calls
+     FROM claude_usage_log
+     WHERE created_at >= datetime('now', '-7 days')
+     GROUP BY operation, model`
+  ) as Array<{
+    operation: string;
+    model: string;
+    in_tok: number;
+    out_tok: number;
+    search_n: number;
+    calls: number;
+  }>;
+
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let totalSearchCount = 0;
+  let totalUsd = 0;
+  const byOperation: Record<string, { tokens: number; searches: number; usd: number }> = {};
+
+  for (const row of usageRows) {
+    const prices = pricingFor(row.model);
+    const inUsd = (row.in_tok / 1_000_000) * prices.input;
+    const outUsd = (row.out_tok / 1_000_000) * prices.output;
+    const searchUsd = (row.search_n / 1000) * WEB_SEARCH_PER_1000;
+    const usd = inUsd + outUsd + searchUsd;
+
+    totalInputTokens += row.in_tok;
+    totalOutputTokens += row.out_tok;
+    totalSearchCount += row.search_n;
+    totalUsd += usd;
+
+    const prev = byOperation[row.operation] || { tokens: 0, searches: 0, usd: 0 };
+    byOperation[row.operation] = {
+      tokens: prev.tokens + row.in_tok + row.out_tok,
+      searches: prev.searches + row.search_n,
+      usd: prev.usd + usd,
+    };
+  }
+
+  // Sort operations by cost descending for the display.
+  const operationsBreakdown = Object.entries(byOperation)
+    .map(([op, v]) => ({
+      operation: op,
+      tokens: v.tokens,
+      searches: v.searches,
+      usd: Math.round(v.usd * 100) / 100,
+    }))
+    .sort((a, b) => b.usd - a.usd);
+
+  const claudeUsage = {
+    last7d: {
+      inputTokens: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      webSearchCount: totalSearchCount,
+      usd: Math.round(totalUsd * 100) / 100,
+      byOperation: operationsBreakdown,
+    },
+  };
+
+  // ── Incomplete albums ─────────────────────────────────────────────
+  // Buckets the admin should glance at and decide whether to top up
+  // manually. Each bucket returns up to 5 rows — dashboard just needs
+  // "something to click into", not a full inventory.
+  const INCOMPLETE_LIMIT = 5;
+
+  const noReviews = queryAll(
+    `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
+     FROM albums a
+     WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)
+     ORDER BY a.created_at DESC
+     LIMIT ?`,
+    [INCOMPLETE_LIMIT]
+  );
+
+  const noSummary = queryAll(
+    `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
+     FROM albums a
+     WHERE (a.korean_summary IS NULL OR a.korean_summary = '')
+     ORDER BY a.created_at DESC
+     LIMIT ?`,
+    [INCOMPLETE_LIMIT]
+  );
+
+  const noCover = queryAll(
+    `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
+     FROM albums a
+     WHERE (a.cover_art_url IS NULL OR a.cover_art_url = '')
+     ORDER BY a.created_at DESC
+     LIMIT ?`,
+    [INCOMPLETE_LIMIT]
+  );
+
+  // Total counts (not limited) — shown next to the label so admin
+  // knows how big the backlog is.
+  const noReviewsCount = queryGet(
+    `SELECT COUNT(*) AS n FROM albums a
+     WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)`
+  )?.n || 0;
+  const noSummaryCount = queryGet(
+    `SELECT COUNT(*) AS n FROM albums a
+     WHERE (a.korean_summary IS NULL OR a.korean_summary = '')`
+  )?.n || 0;
+  const noCoverCount = queryGet(
+    `SELECT COUNT(*) AS n FROM albums a
+     WHERE (a.cover_art_url IS NULL OR a.cover_art_url = '')`
+  )?.n || 0;
+
+  function mapIncomplete(rows: any[]) {
+    return rows.map((a: any) => ({
+      id: a.id,
+      mbid: a.slug || a.mbid,
+      title: a.title,
+      artist: a.artist_name,
+      coverArtUrl: a.cover_art_url,
+      coverArtFallbacks: a.cover_art_fallbacks ? JSON.parse(a.cover_art_fallbacks) : [],
+    }));
+  }
+
+  const incompleteAlbums = {
+    noReviews: { count: noReviewsCount, samples: mapIncomplete(noReviews) },
+    noSummary: { count: noSummaryCount, samples: mapIncomplete(noSummary) },
+    noCover: { count: noCoverCount, samples: mapIncomplete(noCover) },
+  };
+
   res.json({
     totalAlbums,
     albumsToday,
@@ -83,6 +233,8 @@ router.get('/stats', (_req, res) => {
     recentAlbums,
     recentUsers,
     recentReviews,
+    claudeUsage,
+    incompleteAlbums,
   });
 });
 

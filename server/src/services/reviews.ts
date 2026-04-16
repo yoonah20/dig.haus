@@ -1,5 +1,11 @@
 import axios from 'axios';
-import { getClient, HAIKU, SONNET } from './claude.js';
+import {
+  getClient,
+  HAIKU,
+  SONNET,
+  logClaudeUsage,
+  countWebSearchUses,
+} from './claude.js';
 
 export interface ReviewResult {
   sourceName: string;
@@ -138,6 +144,7 @@ Aim for 8–15 reviews. Do not return an empty list if there are editorial revie
         ],
         messages: [{ role: 'user', content: step1Prompt }],
       });
+      logClaudeUsage('reviews_search', resp, countWebSearchUses(resp));
       const out: string[] = [];
       for (const block of resp.content) {
         if (block.type === 'text') out.push(block.text);
@@ -201,6 +208,7 @@ CRITICAL EXCLUSIONS — never include:
 
 Max 15 reviews. Deduplicate by source.` }],
     });
+    logClaudeUsage('reviews_structure', structureResponse);
 
     const textBlock = structureResponse.content.find((b) => b.type === 'text');
     if (!textBlock || textBlock.type !== 'text') {
@@ -261,6 +269,7 @@ Max 15 reviews. Deduplicate by source.` }],
             content: `'${album}' by ${artist} 리뷰 3-4문장 한국어 요약. 매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술.\n${reviewsText}`,
           }],
         });
+        logClaudeUsage('reviews_summary', summaryResponse);
         const summaryBlock = summaryResponse.content.find((b) => b.type === 'text');
         if (summaryBlock && summaryBlock.type === 'text') {
           koreanSummary = summaryBlock.text.trim();
@@ -371,6 +380,7 @@ If this page is clearly NOT a review (shop listing, forum post, directory), retu
         },
       ],
     });
+    logClaudeUsage('scrape_review', response);
 
     const block = response.content.find((b) => b.type === 'text');
     if (!block || block.type !== 'text') return null;
