@@ -1,12 +1,30 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { resolveAlbumPk } from '../utils/slug.js';
+import type { AppUser } from '../auth/passport.js';
 
 const router = Router();
 
 const MAX_NON_WHITESPACE_CHARS = 50;
 const MIN_NON_WHITESPACE_CHARS = 5;
+
+// Per-user upsert limiter: 3 posts / minute. Guards against casual
+// spam without blocking a user who legitimately wants to fix a typo
+// on their own comment a couple of times. Admin endpoints (delete on
+// someone else's review) go through a different surface.
+const upsertLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 3,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const uid = (req.user as AppUser | undefined)?.id;
+    return uid ? `u:${uid}` : (req.ip || 'anon');
+  },
+  message: { error: '잠시 뒤에 다시 시도해주세요 (1분에 최대 3개).' },
+});
 
 function flattenBody(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
@@ -87,7 +105,7 @@ router.get('/albums/:id/user-reviews', (req, res) => {
 });
 
 // POST /api/albums/:id/user-reviews — auth, upsert (one review per user per album)
-router.post('/albums/:id/user-reviews', requireAuth, (req, res) => {
+router.post('/albums/:id/user-reviews', requireAuth, upsertLimiter, (req, res) => {
   const user = req.user!;
   const albumPk = resolveAlbumPk(req.params.id as string);
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });

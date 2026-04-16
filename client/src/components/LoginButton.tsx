@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 export default function LoginButton() {
   const { user, loading, login, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -18,19 +19,84 @@ export default function LoginButton() {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!consentOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setConsentOpen(false);
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [consentOpen]);
+
   if (loading) {
     return <div className="w-20 h-8 bg-white/5 rounded-full animate-pulse" />;
   }
 
   if (!user) {
     return (
-      <button
-        onClick={login}
-        className="px-4 py-1.5 border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black rounded-full text-sm font-medium tracking-wide transition-colors cursor-pointer"
-        title="Google 계정으로 입장하기"
-      >
-        입장하기
-      </button>
+      <>
+        <button
+          onClick={() => setConsentOpen(true)}
+          className="px-4 py-1.5 border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black rounded-full text-sm font-medium tracking-wide transition-colors cursor-pointer"
+          title="Google 계정으로 입장하기"
+        >
+          입장하기
+        </button>
+        {consentOpen && (
+          <div
+            className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setConsentOpen(false)}
+          >
+            <div
+              className="bg-[#141414] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-base font-semibold text-white mb-3">
+                로그인하기 전에
+              </h2>
+              <p className="text-sm text-gray-300 leading-relaxed mb-4">
+                Google 계정으로 로그인하면 dig.haus의{' '}
+                <a
+                  href="/terms.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#e8a020] hover:underline"
+                >
+                  이용약관
+                </a>
+                과{' '}
+                <a
+                  href="/privacy.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#e8a020] hover:underline"
+                >
+                  개인정보처리방침
+                </a>
+                에 동의한 것으로 간주됩니다. Google 프로필의 이름·이메일·
+                아바타만 가져오며 그 외 정보에는 접근하지 않습니다.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setConsentOpen(false)}
+                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-white cursor-pointer"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={() => {
+                    setConsentOpen(false);
+                    login();
+                  }}
+                  className="px-3 py-1.5 text-sm bg-[#e8a020] text-black rounded-md hover:bg-[#f0b040] cursor-pointer font-medium"
+                >
+                  동의하고 계속
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
