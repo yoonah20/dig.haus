@@ -1,5 +1,9 @@
-import { useEffect, useMemo } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useInfiniteQuery,
+  useQuery,
+  keepPreviousData,
+} from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
@@ -29,6 +33,13 @@ type SortValue = (typeof SORT_OPTIONS)[number]['value'];
 const DEFAULT_SORT: SortValue = 'release_date_desc';
 const SORT_STORAGE_KEY = 'home:sort';
 
+// Mobile/desktop split: desktop sticks with classic numbered pagination
+// (20 per page), mobile switches to infinite scroll (10 per batch). Tailwind
+// `md` breakpoint = 768px, so anything below counts as mobile here.
+const MOBILE_QUERY = '(max-width: 767px)';
+const DESKTOP_PAGE_SIZE = 20;
+const MOBILE_PAGE_SIZE = 10;
+
 function isSortValue(v: string): v is SortValue {
   return SORT_OPTIONS.some((o) => o.value === v);
 }
@@ -42,17 +53,47 @@ function readStoredSort(): SortValue | null {
   }
 }
 
-function useAlbumList(sort: SortValue, page: number) {
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== 'undefined' && window.matchMedia(MOBILE_QUERY).matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}
+
+async function fetchAlbumPage(sort: SortValue, page: number, pageSize: number) {
+  const { data } = await axios.get<AlbumListResponse>('/api/albums', {
+    params: { sort, page, pageSize },
+  });
+  return data;
+}
+
+function useDesktopAlbumList(sort: SortValue, page: number, enabled: boolean) {
   return useQuery<AlbumListResponse>({
-    queryKey: ['album-list', sort, page],
-    queryFn: async () => {
-      const { data } = await axios.get('/api/albums', {
-        params: { sort, page },
-      });
-      return data;
-    },
+    queryKey: ['album-list', sort, page, DESKTOP_PAGE_SIZE],
+    queryFn: () => fetchAlbumPage(sort, page, DESKTOP_PAGE_SIZE),
     staleTime: 1000 * 60 * 5,
     placeholderData: keepPreviousData,
+    enabled,
+  });
+}
+
+function useMobileAlbumList(sort: SortValue, enabled: boolean) {
+  return useInfiniteQuery<AlbumListResponse>({
+    queryKey: ['album-list-infinite', sort, MOBILE_PAGE_SIZE],
+    queryFn: ({ pageParam }) =>
+      fetchAlbumPage(sort, pageParam as number, MOBILE_PAGE_SIZE),
+    initialPageParam: 1,
+    getNextPageParam: (last) =>
+      last.page < last.totalPages ? last.page + 1 : undefined,
+    staleTime: 1000 * 60 * 5,
+    enabled,
   });
 }
 
@@ -73,6 +114,7 @@ function paginationItems(current: number, total: number): Array<number | 'ellips
 export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { openOverlay } = useSearchOverlay();
+  const isMobile = useIsMobile();
 
   useDocumentHead({
     title: 'Home | dig.haus',
@@ -128,10 +170,41 @@ export default function Home() {
     }
   }, [searchParams, setSearchParams, openOverlay]);
 
-  const { data, isLoading } = useAlbumList(sort, page);
-  const albums = data?.albums || [];
-  const total = data?.total ?? 0;
-  const totalPages = data?.totalPages ?? 1;
+  const desktopQuery = useDesktopAlbumList(sort, page, !isMobile);
+  const mobileQuery = useMobileAlbumList(sort, isMobile);
+
+  const albums: AlbumSearchResult[] = isMobile
+    ? (mobileQuery.data?.pages.flatMap((p) => p.albums) ?? [])
+    : (desktopQuery.data?.albums ?? []);
+  const firstPage = isMobile
+    ? mobileQuery.data?.pages[0]
+    : desktopQuery.data;
+  const total = firstPage?.total ?? 0;
+  const totalPages = firstPage?.totalPages ?? 1;
+  const isLoading = isMobile
+    ? mobileQuery.isLoading
+    : desktopQuery.isLoading;
+
+  // Mobile: bottom sentinel that pulls the next page in when it scrolls into
+  // view. rootMargin pre-loads ~600px before the user actually hits the end.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!isMobile) return;
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (!entry?.isIntersecting) return;
+        if (mobileQuery.hasNextPage && !mobileQuery.isFetchingNextPage) {
+          mobileQuery.fetchNextPage();
+        }
+      },
+      { rootMargin: '600px 0px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [isMobile, mobileQuery.hasNextPage, mobileQuery.isFetchingNextPage, mobileQuery.fetchNextPage, albums.length]);
 
   function updateParams(patch: Record<string, string | null>) {
     const next = new URLSearchParams(searchParams);
@@ -174,9 +247,13 @@ export default function Home() {
             {total > 0 && (
               <>
                 총 <span className="text-gray-300 font-medium">{total.toLocaleString()}</span>개 앨범
-                <span className="text-gray-600 mx-2">·</span>
-                <span className="text-gray-300 font-medium">{page}</span>
-                <span className="text-gray-500">/{totalPages} 페이지</span>
+                {!isMobile && (
+                  <>
+                    <span className="text-gray-600 mx-2">·</span>
+                    <span className="text-gray-300 font-medium">{page}</span>
+                    <span className="text-gray-500">/{totalPages} 페이지</span>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -208,7 +285,22 @@ export default function Home() {
           </div>
         )}
 
-        {totalPages > 1 && (
+        {/* Mobile infinite-scroll sentinel + status. Desktop renders the
+            numbered pagination nav below instead. */}
+        {isMobile && albums.length > 0 && (
+          <>
+            <div ref={sentinelRef} aria-hidden className="h-1" />
+            <div className="mt-6 mb-4 text-center text-xs text-gray-600">
+              {mobileQuery.isFetchingNextPage
+                ? '더 불러오는 중…'
+                : mobileQuery.hasNextPage
+                  ? null
+                  : '마지막 앨범까지 봤습니다.'}
+            </div>
+          </>
+        )}
+
+        {!isMobile && totalPages > 1 && (
           <nav className="mt-12 flex items-center justify-center gap-1 flex-wrap" aria-label="Pagination">
             <button
               onClick={() => goToPage(page - 1)}

@@ -390,7 +390,8 @@ async function getOrFetchAlbumBase(mbid: string) {
 
 // ─── GET /api/albums — list all albums (paginated + sorted) ─────────────
 
-const ALBUM_PAGE_SIZE = 20;
+const ALBUM_PAGE_SIZE_DEFAULT = 20;
+const ALBUM_PAGE_SIZE_MAX = 50;
 
 const SORT_CLAUSES: Record<string, string> = {
   registered_desc:   `a.id DESC`,
@@ -429,10 +430,18 @@ router.get('/', async (req, res) => {
 
     const pageRaw = parseInt((req.query.page as string) || '1', 10);
     const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
-    const offset = (page - 1) * ALBUM_PAGE_SIZE;
+
+    // Mobile uses a smaller pageSize for infinite scroll; desktop keeps 20.
+    // Clamped so a malformed param can't trigger an unbounded fetch.
+    const pageSizeRaw = parseInt((req.query.pageSize as string) || '', 10);
+    const pageSize =
+      Number.isFinite(pageSizeRaw) && pageSizeRaw > 0
+        ? Math.min(pageSizeRaw, ALBUM_PAGE_SIZE_MAX)
+        : ALBUM_PAGE_SIZE_DEFAULT;
+    const offset = (page - 1) * pageSize;
 
     const total = (queryGet('SELECT COUNT(*) AS c FROM albums')?.c as number) || 0;
-    const totalPages = Math.max(1, Math.ceil(total / ALBUM_PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     let albums: any[];
     if (isPriceSort) {
@@ -464,13 +473,13 @@ router.get('/', async (req, res) => {
         return (pa - pb) * sign;
       });
 
-      albums = allAlbums.slice(offset, offset + ALBUM_PAGE_SIZE);
+      albums = allAlbums.slice(offset, offset + pageSize);
     } else {
       albums = queryAll(
         `${ALBUM_ROW_SELECT}
          ORDER BY ${orderBy}
          LIMIT ? OFFSET ?`,
-        [ALBUM_PAGE_SIZE, offset]
+        [pageSize, offset]
       );
     }
 
@@ -551,7 +560,7 @@ router.get('/', async (req, res) => {
       albums: result,
       total,
       page,
-      pageSize: ALBUM_PAGE_SIZE,
+      pageSize,
       totalPages,
     });
   } catch (error) {

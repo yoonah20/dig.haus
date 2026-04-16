@@ -27,7 +27,13 @@ function getActiveCardSnapshot() {
   return activeCardId;
 }
 
-const TAP_THRESHOLD_PX = 10;
+// Treat a touch as a tap only if the finger barely moved between
+// touchstart and touchend. The previous 10px threshold was small enough
+// that early frames of a vertical scroll gesture often still registered
+// as taps and flipped the card mid-scroll. Bumped, plus we now bail out
+// during touchmove the moment the finger drifts vertically — see below.
+const TAP_THRESHOLD_PX = 24;
+const SCROLL_CANCEL_DY = 8;
 
 export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const up = album.upvotes ?? 0;
@@ -93,6 +99,24 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     touchStartRef.current = { x: t.clientX, y: t.clientY };
   }, []);
 
+  // Cancel the pending tap as soon as the finger drifts more than a few
+  // pixels vertically — that's the start of a scroll, not a tap. Without
+  // this, the only check happens at touchend (final position), so a
+  // user who lifts close to where they started after a small scroll wiggle
+  // would still get a flip.
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isHoverNoneRef.current) return;
+    const start = touchStartRef.current;
+    if (!start) return;
+    const t = e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dy) > SCROLL_CANCEL_DY || Math.hypot(dx, dy) > TAP_THRESHOLD_PX) {
+      touchStartRef.current = null;
+    }
+  }, []);
+
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
       if (!isHoverNoneRef.current) return;
@@ -131,6 +155,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
       className={`block album-card-outer relative${isActive ? ' is-active' : ''}`}
       onClick={handleClick}
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       <div
