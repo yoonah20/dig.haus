@@ -100,11 +100,13 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
       {/* Left column — avatar + display name. pt-1 puts the avatar
           centre at the same y as the bubble's tail (tail centre is
           hard-coded at y≈30 in index.css, which matches a 52px avatar
-          with pt-1). */}
-      <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[64px]">
+          with pt-1). Column width is sized to fit an 8-char Korean
+          name on one line (~96px at text-[11px]); anything longer wraps
+          to 2 lines before ellipsis. */}
+      <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[96px]">
         <Avatar src={item.userAvatar} name={item.userName} size={52} />
         <span
-          className={`text-[11px] text-center leading-tight truncate max-w-full ${
+          className={`text-[11px] text-center leading-tight line-clamp-2 break-words w-full ${
             isAnon ? 'italic text-gray-600' : 'text-gray-400'
           }`}
         >
