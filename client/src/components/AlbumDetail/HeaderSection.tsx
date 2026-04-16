@@ -58,7 +58,7 @@ function TagEditor({
       try {
         await axios.patch(`/api/albums/${albumId}/tags`, { tags: nextTags });
         await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
-        await queryClient.invalidateQueries({ queryKey: ['album-list'] });
+        await queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
       } catch (err) {
         console.error('Update tags error:', err);
         alert('태그 저장에 실패했습니다.');
@@ -387,7 +387,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
         title_meaning: titleMeaningInput,
       });
       await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
-      await queryClient.invalidateQueries({ queryKey: ['album-list'] });
+      await queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
       setEditingKo(false);
     } catch (err) {
       console.error('Save metadata error:', err);
@@ -421,7 +421,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     try {
       await axios.patch(`/api/albums/${albumId}/cover-art`, { coverArtUrl: trimmed });
       await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
-      await queryClient.invalidateQueries({ queryKey: ['album-list'] });
+      await queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
       setEditingCover(false);
     } catch (err) {
       console.error('Update cover art error:', err);
@@ -453,7 +453,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       queryClient.removeQueries({ queryKey: ['album-similar', albumId] });
       queryClient.removeQueries({ queryKey: ['purchase-links', albumId] });
       // Force the homepage / admin list to refetch with the row gone
-      await queryClient.invalidateQueries({ queryKey: ['album-list'] });
+      await queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
       await queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
 
       // Remove from recent albums in localStorage
@@ -552,7 +552,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
         bandcamp_url: urlOrNull(bandcampUrlInput),
       });
       await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
-      await queryClient.invalidateQueries({ queryKey: ['album-list'] });
+      await queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
       setEditingAlbum(false);
     } catch (err) {
       console.error('Update album error:', err);

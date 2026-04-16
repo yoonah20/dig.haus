@@ -313,12 +313,18 @@ export default function ReviewSection({ reviews, koreanSummary, averageScore }: 
     }
   };
 
+  // Edits here change the album's averageScore, which the home page album
+  // cards display. Refetch the home list in the background ('all' covers the
+  // inactive case while user is on the album page) so a back-nav lands on
+  // fresh data without a manual reload.
   const handleScoreSaved = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+    queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
   }, [queryClient, slug]);
 
   const handleDeleted = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+    queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
   }, [queryClient, slug]);
 
   const startEditSummary = () => {
