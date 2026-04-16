@@ -263,9 +263,11 @@ function Editor({
   );
 
   return (
-    <div className="bg-[#1d140a] border border-[#e8a020]/40 rounded-2xl p-3 h-full flex flex-col gap-2 min-h-[180px]">
-      {/* Header: summary on left, progress on right */}
-      <div className="flex items-center justify-between gap-2 min-h-[16px]">
+    <div className="bg-[#1d140a] border border-[#e8a020]/40 rounded-2xl pt-2 px-3 pb-3 h-full flex flex-col gap-1.5 min-h-[180px]">
+      {/* Header: summary on left, progress on right. No min-height — when
+          no pills are present the row collapses to the progress-dot height
+          so the prompt sits close to the card's top edge. */}
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1 flex-1 min-w-0 flex-wrap">
           {ratingPill}
           {bodyPill}
@@ -277,7 +279,7 @@ function Editor({
       <div key={step} className="animate-[fadeInUp_200ms_ease-out] flex-1 flex flex-col gap-2">
         {step === 'rating' && (
           <>
-            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center pt-1">
+            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
               “이 앨범 어땠어요?”
             </div>
             <div className="grid grid-cols-3 gap-1.5">
@@ -318,7 +320,7 @@ function Editor({
 
         {step === 'text' && (
           <>
-            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center pt-1">
+            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
               “하고 싶은 말?”
             </div>
             <textarea
@@ -373,7 +375,7 @@ function Editor({
 
         {step === 'emoji' && (
           <>
-            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center pt-1">
+            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
               “들었을 때 기분!”
             </div>
             <div className="grid grid-cols-4 gap-1.5">
@@ -387,7 +389,7 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={e}
-                    className={`aspect-square w-full rounded-lg flex items-center justify-center text-xl md:text-2xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`h-9 md:h-10 w-full rounded-lg flex items-center justify-center text-lg md:text-xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
                         ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
                         : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-110'
