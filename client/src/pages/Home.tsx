@@ -22,6 +22,7 @@ interface AlbumListResponse {
 const SORT_OPTIONS = [
   { value: 'registered_desc', label: '등록 최신순' },
   { value: 'release_date_desc', label: '발매 최신순' },
+  { value: 'random', label: '랜덤 순서로' },
   { value: 'artist_az', label: '아티스트 A-Z' },
   { value: 'score_desc', label: '리뷰 평점순' },
   { value: 'price_asc', label: '가격 낮은순' },
@@ -67,28 +68,38 @@ function useIsMobile() {
   return isMobile;
 }
 
-async function fetchAlbumPage(sort: SortValue, page: number, pageSize: number) {
+async function fetchAlbumPage(
+  sort: SortValue,
+  page: number,
+  pageSize: number,
+  seed?: number
+) {
   const { data } = await axios.get<AlbumListResponse>('/api/albums', {
-    params: { sort, page, pageSize },
+    params: { sort, page, pageSize, ...(seed != null ? { seed } : {}) },
   });
   return data;
 }
 
-function useDesktopAlbumList(sort: SortValue, page: number, enabled: boolean) {
+function useDesktopAlbumList(
+  sort: SortValue,
+  page: number,
+  enabled: boolean,
+  seed?: number
+) {
   return useQuery<AlbumListResponse>({
-    queryKey: ['album-list', sort, page, DESKTOP_PAGE_SIZE],
-    queryFn: () => fetchAlbumPage(sort, page, DESKTOP_PAGE_SIZE),
+    queryKey: ['album-list', sort, page, DESKTOP_PAGE_SIZE, seed ?? null],
+    queryFn: () => fetchAlbumPage(sort, page, DESKTOP_PAGE_SIZE, seed),
     staleTime: 1000 * 60 * 5,
     placeholderData: keepPreviousData,
     enabled,
   });
 }
 
-function useMobileAlbumList(sort: SortValue, enabled: boolean) {
+function useMobileAlbumList(sort: SortValue, enabled: boolean, seed?: number) {
   return useInfiniteQuery<AlbumListResponse>({
-    queryKey: ['album-list-infinite', sort, MOBILE_PAGE_SIZE],
+    queryKey: ['album-list-infinite', sort, MOBILE_PAGE_SIZE, seed ?? null],
     queryFn: ({ pageParam }) =>
-      fetchAlbumPage(sort, pageParam as number, MOBILE_PAGE_SIZE),
+      fetchAlbumPage(sort, pageParam as number, MOBILE_PAGE_SIZE, seed),
     initialPageParam: 1,
     getNextPageParam: (last) =>
       last.page < last.totalPages ? last.page + 1 : undefined,
@@ -159,6 +170,29 @@ export default function Home() {
     return Number.isFinite(raw) && raw > 0 ? raw : 1;
   }, [searchParams]);
 
+  // Random sort needs a per-session seed so pagination / infinite scroll
+  // don't show the same album twice (server uses the seed to shuffle
+  // deterministically). The seed sits in the URL so a page reload or share
+  // link keeps showing the same shuffle; switching sort away clears it.
+  const seed = useMemo(() => {
+    if (sort !== 'random') return undefined;
+    const raw = parseInt(searchParams.get('seed') || '', 10);
+    return Number.isFinite(raw) && raw >= 0 ? raw : undefined;
+  }, [sort, searchParams]);
+
+  useEffect(() => {
+    if (sort === 'random' && seed === undefined) {
+      const fresh = Math.floor(Math.random() * 1_000_000);
+      const next = new URLSearchParams(searchParams);
+      next.set('seed', String(fresh));
+      setSearchParams(next, { replace: true });
+    } else if (sort !== 'random' && searchParams.get('seed')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('seed');
+      setSearchParams(next, { replace: true });
+    }
+  }, [sort, seed, searchParams, setSearchParams]);
+
   // Deep-link: /?q=artist opens the nav search overlay and clears the param
   useEffect(() => {
     const q = searchParams.get('q');
@@ -170,8 +204,13 @@ export default function Home() {
     }
   }, [searchParams, setSearchParams, openOverlay]);
 
-  const desktopQuery = useDesktopAlbumList(sort, page, !isMobile);
-  const mobileQuery = useMobileAlbumList(sort, isMobile);
+  // When sort=random we wait for the seed effect to write a fresh value to
+  // the URL before firing a query — otherwise the first render would hit
+  // the server without a seed (seed=0 deterministic ordering) and then
+  // refetch a moment later with the real seed, wasting a round trip.
+  const seedReady = sort !== 'random' || seed !== undefined;
+  const desktopQuery = useDesktopAlbumList(sort, page, !isMobile && seedReady, seed);
+  const mobileQuery = useMobileAlbumList(sort, isMobile && seedReady, seed);
 
   const albums: AlbumSearchResult[] = isMobile
     ? (mobileQuery.data?.pages.flatMap((p) => p.albums) ?? [])

@@ -478,7 +478,17 @@ router.get('/', async (req, res) => {
   try {
     const sortKey = (req.query.sort as string) || 'registered_desc';
     const isPriceSort = sortKey === 'price_asc' || sortKey === 'price_desc';
-    const orderBy = SORT_CLAUSES[sortKey] || SORT_CLAUSES.registered_desc;
+    // Random sort is seeded — the client passes a per-session seed (int) so
+    // pagination and infinite scroll produce a stable shuffle across page
+    // fetches. Without a seed each request would re-shuffle and users would
+    // see duplicates across pages. Seed is validated as a non-negative int
+    // to make it safe to interpolate into SQL.
+    let orderBy = SORT_CLAUSES[sortKey] || SORT_CLAUSES.registered_desc;
+    if (sortKey === 'random') {
+      const rawSeed = parseInt((req.query.seed as string) || '0', 10);
+      const seed = Number.isFinite(rawSeed) && rawSeed >= 0 ? rawSeed : 0;
+      orderBy = `((a.id * ${seed} + ${seed + 31}) % 10007)`;
+    }
 
     const pageRaw = parseInt((req.query.page as string) || '1', 10);
     const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
