@@ -43,6 +43,25 @@ export async function getDiscogsMasterMainRelease(masterId: number): Promise<num
 }
 
 /**
+ * Fetch a Discogs master's original release year — distinct from the year
+ * of any specific release / reissue. Used to override the reissue year that
+ * `/releases/{id}` returns when the user registers a remaster.
+ */
+export async function getDiscogsMasterYear(masterId: number): Promise<string | null> {
+  try {
+    const res = await axios.get(`${DISCOGS_BASE}/masters/${masterId}`, {
+      headers: getHeaders(),
+      httpsAgent,
+    });
+    const y = res.data?.year;
+    return y ? String(y) : null;
+  } catch (err) {
+    console.warn(`[discogs] getDiscogsMasterYear failed for master=${masterId}:`, (err as Error).message);
+    return null;
+  }
+}
+
+/**
  * Fetch full release details from Discogs by release ID.
  */
 export async function getDiscogsReleaseDetail(discogsId: number): Promise<{
@@ -66,17 +85,34 @@ export async function getDiscogsReleaseDetail(discogsId: number): Promise<{
     const r = res.data;
     const artist = cleanArtistName(r.artists?.[0]?.name || '');
     const artistId = r.artists?.[0]?.id || null;
+    const masterId: number | null = r.master_id || null;
+
+    // Discogs releases describe a SPECIFIC pressing — for reissues this is
+    // the reissue year, not the album's original year. If a master exists,
+    // pull its year (the canonical original release year) and prefer that.
+    let originalYear = r.year?.toString() || '';
+    let originalDate = r.released || r.year?.toString() || '';
+    if (masterId) {
+      const masterYear = await getDiscogsMasterYear(masterId);
+      if (masterYear && masterYear !== originalYear) {
+        originalYear = masterYear;
+        // The master only carries a year, not a full date — drop the
+        // reissue's specific date so the page shows just the original year.
+        originalDate = masterYear;
+      }
+    }
+
     return {
       title: r.title || '',
       artist,
       artistId,
-      year: r.year?.toString() || '',
-      releaseDate: r.released || r.year?.toString() || '',
+      year: originalYear,
+      releaseDate: originalDate,
       label: r.labels?.[0]?.name || '',
       genres: [...(r.genres || []), ...(r.styles || [])],
       format: r.formats?.[0]?.name || '',
       coverArtUrl: r.images?.[0]?.uri || r.thumb || '',
-      masterId: r.master_id || null,
+      masterId,
       discogsUrl: r.uri ? `https://www.discogs.com${r.uri}` : '',
     };
   } catch (err) {

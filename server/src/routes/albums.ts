@@ -108,8 +108,13 @@ async function getOrFetchAlbumBase(mbid: string) {
       bandcampUrl: cached.bandcamp_url,
     };
 
-    // Backfill release_date if missing — fire and forget
-    if (!cached.release_date && cached.mbid && !cached.mbid.startsWith('discogs-')) {
+    // Backfill release_date if missing — fire and forget. Only runs when
+    // BOTH date and year are absent so an admin who explicitly clears the
+    // release_date (typically while fixing a reissue year) doesn't see it
+    // restored from MusicBrainz on the next page load. mb.date already
+    // prefers release-group first-release-date, so this fills in the
+    // original year for older cached rows that pre-date that change.
+    if (!cached.release_date && !cached.release_year && cached.mbid && !cached.mbid.startsWith('discogs-')) {
       getRelease(cached.mbid).then((mb) => {
         if (mb?.date) updateAlbumFields(mbid, { release_date: mb.date });
       }).catch((err) => {

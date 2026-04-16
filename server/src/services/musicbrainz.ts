@@ -106,13 +106,22 @@ async function _getRelease(mbid: string): Promise<any | null> {
     });
 
     const r = res.data;
+    // Reissues / remasters get their own MusicBrainz release with the reissue
+    // year in r.date. The release-group's first-release-date holds the
+    // ORIGINAL year of the album, which is what we want to display.
+    const firstReleaseDate: string = r['release-group']?.['first-release-date'] || '';
+    const originalDate = firstReleaseDate || r.date || '';
     return {
       mbid: r.id,
       title: r.title,
       artist: r['artist-credit']?.[0]?.name || 'Unknown',
       artistMbid: r['artist-credit']?.[0]?.artist?.id || '',
-      date: r.date || '',
-      year: r.date?.substring(0, 4) || '',
+      date: originalDate,
+      year: originalDate.substring(0, 4) || '',
+      // Keep raw release-specific fields available for callers that need them
+      // (e.g. "this pressing was issued on …" UI, market data).
+      releaseSpecificDate: r.date || '',
+      firstReleaseDate,
       country: r.country || '',
       barcode: r.barcode || '',
       status: r.status || '',
@@ -127,6 +136,7 @@ async function _getRelease(mbid: string): Promise<any | null> {
             mbid: r['release-group'].id,
             title: r['release-group'].title,
             primaryType: r['release-group']['primary-type'] || '',
+            firstReleaseDate,
           }
         : null,
       media: (r.media || []).map((m: any) => ({
