@@ -1,18 +1,19 @@
 import { Link } from 'react-router-dom';
+import type { CSSProperties } from 'react';
 import CoverArt from '../CoverArt';
 import { useUserReviewsFeed, type UserReviewFeedItem } from '../../hooks/useUserReviewsFeed';
 import { resolveApiUrl } from '../../utils/apiUrl';
 
 // Seconds each item is visible during one scroll pass — higher = slower.
-// Tuned so a reader can finish a 50자 평 without needing to hover-pause,
-// but not so slow that the motion feels dead.
-const SECONDS_PER_ITEM = 5;
+// Tuned for comfortable reading: fast enough to feel alive, slow enough
+// that you can finish a 50자 평 without having to hover-pause.
+const SECONDS_PER_ITEM = 7;
 
 // Fixed width per ticker card so the CSS marquee math stays clean — the
 // track's total width is predictable and translateX(-50%) lands the
 // duplicate tail exactly where the head started.
-const ITEM_WIDTH_PX = 320;
-const ITEM_GAP_PX = 12;
+const ITEM_WIDTH_PX = 340;
+const ITEM_GAP_PX = 16;
 
 const RATING_EMOJI: Record<'up' | 'down' | 'soso', string> = {
   up: '👍',
@@ -20,16 +21,18 @@ const RATING_EMOJI: Record<'up' | 'down' | 'soso', string> = {
   soso: '🤷',
 };
 
-function formatRelativeTime(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const diffSec = (Date.now() - d.getTime()) / 1000;
-  if (diffSec < 60) return '방금';
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}분 전`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}시간 전`;
-  if (diffSec < 86400 * 7) return `${Math.floor(diffSec / 86400)}일 전`;
-  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
-}
+// Per-rating tint for the speech bubble. Values are kept low-saturation
+// so a long queue of 굿굿 cards doesn't feel like a yellow wall — the
+// tint is just enough to scan the ratio at a glance.
+const BUBBLE_THEME: Record<
+  'up' | 'down' | 'soso' | 'none',
+  { bg: string; border: string }
+> = {
+  up: { bg: 'rgba(232, 160, 32, 0.10)', border: 'rgba(232, 160, 32, 0.30)' },
+  down: { bg: 'rgba(74, 90, 110, 0.16)', border: 'rgba(120, 140, 165, 0.28)' },
+  soso: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.12)' },
+  none: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.12)' },
+};
 
 function Avatar({
   src,
@@ -57,7 +60,7 @@ function Avatar({
   return (
     <div
       className="rounded-full bg-[#2a1f10] text-[#e8a020] flex items-center justify-center shrink-0 border border-white/10 font-semibold"
-      style={{ width: size, height: size, fontSize: Math.max(size * 0.5, 10) }}
+      style={{ width: size, height: size, fontSize: Math.max(size * 0.4, 14) }}
       aria-hidden
     >
       {initial}
@@ -66,29 +69,67 @@ function Avatar({
 }
 
 function TickerItem({ item }: { item: UserReviewFeedItem }) {
-  const ratingEmoji = item.rating ? RATING_EMOJI[item.rating] : null;
   const isAnon = item.userId == null;
+  const displayName = isAnon ? '탈퇴한 사용자' : item.userName || '익명';
+  const themeKey = item.rating ?? 'none';
+  const theme = BUBBLE_THEME[themeKey];
+  const ratingEmoji = item.rating ? RATING_EMOJI[item.rating] : null;
+  const feelingEmoji = item.emoji;
+  const bubbleStyle = {
+    backgroundColor: theme.bg,
+    borderColor: theme.border,
+    // Consumed by .bubble-tail::before so the tail paints the same fill
+    // as the bubble it leaks from. Using the variable (vs. a second
+    // prop) keeps rating→colour logic in a single place.
+    ['--tail-fill' as string]: theme.bg,
+  } as CSSProperties;
 
   return (
     <Link
       to={`/album/${item.albumSlug}`}
-      className="group shrink-0 block bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl p-3 hover:border-[#e8a020]/40 hover:bg-[#221809] transition-colors cursor-pointer"
+      // `group` drives the hover de-blur on the cover. No `title` attr —
+      // browsers would render it as a tooltip revealing the album name,
+      // which defeats the "저건 어떤 앨범일까?" mystery. Album identity
+      // still lives in aria-label for screen readers.
+      className="group shrink-0 flex items-start gap-3"
       style={{ width: ITEM_WIDTH_PX }}
-      // Album identity is intentionally *not* in the visible UI — that's
-      // the point of the blurred cover ("저건 어떤 앨범일까?"). But screen
-      // readers and titles need it so nav isn't a black box for everyone.
-      title={`${item.albumArtist ?? ''} — ${item.albumTitle} 로 이동`}
-      aria-label={`${item.userName || '익명'}의 50자 평: ${item.body}. ${item.albumArtist ?? ''} — ${item.albumTitle} 로 이동`}
+      aria-label={`${displayName}의 50자 평: ${item.body}. ${item.albumArtist ?? ''} — ${item.albumTitle} 로 이동`}
     >
-      <div className="flex items-start gap-3 min-w-0">
-        {/* Blurred album cover — the "mystery" hook. filter: blur must
-            stay on an inner element so the card's border/radius stays
-            crisp. overflow-hidden clips the blur's soft edge back to the
-            cover's square. */}
-        <div className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-[#252525] relative">
+      {/* Left column — avatar + 2 emojis stacked below. The whole column
+          is the "speaker" anchor; the bubble's tail points at the
+          avatar centre. */}
+      <div className="flex flex-col items-center gap-1.5 shrink-0 pt-0.5">
+        {/* Wrapper span carries the title tooltip so only the avatar
+            surfaces the username on hover (the bubble/cover do not). */}
+        <span className="block" title={displayName}>
+          <Avatar src={item.userAvatar} name={item.userName} size={52} />
+        </span>
+        {(ratingEmoji || feelingEmoji) && (
+          <div className="flex items-center justify-center gap-1 leading-none" aria-hidden>
+            {ratingEmoji && <span className="text-base">{ratingEmoji}</span>}
+            {feelingEmoji && <span className="text-base">{feelingEmoji}</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Speech bubble — body on the left (flex-1), blurred cover
+          attached on the right inside the same bubble. Rating tint +
+          tail colour come from the inline style + CSS variable. */}
+      <div
+        className="bubble-tail flex-1 min-w-0 flex items-center gap-3 rounded-2xl border px-3.5 py-3 min-h-[76px] group-hover:border-[#e8a020]/50 transition-colors"
+        style={bubbleStyle}
+      >
+        <p className="flex-1 min-w-0 text-gray-100 text-sm leading-snug line-clamp-3 break-words">
+          {item.body}
+        </p>
+        {/* Blurred cover — the mystery. Default blur is light enough
+            that shape/colour are visible; hover pulls most (not all) of
+            the blur off so the user can almost-but-not-quite guess.
+            scale(1.12) stops the blur's soft edge from leaking past the
+            card's rounded corners. */}
+        <div className="shrink-0 w-12 h-12 rounded-md overflow-hidden bg-[#252525] ring-1 ring-white/10">
           <div
-            className="w-full h-full"
-            style={{ filter: 'blur(10px) saturate(1.2)', transform: 'scale(1.15)' }}
+            className="w-full h-full scale-[1.12] blur-[4px] saturate-[1.3] group-hover:blur-[1.5px] transition-[filter] duration-300"
             aria-hidden
           >
             <CoverArt
@@ -97,38 +138,6 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
               alt=""
               className="w-full h-full object-cover"
             />
-          </div>
-          {/* Subtle question-mark hint in the center of the blur so
-              totally-black covers still read as "something is hidden"
-              rather than dead space. Not shown on hover so the visual
-              grows less mysterious as you intend to click. */}
-          <div
-            className="absolute inset-0 flex items-center justify-center text-xl text-white/40 font-serif pointer-events-none group-hover:opacity-0 transition-opacity"
-            aria-hidden
-          >
-            ?
-          </div>
-        </div>
-
-        {/* Right column: speech bubble + user credit */}
-        <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-          <p className="text-gray-100 text-sm leading-snug line-clamp-2 break-words">
-            {item.body}
-          </p>
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 min-w-0">
-            <Avatar src={item.userAvatar} name={item.userName} size={16} />
-            <span
-              className={`truncate ${isAnon ? 'italic text-gray-600' : 'text-gray-400'}`}
-            >
-              {isAnon ? '탈퇴한 사용자' : item.userName || '익명'}
-            </span>
-            <span className="text-gray-700">·</span>
-            <span className="shrink-0">{formatRelativeTime(item.createdAt)}</span>
-            {ratingEmoji && (
-              <span className="ml-auto shrink-0" aria-hidden>
-                {ratingEmoji}
-              </span>
-            )}
           </div>
         </div>
       </div>
@@ -147,7 +156,7 @@ export default function CommentTicker() {
   // Duration scales with content so a longer queue doesn't zoom past.
   // Track is doubled for the seamless-loop trick, so the real travel is
   // one copy's width — SECONDS_PER_ITEM × items.length matches that.
-  const durationSec = Math.max(20, items.length * SECONDS_PER_ITEM);
+  const durationSec = Math.max(30, items.length * SECONDS_PER_ITEM);
 
   return (
     <section className="comment-ticker mt-14 relative" aria-label="최근 50자 평">

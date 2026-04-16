@@ -37,12 +37,12 @@ const DEFAULT_SORT: SortValue = 'registered_desc';
 const SORT_STORAGE_KEY = 'home:sort';
 
 // Mobile/desktop split: desktop sticks with classic numbered pagination
-// (15 per page — 3 rows × 5 cols at lg; leaves room under the grid for
+// (18 per page — 3 rows × 6 cols at lg; leaves room under the grid for
 // the comment ticker). Mobile uses infinite scroll in 10-item batches.
 // Tailwind `md` breakpoint = 768px, so anything below counts as mobile
 // here.
 const MOBILE_QUERY = '(max-width: 767px)';
-const DESKTOP_PAGE_SIZE = 15;
+const DESKTOP_PAGE_SIZE = 18;
 const MOBILE_PAGE_SIZE = 10;
 
 function isSortValue(v: string): v is SortValue {
@@ -347,7 +347,7 @@ export default function Home() {
         ) : albums.length === 0 ? (
           <div className="text-center py-20 text-sm text-gray-500">등록된 앨범이 없습니다.</div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
             {albums.map((album) => (
               <AlbumCard key={album.mbid} album={album} />
             ))}

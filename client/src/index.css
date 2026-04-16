@@ -79,6 +79,26 @@ body {
   }
 }
 
+/* Speech bubble with a left-pointing tail — used in the homepage
+   comment ticker. Fill colour is driven by a CSS variable so the tail
+   matches the bubble even when the card swaps background per rating
+   (굿굿/쏘쏘/별루 each use their own tint). Tail sits at avatar-centre
+   height, which for a 52px avatar inside an `items-start` row with the
+   bubble's top padding is ~22px from the bubble's top edge. */
+.bubble-tail {
+  position: relative;
+}
+.bubble-tail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 22px;
+  transform: translateX(calc(-100% + 1px));
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right: 8px solid var(--tail-fill, rgba(255, 255, 255, 0.04));
+}
+
 /* Album card — hover / tap flips the card 180° on Y axis to reveal
    info on the back. Touch devices add `.is-active` via JS after the
    first tap; a second tap (anywhere on the card) navigates. */
