@@ -14,8 +14,6 @@ const REVIEWS_PER_PAGE = 3;
 
 // All-face emotion palette arranged as a gradient from most positive on
 // the left to meltdown on the right, with 쏘쏘 (neutral) in the middle.
-// 12 tiles total — renders as a 6×2 grid on every screen size so the
-// first row is positive-leaning and the second row slides into negative.
 //   row 1 (positive → mild):  🥰 😂 😎 😊 😌 🙂
 //   row 2 (neutral → meltdown): 😐 🥲 🥹 😭 🤯 🫠
 const EMOJI_PALETTE = [
@@ -102,17 +100,17 @@ function SpeechBubble({
         </div>
       )}
 
-      <div className="bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl px-3.5 py-3 h-full flex flex-col min-w-0">
+      <div className="bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 h-full flex flex-col min-w-0">
         {/* body — expands to fill the card so the footer stays pinned */}
-        <p className="text-gray-100 text-[14px] leading-relaxed break-words flex-1">
+        <p className="text-gray-100 text-[15px] leading-relaxed break-words flex-1">
           {review.body}
         </p>
 
         {/* footer — avatar + name anchored to the bottom so cards in a row
             visually align even with uneven body lengths */}
-        <div className="flex items-center gap-2 min-w-0 mt-2.5 pt-2 border-t border-white/5">
-          <Avatar src={review.userAvatar} name={review.userName} size={24} />
-          <span className="text-[11px] text-gray-400 truncate">
+        <div className="flex items-center gap-2.5 min-w-0 mt-3 pt-2.5 border-t border-white/5">
+          <Avatar src={review.userAvatar} name={review.userName} size={36} />
+          <span className="text-sm text-gray-300 truncate">
             {review.userName || '익명'}
           </span>
         </div>
@@ -141,6 +139,21 @@ function SpeechBubble({
         )}
       </div>
     </div>
+  );
+}
+
+function AddReviewCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/30 hover:bg-[#1d140a]/70 border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/80 rounded-2xl p-4 h-full min-h-[140px] transition-all cursor-pointer"
+    >
+      <span className="text-3xl group-hover:scale-110 transition-transform" aria-hidden>✍️</span>
+      <span className="text-sm font-medium text-[#e8a020] group-hover:text-[#f0b040]">
+        50자 평 남기기
+      </span>
+    </button>
   );
 }
 
@@ -199,7 +212,7 @@ function Editor({
     <button
       type="button"
       onClick={() => !saving && setStep('rating')}
-      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] cursor-pointer transition-colors ${
+      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] cursor-pointer transition-colors ${
         rating === 'up'
           ? 'bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30 hover:bg-[#e8a020]/25'
           : 'bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10'
@@ -215,7 +228,7 @@ function Editor({
     <button
       type="button"
       onClick={() => !saving && setStep('text')}
-      className="text-[11px] text-gray-300 bg-white/5 border border-white/10 rounded-full px-1.5 py-0.5 max-w-[200px] truncate cursor-pointer hover:bg-white/10"
+      className="text-[10px] text-gray-300 bg-white/5 border border-white/10 rounded-full px-1.5 py-0.5 max-w-[140px] truncate cursor-pointer hover:bg-white/10"
       title="수정하려면 클릭"
     >
       “{body}”
@@ -223,7 +236,7 @@ function Editor({
   );
 
   const progress = (
-    <div className="flex items-center gap-1" aria-hidden>
+    <div className="flex items-center gap-1 shrink-0" aria-hidden>
       {STEP_ORDER.map((s) => {
         const current = s === step;
         const passed = STEP_ORDER.indexOf(step) > STEP_ORDER.indexOf(s);
@@ -231,7 +244,7 @@ function Editor({
           <span
             key={s}
             className={`h-1 rounded-full transition-all ${
-              current ? 'w-4 bg-[#e8a020]' : passed ? 'w-2 bg-[#e8a020]/50' : 'w-2 bg-white/15'
+              current ? 'w-3 bg-[#e8a020]' : passed ? 'w-1.5 bg-[#e8a020]/50' : 'w-1.5 bg-white/15'
             }`}
           />
         );
@@ -243,17 +256,17 @@ function Editor({
     <button
       onClick={onCancel}
       disabled={saving}
-      className="text-[11px] text-gray-500 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
+      className="text-[10px] text-gray-500 hover:text-white px-1.5 py-1 disabled:opacity-40 cursor-pointer"
     >
       취소
     </button>
   );
 
   return (
-    <div className="bg-[#1d140a] border border-[#e8a020]/20 rounded-2xl p-3 md:p-3.5 space-y-2.5">
+    <div className="bg-[#1d140a] border border-[#e8a020]/40 rounded-2xl p-3 h-full flex flex-col gap-2 min-h-[180px]">
       {/* Header: summary on left, progress on right */}
-      <div className="flex items-center justify-between gap-2 min-h-[18px]">
-        <div className="flex items-center gap-1.5 flex-1 min-w-0 flex-wrap">
+      <div className="flex items-center justify-between gap-2 min-h-[16px]">
+        <div className="flex items-center gap-1 flex-1 min-w-0 flex-wrap">
           {ratingPill}
           {bodyPill}
         </div>
@@ -261,13 +274,13 @@ function Editor({
       </div>
 
       {/* Step content — key forces a remount so the reveal feels fresh */}
-      <div key={step} className="animate-[fadeInUp_200ms_ease-out] space-y-2.5">
+      <div key={step} className="animate-[fadeInUp_200ms_ease-out] flex-1 flex flex-col gap-2">
         {step === 'rating' && (
           <>
-            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
+            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center pt-1">
               “이 앨범 어땠어요?”
             </div>
-            <div className="flex justify-center gap-2 pt-1">
+            <div className="grid grid-cols-3 gap-1.5">
               {RATING_ORDER.map((r) => {
                 const selected = rating === r;
                 const selectedStyle =
@@ -276,7 +289,7 @@ function Editor({
                     : r === 'down'
                       ? 'bg-white/10 border-white/30 text-white'
                       : 'bg-white/10 border-white/25 text-gray-100';
-                const { emoji, label } = RATING_META[r];
+                const { emoji: rEmoji, label } = RATING_META[r];
                 return (
                   <button
                     key={r}
@@ -285,28 +298,28 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={label}
-                    className={`aspect-square w-20 md:w-24 flex flex-col items-center justify-center gap-1 rounded-2xl text-xs md:text-sm font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border ${
+                    className={`aspect-square w-full flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border ${
                       selected
                         ? selectedStyle
                         : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
                     }`}
                   >
-                    <span className="text-4xl md:text-5xl leading-none" aria-hidden>
-                      {emoji}
+                    <span className="text-2xl md:text-3xl leading-none" aria-hidden>
+                      {rEmoji}
                     </span>
                     <span>{label}</span>
                   </button>
                 );
               })}
             </div>
-            <div className="flex justify-end">{cancelButton}</div>
+            <div className="flex justify-end mt-auto">{cancelButton}</div>
           </>
         )}
 
         {step === 'text' && (
           <>
-            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
-              “이 앨범에 대해 하고 싶은 말?”
+            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center pt-1">
+              “하고 싶은 말?”
             </div>
             <textarea
               autoFocus
@@ -322,40 +335,34 @@ function Editor({
                   goToEmoji();
                 }
               }}
-              placeholder={`공백 제외 최소 ${MIN_CHARS}자, 최대 ${MAX_CHARS}자`}
-              rows={2}
+              placeholder={`공백 제외 ${MIN_CHARS}~${MAX_CHARS}자`}
+              rows={3}
               disabled={saving}
-              className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
+              className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-2.5 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
             />
-            <div className="flex items-center justify-between gap-2 text-[11px]">
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className={`tabular-nums shrink-0 ${
-                    over ? 'text-red-400' : tooShort ? 'text-gray-400' : 'text-gray-500'
-                  }`}
-                >
-                  {count}/{MAX_CHARS}
-                </span>
-                {tooShort && (
-                  <span className="text-gray-500 truncate">
-                    최소 {MIN_CHARS}자 이상 써주세요
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center justify-between gap-1 text-[10px] mt-auto">
+              <span
+                className={`tabular-nums shrink-0 ${
+                  over ? 'text-red-400' : tooShort ? 'text-gray-400' : 'text-gray-500'
+                }`}
+              >
+                {count}/{MAX_CHARS}
+              </span>
+              <div className="flex items-center gap-0.5 shrink-0">
                 {cancelButton}
                 <button
                   onClick={goBack}
                   disabled={saving}
-                  className="text-gray-400 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
+                  className="text-gray-400 hover:text-white px-1.5 py-1 disabled:opacity-40 cursor-pointer"
+                  title="뒤로"
                 >
-                  ← 뒤로
+                  ←
                 </button>
                 <button
                   onClick={goToEmoji}
                   disabled={saving || tooShort || over}
                   title={tooShort ? `최소 ${MIN_CHARS}자 이상 써주세요` : undefined}
-                  className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-3 py-1 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-2.5 py-1 text-[11px] font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   다음
                 </button>
@@ -366,10 +373,10 @@ function Editor({
 
         {step === 'emoji' && (
           <>
-            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
-              “마지막으로, 들었을 때 기분!”
+            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center pt-1">
+              “들었을 때 기분!”
             </div>
-            <div className="grid grid-cols-6 gap-2 justify-items-center py-1">
+            <div className="grid grid-cols-4 gap-1.5">
               {EMOJI_PALETTE.map((e) => {
                 const selected = emoji === e;
                 return (
@@ -380,7 +387,7 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={e}
-                    className={`w-11 h-11 md:w-12 md:h-12 rounded-xl flex items-center justify-center text-[28px] md:text-[30px] leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`aspect-square w-full rounded-lg flex items-center justify-center text-xl md:text-2xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
                         ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
                         : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-110'
@@ -391,15 +398,16 @@ function Editor({
                 );
               })}
             </div>
-            <div className="flex items-center justify-end gap-1 text-[11px]">
+            <div className="flex items-center justify-end gap-0.5 text-[10px] mt-auto">
               {saving && <span className="text-gray-500 mr-auto">등록 중…</span>}
               {cancelButton}
               <button
                 onClick={goBack}
                 disabled={saving}
-                className="text-gray-400 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
+                className="text-gray-400 hover:text-white px-1.5 py-1 disabled:opacity-40 cursor-pointer"
+                title="뒤로"
               >
-                ← 뒤로
+                ←
               </button>
             </div>
           </>
@@ -408,6 +416,11 @@ function Editor({
     </div>
   );
 }
+
+type GridItem =
+  | { kind: 'review'; review: UserReview }
+  | { kind: 'add' }
+  | { kind: 'editor' };
 
 export default function UserReviewsSection({
   albumId,
@@ -431,7 +444,25 @@ export default function UserReviewsSection({
   const [paused, setPaused] = useState(false);
   const [editing, setEditing] = useState(false);
 
-  const pageCount = Math.max(1, Math.ceil(reviews.length / REVIEWS_PER_PAGE));
+  // Compose the grid items. The "add" card or inline editor is treated as
+  // an additional virtual item so paging accounts for it naturally.
+  const items = useMemo<GridItem[]>(() => {
+    const list: GridItem[] = reviews.map((r) => ({ kind: 'review' as const, review: r }));
+    if (editing) {
+      if (myReview) {
+        const idx = list.findIndex((i) => i.kind === 'review' && i.review.id === myReview.id);
+        if (idx >= 0) list[idx] = { kind: 'editor' };
+        else list.push({ kind: 'editor' });
+      } else {
+        list.push({ kind: 'editor' });
+      }
+    } else if (user && !myReview) {
+      list.push({ kind: 'add' });
+    }
+    return list;
+  }, [reviews, myReview, editing, user]);
+
+  const pageCount = Math.max(1, Math.ceil(items.length / REVIEWS_PER_PAGE));
 
   useEffect(() => {
     if (page >= pageCount) setPage(0);
@@ -445,7 +476,20 @@ export default function UserReviewsSection({
     return () => clearInterval(t);
   }, [pageCount, paused, editing]);
 
-  const visibleReviews = reviews.slice(page * REVIEWS_PER_PAGE, (page + 1) * REVIEWS_PER_PAGE);
+  // When the editor opens, jump to whichever page contains it so the user
+  // doesn't have to hunt for it across paged carousels.
+  useEffect(() => {
+    if (!editing) return;
+    if (myReview) {
+      const idx = reviews.findIndex((r) => r.id === myReview.id);
+      if (idx >= 0) setPage(Math.floor(idx / REVIEWS_PER_PAGE));
+    } else {
+      setPage(Math.floor(reviews.length / REVIEWS_PER_PAGE));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editing]);
+
+  const visibleItems = items.slice(page * REVIEWS_PER_PAGE, (page + 1) * REVIEWS_PER_PAGE);
 
   const handleSave = async (body: string, emoji: string | null, rating: 'up' | 'down' | 'soso') => {
     if (!body) return;
@@ -475,46 +519,16 @@ export default function UserReviewsSection({
           <span className="ml-2 text-sm text-gray-500 font-sans">{reviews.length}</span>
         )}
       </h2>
-      {user && !editing && !myReview && (
-        <button
-          onClick={() => setEditing(true)}
-          className="text-xs md:text-sm text-[#e8a020] hover:text-white border border-[#e8a020]/40 hover:border-white/40 rounded-full px-3 py-1 transition-colors cursor-pointer"
-        >
-          50자 평 남기기
-        </button>
-      )}
     </div>
   );
 
-  if (editing) {
+  // Empty + not-logged-in: keep the simple prompt to log in.
+  if (items.length === 0) {
     return (
-      <section className="max-w-2xl">
-        {heading}
-        <Editor
-          initialBody={myReview?.body || ''}
-          initialEmoji={myReview?.emoji || null}
-          // Prefer the rating stored on the review; otherwise fall back to the
-          // user's existing album vote so writing a review pre-selects what
-          // they already picked via the 굿굿/별루 buttons.
-          initialRating={myReview?.rating || userAlbumVote || null}
-          saving={upsert.isPending}
-          onCancel={() => setEditing(false)}
-          onSave={handleSave}
-        />
-      </section>
-    );
-  }
-
-  if (reviews.length === 0) {
-    return (
-      <section className="max-w-2xl">
+      <section>
         {heading}
         <div className="bg-[#1d140a]/60 border border-dashed border-[#e8a020]/20 rounded-2xl px-5 py-8 text-center text-gray-500 text-sm">
-          {user ? (
-            <>첫 번째 50자 평을 남겨보세요.</>
-          ) : (
-            <>로그인 후 50자 평을 남길 수 있습니다.</>
-          )}
+          로그인 후 50자 평을 남길 수 있습니다.
         </div>
       </section>
     );
@@ -522,30 +536,48 @@ export default function UserReviewsSection({
 
   return (
     <section
-      className="max-w-4xl"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
       {heading}
-      {/* Up to 3 reviews per row (stacks on mobile). Pages auto-rotate
-          just like the old single-card carousel. Section width is sized
-          so a full 50자 review wraps to ~3 lines within each card. */}
+      {/* Up to 3 cards per row (stacks on mobile). The trailing slot holds
+          either the "add review" card or the inline editor. */}
       <div
         key={page}
         className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch animate-[fadeInUp_200ms_ease-out]"
       >
-        {visibleReviews.map((r) => {
-          const isMine = user?.id === r.userId;
+        {visibleItems.map((item, i) => {
+          if (item.kind === 'review') {
+            const r = item.review;
+            const isMine = user?.id === r.userId;
+            return (
+              <SpeechBubble
+                key={`r-${r.id}`}
+                review={r}
+                canAdminDelete={!!user?.isAdmin && !isMine}
+                canOwnerEdit={isMine}
+                onEdit={() => setEditing(true)}
+                onDelete={() => handleDelete(r)}
+              />
+            );
+          }
+          if (item.kind === 'add') {
+            return <AddReviewCard key="add" onClick={() => setEditing(true)} />;
+          }
           return (
-            <SpeechBubble
-              key={r.id}
-              review={r}
-              canAdminDelete={!!user?.isAdmin && !isMine}
-              canOwnerEdit={isMine}
-              onEdit={() => setEditing(true)}
-              onDelete={() => handleDelete(r)}
+            <Editor
+              key={`editor-${i}`}
+              initialBody={myReview?.body || ''}
+              initialEmoji={myReview?.emoji || null}
+              // Prefer the rating stored on the review; otherwise fall back
+              // to the user's existing album vote so writing a review
+              // pre-selects what they already picked via the 굿굿/별루 buttons.
+              initialRating={myReview?.rating || userAlbumVote || null}
+              saving={upsert.isPending}
+              onCancel={() => setEditing(false)}
+              onSave={handleSave}
             />
           );
         })}
