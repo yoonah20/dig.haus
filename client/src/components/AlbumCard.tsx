@@ -27,13 +27,16 @@ function getActiveCardSnapshot() {
   return activeCardId;
 }
 
-// Treat a touch as a tap only if the finger barely moved between
-// touchstart and touchend. The previous 10px threshold was small enough
-// that early frames of a vertical scroll gesture often still registered
-// as taps and flipped the card mid-scroll. Bumped, plus we now bail out
-// during touchmove the moment the finger drifts vertically — see below.
-const TAP_THRESHOLD_PX = 24;
-const SCROLL_CANCEL_DY = 8;
+// Treat a touch as a tap only when the gesture is unambiguously a tap:
+//   1. Final position within TAP_THRESHOLD_PX of where the finger landed
+//   2. No noticeable vertical drift during the gesture (SCROLL_CANCEL_DY)
+//   3. Total duration under TAP_MAX_MS — anything longer is hold/scroll-prep
+//   4. The browser didn't fire a touchcancel (it does when scroll wins)
+// Each gate had to be tightened progressively because mobile users were
+// still triggering flips while starting to scroll over a card.
+const TAP_THRESHOLD_PX = 12;
+const SCROLL_CANCEL_DY = 5;
+const TAP_MAX_MS = 350;
 
 export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const up = album.upvotes ?? 0;
@@ -50,7 +53,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
 
   const navigate = useNavigate();
   const isHoverNoneRef = useRef(false);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
 
   const activeId = useSyncExternalStore(
     subscribeActiveCard,
@@ -96,7 +99,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     if (!isHoverNoneRef.current) return;
     const t = e.touches[0];
     if (!t) return;
-    touchStartRef.current = { x: t.clientX, y: t.clientY };
+    touchStartRef.current = { x: t.clientX, y: t.clientY, t: performance.now() };
   }, []);
 
   // Cancel the pending tap as soon as the finger drifts more than a few
@@ -117,6 +120,13 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     }
   }, []);
 
+  // The browser fires touchcancel when it decides to take over the gesture
+  // for native scrolling. That's the most reliable "this was not a tap"
+  // signal — short-circuit immediately.
+  const handleTouchCancel = useCallback(() => {
+    touchStartRef.current = null;
+  }, []);
+
   const handleTouchEnd = useCallback(
     (e: React.TouchEvent) => {
       if (!isHoverNoneRef.current) return;
@@ -128,6 +138,9 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
       const dx = t.clientX - start.x;
       const dy = t.clientY - start.y;
       if (Math.hypot(dx, dy) > TAP_THRESHOLD_PX) return;
+      // Long touches almost always mean the user paused over the card on
+      // the way to a scroll or a context-menu — refuse to treat as a tap.
+      if (performance.now() - start.t > TAP_MAX_MS) return;
 
       // Treat as tap. First tap flips; second tap navigates.
       e.preventDefault();
@@ -157,6 +170,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
     >
       <div
         className="relative aspect-square"
