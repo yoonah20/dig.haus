@@ -293,7 +293,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [releaseYearInput, setReleaseYearInput] = useState('');
   const [releaseDateInput, setReleaseDateInput] = useState('');
   const [labelInput, setLabelInput] = useState('');
-  const [formatInput, setFormatInput] = useState('');
   const [discogsUrlInput, setDiscogsUrlInput] = useState('');
   const [spotifyUrlInput, setSpotifyUrlInput] = useState('');
   const [appleMusicUrlInput, setAppleMusicUrlInput] = useState('');
@@ -481,7 +480,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       /^\d{4}-\d{2}-\d{2}$/.test(album.releaseDate || '') ? album.releaseDate : ''
     );
     setLabelInput(album.label || '');
-    setFormatInput(album.format || '');
     setDiscogsUrlInput(album.discogsUrl || '');
     setSpotifyUrlInput(streaming.spotify || '');
     setAppleMusicUrlInput(streaming.appleMusic || '');
@@ -544,7 +542,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
         release_year: releaseYear,
         release_date: releaseDate || null,
         label_name: labelInput.trim() || null,
-        format: formatInput.trim() || null,
         discogs_url: urlOrNull(discogsUrlInput),
         spotify_url: urlOrNull(spotifyUrlInput),
         apple_music_url: urlOrNull(appleMusicUrlInput),
@@ -564,7 +561,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     } finally {
       setSavingAlbum(false);
     }
-  }, [albumId, titleInput, artistInput, releaseYearInput, releaseDateInput, labelInput, formatInput, discogsUrlInput, spotifyUrlInput, appleMusicUrlInput, youtubeUrlInput, bandcampUrlInput, queryClient]);
+  }, [albumId, titleInput, artistInput, releaseYearInput, releaseDateInput, labelInput, discogsUrlInput, spotifyUrlInput, appleMusicUrlInput, youtubeUrlInput, bandcampUrlInput, queryClient]);
 
   // Build link list: Discogs (from buy data) + streaming services
   const allLinks: Array<{ key: string; name: string; color: string; icon: React.ReactNode; url: string }> = [];
@@ -908,15 +905,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 value={labelInput}
                 onChange={(e) => setLabelInput(e.target.value)}
                 disabled={savingAlbum}
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-              />
-              <label className="text-gray-400">포맷</label>
-              <input
-                type="text"
-                value={formatInput}
-                onChange={(e) => setFormatInput(e.target.value)}
-                disabled={savingAlbum}
-                placeholder="예: Vinyl, CD"
                 className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <div className="col-span-2 mt-1 mb-0.5 text-[11px] uppercase tracking-wider text-gray-500">외부 링크</div>

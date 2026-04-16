@@ -107,36 +107,38 @@ function SpeechBubble({
         </p>
 
         {/* footer — avatar + name anchored to the bottom so cards in a row
-            visually align even with uneven body lengths */}
+            visually align even with uneven body lengths. Edit/delete sit
+            inline at the right so they're never hidden behind the larger
+            avatar (the previous absolute-positioned overlay disappeared
+            when the avatar grew). */}
         <div className="flex items-center gap-2.5 min-w-0 mt-3 pt-2.5 border-t border-white/5">
           <Avatar src={review.userAvatar} name={review.userName} size={36} />
-          <span className="text-sm text-gray-300 truncate">
+          <span className="text-sm text-gray-300 truncate flex-1">
             {review.userName || '익명'}
           </span>
-        </div>
-
-        {(canOwnerEdit || canAdminDelete) && (
-          <div className="absolute bottom-1.5 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {canOwnerEdit && (
+          {(canOwnerEdit || canAdminDelete) && (
+            <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+              {canOwnerEdit && (
+                <button
+                  onClick={onEdit}
+                  title="수정"
+                  aria-label="수정"
+                  className="text-xs text-gray-500 hover:text-[#e8a020] px-1 cursor-pointer"
+                >
+                  ✏️
+                </button>
+              )}
               <button
-                onClick={onEdit}
-                title="수정"
-                aria-label="수정"
-                className="text-xs text-gray-500 hover:text-[#e8a020] px-1 cursor-pointer"
+                onClick={onDelete}
+                title="삭제"
+                aria-label="삭제"
+                className="text-xs text-gray-500 hover:text-red-400 px-1 cursor-pointer"
               >
-                ✏️
+                🗑️
               </button>
-            )}
-            <button
-              onClick={onDelete}
-              title="삭제"
-              aria-label="삭제"
-              className="text-xs text-gray-500 hover:text-red-400 px-1 cursor-pointer"
-            >
-              🗑️
-            </button>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

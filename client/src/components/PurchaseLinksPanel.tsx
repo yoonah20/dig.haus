@@ -125,14 +125,15 @@ function LinkButton({
         </div>
       </a>
       {canManage && (
-        <div className="absolute bottom-1 right-1.5 flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity -ml-1">
           <button
             onClick={(e) => {
               e.preventDefault();
               onEdit();
             }}
-            className="text-gray-400 hover:text-[#e8a020] text-xs cursor-pointer px-1.5 leading-none"
+            className="text-gray-400 hover:text-[#e8a020] text-sm cursor-pointer px-1.5 py-1 leading-none"
             title="수정"
+            aria-label="수정"
           >
             ✎
           </button>
@@ -141,8 +142,9 @@ function LinkButton({
               e.preventDefault();
               if (confirm('이 구매처 링크를 삭제할까요?')) onDelete();
             }}
-            className="text-red-700 hover:text-red-400 text-xs cursor-pointer px-1.5 leading-none"
+            className="text-red-700 hover:text-red-400 text-sm cursor-pointer px-1.5 py-1 leading-none"
             title="삭제"
+            aria-label="삭제"
           >
             ×
           </button>
