@@ -5,8 +5,6 @@ import { useUserReviewsFeed, type UserReviewFeedItem } from '../../hooks/useUser
 import { resolveApiUrl } from '../../utils/apiUrl';
 
 // Seconds each item is visible during one scroll pass — higher = slower.
-// Tuned for comfortable reading: fast enough to feel alive, slow enough
-// that you can finish a 50자 평 without having to hover-pause.
 const SECONDS_PER_ITEM = 7;
 
 // Fixed width per ticker card so the CSS marquee math stays clean — the
@@ -23,15 +21,17 @@ const RATING_EMOJI: Record<'up' | 'down' | 'soso', string> = {
 
 // Per-rating tint for the speech bubble. Values are kept low-saturation
 // so a long queue of 굿굿 cards doesn't feel like a yellow wall — the
-// tint is just enough to scan the ratio at a glance.
+// tint is just enough to scan the ratio at a glance. Border colours
+// also drive the tail outline via --tail-border so the tail matches the
+// bubble as the rating cycles.
 const BUBBLE_THEME: Record<
   'up' | 'down' | 'soso' | 'none',
   { bg: string; border: string }
 > = {
-  up: { bg: 'rgba(232, 160, 32, 0.10)', border: 'rgba(232, 160, 32, 0.30)' },
-  down: { bg: 'rgba(74, 90, 110, 0.16)', border: 'rgba(120, 140, 165, 0.28)' },
-  soso: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.12)' },
-  none: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.12)' },
+  up: { bg: 'rgba(232, 160, 32, 0.10)', border: 'rgba(232, 160, 32, 0.35)' },
+  down: { bg: 'rgba(74, 90, 110, 0.16)', border: 'rgba(120, 140, 165, 0.35)' },
+  soso: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.18)' },
+  none: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.18)' },
 };
 
 function Avatar({
@@ -75,13 +75,15 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
   const theme = BUBBLE_THEME[themeKey];
   const ratingEmoji = item.rating ? RATING_EMOJI[item.rating] : null;
   const feelingEmoji = item.emoji;
+  const hasBadges = !!(ratingEmoji || feelingEmoji);
+
   const bubbleStyle = {
     backgroundColor: theme.bg,
     borderColor: theme.border,
-    // Consumed by .bubble-tail::before so the tail paints the same fill
-    // as the bubble it leaks from. Using the variable (vs. a second
-    // prop) keeps rating→colour logic in a single place.
+    // Consumed by .bubble-tail::before/::after so the tail picks up the
+    // same fill and outline as the bubble it leaks from.
     ['--tail-fill' as string]: theme.bg,
+    ['--tail-border' as string]: theme.border,
   } as CSSProperties;
 
   return (
@@ -95,38 +97,58 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
       style={{ width: ITEM_WIDTH_PX }}
       aria-label={`${displayName}의 50자 평: ${item.body}. ${item.albumArtist ?? ''} — ${item.albumTitle} 로 이동`}
     >
-      {/* Left column — avatar + 2 emojis stacked below. The whole column
-          is the "speaker" anchor; the bubble's tail points at the
-          avatar centre. */}
-      <div className="flex flex-col items-center gap-1.5 shrink-0 pt-0.5">
-        {/* Wrapper span carries the title tooltip so only the avatar
-            surfaces the username on hover (the bubble/cover do not). */}
-        <span className="block" title={displayName}>
-          <Avatar src={item.userAvatar} name={item.userName} size={52} />
+      {/* Left column — avatar + display name. pt-1 puts the avatar
+          centre at the same y as the bubble's tail (tail centre is
+          hard-coded at y≈30 in index.css, which matches a 52px avatar
+          with pt-1). */}
+      <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[64px]">
+        <Avatar src={item.userAvatar} name={item.userName} size={52} />
+        <span
+          className={`text-[11px] text-center leading-tight truncate max-w-full ${
+            isAnon ? 'italic text-gray-600' : 'text-gray-400'
+          }`}
+        >
+          {displayName}
         </span>
-        {(ratingEmoji || feelingEmoji) && (
-          <div className="flex items-center justify-center gap-1 leading-none" aria-hidden>
-            {ratingEmoji && <span className="text-base">{ratingEmoji}</span>}
-            {feelingEmoji && <span className="text-base">{feelingEmoji}</span>}
-          </div>
-        )}
       </div>
 
       {/* Speech bubble — body on the left (flex-1), blurred cover
-          attached on the right inside the same bubble. Rating tint +
-          tail colour come from the inline style + CSS variable. */}
+          attached on the right inside the same bubble. Padding is
+          tighter now that the emoji badges sit above the bubble. */}
       <div
-        className="bubble-tail flex-1 min-w-0 flex items-center gap-3 rounded-2xl border px-3.5 py-3 min-h-[76px] group-hover:border-[#e8a020]/50 transition-colors"
+        className="bubble-tail flex-1 min-w-0 flex items-center gap-3 rounded-2xl border px-3 py-2.5 min-h-[64px] group-hover:border-[#e8a020]/50 transition-colors"
         style={bubbleStyle}
       >
+        {/* Emoji badges — overlap the bubble's top-right edge, same
+            pattern as the 50자 평 cards on the album detail page so
+            the two surfaces feel like they're speaking the same
+            visual language. */}
+        {hasBadges && (
+          <div
+            className="absolute -top-3 right-3 z-10 flex items-center gap-1 pointer-events-none select-none"
+            aria-hidden
+          >
+            {ratingEmoji && (
+              <span className="text-lg leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]">
+                {ratingEmoji}
+              </span>
+            )}
+            {feelingEmoji && (
+              <span className="text-xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]">
+                {feelingEmoji}
+              </span>
+            )}
+          </div>
+        )}
+
         <p className="flex-1 min-w-0 text-gray-100 text-sm leading-snug line-clamp-3 break-words">
           {item.body}
         </p>
-        {/* Blurred cover — the mystery. Default blur is light enough
-            that shape/colour are visible; hover pulls most (not all) of
-            the blur off so the user can almost-but-not-quite guess.
-            scale(1.12) stops the blur's soft edge from leaking past the
-            card's rounded corners. */}
+        {/* Blurred cover — the mystery. Default blur shows shape and
+            palette but no detail; hover lifts most of the blur so the
+            viewer can almost-but-not-quite guess. scale(1.12) keeps the
+            blur's soft edge from leaking past the card's rounded
+            corners. */}
         <div className="shrink-0 w-12 h-12 rounded-md overflow-hidden bg-[#252525] ring-1 ring-white/10">
           <div
             className="w-full h-full scale-[1.12] blur-[4px] saturate-[1.3] group-hover:blur-[1.5px] transition-[filter] duration-300"
@@ -150,7 +172,7 @@ export default function CommentTicker() {
   const items = data?.items ?? [];
 
   // Nothing to show — hide the section entirely so we don't leave a
-  // hollow gap between the grid and the pagination.
+  // hollow gap in the page flow.
   if (items.length === 0) return null;
 
   // Duration scales with content so a longer queue doesn't zoom past.
@@ -159,19 +181,17 @@ export default function CommentTicker() {
   const durationSec = Math.max(30, items.length * SECONDS_PER_ITEM);
 
   return (
-    <section className="comment-ticker mt-14 relative" aria-label="최근 50자 평">
-      <div className="mb-4 flex items-baseline gap-2">
-        <h2 className="text-lg md:text-xl font-serif text-white">듣고 어땠어?</h2>
-        <span className="text-xs text-gray-500">
-          유저들이 남긴 최근 50자 평 · 커버 맞혀 보고 눌러보세요
-        </span>
-      </div>
-
+    // No visible heading — the ticker speaks for itself below the
+    // pagination nav. aria-label keeps it announced for SR users.
+    // pt-8 to visually separate from the pagination; pb-2 keeps the
+    // emoji overhang from touching the next section.
+    <section className="comment-ticker relative pt-8 pb-2" aria-label="최근 50자 평">
       {/* Outer wrapper owns the fade masks so content slides in/out of
           the gutters gracefully instead of appearing/vanishing at a hard
-          edge. The track itself sits inside and animates freely. */}
+          edge. Padding top leaves room for emoji badges that overlap
+          the bubble's top edge. */}
       <div
-        className="relative overflow-hidden"
+        className="relative overflow-hidden pt-3"
         style={{
           maskImage:
             'linear-gradient(to right, transparent, black 48px, black calc(100% - 48px), transparent)',

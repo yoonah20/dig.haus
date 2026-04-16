@@ -80,23 +80,41 @@ body {
 }
 
 /* Speech bubble with a left-pointing tail — used in the homepage
-   comment ticker. Fill colour is driven by a CSS variable so the tail
-   matches the bubble even when the card swaps background per rating
-   (굿굿/쏘쏘/별루 each use their own tint). Tail sits at avatar-centre
-   height, which for a 52px avatar inside an `items-start` row with the
-   bubble's top padding is ~22px from the bubble's top edge. */
+   comment ticker. Two pseudos stack a filled inner triangle on top of a
+   slightly larger outer triangle so the tail picks up the same border
+   outline as the bubble body. Both colours are CSS variables so the
+   whole shape re-tints when a rating swaps (굿굿/쏘쏘/별루 each set
+   their own --tail-fill and --tail-border from inline style).
+
+   Geometry: outer 20×12, inner 18×11, offset so outer peeks 1px on
+   the top-left and bottom-left edges. Tail vertical centre lands at
+   y≈30 — that's avatar centre when the avatar column uses `pt-1` and
+   the avatar is 52px tall, so the tail visibly points at the speaker's
+   face. */
 .bubble-tail {
   position: relative;
 }
 .bubble-tail::before {
+  /* Outer — border colour (outline) */
   content: '';
   position: absolute;
   left: 0;
-  top: 22px;
-  transform: translateX(calc(-100% + 1px));
-  border-top: 7px solid transparent;
-  border-bottom: 7px solid transparent;
-  border-right: 8px solid var(--tail-fill, rgba(255, 255, 255, 0.04));
+  top: 20px;
+  transform: translateX(-100%);
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-right: 12px solid var(--tail-border, rgba(255, 255, 255, 0.12));
+}
+.bubble-tail::after {
+  /* Inner — fill colour (bubble bg), 1px inset on non-bubble sides */
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 21px;
+  transform: translateX(-100%);
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-right: 11px solid var(--tail-fill, rgba(255, 255, 255, 0.04));
 }
 
 /* Album card — hover / tap flips the card 180° on Y axis to reveal

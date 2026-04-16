@@ -354,15 +354,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Desktop-only comment ticker. Sits between the 15-card grid
-            and the pagination nav so the "meet the community" beat
-            lands after the user has skimmed this page's covers.
-            Intentionally gated with !isMobile (not CSS `hidden md:…`)
-            so the feed query doesn't fire on phones at all. Mobile
-            inlines comments into the infinite-scroll feed — tracked
-            separately. */}
-        {!isMobile && albums.length > 0 && <CommentTicker />}
-
         {/* Mobile infinite-scroll sentinel + status. Desktop renders the
             numbered pagination nav below instead. */}
         {isMobile && albums.length > 0 && (
@@ -416,6 +407,14 @@ export default function Home() {
             </button>
           </nav>
         )}
+
+        {/* Desktop-only comment ticker. Sits below pagination so the
+            grid's full density reads first, then the community voice
+            comes in as a reading rest above the footer. Intentionally
+            gated with !isMobile (not CSS `hidden md:…`) so the feed
+            query doesn't fire on phones at all — mobile interleaves
+            comments into the infinite scroll separately. */}
+        {!isMobile && albums.length > 0 && <CommentTicker />}
       </section>
 
       <footer className="w-full max-w-6xl mx-auto mt-auto pt-8 pb-4 text-center text-gray-600 text-xs">
