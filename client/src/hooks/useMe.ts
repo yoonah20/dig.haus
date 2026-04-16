@@ -127,6 +127,14 @@ export function useDeleteMyReview() {
   });
 }
 
+export function useDeleteMyAccount() {
+  return useMutation({
+    mutationFn: async () => {
+      await axios.delete('/api/me');
+    },
+  });
+}
+
 export function useMyUpvotes() {
   return useQuery<{ upvotes: MyUpvote[] }>({
     queryKey: ['me-upvotes'],

@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { queryGet, queryAll, execute } from '../db/index.js';
+import fs from 'fs';
+import path from 'path';
+import { queryGet, queryAll, execute, transaction } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
-import { hostAvatarFromBuffer, AvatarError } from '../services/avatarHost.js';
+import { hostAvatarFromBuffer, AvatarError, AVATARS_DIR, AVATARS_ROUTE } from '../services/avatarHost.js';
 import type { AppUser } from '../auth/passport.js';
 
 const router = Router();
@@ -224,6 +226,68 @@ router.get('/me/upvotes', requireAuth, (req, res) => {
         : [],
       votedAt: a.voted_at,
     })),
+  });
+});
+
+// ─── DELETE /api/me — hard-delete account ─────────────────────────────────
+//
+// Removes the user plus everything they own:
+//   user_reviews  → cascades via ON DELETE CASCADE
+//   album_votes, wishlists, collections, wants, dig_journal_posts → deleted
+//   purchase_links.user_id, album_dna.added_by_user_id → NULLed
+//     (these are album-level content the user contributed; keep the rows
+//     so the album page doesn't lose data when one admin leaves)
+// Also removes the uploaded avatar file from disk if any.
+
+router.delete('/me', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+
+  // Look up the custom avatar path BEFORE the delete so we can unlink the
+  // webp file after the DB rows go away.
+  const row = queryGet(
+    `SELECT custom_avatar_url FROM users WHERE id = ?`,
+    [me.id]
+  ) as { custom_avatar_url: string | null } | null;
+
+  try {
+    transaction(() => {
+      execute(`DELETE FROM album_votes WHERE user_id = ?`, [me.id]);
+      execute(`DELETE FROM wishlists WHERE user_id = ?`, [me.id]);
+      execute(`DELETE FROM collections WHERE user_id = ?`, [me.id]);
+      execute(`DELETE FROM wants WHERE user_id = ?`, [me.id]);
+      execute(`DELETE FROM dig_journal_posts WHERE user_id = ?`, [me.id]);
+      execute(`UPDATE purchase_links SET user_id = NULL WHERE user_id = ?`, [me.id]);
+      execute(`UPDATE album_dna SET added_by_user_id = NULL WHERE added_by_user_id = ?`, [me.id]);
+      // user_reviews cascades automatically via ON DELETE CASCADE.
+      execute(`DELETE FROM users WHERE id = ?`, [me.id]);
+    });
+  } catch (err) {
+    console.error('[me] account deletion failed:', err);
+    return res.status(500).json({ error: '계정 탈퇴에 실패했습니다.' });
+  }
+
+  // Best-effort avatar file cleanup — don't fail the request if this errors.
+  if (row?.custom_avatar_url?.startsWith(`${AVATARS_ROUTE}/`)) {
+    const filename = row.custom_avatar_url.slice(AVATARS_ROUTE.length + 1);
+    // Defensive: reject any filename that tries to escape the dir.
+    if (filename && !filename.includes('/') && !filename.includes('..')) {
+      const filePath = path.join(AVATARS_DIR, filename);
+      fs.promises.unlink(filePath).catch(() => {});
+    }
+  }
+
+  // Kill the session so the client doesn't stay 'logged in' against a
+  // now-nonexistent user row.
+  req.logout((logoutErr) => {
+    if (logoutErr) {
+      // Session destroy can technically fail after the DB delete. Log it
+      // and still return success — the user is already gone.
+      console.warn('[me] session logout after delete failed:', logoutErr);
+    }
+    req.session?.destroy(() => {
+      res.clearCookie('connect.sid');
+      res.json({ ok: true });
+    });
   });
 });
 

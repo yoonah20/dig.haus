@@ -10,6 +10,7 @@ import {
   useUploadMyAvatar,
   useResetMyAvatar,
   useDeleteMyReview,
+  useDeleteMyAccount,
 } from '../hooks/useMe';
 
 const RATING_META: Record<'up' | 'down' | 'soso', { emoji: string; label: string }> = {
@@ -171,6 +172,7 @@ export default function Profile() {
   const upload = useUploadMyAvatar();
   const reset = useResetMyAvatar();
   const del = useDeleteMyReview();
+  const delAccount = useDeleteMyAccount();
 
   if (loading || !user) return null;
 
@@ -218,6 +220,28 @@ export default function Profile() {
       await del.mutateAsync(id);
     } catch {
       alert('삭제에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const first = confirm(
+      '정말로 계정을 탈퇴할까요?\n\n' +
+        '· 내가 남긴 50자 평, 굿굿/별루, 위시리스트, 컬렉션이 모두 삭제됩니다.\n' +
+        '· 내가 등록한 구매처 링크는 익명 처리되어 남습니다.\n' +
+        '· 되돌릴 수 없습니다.'
+    );
+    if (!first) return;
+    const second = prompt('확인을 위해 "탈퇴"를 입력해주세요.');
+    if (second !== '탈퇴') {
+      alert('탈퇴가 취소되었습니다.');
+      return;
+    }
+    try {
+      await delAccount.mutateAsync();
+      await refresh();
+      navigate('/', { replace: true });
+    } catch {
+      alert('탈퇴에 실패했습니다. 잠시 후 다시 시도해주세요.');
     }
   };
 
@@ -373,6 +397,18 @@ export default function Profile() {
         ) : (
           <div className="text-sm text-gray-500">아직 굿굿한 앨범이 없습니다.</div>
         )}
+      </section>
+
+      {/* Danger zone — account deletion ────────────────────────────── */}
+      <section className="mt-16 pt-6 border-t border-white/5 flex justify-end">
+        <button
+          type="button"
+          onClick={handleDeleteAccount}
+          disabled={delAccount.isPending}
+          className="text-xs text-gray-500 hover:text-red-400 disabled:opacity-40 cursor-pointer"
+        >
+          {delAccount.isPending ? '탈퇴 처리 중…' : '계정 탈퇴'}
+        </button>
       </section>
     </main>
   );
