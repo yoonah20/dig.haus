@@ -47,9 +47,13 @@ function ServiceIcons({ album }: { album: SimilarAlbum }) {
 
   if (links.length === 0) return null;
 
+  // Wrap every link in a single dark pill so the brand-coloured icons read
+  // against the background instead of disappearing into the cover art's
+  // shadows. The previous per-icon circles relied on a low-contrast
+  // black/70 disc that was easy to miss on dark covers.
   return (
-    <div className="absolute bottom-2 right-2 flex gap-1">
-      {links.map(({ key, url, color, Icon }) => (
+    <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/75 backdrop-blur-sm ring-1 ring-white/10">
+      {links.map(({ key, url, color, Icon }) =>
         key === 'spotify' ? (
           <button
             key={key}
@@ -58,8 +62,10 @@ function ServiceIcons({ album }: { album: SimilarAlbum }) {
               e.stopPropagation();
               openSpotifyAlbum(url!);
             }}
-            className="flex items-center justify-center w-5 h-5 rounded-full transition-opacity hover:opacity-100 opacity-80 cursor-pointer"
-            style={{ backgroundColor: 'rgba(0,0,0,0.7)', color }}
+            className="flex items-center justify-center w-4 h-4 transition-opacity hover:opacity-100 opacity-90 cursor-pointer"
+            style={{ color }}
+            title="Spotify에서 듣기"
+            aria-label="Spotify에서 듣기"
           >
             <Icon />
           </button>
@@ -70,13 +76,15 @@ function ServiceIcons({ album }: { album: SimilarAlbum }) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
-            className="flex items-center justify-center w-5 h-5 rounded-full transition-opacity hover:opacity-100 opacity-80"
-            style={{ backgroundColor: 'rgba(0,0,0,0.7)', color }}
+            className="flex items-center justify-center w-4 h-4 transition-opacity hover:opacity-100 opacity-90"
+            style={{ color }}
+            title={key === 'youtube' ? 'YouTube에서 듣기' : 'Bandcamp에서 듣기'}
+            aria-label={key === 'youtube' ? 'YouTube에서 듣기' : 'Bandcamp에서 듣기'}
           >
             <Icon />
           </a>
         )
-      ))}
+      )}
     </div>
   );
 }
@@ -155,6 +163,22 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
       setSaving(false);
     }
   }, [albumId, index, spotify, youtube, bandcamp, reason, queryClient]);
+
+  // Admin-only delete for entries that landed completely off-target. We
+  // confirm before firing because deletes are non-trivial to walk back —
+  // the next AI re-generation may not pick the same album again.
+  const deleteEntry = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`"${album.artist} — ${album.title}"\n\n이 추천을 삭제할까요?`)) return;
+    try {
+      await axios.delete(`/api/albums/${albumId}/similar/${index}`);
+      await queryClient.invalidateQueries({ queryKey: ['album-similar', albumId] });
+    } catch (err) {
+      console.error('Delete similar album error:', err);
+      alert('삭제에 실패했습니다.');
+    }
+  }, [albumId, index, album.artist, album.title, queryClient]);
 
   if (editing) {
     return (
@@ -275,6 +299,14 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
             aria-label="수정"
           >
             ✏️
+          </button>
+          <button
+            onClick={deleteEntry}
+            className="w-6 h-6 flex items-center justify-center text-xs bg-black/70 text-gray-200 rounded hover:!opacity-100 hover:text-red-400"
+            title="이 추천 삭제"
+            aria-label="이 추천 삭제"
+          >
+            🗑️
           </button>
         </div>
       )}

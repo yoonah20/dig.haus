@@ -453,6 +453,10 @@ const SORT_CLAUSES: Record<string, string> = {
   artist_az:         `LOWER(a.artist_name) ASC, a.id ASC`,
   score_desc:        `avg_score IS NULL, avg_score DESC, a.id DESC`,
   score_asc:         `avg_score IS NULL, avg_score ASC, a.id ASC`,
+  // 50자 평이 많은 앨범 우선. user_review_count is selected on every row
+  // already (see ALBUM_ROW_SELECT) so this is a column reference, not an
+  // inline subquery.
+  user_review_count_desc: `user_review_count DESC, a.id DESC`,
   upvotes_desc:      `upvotes DESC, a.id DESC`,
   downvotes_desc:    `downvotes DESC, a.id DESC`,
 };
@@ -470,7 +474,8 @@ const ALBUM_ROW_SELECT = `
          (SELECT COUNT(*) FROM reviews r
           WHERE r.album_mbid = a.mbid
             AND COALESCE(r.manual_score, r.score) IS NOT NULL
-            AND r.score_max > 0) AS review_count
+            AND r.score_max > 0) AS review_count,
+         COALESCE((SELECT COUNT(*) FROM user_reviews WHERE album_id = a.id), 0) AS user_review_count
   FROM albums a
 `;
 
@@ -1621,6 +1626,48 @@ router.patch('/:id/similar/:index', requireAdmin, (req, res) => {
   } catch (error) {
     console.error('Update similar album error:', error);
     res.status(500).json({ error: 'Failed to update similar album' });
+  }
+});
+
+// ─── DELETE /api/albums/:id/similar/:index — admin remove a similar entry ─
+//
+// For when the AI picks something obviously off-base (wrong genre, wrong
+// era, total miss) and the right move is to drop the suggestion entirely
+// rather than try to salvage it via PATCH. Same JSON-array storage as the
+// PATCH endpoint, so removal is just a splice.
+
+router.delete('/:id/similar/:index', requireAdmin, (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+  const index = parseInt(req.params.index as string, 10);
+
+  if (isNaN(index) || index < 0) {
+    return res.status(400).json({ error: 'Invalid index' });
+  }
+
+  const cached = getCachedAlbum(mbid);
+  if (!cached) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  let list: any[] = [];
+  try {
+    list = cached.similar_albums_lastfm ? JSON.parse(cached.similar_albums_lastfm) : [];
+  } catch {
+    list = [];
+  }
+  if (index >= list.length) {
+    return res.status(404).json({ error: 'Similar album entry not found' });
+  }
+
+  list.splice(index, 1);
+
+  try {
+    updateAlbumFields(mbid, { similar_albums_lastfm: JSON.stringify(list) });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Delete similar album error:', error);
+    res.status(500).json({ error: 'Failed to delete similar album' });
   }
 });
 

@@ -26,6 +26,7 @@ const SORT_OPTIONS = [
   { value: 'artist_az', label: '아티스트 A-Z' },
   { value: 'score_desc', label: '리뷰 평점순' },
   { value: 'price_asc', label: '가격 낮은순' },
+  { value: 'user_review_count_desc', label: '50자평 많은순' },
   { value: 'upvotes_desc', label: '굿굿 많은순' },
   { value: 'downvotes_desc', label: '별루 많은순' },
 ] as const;
