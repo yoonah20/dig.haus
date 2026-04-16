@@ -272,7 +272,7 @@ export default function Home() {
 
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
-      <section className="w-full max-w-6xl mx-auto">
+      <section className="w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto">
         {/* Top bar (count / page info / sort) was removed — sort lives
             in TopNav as an icon, count moved into the footer below.
             Grid is the first thing on the page. */}
@@ -352,7 +352,7 @@ export default function Home() {
         )}
       </section>
 
-      <footer className="w-full max-w-6xl mx-auto mt-auto pt-8 pb-4 text-center text-gray-600 text-xs">
+      <footer className="w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto mt-auto pt-8 pb-4 text-center text-gray-600 text-xs">
         dig.haus &copy; 2026
         {total > 0 && (
           <>

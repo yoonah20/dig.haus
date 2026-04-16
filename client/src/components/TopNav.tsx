@@ -48,7 +48,7 @@ export default function TopNav() {
   return (
     <>
       <nav className="sticky top-0 z-40 bg-[#120c05]/95 backdrop-blur-sm border-b border-[#e8a020]/15 px-4 py-3">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
+        <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto flex items-center justify-between gap-3">
           <div className="flex items-baseline gap-2 sm:gap-3 min-w-0">
             <Link
               to="/"

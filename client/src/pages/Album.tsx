@@ -135,7 +135,7 @@ export default function Album() {
 
   return (
     <div className="flex-1">
-      <main className="max-w-6xl mx-auto px-4 py-8 space-y-10">
+      <main className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-4 py-8 space-y-10">
         {/* Stage 1: instant */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
         <BuySection buy={base.buy} albumId={albumId} />
