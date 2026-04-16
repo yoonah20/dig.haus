@@ -245,13 +245,13 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               <div style={{ padding: '18px 14px 0' }}>
                 <h3
                   className="text-white line-clamp-2"
-                  style={{ fontSize: '18px', fontWeight: 700, lineHeight: 1.25 }}
+                  style={{ fontSize: '17px', fontWeight: 700, lineHeight: 1.25 }}
                 >
                   {album.title}
                 </h3>
                 <p
                   className="text-gray-300 line-clamp-1"
-                  style={{ fontSize: '13px', marginTop: '4px' }}
+                  style={{ fontSize: '12px', marginTop: '4px' }}
                 >
                   {album.artist}
                   {album.year && <> · {album.year}</>}
