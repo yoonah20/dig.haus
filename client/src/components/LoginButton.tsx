@@ -59,6 +59,13 @@ export default function LoginButton() {
 
       {menuOpen && (
         <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl py-1 z-50">
+          <Link
+            to="/profile"
+            onClick={() => setMenuOpen(false)}
+            className="block px-4 py-2 text-sm text-gray-200 hover:bg-white/5"
+          >
+            🧑‍🎤 내 프로필
+          </Link>
           {user.isAdmin && (
             <Link
               to="/admin"

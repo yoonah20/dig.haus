@@ -1,0 +1,374 @@
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import CoverArt from '../components/CoverArt';
+import {
+  useMyProfile,
+  useMyReviews,
+  useMyUpvotes,
+  useUpdateMyProfile,
+  useUploadMyAvatar,
+  useResetMyAvatar,
+  useDeleteMyReview,
+} from '../hooks/useMe';
+
+const RATING_META: Record<'up' | 'down' | 'soso', { emoji: string; label: string }> = {
+  up: { emoji: '👍', label: '굿굿' },
+  down: { emoji: '👎', label: '별루' },
+  soso: { emoji: '🤷', label: '쏘쏘' },
+};
+
+function formatJoined(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+}
+
+function AvatarEditor({
+  avatarUrl,
+  isCustom,
+  onUpload,
+  onReset,
+  uploading,
+  resetting,
+}: {
+  avatarUrl: string | null;
+  isCustom: boolean;
+  onUpload: (file: File) => void;
+  onReset: () => void;
+  uploading: boolean;
+  resetting: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  return (
+    <div className="flex items-center gap-4">
+      {avatarUrl ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          className="w-20 h-20 rounded-full object-cover border border-white/10"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <div className="w-20 h-20 rounded-full bg-[#2a1f10] border border-white/10" />
+      )}
+      <div className="flex flex-col gap-2 items-start">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUpload(f);
+            if (fileRef.current) fileRef.current.value = '';
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="px-3 py-1.5 text-sm rounded-md border border-[#e8a020]/50 text-[#e8a020] hover:bg-[#e8a020] hover:text-black disabled:opacity-40 transition-colors cursor-pointer"
+        >
+          {uploading ? '업로드 중…' : '새 아바타 올리기'}
+        </button>
+        {isCustom && (
+          <button
+            type="button"
+            onClick={onReset}
+            disabled={resetting}
+            className="text-xs text-gray-500 hover:text-white disabled:opacity-40 cursor-pointer"
+          >
+            {resetting ? '복귀 중…' : '기본 아바타로 돌아가기 (Google)'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const DISPLAY_NAME_MAX = 20;
+const INSTAGRAM_MAX = 30;
+
+function ProfileFields({
+  initialDisplayName,
+  initialInstagram,
+  saving,
+  onSave,
+}: {
+  initialDisplayName: string;
+  initialInstagram: string;
+  saving: boolean;
+  onSave: (displayName: string, instagram: string) => void;
+}) {
+  const [name, setName] = useState(initialDisplayName);
+  const [ig, setIg] = useState(initialInstagram);
+
+  useEffect(() => {
+    setName(initialDisplayName);
+  }, [initialDisplayName]);
+  useEffect(() => {
+    setIg(initialInstagram);
+  }, [initialInstagram]);
+
+  const dirty = name !== initialDisplayName || ig !== initialInstagram;
+
+  return (
+    <div className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 items-center text-sm max-w-lg">
+      <label className="text-gray-400">표시 이름</label>
+      <input
+        type="text"
+        value={name}
+        maxLength={DISPLAY_NAME_MAX}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="비우면 Google 이름"
+        className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none"
+      />
+      <label className="text-gray-400">Instagram</label>
+      <div className="flex items-center gap-1">
+        <span className="text-gray-500">@</span>
+        <input
+          type="text"
+          value={ig}
+          maxLength={INSTAGRAM_MAX}
+          onChange={(e) => setIg(e.target.value.replace(/^@+/, ''))}
+          placeholder="yourhandle (선택)"
+          className="flex-1 bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none"
+        />
+      </div>
+      <div className="col-span-2 flex justify-end">
+        <button
+          type="button"
+          disabled={!dirty || saving}
+          onClick={() => onSave(name.trim(), ig.trim().replace(/^@+/, ''))}
+          className="px-3 py-1.5 text-sm rounded-md border border-[#e8a020]/50 text-[#e8a020] hover:bg-[#e8a020] hover:text-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+        >
+          {saving ? '저장 중…' : '저장'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function Profile() {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = '내 프로필 | dig.haus';
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!user) navigate('/', { replace: true });
+  }, [user, loading, navigate]);
+
+  const profile = useMyProfile();
+  const reviews = useMyReviews();
+  const upvotes = useMyUpvotes();
+  const update = useUpdateMyProfile();
+  const upload = useUploadMyAvatar();
+  const reset = useResetMyAvatar();
+  const del = useDeleteMyReview();
+
+  if (loading || !user) return null;
+
+  const me = profile.data?.user;
+  const stats = profile.data?.stats;
+  const effectiveAvatar = me?.avatarUrl || null;
+  const isCustomAvatar = !!me?.customAvatarUrl;
+
+  const handleSave = async (displayName: string, instagram: string) => {
+    try {
+      await update.mutateAsync({
+        displayName: displayName || null,
+        instagramHandle: instagram || null,
+      });
+    } catch (err: any) {
+      alert(err?.response?.data?.error || '저장에 실패했습니다.');
+    }
+  };
+
+  const handleUpload = async (file: File) => {
+    try {
+      await upload.mutateAsync(file);
+    } catch (err: any) {
+      alert(err?.response?.data?.error || '아바타 업로드에 실패했습니다.');
+    }
+  };
+
+  const handleReset = async () => {
+    if (!confirm('Google 아바타로 되돌릴까요?')) return;
+    try {
+      await reset.mutateAsync();
+    } catch {
+      alert('복귀에 실패했습니다.');
+    }
+  };
+
+  const handleDeleteReview = async (id: number, body: string) => {
+    if (!confirm(`이 50자 평을 삭제할까요?\n\n"${body.slice(0, 40)}${body.length > 40 ? '…' : ''}"`)) return;
+    try {
+      await del.mutateAsync(id);
+    } catch {
+      alert('삭제에 실패했습니다.');
+    }
+  };
+
+  return (
+    <main className="max-w-5xl mx-auto px-4 py-8">
+      <h1 className="text-3xl font-bold text-white mb-8 font-serif">🧑‍🎤 내 프로필</h1>
+
+      {profile.isError && (
+        <div className="text-red-400 text-sm mb-4">프로필을 불러오지 못했습니다.</div>
+      )}
+
+      {me && (
+        <section className="bg-[#1a1a1a] rounded-2xl p-6 border border-white/5 mb-10 space-y-6">
+          <AvatarEditor
+            avatarUrl={effectiveAvatar}
+            isCustom={isCustomAvatar}
+            onUpload={handleUpload}
+            onReset={handleReset}
+            uploading={upload.isPending}
+            resetting={reset.isPending}
+          />
+          <div className="text-sm text-gray-400">
+            <span className="text-gray-300">{me.name}</span>
+            <span className="text-gray-600 mx-2">·</span>
+            <span>{me.email}</span>
+            {me.createdAt && (
+              <>
+                <span className="text-gray-600 mx-2">·</span>
+                <span>가입 {formatJoined(me.createdAt)}</span>
+              </>
+            )}
+          </div>
+          <ProfileFields
+            initialDisplayName={me.displayName ?? ''}
+            initialInstagram={me.instagramHandle ?? ''}
+            saving={update.isPending}
+            onSave={handleSave}
+          />
+          {stats && (
+            <div className="flex flex-wrap gap-4 text-sm text-gray-400 pt-2 border-t border-white/5">
+              <span>
+                50자 평 <span className="text-gray-200 font-semibold">{stats.reviewCount}</span>
+              </span>
+              <span>
+                굿굿 <span className="text-[#e8a020] font-semibold">{stats.upvoteCount}</span>
+              </span>
+              <span>
+                별루 <span className="text-gray-200 font-semibold">{stats.downvoteCount}</span>
+              </span>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* My 50자 평 ───────────────────────────────────────────────── */}
+      <section className="mb-10">
+        <h2 className="text-xl font-serif text-white mb-4">
+          내 50자 평
+          {reviews.data && (
+            <span className="ml-2 text-sm text-gray-500 font-sans">{reviews.data.reviews.length}</span>
+          )}
+        </h2>
+        {reviews.isLoading ? (
+          <div className="text-sm text-gray-500">불러오는 중…</div>
+        ) : reviews.data && reviews.data.reviews.length > 0 ? (
+          <ul className="space-y-3">
+            {reviews.data.reviews.map((r) => {
+              const ratingMeta = r.rating ? RATING_META[r.rating] : null;
+              return (
+                <li
+                  key={r.id}
+                  className="bg-[#1a1a1a] rounded-xl p-4 border border-white/5 flex gap-4 items-start"
+                >
+                  <Link
+                    to={`/album/${r.albumSlug}`}
+                    className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-[#252525]"
+                  >
+                    <CoverArt
+                      src={r.albumCoverUrl}
+                      fallbacks={r.albumCoverFallbacks}
+                      alt={r.albumTitle}
+                      className="w-full h-full object-cover"
+                    />
+                  </Link>
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      to={`/album/${r.albumSlug}`}
+                      className="text-sm text-gray-300 hover:text-[#e8a020] transition-colors"
+                    >
+                      <span className="font-medium">{r.albumTitle}</span>
+                      <span className="text-gray-600 mx-1.5">·</span>
+                      <span className="text-gray-500">{r.albumArtist}</span>
+                    </Link>
+                    <div className="text-sm text-gray-100 mt-1 leading-relaxed break-words">
+                      {r.body}
+                    </div>
+                    <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
+                      {ratingMeta && (
+                        <span title={ratingMeta.label}>
+                          {ratingMeta.emoji} {ratingMeta.label}
+                        </span>
+                      )}
+                      {r.emoji && <span>{r.emoji}</span>}
+                      <span className="ml-auto tabular-nums">{r.updatedAt?.slice(0, 10)}</span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteReview(r.id, r.body)}
+                    disabled={del.isPending}
+                    className="shrink-0 text-gray-500 hover:text-red-400 text-sm px-2 py-1 cursor-pointer disabled:opacity-40"
+                    title="삭제"
+                    aria-label="삭제"
+                  >
+                    🗑️
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="text-sm text-gray-500">아직 작성한 50자 평이 없습니다.</div>
+        )}
+      </section>
+
+      {/* Upvoted albums grid — 10/row desktop, 5/row mobile ──────── */}
+      <section className="mb-10">
+        <h2 className="text-xl font-serif text-white mb-4">
+          굿굿한 앨범들
+          {upvotes.data && (
+            <span className="ml-2 text-sm text-gray-500 font-sans">{upvotes.data.upvotes.length}</span>
+          )}
+        </h2>
+        {upvotes.isLoading ? (
+          <div className="text-sm text-gray-500">불러오는 중…</div>
+        ) : upvotes.data && upvotes.data.upvotes.length > 0 ? (
+          <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
+            {upvotes.data.upvotes.map((a) => (
+              <Link
+                key={a.slug}
+                to={`/album/${a.slug}`}
+                className="aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-[#e8a020]/50 transition-all"
+                title={`${a.title} — ${a.artist}`}
+              >
+                <CoverArt
+                  src={a.coverArtUrl}
+                  fallbacks={a.coverArtFallbacks}
+                  alt={a.title}
+                  className="w-full h-full object-cover"
+                />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-500">아직 굿굿한 앨범이 없습니다.</div>
+        )}
+      </section>
+    </main>
+  );
+}

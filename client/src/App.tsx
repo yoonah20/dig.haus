@@ -7,6 +7,7 @@ import TopNav from './components/TopNav';
 const Home = lazy(() => import('./pages/Home'));
 const Album = lazy(() => import('./pages/Album'));
 const Admin = lazy(() => import('./pages/Admin'));
+const Profile = lazy(() => import('./pages/Profile'));
 
 function RouteFallback() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
               <Route path="/" element={<Home />} />
               <Route path="/album/:slug" element={<Album />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/profile" element={<Profile />} />
             </Routes>
           </Suspense>
         </div>

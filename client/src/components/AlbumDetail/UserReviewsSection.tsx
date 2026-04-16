@@ -6,6 +6,7 @@ import {
   useDeleteUserReview,
   type UserReview,
 } from '../../hooks/useUserReviews';
+import UserHoverCard from '../UserHoverCard';
 
 const MAX_CHARS = 50;
 const MIN_CHARS = 5;
@@ -112,7 +113,9 @@ function SpeechBubble({
             avatar (the previous absolute-positioned overlay disappeared
             when the avatar grew). */}
         <div className="flex items-center gap-2.5 min-w-0 mt-3 pt-2.5 border-t border-white/5">
-          <Avatar src={review.userAvatar} name={review.userName} size={36} />
+          <UserHoverCard userId={review.userId}>
+            <Avatar src={review.userAvatar} name={review.userName} size={36} />
+          </UserHoverCard>
           <span className="text-sm text-gray-300 truncate flex-1">
             {review.userName || '익명'}
           </span>

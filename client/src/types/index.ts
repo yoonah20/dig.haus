@@ -33,8 +33,16 @@ export interface AlbumSearchResult {
 export interface AuthUser {
   id: number;
   email: string;
+  // Effective fields — custom override wins, Google value as fallback.
   name: string | null;
   avatarUrl: string | null;
+  // Raw values so the profile editor can tell "no custom value set" from
+  // "custom value happens to equal the Google default".
+  googleName?: string | null;
+  googleAvatarUrl?: string | null;
+  displayName?: string | null;
+  customAvatarUrl?: string | null;
+  instagramHandle?: string | null;
   isAdmin: boolean;
 }
 
