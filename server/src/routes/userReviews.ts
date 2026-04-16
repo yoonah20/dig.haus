@@ -90,11 +90,14 @@ function serialize(row: Row) {
 
 // GET /api/user-reviews/feed — public cross-album feed
 //
-// Powers the homepage comment ticker: recent 50자 평 across every album,
-// joined with the user's display bits and the album's cover/slug so one
-// round trip has everything the client needs to render each item.
-// Reviews with an empty body (shouldn't exist post-validation but
-// defensive) are skipped so the ticker never shows a blank bubble.
+// Powers the homepage comment ticker: a random sample of 50자 평 from
+// across every album, joined with the user's display bits and the
+// album's cover/slug so one round trip has everything the client needs
+// to render each item. ORDER BY RANDOM() instead of created_at so the
+// ticker doesn't feel like a frozen list — combined with the client's
+// 2-minute staleTime, reloading or letting the tab sit gives a fresh
+// shuffle. Reviews with an empty body (shouldn't exist post-validation
+// but defensive) are skipped so the ticker never shows a blank bubble.
 
 router.get('/user-reviews/feed', (req, res) => {
   const limitRaw = parseInt((req.query.limit as string) || '', 10);
@@ -113,7 +116,7 @@ router.get('/user-reviews/feed', (req, res) => {
      INNER JOIN albums a ON a.id = ur.album_id
      LEFT JOIN users u ON u.id = ur.user_id
      WHERE LENGTH(TRIM(ur.body)) > 0
-     ORDER BY ur.created_at DESC, ur.id DESC
+     ORDER BY RANDOM()
      LIMIT ?`,
     [limit]
   ) as Array<{

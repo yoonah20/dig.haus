@@ -6,6 +6,19 @@ const router = Router();
 
 router.use(requireAdmin);
 
+// Defensive JSON parse for TEXT columns that store a JSON array
+// (e.g. albums.cover_art_fallbacks). A single malformed row would
+// otherwise crash the whole /admin/stats response with a 500.
+function safeParseArray(raw: unknown): any[] {
+  if (!raw || typeof raw !== 'string') return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 // Hardcoded prices for token → USD conversion. Update when Anthropic's
 // pricing page changes. Rates are per 1M tokens (input / output) and
 // per 1000 calls (web search). If we see an unfamiliar model string in
@@ -47,7 +60,7 @@ router.get('/stats', (_req, res) => {
     artist: a.artist_name,
     createdAt: a.created_at,
     coverArtUrl: a.cover_art_url,
-    coverArtFallbacks: a.cover_art_fallbacks ? JSON.parse(a.cover_art_fallbacks) : [],
+    coverArtFallbacks: safeParseArray(a.cover_art_fallbacks),
   }));
 
   const recentUsers = queryAll(
@@ -212,7 +225,7 @@ router.get('/stats', (_req, res) => {
       title: a.title,
       artist: a.artist_name,
       coverArtUrl: a.cover_art_url,
-      coverArtFallbacks: a.cover_art_fallbacks ? JSON.parse(a.cover_art_fallbacks) : [],
+      coverArtFallbacks: safeParseArray(a.cover_art_fallbacks),
     }));
   }
 

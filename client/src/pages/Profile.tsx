@@ -273,58 +273,141 @@ export default function Profile() {
   };
 
   return (
-    <main className="max-w-5xl mx-auto px-4 py-8">
+    <main className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-white mb-8 font-serif">🧑‍🎤 내 프로필</h1>
 
       {profile.isError && (
         <div className="text-red-400 text-sm mb-4">프로필을 불러오지 못했습니다.</div>
       )}
 
-      {me && (
-        <section className="bg-[#1a1a1a] rounded-2xl p-6 border border-white/5 mb-10 space-y-6">
-          <AvatarEditor
-            avatarUrl={effectiveAvatar}
-            isCustom={isCustomAvatar}
-            onUpload={handleUpload}
-            onReset={handleReset}
-            uploading={upload.isPending}
-            resetting={reset.isPending}
-          />
-          <div className="text-sm text-gray-400">
-            <span className="text-gray-300">{me.name}</span>
-            <span className="text-gray-600 mx-2">·</span>
-            <span>{me.email}</span>
-            {me.createdAt && (
-              <>
+      {/* 2-column layout: left = identity + account stuff
+                           right = "내가 남긴 기록"
+          Below md the grid collapses to a single column and sections
+          stack in reading order (identity first, records after). */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* ─── LEFT ─────────────────────────────────────────────── */}
+        <div className="space-y-8">
+          {me && (
+            <section className="bg-[#1a1a1a] rounded-2xl p-6 border border-white/5 space-y-6">
+              <AvatarEditor
+                avatarUrl={effectiveAvatar}
+                isCustom={isCustomAvatar}
+                onUpload={handleUpload}
+                onReset={handleReset}
+                uploading={upload.isPending}
+                resetting={reset.isPending}
+              />
+              <div className="text-sm text-gray-400">
+                <span className="text-gray-300">{me.name}</span>
                 <span className="text-gray-600 mx-2">·</span>
-                <span>가입 {formatJoined(me.createdAt)}</span>
-              </>
-            )}
-          </div>
-          <ProfileFields
-            initialDisplayName={me.displayName ?? ''}
-            initialInstagram={me.instagramHandle ?? ''}
-            saving={update.isPending}
-            onSave={handleSave}
-          />
-          {stats && (
-            <div className="flex flex-wrap gap-4 text-sm text-gray-400 pt-2 border-t border-white/5">
-              <span>
-                50자 평 <span className="text-gray-200 font-semibold">{stats.reviewCount}</span>
-              </span>
-              <span>
-                굿굿 <span className="text-[#e8a020] font-semibold">{stats.upvoteCount}</span>
-              </span>
-              <span>
-                별루 <span className="text-gray-200 font-semibold">{stats.downvoteCount}</span>
-              </span>
-            </div>
+                <span>{me.email}</span>
+                {me.createdAt && (
+                  <>
+                    <span className="text-gray-600 mx-2">·</span>
+                    <span>가입 {formatJoined(me.createdAt)}</span>
+                  </>
+                )}
+              </div>
+              <ProfileFields
+                initialDisplayName={me.displayName ?? ''}
+                initialInstagram={me.instagramHandle ?? ''}
+                saving={update.isPending}
+                onSave={handleSave}
+              />
+              {stats && (
+                <div className="flex flex-wrap gap-4 text-sm text-gray-400 pt-2 border-t border-white/5">
+                  <span>
+                    50자 평{' '}
+                    <span className="text-gray-200 font-semibold">{stats.reviewCount}</span>
+                  </span>
+                  <span>
+                    굿굿 <span className="text-[#e8a020] font-semibold">{stats.upvoteCount}</span>
+                  </span>
+                  <span>
+                    별루{' '}
+                    <span className="text-gray-200 font-semibold">{stats.downvoteCount}</span>
+                  </span>
+                </div>
+              )}
+            </section>
           )}
-        </section>
-      )}
 
-      {/* My 50자 평 ───────────────────────────────────────────────── */}
-      <section className="mb-10">
+          {/* My album requests — admin-review status 확인용 ─────── */}
+          <section>
+            <h2 className="text-xl font-serif text-white mb-4">
+              내 등록 요청
+              {myRequests.data && (
+                <span className="ml-2 text-sm text-gray-500 font-sans">
+                  {myRequests.data.requests.length}
+                </span>
+              )}
+            </h2>
+            {myRequests.isLoading ? (
+              <div className="text-sm text-gray-500">불러오는 중…</div>
+            ) : myRequests.data && myRequests.data.requests.length > 0 ? (
+              <ul className="space-y-2">
+                {myRequests.data.requests.map((r) => {
+                  const meta = REQUEST_STATUS_META[r.status];
+                  const body = (
+                    <div className="flex items-center gap-3 p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
+                      <div className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden">
+                        {r.coverArtUrl ? (
+                          <img
+                            src={r.coverArtUrl}
+                            alt=""
+                            aria-hidden
+                            loading="lazy"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-100 truncate">
+                          {r.title}
+                        </p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {r.artist}
+                          {r.year && ` · ${r.year}`}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium ${meta.className}`}
+                      >
+                        {meta.label}
+                      </span>
+                    </div>
+                  );
+                  return (
+                    <li key={r.id}>
+                      {r.status === 'approved' ? (
+                        <Link
+                          to={`/album/${r.mbid}`}
+                          className="block hover:brightness-110 transition"
+                        >
+                          {body}
+                        </Link>
+                      ) : (
+                        body
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <div className="text-sm text-gray-500">
+                아직 등록 요청한 앨범이 없습니다. 상단 + 버튼으로 요청해보세요.
+              </div>
+            )}
+          </section>
+        </div>
+
+        {/* ─── RIGHT ────────────────────────────────────────────── */}
+        <div className="space-y-8">
+          {/* My 50자 평 */}
+          <section>
         <h2 className="text-xl font-serif text-white mb-4">
           내 50자 평
           {reviews.data && (
@@ -404,7 +487,7 @@ export default function Profile() {
         {upvotes.isLoading ? (
           <div className="text-sm text-gray-500">불러오는 중…</div>
         ) : upvotes.data && upvotes.data.upvotes.length > 0 ? (
-          <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
+          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
             {upvotes.data.upvotes.map((a) => (
               <Link
                 key={a.slug}
@@ -424,80 +507,9 @@ export default function Profile() {
         ) : (
           <div className="text-sm text-gray-500">아직 굿굿한 앨범이 없습니다.</div>
         )}
-      </section>
-
-      {/* My album requests — admin-review status 확인용 ──────────── */}
-      <section className="mb-10">
-        <h2 className="text-xl font-serif text-white mb-4">
-          내 등록 요청
-          {myRequests.data && (
-            <span className="ml-2 text-sm text-gray-500 font-sans">
-              {myRequests.data.requests.length}
-            </span>
-          )}
-        </h2>
-        {myRequests.isLoading ? (
-          <div className="text-sm text-gray-500">불러오는 중…</div>
-        ) : myRequests.data && myRequests.data.requests.length > 0 ? (
-          <ul className="space-y-2">
-            {myRequests.data.requests.map((r) => {
-              const meta = REQUEST_STATUS_META[r.status];
-              const body = (
-                <div className="flex items-center gap-3 p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
-                  <div className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden">
-                    {r.coverArtUrl ? (
-                      <img
-                        src={r.coverArtUrl}
-                        alt=""
-                        aria-hidden
-                        loading="lazy"
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    ) : null}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-100 truncate">
-                      {r.title}
-                    </p>
-                    <p className="text-xs text-gray-500 truncate">
-                      {r.artist}
-                      {r.year && ` · ${r.year}`}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium ${meta.className}`}
-                  >
-                    {meta.label}
-                  </span>
-                </div>
-              );
-              // Approved requests link to the live album page; others
-              // are static rows (no page to jump to yet).
-              return (
-                <li key={r.id}>
-                  {r.status === 'approved' ? (
-                    <Link
-                      to={`/album/${r.mbid}`}
-                      className="block hover:brightness-110 transition"
-                    >
-                      {body}
-                    </Link>
-                  ) : (
-                    body
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <div className="text-sm text-gray-500">
-            아직 등록 요청한 앨범이 없습니다. 상단 + 버튼으로 요청해보세요.
-          </div>
-        )}
-      </section>
+          </section>
+        </div>
+      </div>
 
       {/* Danger zone — account deletion ────────────────────────────── */}
       <section className="mt-16 pt-6 border-t border-white/5 flex justify-end">
