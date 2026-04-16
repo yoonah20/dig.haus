@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   useInfiniteQuery,
   useQuery,
@@ -12,15 +12,10 @@ import CommentTicker from '../components/Home/CommentTicker';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { useAuth } from '../contexts/AuthContext';
+import { useHomeState } from '../contexts/HomeStateContext';
 import { useAlbumRequests } from '../hooks/useAlbumRequests';
 import type { AlbumSearchResult } from '../types';
-import {
-  type SortValue,
-  DEFAULT_SORT,
-  SORT_STORAGE_KEY,
-  isSortValue,
-  readStoredSort,
-} from '../lib/homeSort';
+import { type SortValue } from '../lib/homeSort';
 
 interface AlbumListResponse {
   albums: AlbumSearchResult[];
@@ -113,6 +108,11 @@ export default function Home() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
+  // sort / page / seed live in HomeStateContext — no URL involvement,
+  // so the address bar stays at '/'. See contexts/HomeStateContext.tsx
+  // for the persistence rules (localStorage for sort, in-memory for
+  // page + seed).
+  const { sort, page, setPage, seed } = useHomeState();
 
   useDocumentHead({
     title: 'Home | dig.haus',
@@ -121,66 +121,9 @@ export default function Home() {
     type: 'website',
   });
 
-  const sort: SortValue = useMemo(() => {
-    const raw = searchParams.get('sort') || '';
-    if (isSortValue(raw)) return raw;
-    return readStoredSort() ?? DEFAULT_SORT;
-  }, [searchParams]);
-
-  // Rehydrate URL from stored sort on initial mount so pagination, share-links,
-  // and back-nav all see a canonical URL. Only runs when the URL is missing a
-  // sort and localStorage has a non-default pick.
-  useEffect(() => {
-    if (searchParams.get('sort')) return;
-    const stored = readStoredSort();
-    if (!stored || stored === DEFAULT_SORT) return;
-    const next = new URLSearchParams(searchParams);
-    next.set('sort', stored);
-    setSearchParams(next, { replace: true });
-    // Intentional: only on first mount — avoids a feedback loop with handleSortChange.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Mirror sort selection into localStorage so it survives sessions and any
-  // edge case where the URL param is lost during navigation.
-  useEffect(() => {
-    try {
-      if (sort === DEFAULT_SORT) localStorage.removeItem(SORT_STORAGE_KEY);
-      else localStorage.setItem(SORT_STORAGE_KEY, sort);
-    } catch {
-      // ignore storage errors
-    }
-  }, [sort]);
-
-  const page = useMemo(() => {
-    const raw = parseInt(searchParams.get('page') || '1', 10);
-    return Number.isFinite(raw) && raw > 0 ? raw : 1;
-  }, [searchParams]);
-
-  // Random sort needs a per-session seed so pagination / infinite scroll
-  // don't show the same album twice (server uses the seed to shuffle
-  // deterministically). The seed sits in the URL so a page reload or share
-  // link keeps showing the same shuffle; switching sort away clears it.
-  const seed = useMemo(() => {
-    if (sort !== 'random') return undefined;
-    const raw = parseInt(searchParams.get('seed') || '', 10);
-    return Number.isFinite(raw) && raw >= 0 ? raw : undefined;
-  }, [sort, searchParams]);
-
-  useEffect(() => {
-    if (sort === 'random' && seed === undefined) {
-      const fresh = Math.floor(Math.random() * 1_000_000);
-      const next = new URLSearchParams(searchParams);
-      next.set('seed', String(fresh));
-      setSearchParams(next, { replace: true });
-    } else if (sort !== 'random' && searchParams.get('seed')) {
-      const next = new URLSearchParams(searchParams);
-      next.delete('seed');
-      setSearchParams(next, { replace: true });
-    }
-  }, [sort, seed, searchParams, setSearchParams]);
-
-  // Deep-link: /?q=artist opens the nav search overlay and clears the param
+  // Deep-link: /?q=artist opens the nav search overlay and clears the
+  // param. This is the one URL param Home still touches — external
+  // inbound links use it so a friend can share `dig.haus/?q=artist`.
   useEffect(() => {
     const q = searchParams.get('q');
     if (q) {
@@ -191,10 +134,12 @@ export default function Home() {
     }
   }, [searchParams, setSearchParams, openOverlay]);
 
-  // When sort=random we wait for the seed effect to write a fresh value to
-  // the URL before firing a query — otherwise the first render would hit
-  // the server without a seed (seed=0 deterministic ordering) and then
-  // refetch a moment later with the real seed, wasting a round trip.
+  // With the seed owned by the context, it's set synchronously when
+  // the sort becomes 'random' — no async round-trip like the old
+  // URL-based seed-effect used to have. So seedReady is always true
+  // for non-random sorts, and true for random once the provider
+  // finishes its first render (which it has by the time Home's
+  // effects run).
   const seedReady = sort !== 'random' || seed !== undefined;
 
   // `request_pending` (admin-only sort) switches the grid's data
@@ -281,18 +226,9 @@ export default function Home() {
     };
   }, [isMobile, hasAlbums]);
 
-  function updateParams(patch: Record<string, string | null>) {
-    const next = new URLSearchParams(searchParams);
-    for (const [k, v] of Object.entries(patch)) {
-      if (v === null || v === '') next.delete(k);
-      else next.set(k, v);
-    }
-    setSearchParams(next);
-  }
-
   function goToPage(p: number) {
     if (p < 1 || p > totalPages || p === page) return;
-    updateParams({ page: p === 1 ? null : String(p) });
+    setPage(p);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
