@@ -19,20 +19,20 @@ const RATING_EMOJI: Record<'up' | 'down' | 'soso', string> = {
   soso: '🤷',
 };
 
-// Per-rating tint for the speech bubble. Values are kept low-saturation
-// so a long queue of 굿굿 cards doesn't feel like a yellow wall — the
-// tint is just enough to scan the ratio at a glance. Border colours
-// also drive the tail outline via --tail-border so the tail matches the
-// bubble as the rating cycles.
-const BUBBLE_THEME: Record<
-  'up' | 'down' | 'soso' | 'none',
-  { bg: string; border: string }
-> = {
-  up: { bg: 'rgba(232, 160, 32, 0.10)', border: 'rgba(232, 160, 32, 0.35)' },
-  down: { bg: 'rgba(74, 90, 110, 0.16)', border: 'rgba(120, 140, 165, 0.35)' },
-  soso: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.18)' },
-  none: { bg: 'rgba(255, 255, 255, 0.04)', border: 'rgba(255, 255, 255, 0.18)' },
-};
+// All bubbles share one neutral theme regardless of the rating — the
+// per-rating 👍 / 🤷 / 👎 badge in the top-right is already doing the
+// work of flagging sentiment. Tinting the background per rating on
+// top of that read as visually busy (esp. the amber 'up' against the
+// page's amber accents). Kept as named CSS vars so the tail picks up
+// the same fill / outline the bubble uses.
+const BUBBLE_BG = 'rgba(255, 255, 255, 0.04)';
+const BUBBLE_BORDER = 'rgba(255, 255, 255, 0.18)';
+const BUBBLE_STYLE = {
+  backgroundColor: BUBBLE_BG,
+  borderColor: BUBBLE_BORDER,
+  ['--tail-fill' as string]: BUBBLE_BG,
+  ['--tail-border' as string]: BUBBLE_BORDER,
+} as CSSProperties;
 
 function Avatar({
   src,
@@ -78,20 +78,9 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
   const isAnon = item.userId == null;
   const displayName = isAnon ? '탈퇴한 사용자' : item.userName || '익명';
   const isCjk = CJK_RE.test(displayName);
-  const themeKey = item.rating ?? 'none';
-  const theme = BUBBLE_THEME[themeKey];
   const ratingEmoji = item.rating ? RATING_EMOJI[item.rating] : null;
   const feelingEmoji = item.emoji;
   const hasBadges = !!(ratingEmoji || feelingEmoji);
-
-  const bubbleStyle = {
-    backgroundColor: theme.bg,
-    borderColor: theme.border,
-    // Consumed by .bubble-tail::before/::after so the tail picks up the
-    // same fill and outline as the bubble it leaks from.
-    ['--tail-fill' as string]: theme.bg,
-    ['--tail-border' as string]: theme.border,
-  } as CSSProperties;
 
   return (
     <Link
@@ -139,7 +128,7 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
           tighter now that the emoji badges sit above the bubble. */}
       <div
         className="bubble-tail flex-1 min-w-0 flex items-center gap-3 rounded-2xl border px-3 py-2.5 min-h-[64px] group-hover:border-[#e8a020]/50 transition-colors"
-        style={bubbleStyle}
+        style={BUBBLE_STYLE}
       >
         {/* Emoji badges — overlap the bubble's top-right edge, same
             pattern as the 50자 평 cards on the album detail page so
