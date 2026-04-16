@@ -9,10 +9,8 @@ const SECONDS_PER_ITEM = 7;
 
 // Fixed width per ticker card so the CSS marquee math stays clean — the
 // track's total width is predictable and translateX(-50%) lands the
-// duplicate tail exactly where the head started. Compact width (~70% of
-// the prior 408) keeps each card scannable at a glance; bodies that
-// exceed ~3 lines clamp.
-const ITEM_WIDTH_PX = 286;
+// duplicate tail exactly where the head started.
+const ITEM_WIDTH_PX = 320;
 const ITEM_GAP_PX = 16;
 
 const RATING_EMOJI: Record<'up' | 'down' | 'soso', string> = {
@@ -110,12 +108,16 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
       <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[56px]">
         <Avatar src={item.userAvatar} name={item.userName} size={52} />
         <span
-          // break-all (vs. break-words) forces a wrap at every character
-          // boundary — for Korean (no spaces) this gives the predictable
-          // N-chars-per-line look. With col 56px / text-[11px] that's
-          // ~4 chars per line, so '파이어리핑크페퍼' lands as 파이어리 / 핑크페퍼
-          // instead of break-words' looser 5/3 split.
-          className={`text-[11px] text-center leading-tight line-clamp-2 break-all w-full ${
+          // max-w-[44px] (not w-full) is the key: the avatar column is
+          // 56px but Korean glyphs in Pretendard at text-[11px] render
+          // ~11px wide, so 56px physically fits 5 chars per line and
+          // break-all happily packs '파이어리핑' before wrapping. Clamping
+          // the *span* (not the column) to 44px leaves at most 4 chars
+          // per line, giving the clean 4/4 split (파이어리/핑크페퍼) the
+          // user expects. The 4px slack on each side of a 40px name
+          // stays inside the 56px column so the avatar + tail still
+          // centre correctly.
+          className={`text-[11px] text-center leading-tight line-clamp-2 break-all max-w-[44px] ${
             isAnon ? 'italic text-gray-600' : 'text-gray-400'
           }`}
         >
