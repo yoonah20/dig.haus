@@ -28,6 +28,7 @@ import sitemapRouter from './routes/sitemap.js';
 import userReviewsRouter from './routes/userReviews.js';
 import meRouter from './routes/me.js';
 import avatarsRouter from './routes/avatars.js';
+import albumRequestsRouter from './routes/albumRequests.js';
 
 let server: Server;
 
@@ -98,6 +99,7 @@ async function start() {
   app.use('/api', purchaseLinksRouter);
   app.use('/api', userReviewsRouter);
   app.use('/api', meRouter);
+  app.use('/api', albumRequestsRouter);
   app.use('/api/avatars', avatarsRouter);
   app.use('/api/albums', albumsRouter);
   app.use('/api/labels', labelsRouter);

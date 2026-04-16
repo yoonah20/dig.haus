@@ -440,6 +440,19 @@ async function warmUpAlbumReviews(
   console.log(`[warm-up] reviews ready for ${mbid}: ${result.reviews.length} reviews`);
 }
 
+// Called by routes/albumRequests.ts when an admin approves a user
+// request: runs the full register path for `mbid` so reviews / Korean
+// summary / similar-albums all kick off, exactly like a direct admin
+// registration would. Exposed here (rather than being re-implemented
+// in albumRequests.ts) because getOrFetchAlbumBase is the single
+// source of truth for the register pipeline.
+export async function approveAlbumRequest(mbid: string): Promise<void> {
+  const result = await getOrFetchAlbumBase(mbid);
+  if (!result) {
+    throw new Error(`Album not found on external sources: ${mbid}`);
+  }
+}
+
 // ─── GET /api/albums — list all albums (paginated + sorted) ─────────────
 
 const ALBUM_PAGE_SIZE_DEFAULT = 20;

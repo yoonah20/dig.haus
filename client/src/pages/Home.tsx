@@ -7,9 +7,12 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
+import AlbumRequestCard from '../components/Home/AlbumRequestCard';
 import CommentTicker from '../components/Home/CommentTicker';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { useAuth } from '../contexts/AuthContext';
+import { useAlbumRequests } from '../hooks/useAlbumRequests';
 import type { AlbumSearchResult } from '../types';
 import {
   type SortValue,
@@ -108,6 +111,8 @@ export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { openOverlay } = useSearchOverlay();
   const isMobile = useIsMobile();
+  const { user } = useAuth();
+  const isAdmin = !!user?.isAdmin;
 
   useDocumentHead({
     title: 'Home | dig.haus',
@@ -191,8 +196,28 @@ export default function Home() {
   // the server without a seed (seed=0 deterministic ordering) and then
   // refetch a moment later with the real seed, wasting a round trip.
   const seedReady = sort !== 'random' || seed !== undefined;
-  const desktopQuery = useDesktopAlbumList(sort, page, !isMobile && seedReady, seed);
-  const mobileQuery = useMobileAlbumList(sort, isMobile && seedReady, seed);
+
+  // `request_pending` (admin-only sort) switches the grid's data
+  // source from the main album list to the pending-request queue.
+  // Enabled flag on the regular queries flips off so we don't burn
+  // useless fetches on the other endpoint while admin is in request-
+  // review mode. Non-admins can't reach this branch because SortMenu
+  // hides the option, but the isAdmin gate here is belt-and-suspenders
+  // in case someone crafts the URL manually.
+  const isRequestMode = sort === 'request_pending' && isAdmin;
+  const requestsQuery = useAlbumRequests(isRequestMode);
+
+  const desktopQuery = useDesktopAlbumList(
+    sort,
+    page,
+    !isMobile && seedReady && !isRequestMode,
+    seed
+  );
+  const mobileQuery = useMobileAlbumList(
+    sort,
+    isMobile && seedReady && !isRequestMode,
+    seed
+  );
 
   const albums: AlbumSearchResult[] = isMobile
     ? (mobileQuery.data?.pages.flatMap((p) => p.albums) ?? [])
@@ -202,9 +227,12 @@ export default function Home() {
     : desktopQuery.data;
   const total = firstPage?.total ?? 0;
   const totalPages = firstPage?.totalPages ?? 1;
-  const isLoading = isMobile
-    ? mobileQuery.isLoading
-    : desktopQuery.isLoading;
+  const isLoading = isRequestMode
+    ? requestsQuery.isLoading
+    : isMobile
+      ? mobileQuery.isLoading
+      : desktopQuery.isLoading;
+  const requests = requestsQuery.data?.requests ?? [];
 
   // Mobile: bottom sentinel that pulls the next page in when it scrolls into
   // view. Observer is created exactly once (after the first batch mounts)
@@ -276,7 +304,24 @@ export default function Home() {
         {/* Top bar (count / page info / sort) was removed — sort lives
             in TopNav as an icon, count moved into the footer below.
             Grid is the first thing on the page. */}
-        {isLoading && albums.length === 0 ? (
+        {isRequestMode ? (
+          // Admin-only pending-requests grid. Same column layout as
+          // the main grid so cards visually align; AlbumRequestCard
+          // handles its own approve/discard UI.
+          isLoading && requests.length === 0 ? (
+            <div className="text-center py-20 text-sm text-gray-500">불러오는 중...</div>
+          ) : requests.length === 0 ? (
+            <div className="text-center py-20 text-sm text-gray-500">
+              대기 중인 등록 요청이 없습니다.
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
+              {requests.map((req) => (
+                <AlbumRequestCard key={req.mbid} request={req} />
+              ))}
+            </div>
+          )
+        ) : isLoading && albums.length === 0 ? (
           <div className="text-center py-20 text-sm text-gray-500">불러오는 중...</div>
         ) : albums.length === 0 ? (
           <div className="text-center py-20 text-sm text-gray-500">등록된 앨범이 없습니다.</div>
@@ -309,8 +354,10 @@ export default function Home() {
             users instinctively reach for to advance the page).
             Intentionally gated with !isMobile (not CSS `hidden md:…`)
             so the feed query doesn't fire on phones at all — mobile
-            interleaves comments into the infinite scroll separately. */}
-        {!isMobile && albums.length > 0 && <CommentTicker />}
+            interleaves comments into the infinite scroll separately.
+            Also hidden in request-review mode so admin's attention
+            stays on the pending queue. */}
+        {!isMobile && !isRequestMode && albums.length > 0 && <CommentTicker />}
 
         {!isMobile && totalPages > 1 && (
           <nav className="mt-12 flex items-center justify-center gap-1 flex-wrap" aria-label="Pagination">

@@ -13,6 +13,25 @@ import {
   useDeleteMyReview,
   useDeleteMyAccount,
 } from '../hooks/useMe';
+import { useMyAlbumRequests } from '../hooks/useAlbumRequests';
+
+const REQUEST_STATUS_META: Record<
+  'pending' | 'approved' | 'discarded',
+  { label: string; className: string }
+> = {
+  pending: {
+    label: '검토 중',
+    className: 'bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30',
+  },
+  approved: {
+    label: '등록됨',
+    className: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
+  },
+  discarded: {
+    label: '반려됨',
+    className: 'bg-white/5 text-gray-400 border border-white/10',
+  },
+};
 
 const RATING_META: Record<'up' | 'down' | 'soso', { emoji: string; label: string }> = {
   up: { emoji: '👍', label: '굿굿' },
@@ -175,6 +194,7 @@ export default function Profile() {
   const profile = useMyProfile();
   const reviews = useMyReviews();
   const upvotes = useMyUpvotes();
+  const myRequests = useMyAlbumRequests();
   const update = useUpdateMyProfile();
   const upload = useUploadMyAvatar();
   const reset = useResetMyAvatar();
@@ -403,6 +423,79 @@ export default function Profile() {
           </div>
         ) : (
           <div className="text-sm text-gray-500">아직 굿굿한 앨범이 없습니다.</div>
+        )}
+      </section>
+
+      {/* My album requests — admin-review status 확인용 ──────────── */}
+      <section className="mb-10">
+        <h2 className="text-xl font-serif text-white mb-4">
+          내 등록 요청
+          {myRequests.data && (
+            <span className="ml-2 text-sm text-gray-500 font-sans">
+              {myRequests.data.requests.length}
+            </span>
+          )}
+        </h2>
+        {myRequests.isLoading ? (
+          <div className="text-sm text-gray-500">불러오는 중…</div>
+        ) : myRequests.data && myRequests.data.requests.length > 0 ? (
+          <ul className="space-y-2">
+            {myRequests.data.requests.map((r) => {
+              const meta = REQUEST_STATUS_META[r.status];
+              const body = (
+                <div className="flex items-center gap-3 p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
+                  <div className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden">
+                    {r.coverArtUrl ? (
+                      <img
+                        src={r.coverArtUrl}
+                        alt=""
+                        aria-hidden
+                        loading="lazy"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-100 truncate">
+                      {r.title}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      {r.artist}
+                      {r.year && ` · ${r.year}`}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium ${meta.className}`}
+                  >
+                    {meta.label}
+                  </span>
+                </div>
+              );
+              // Approved requests link to the live album page; others
+              // are static rows (no page to jump to yet).
+              return (
+                <li key={r.id}>
+                  {r.status === 'approved' ? (
+                    <Link
+                      to={`/album/${r.mbid}`}
+                      className="block hover:brightness-110 transition"
+                    >
+                      {body}
+                    </Link>
+                  ) : (
+                    body
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="text-sm text-gray-500">
+            아직 등록 요청한 앨범이 없습니다. 상단 + 버튼으로 요청해보세요.
+          </div>
         )}
       </section>
 

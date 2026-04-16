@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   SORT_OPTIONS,
@@ -7,6 +7,7 @@ import {
   type SortValue,
   isSortValue,
 } from '../../lib/homeSort';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Compact sort trigger that lives in the TopNav on the home page.
 // Owns its own popover; the URL is the single source of truth, so
@@ -17,6 +18,15 @@ export default function SortMenu() {
   const [open, setOpen] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const ref = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const isAdmin = !!user?.isAdmin;
+
+  // adminOnly options ([등록 요청작]) hide for non-admins so the
+  // dropdown stays clean; regular users never see they exist.
+  const visibleOptions = useMemo(
+    () => SORT_OPTIONS.filter((o) => !o.adminOnly || isAdmin),
+    [isAdmin]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -100,16 +110,20 @@ export default function SortMenu() {
           role="menu"
           className="absolute right-0 mt-2 w-44 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl py-1 z-50"
         >
-          {SORT_OPTIONS.map((opt) => {
+          {visibleOptions.map((opt) => {
             const isCurrent = opt.value === sort;
             return (
               <button
                 key={opt.value}
                 role="menuitemradio"
                 aria-checked={isCurrent}
-                onClick={() => handleChange(opt.value)}
+                onClick={() => handleChange(opt.value as SortValue)}
                 className={`block w-full text-left px-4 py-2 text-sm cursor-pointer hover:bg-white/5 transition-colors ${
-                  isCurrent ? 'text-[#e8a020] font-semibold' : 'text-gray-300'
+                  isCurrent
+                    ? 'text-[#e8a020] font-semibold'
+                    : opt.adminOnly
+                      ? 'text-[#e8a020]/80 italic'
+                      : 'text-gray-300'
                 }`}
               >
                 {opt.label}

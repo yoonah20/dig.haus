@@ -74,12 +74,16 @@ export default function TopNav() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            {isAdmin && (
+            {/* The "+" affordance opens the same modal for both admin
+                and logged-in users — mode changes the submit action:
+                admin directly registers; a user creates a request row
+                that admin approves later. Hidden for guests. */}
+            {user && (
               <button
                 onClick={() => setRegisterOpen(true)}
                 className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
-                title="앨범 등록"
-                aria-label="앨범 등록"
+                title={isAdmin ? '앨범 등록' : '앨범 등록 요청'}
+                aria-label={isAdmin ? '앨범 등록' : '앨범 등록 요청'}
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -138,6 +142,7 @@ export default function TopNav() {
       <RegisterAlbumModal
         open={registerOpen}
         onClose={() => setRegisterOpen(false)}
+        mode={isAdmin ? 'register' : 'request'}
       />
     </>
   );

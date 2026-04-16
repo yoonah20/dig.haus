@@ -406,6 +406,32 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
+  // Logged-in users can request an album they want added — admin
+  // reviews later, either approving (which triggers the normal Claude
+  // pipeline) or discarding. No UNIQUE(mbid) on purpose: multiple users
+  // can request the same album and the admin surface counts them as a
+  // social-proof signal. user_id is SET NULL so account deletion keeps
+  // pending requests alive for admin follow-through.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS album_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      mbid TEXT NOT NULL,
+      title TEXT NOT NULL,
+      artist_name TEXT NOT NULL,
+      release_year INTEGER,
+      cover_art_url TEXT,
+      notes TEXT,
+      status TEXT NOT NULL DEFAULT 'pending'
+        CHECK(status IN ('pending','approved','discarded')),
+      created_at TEXT DEFAULT (datetime('now')),
+      decided_at TEXT
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_album_requests_status ON album_requests(status)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_album_requests_mbid ON album_requests(mbid)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_album_requests_user_id ON album_requests(user_id)');
+
   // Auto-migrate
   migrateTable(db, 'albums', [
     'release_date TEXT',
