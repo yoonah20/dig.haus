@@ -106,28 +106,7 @@ async function _searchReviewsImpl(
     // Haiku drop valid reviews from any publication not literally named
     // (Treble, Paste, Revolver, Invisible Oranges, Stereogum, etc.), which
     // previously caused otherwise well-covered albums to return 0 reviews.
-    console.log(`[reviews] Step 1: Haiku web search for "${artist} - ${album}"...`);
-    const searchResponse = await client.messages.create({
-      model: HAIKU,
-      // max_tokens is a billing-safe ceiling — Anthropic only charges for
-      // tokens actually generated, but capping prevents a runaway response.
-      // 2500 comfortably fits 8–15 review entries with URLs + excerpts.
-      max_tokens: 2500,
-      tools: [
-        {
-          // web_search is billed PER CALL ($10/1000 searches), separately
-          // from tokens — so this knob is a real cost lever. Empirically
-          // 3–4 searches finds the same coverage as 10; the model hardly
-          // ever benefits from the higher cap and we were overpaying.
-          type: 'web_search_20250305' as const,
-          name: 'web_search' as const,
-          max_uses: 4,
-        },
-      ],
-      messages: [
-        {
-          role: 'user',
-          content: `Find editorial reviews of the album "${album}" by ${artist}. Run 3–5 web searches combining the artist + album title with words like "review", "rating", "score", "out of 10". Include genre keywords (metal/punk/rock/indie/electronic/jazz/etc.) only if the first searches return too little.
+    const step1Prompt = `Find editorial reviews of the album "${album}" by ${artist}. Run 3–5 web searches combining the artist + album title with words like "review", "rating", "score", "out of 10". Include genre keywords (metal/punk/rock/indie/electronic/jazz/etc.) only if the first searches return too little.
 
 INCLUDE: any editorial music coverage — professional music publications, magazines, and dedicated music blogs of any size. Pitchfork, AllMusic, Sputnikmusic, Angry Metal Guy, MetalStorm, Blabbermouth, Metal Hammer, Kerrang, Dead Rhetoric, Nine Circles, Heavy Blog is Heavy, New Noise, The Quietus, Loud and Quiet, Clash, NME, Drowned in Sound, Consequence, Stereogum, Tiny Mix Tapes, Treble, Paste, Revolver, Invisible Oranges, Slant, PopMatters, The Line of Best Fit, Exclaim, Louder Sound, and many others all count — the list above is illustrative, NOT exhaustive. If a site has a writer byline and an evaluative take, treat it as editorial.
 
@@ -137,21 +116,54 @@ EXCLUDE — never return any of these:
 - Anything that is user ratings, customer reviews, product pages, or storefront listings
 
 For each review: source name, score (e.g. "8/10", "4/5", "85/100"; omit if the review has none), 1–2 sentence excerpt from the review body, URL.
-Aim for 8–15 reviews. Do not return an empty list if there are editorial reviews on the web — return whatever you find.`,
-        },
-      ],
-    });
+Aim for 8–15 reviews. Do not return an empty list if there are editorial reviews on the web — return whatever you find.`;
 
-    const rawTexts: string[] = [];
-    for (const block of searchResponse.content) {
-      if (block.type === 'text') rawTexts.push(block.text);
+    async function runStep1(maxUses: number): Promise<string> {
+      const resp = await client.messages.create({
+        model: HAIKU,
+        // max_tokens is a billing-safe ceiling — Anthropic only charges for
+        // tokens actually generated, but capping prevents a runaway response.
+        // 2500 comfortably fits 8–15 review entries with URLs + excerpts.
+        max_tokens: 2500,
+        tools: [
+          {
+            // web_search is billed PER CALL ($10/1000 searches), separately
+            // from tokens. 6 hits the sweet spot — enough headroom for
+            // obscure releases that need a few extra angles, while still
+            // well below the previous cap of 10.
+            type: 'web_search_20250305' as const,
+            name: 'web_search' as const,
+            max_uses: maxUses,
+          },
+        ],
+        messages: [{ role: 'user', content: step1Prompt }],
+      });
+      const out: string[] = [];
+      for (const block of resp.content) {
+        if (block.type === 'text') out.push(block.text);
+      }
+      return out.join('\n');
     }
-    const rawReviewData = rawTexts.join('\n');
+
+    console.log(`[reviews] Step 1: Haiku web search for "${artist} - ${album}"...`);
+    let rawReviewData = await runStep1(6);
     console.log(`[reviews] Step 1: ${rawReviewData.length} chars returned`);
+
+    // Single retry with a wider search budget when the first pass came
+    // back near-empty — covers the case where 6 searches didn't surface
+    // anything for an obscure release. Only fires on the failure path so
+    // healthy albums don't pay for a second call.
+    if (rawReviewData.length < 50) {
+      console.warn(
+        `[reviews] Step 1 thin response (${rawReviewData.length} chars) for "${artist} - ${album}" — retrying with max_uses=10`
+      );
+      rawReviewData = await runStep1(10);
+      console.log(`[reviews] Step 1 retry: ${rawReviewData.length} chars returned`);
+    }
 
     if (rawReviewData.length < 50) {
       console.warn(
-        `[reviews] Step 1 returned too little text (${rawReviewData.length} chars) for "${artist} - ${album}" — giving up`
+        `[reviews] Step 1 still empty after retry for "${artist} - ${album}" — giving up`
       );
       return { reviews: [], koreanSummary: null, artistKo: null, titleKo: null, titleMeaning: null };
     }
@@ -161,10 +173,11 @@ Aim for 8–15 reviews. Do not return an empty list if there are editorial revie
     const structureResponse = await client.messages.create({
       model: HAIKU,
       // Output is a JSON object containing up to 15 reviews + pronunciation
-      // fields — comfortably under 1500 tokens in practice. Same logic as
-      // Step 1: a tighter ceiling caps cost in the runaway case without
-      // affecting normal responses.
-      max_tokens: 1500,
+      // fields. 1500 was occasionally truncating the JSON mid-array on
+      // well-covered albums (Korean excerpts are token-heavy), which then
+      // crashed JSON.parse and dropped the whole batch. 2500 is still a
+      // safe runaway ceiling; Anthropic only bills generated tokens.
+      max_tokens: 2500,
       messages: [{ role: 'user', content: `Raw review data for "${album}" by ${artist}:
 ---
 ${rawReviewData}

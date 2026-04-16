@@ -9,10 +9,10 @@ const SECONDS_PER_ITEM = 7;
 
 // Fixed width per ticker card so the CSS marquee math stays clean — the
 // track's total width is predictable and translateX(-50%) lands the
-// duplicate tail exactly where the head started. ~20% wider than the
-// initial 340 to give the body more breathing room now that the avatar
-// column is tighter.
-const ITEM_WIDTH_PX = 408;
+// duplicate tail exactly where the head started. Compact width (~70% of
+// the prior 408) keeps each card scannable at a glance; bodies that
+// exceed ~3 lines clamp.
+const ITEM_WIDTH_PX = 286;
 const ITEM_GAP_PX = 16;
 
 const RATING_EMOJI: Record<'up' | 'down' | 'soso', string> = {
@@ -110,7 +110,12 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
       <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[56px]">
         <Avatar src={item.userAvatar} name={item.userName} size={52} />
         <span
-          className={`text-[11px] text-center leading-tight line-clamp-2 break-words w-full ${
+          // break-all (vs. break-words) forces a wrap at every character
+          // boundary — for Korean (no spaces) this gives the predictable
+          // N-chars-per-line look. With col 56px / text-[11px] that's
+          // ~4 chars per line, so '파이어리핑크페퍼' lands as 파이어리 / 핑크페퍼
+          // instead of break-words' looser 5/3 split.
+          className={`text-[11px] text-center leading-tight line-clamp-2 break-all w-full ${
             isAnon ? 'italic text-gray-600' : 'text-gray-400'
           }`}
         >

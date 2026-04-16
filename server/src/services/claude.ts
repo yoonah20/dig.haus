@@ -9,11 +9,12 @@ export function getClient(): Anthropic {
 
 export const HAIKU = 'claude-haiku-4-5-20251001';
 export const SONNET = 'claude-sonnet-4-5';
-// Cheap, older Haiku used for narrow mechanical tasks (Korean phonetic
-// transliteration). ~4× cheaper than HAIKU 4.5 ($0.25/$1.25 per 1M vs
-// $1/$5). Quality is lower, but the result is permanently cached per
-// album so any one-off awkward output is a one-time hit.
-export const HAIKU_LITE = 'claude-3-haiku-20240307';
+// Was an alias to claude-3-haiku-20240307 (~4× cheaper) for one-shot
+// transliteration, but Haiku 3 silently flunked basic Korean phonetic
+// work — band names came back blank or wrong, and the cached miss
+// meant the bad output stuck per album. Reverted to Haiku 4.5; the
+// extra cost on a permanently-cached, once-per-album call is fine.
+export const HAIKU_LITE = HAIKU;
 
 /**
  * Generate Korean pronunciation + meaning for artist/album.

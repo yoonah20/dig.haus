@@ -57,6 +57,21 @@ export default function TopNav() {
             >
               dig.haus
             </Link>
+            {/* Tagline reads alongside the wordmark on desktop. Hidden
+                below md (mobile) because it overflows next to the logo
+                + nav controls in the narrow viewport. */}
+            <span
+              className="hidden md:inline whitespace-nowrap text-[13px] truncate"
+              style={{
+                fontFamily: "'Syne', 'Inter', sans-serif",
+                fontWeight: 600,
+                letterSpacing: '-0.01em',
+                color: '#d4c090',
+                opacity: 0.9,
+              }}
+            >
+              dig by cover, find by feel
+            </span>
           </div>
           <div className="flex items-center gap-3">
             {isAdmin && (

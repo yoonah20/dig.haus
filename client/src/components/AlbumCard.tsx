@@ -245,7 +245,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               <div style={{ padding: '18px 14px 0' }}>
                 <h3
                   className="text-white line-clamp-2"
-                  style={{ fontSize: '17px', fontWeight: 700, lineHeight: 1.25 }}
+                  style={{ fontSize: '16px', fontWeight: 700, lineHeight: 1.2 }}
                 >
                   {album.title}
                 </h3>
