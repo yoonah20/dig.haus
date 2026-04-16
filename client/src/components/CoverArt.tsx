@@ -5,6 +5,10 @@ interface CoverArtProps {
   fallbacks?: string[];
   alt: string;
   className?: string;
+  // Fires once the underlying <img> has decoded — gives the parent the
+  // intrinsic pixel dimensions (used by admin UI to surface the resolution
+  // of the currently-displayed cover).
+  onLoad?: (size: { naturalWidth: number; naturalHeight: number }) => void;
 }
 
 function getInitials(text: string): string {
@@ -46,7 +50,7 @@ function proxify(url: string): string {
   }
 }
 
-export default function CoverArt({ src, fallbacks = [], alt, className = '' }: CoverArtProps) {
+export default function CoverArt({ src, fallbacks = [], alt, className = '', onLoad }: CoverArtProps) {
   const allSrcs = useMemo(
     () =>
       [src, ...fallbacks]
@@ -85,6 +89,11 @@ export default function CoverArt({ src, fallbacks = [], alt, className = '' }: C
       loading="lazy"
       decoding="async"
       className={className}
+      onLoad={(e) => {
+        if (!onLoad) return;
+        const img = e.currentTarget;
+        onLoad({ naturalWidth: img.naturalWidth, naturalHeight: img.naturalHeight });
+      }}
       onError={() => {
         const next = srcIdx + 1;
         if (next < allSrcs.length) {

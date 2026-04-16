@@ -276,6 +276,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [editingCover, setEditingCover] = useState(false);
   const [coverInput, setCoverInput] = useState('');
   const [updatingCover, setUpdatingCover] = useState(false);
+  const [coverSize, setCoverSize] = useState<{ w: number; h: number } | null>(null);
   const [refreshingReviews, setRefreshingReviews] = useState(false);
   const [editingKo, setEditingKo] = useState(false);
   const [savingKo, setSavingKo] = useState(false);
@@ -332,6 +333,13 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       setRefreshingDiscogs(false);
     }
   }, [albumId, queryClient, refreshingDiscogs]);
+
+  // Reset cached cover dimensions when the source URL changes, so the badge
+  // doesn't briefly display the previous image's resolution while the new
+  // one loads.
+  useEffect(() => {
+    setCoverSize(null);
+  }, [album.coverArtUrl]);
 
   useEffect(() => {
     if (!adminMenuOpen) return;
@@ -397,9 +405,11 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   }, [albumId, artistKoInput, titleKoInput, titleMeaningInput, queryClient]);
 
   const startEditCover = useCallback(() => {
-    setCoverInput(album.coverArtUrl || '');
+    // Field opens empty so the admin can paste a fresh URL straight away —
+    // pre-filling the existing one just adds a Select-All step.
+    setCoverInput('');
     setEditingCover(true);
-  }, [album.coverArtUrl]);
+  }, []);
 
   const cancelEditCover = useCallback(() => {
     if (updatingCover) return;
@@ -636,29 +646,43 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             fallbacks={album.coverArtFallbacks}
             alt={album.title}
             className="w-full h-full object-cover transition-all duration-300 group-hover/cover:scale-[1.02] group-hover/cover:brightness-110"
+            onLoad={user?.isAdmin
+              ? ({ naturalWidth, naturalHeight }) =>
+                  setCoverSize({ w: naturalWidth, h: naturalHeight })
+              : undefined}
           />
           {user?.isAdmin && !editingCover && (
-            <button
-              onClick={startEditCover}
-              className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-[#e8a020]/40 text-[#e8a020] opacity-0 group-hover/cover:opacity-100 hover:bg-[#e8a020] hover:text-black transition-all cursor-pointer"
-              title="커버 이미지 URL 수정"
-              aria-label="커버 이미지 URL 수정"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 opacity-0 group-hover/cover:opacity-100 transition-opacity">
+              {coverSize && (
+                <span
+                  className="px-1.5 py-1 rounded-md bg-black/60 backdrop-blur-sm border border-white/10 text-[11px] tabular-nums text-gray-300"
+                  title="현재 이미지 해상도"
+                >
+                  {coverSize.w}×{coverSize.h}
+                </span>
+              )}
+              <button
+                onClick={startEditCover}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-[#e8a020]/40 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-all cursor-pointer"
+                title="커버 이미지 URL 수정"
+                aria-label="커버 이미지 URL 수정"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zM19.5 7.125L16.862 4.487"
-                />
-              </svg>
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zM19.5 7.125L16.862 4.487"
+                  />
+                </svg>
+              </button>
+            </div>
           )}
           {user?.isAdmin && editingCover && (
             <div className="absolute inset-0 z-20 bg-black/85 backdrop-blur-sm flex flex-col justify-center p-4 gap-2">
