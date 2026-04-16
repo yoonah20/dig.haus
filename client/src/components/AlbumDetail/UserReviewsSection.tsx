@@ -308,7 +308,7 @@ function Editor({
   );
 
   return (
-    <div className="bg-[#1d140a] border border-[#e8a020]/40 rounded-2xl pt-2 px-3 pb-3 h-[180px] flex flex-col gap-1.5">
+    <div className="bg-[#1d140a] border border-[#e8a020]/40 rounded-2xl pt-1.5 px-3 pb-3 h-[180px] flex flex-col gap-1">
       {/* Header: summary on left, progress on right. No min-height — when
           no pills are present the row collapses to the progress-dot height
           so the prompt sits close to the card's top edge. */}
@@ -324,42 +324,50 @@ function Editor({
       <div key={step} className="animate-[fadeInUp_200ms_ease-out] flex-1 flex flex-col gap-2">
         {step === 'rating' && (
           <>
-            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
-              “이 앨범 어땠어요?”
+            {/* Prompt + rating buttons live together inside a flex-1
+                wrapper so they can centre-justify vertically. Without
+                this, the content sat at the top of the step-content
+                area with a big gap above the cancel button. Cancel
+                stays as a sibling at the bottom, no mt-auto needed —
+                the wrapper's flex-1 eats the remaining space. */}
+            <div className="flex-1 flex flex-col justify-center gap-2">
+              <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
+                “이 앨범 어땠어요?”
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {RATING_ORDER.map((r) => {
+                  const selected = rating === r;
+                  const selectedStyle =
+                    r === 'up'
+                      ? 'bg-[#e8a020]/20 border-[#e8a020]/60 text-[#e8a020]'
+                      : r === 'down'
+                        ? 'bg-white/10 border-white/30 text-white'
+                        : 'bg-white/10 border-white/25 text-gray-100';
+                  const { emoji: rEmoji, label } = RATING_META[r];
+                  return (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => selectRating(r)}
+                      disabled={saving}
+                      aria-pressed={selected}
+                      aria-label={label}
+                      className={`h-14 w-full flex flex-col items-center justify-center gap-0.5 rounded-xl text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border ${
+                        selected
+                          ? selectedStyle
+                          : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
+                      }`}
+                    >
+                      <span className="text-xl leading-none" aria-hidden>
+                        {rEmoji}
+                      </span>
+                      <span>{label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
-              {RATING_ORDER.map((r) => {
-                const selected = rating === r;
-                const selectedStyle =
-                  r === 'up'
-                    ? 'bg-[#e8a020]/20 border-[#e8a020]/60 text-[#e8a020]'
-                    : r === 'down'
-                      ? 'bg-white/10 border-white/30 text-white'
-                      : 'bg-white/10 border-white/25 text-gray-100';
-                const { emoji: rEmoji, label } = RATING_META[r];
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => selectRating(r)}
-                    disabled={saving}
-                    aria-pressed={selected}
-                    aria-label={label}
-                    className={`h-14 w-full flex flex-col items-center justify-center gap-0.5 rounded-xl text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border ${
-                      selected
-                        ? selectedStyle
-                        : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
-                    }`}
-                  >
-                    <span className="text-xl leading-none" aria-hidden>
-                      {rEmoji}
-                    </span>
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex justify-end mt-auto">{cancelButton}</div>
+            <div className="flex justify-end">{cancelButton}</div>
           </>
         )}
 
@@ -434,7 +442,13 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={e}
-                    className={`h-8 md:h-9 w-full rounded-lg flex items-center justify-center text-base md:text-lg leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    // Emoji sized to nearly fill the button: text-2xl
+                    // on mobile (24px in 32px button) and text-3xl on
+                    // desktop (30px in 36px button). Smaller sizes
+                    // left a lot of dead space inside each button; the
+                    // grid now reads as "emoji palette" rather than
+                    // "buttons with emojis inside".
+                    className={`h-8 md:h-9 w-full rounded-lg flex items-center justify-center text-2xl md:text-3xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
                         ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
                         : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-110'
