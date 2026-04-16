@@ -20,8 +20,8 @@ interface AlbumListResponse {
 }
 
 const SORT_OPTIONS = [
-  { value: 'release_date_desc', label: '발매 최신순' },
   { value: 'registered_desc', label: '등록 최신순' },
+  { value: 'release_date_desc', label: '발매 최신순' },
   { value: 'artist_az', label: '아티스트 A-Z' },
   { value: 'score_desc', label: '리뷰 평점순' },
   { value: 'price_asc', label: '가격 낮은순' },
@@ -30,7 +30,7 @@ const SORT_OPTIONS = [
 ] as const;
 
 type SortValue = (typeof SORT_OPTIONS)[number]['value'];
-const DEFAULT_SORT: SortValue = 'release_date_desc';
+const DEFAULT_SORT: SortValue = 'registered_desc';
 const SORT_STORAGE_KEY = 'home:sort';
 
 // Mobile/desktop split: desktop sticks with classic numbered pagination
