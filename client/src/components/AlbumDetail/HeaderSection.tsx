@@ -277,6 +277,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [coverInput, setCoverInput] = useState('');
   const [updatingCover, setUpdatingCover] = useState(false);
   const [coverSize, setCoverSize] = useState<{ w: number; h: number } | null>(null);
+  const [coverQueryCopied, setCoverQueryCopied] = useState(false);
   const [refreshingReviews, setRefreshingReviews] = useState(false);
   const [editingKo, setEditingKo] = useState(false);
   const [savingKo, setSavingKo] = useState(false);
@@ -681,6 +682,53 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                     d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zM19.5 7.125L16.862 4.487"
                   />
                 </svg>
+              </button>
+              <button
+                onClick={async () => {
+                  const query = `${album.title} ${album.artist} cover`;
+                  try {
+                    await navigator.clipboard.writeText(query);
+                    setCoverQueryCopied(true);
+                    setTimeout(() => setCoverQueryCopied(false), 1500);
+                  } catch {}
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-[#e8a020]/40 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-all cursor-pointer"
+                title={coverQueryCopied ? '복사됨' : `"${album.title} ${album.artist} cover" 복사 (Google 검색용)`}
+                aria-label="구글 검색용 텍스트 복사"
+              >
+                {coverQueryCopied ? (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2.5}
+                    stroke="currentColor"
+                  >
+                    <polyline
+                      points="20 6 9 17 4 12"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      fill="none"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={2}
+                    stroke="currentColor"
+                  >
+                    <rect x="8" y="8" width="14" height="14" rx="2" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"
+                    />
+                  </svg>
+                )}
               </button>
             </div>
           )}
