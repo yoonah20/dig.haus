@@ -211,7 +211,7 @@ export default function CommentTicker() {
     // pagination nav. aria-label keeps it announced for SR users.
     // pt-8 to visually separate from the pagination; pb-2 keeps the
     // emoji overhang from touching the next section.
-    <section className="comment-ticker relative pt-8 pb-2" aria-label="최근 50자 평">
+    <section className="comment-ticker relative pt-12 pb-2" aria-label="최근 50자 평">
       {/* Outer wrapper owns the fade masks so content slides in/out of
           the gutters gracefully instead of appearing/vanishing at a hard
           edge. Padding top leaves room for emoji badges that overlap

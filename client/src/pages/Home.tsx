@@ -299,7 +299,7 @@ export default function Home() {
   const items = paginationItems(page, totalPages);
 
   return (
-    <div className="flex-1 flex flex-col px-4 pt-8">
+    <div className="flex-1 flex flex-col px-4 pt-12">
       <section className="w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto">
         {/* Top bar (count / page info / sort) was removed — sort lives
             in TopNav as an icon, count moved into the footer below.
