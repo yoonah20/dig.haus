@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   SORT_OPTIONS,
   DEFAULT_SORT,
+  SORT_STORAGE_KEY,
   type SortValue,
   isSortValue,
 } from '../../lib/homeSort';
@@ -41,6 +42,20 @@ export default function SortMenu() {
   })();
 
   const handleChange = (v: SortValue) => {
+    // Sync localStorage up-front. Home.tsx has a mirror effect that
+    // writes localStorage from `sort`, but the rehydrate effect (on
+    // mount) reads localStorage too — and after React Router navigation
+    // back to `/`, if localStorage still says 'release_date_desc' while
+    // the user just reverted to the default, rehydrate can push the
+    // stale value back into the URL and make it look like "default
+    // sort doesn't stick". Writing synchronously here closes that
+    // window.
+    try {
+      if (v === DEFAULT_SORT) localStorage.removeItem(SORT_STORAGE_KEY);
+      else localStorage.setItem(SORT_STORAGE_KEY, v);
+    } catch {
+      // storage blocked in private mode etc. — mirror effect still tries.
+    }
     const next = new URLSearchParams(searchParams);
     if (v === DEFAULT_SORT) next.delete('sort');
     else next.set('sort', v);

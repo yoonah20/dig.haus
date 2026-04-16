@@ -357,7 +357,7 @@ export default function Home() {
         {total > 0 && (
           <>
             {' · '}
-            총 {total.toLocaleString()}개 앨범
+            총 {total.toLocaleString()}개 앨범 취급 중
           </>
         )}
         {' · '}

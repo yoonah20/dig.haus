@@ -68,9 +68,16 @@ function Avatar({
   );
 }
 
+// Any CJK char (Hangul / Kana / Han) in the display name — used to pick
+// a narrower max-width for CJK names (since each glyph is ~em-wide)
+// and a looser one for Latin names (much narrower per-glyph, so 8–10
+// chars still fit on one line without forcing weird 4-char wraps).
+const CJK_RE = /[\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]/;
+
 function TickerItem({ item }: { item: UserReviewFeedItem }) {
   const isAnon = item.userId == null;
   const displayName = isAnon ? '탈퇴한 사용자' : item.userName || '익명';
+  const isCjk = CJK_RE.test(displayName);
   const themeKey = item.rating ?? 'none';
   const theme = BUBBLE_THEME[themeKey];
   const ratingEmoji = item.rating ? RATING_EMOJI[item.rating] : null;
@@ -108,18 +115,20 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
       <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[56px]">
         <Avatar src={item.userAvatar} name={item.userName} size={52} />
         <span
-          // max-w-[44px] (not w-full) is the key: the avatar column is
-          // 56px but Korean glyphs in Pretendard at text-[11px] render
-          // ~11px wide, so 56px physically fits 5 chars per line and
-          // break-all happily packs '파이어리핑' before wrapping. Clamping
-          // the *span* (not the column) to 44px leaves at most 4 chars
-          // per line, giving the clean 4/4 split (파이어리/핑크페퍼) the
-          // user expects. The 4px slack on each side of a 40px name
-          // stays inside the 56px column so the avatar + tail still
-          // centre correctly.
-          className={`text-[11px] text-center leading-tight line-clamp-2 break-all max-w-[44px] ${
-            isAnon ? 'italic text-gray-600' : 'text-gray-400'
-          }`}
+          // max-width is conditional: CJK glyphs are ~em-wide, so
+          // 44px caps each line at ~4 chars (파이어리/핑크페퍼). Latin
+          // glyphs at the same font size are ~half that, so 64px still
+          // fits 8–10 letters on a single line (keeps 'dethrock' intact
+          // instead of chopping the trailing 'k' to a new line).
+          // break-all on both so long CJK wraps at glyph boundaries and
+          // long Latin wraps mid-word rather than pushing into the
+          // bubble. The span happily overflows the 56px column by a
+          // few pixels — the overlap lands in the gutter between
+          // column and bubble (below the tail's vertical band) so
+          // nothing is hit.
+          className={`text-[11px] text-center leading-tight line-clamp-2 break-all ${
+            isCjk ? 'max-w-[44px]' : 'max-w-[64px]'
+          } ${isAnon ? 'italic text-gray-600' : 'text-gray-400'}`}
         >
           {displayName}
         </span>
@@ -138,7 +147,11 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
             visual language. */}
         {hasBadges && (
           <div
-            className="absolute -top-3 right-3 z-10 flex items-center gap-1 pointer-events-none select-none"
+            // right-1 pulls the second badge almost flush with the
+            // card's top-right corner — the "peeking over the edge"
+            // look the user wanted vs. right-3 which sat well inside
+            // the padding.
+            className="absolute -top-3 right-1 z-10 flex items-center gap-1 pointer-events-none select-none"
             aria-hidden
           >
             {ratingEmoji && (

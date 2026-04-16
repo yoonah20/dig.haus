@@ -103,9 +103,12 @@ function SpeechBubble({
         </div>
       )}
 
-      <div className="bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 h-full flex flex-col min-w-0">
-        {/* body — expands to fill the card so the footer stays pinned */}
-        <p className="text-gray-100 text-[15px] leading-relaxed break-words flex-1">
+      <div className="bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 h-[180px] flex flex-col min-w-0">
+        {/* body — expands to fill the card so the footer stays pinned.
+            line-clamp-4 keeps overly long bodies from overflowing the
+            fixed 180px; in practice 50자 평 is 2–3 lines so this is
+            only a safety net. */}
+        <p className="text-gray-100 text-[15px] leading-relaxed break-words flex-1 line-clamp-4">
           {review.body}
         </p>
 
@@ -167,7 +170,7 @@ function AddReviewCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/30 hover:bg-[#1d140a]/70 border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/80 rounded-2xl p-4 h-full min-h-[140px] transition-all cursor-pointer"
+      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/30 hover:bg-[#1d140a]/70 border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/80 rounded-2xl p-4 h-[180px] transition-all cursor-pointer w-full"
     >
       <span className="text-3xl group-hover:scale-110 transition-transform" aria-hidden>✍️</span>
       <span className="text-sm font-medium text-[#e8a020] group-hover:text-[#f0b040]">
@@ -182,7 +185,7 @@ function LoginPromptCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/20 hover:bg-[#1d140a]/50 border border-dashed border-white/15 hover:border-[#e8a020]/40 rounded-2xl p-4 h-full min-h-[140px] transition-all cursor-pointer text-center"
+      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/20 hover:bg-[#1d140a]/50 border border-dashed border-white/15 hover:border-[#e8a020]/40 rounded-2xl p-4 h-[180px] transition-all cursor-pointer text-center w-full"
     >
       <span
         className="text-2xl opacity-70 group-hover:opacity-100 transition-opacity"
@@ -305,7 +308,7 @@ function Editor({
   );
 
   return (
-    <div className="bg-[#1d140a] border border-[#e8a020]/40 rounded-2xl pt-2 px-3 pb-3 h-full flex flex-col gap-1.5 min-h-[180px]">
+    <div className="bg-[#1d140a] border border-[#e8a020]/40 rounded-2xl pt-2 px-3 pb-3 h-[180px] flex flex-col gap-1.5">
       {/* Header: summary on left, progress on right. No min-height — when
           no pills are present the row collapses to the progress-dot height
           so the prompt sits close to the card's top edge. */}
@@ -342,13 +345,13 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={label}
-                    className={`h-16 md:h-20 w-full flex flex-col items-center justify-center gap-0.5 rounded-xl text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border ${
+                    className={`h-14 w-full flex flex-col items-center justify-center gap-0.5 rounded-xl text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border ${
                       selected
                         ? selectedStyle
                         : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
                     }`}
                   >
-                    <span className="text-xl md:text-2xl leading-none" aria-hidden>
+                    <span className="text-xl leading-none" aria-hidden>
                       {rEmoji}
                     </span>
                     <span>{label}</span>
@@ -420,7 +423,7 @@ function Editor({
             <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
               “들었을 때 기분!”
             </div>
-            <div className="grid grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-6 gap-1.5">
               {EMOJI_PALETTE.map((e) => {
                 const selected = emoji === e;
                 return (

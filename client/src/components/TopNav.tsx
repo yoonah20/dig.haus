@@ -93,7 +93,6 @@ export default function TopNav() {
                 </svg>
               </button>
             )}
-            {isHome && <SortMenu />}
             <button
               onClick={() => (searchOpen ? closeOverlay() : openOverlay())}
               className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
@@ -115,6 +114,10 @@ export default function TopNav() {
                 />
               </svg>
             </button>
+            {/* Sort sits next to search so the whole "find" cluster
+                (add? → search → sort) reads as one group with login
+                anchored at the right edge. */}
+            {isHome && <SortMenu />}
             <LoginButton />
           </div>
         </div>
