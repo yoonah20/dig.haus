@@ -65,6 +65,53 @@ function migrateToCascade(
 }
 
 /**
+ * Recreate `tableName` so its FK to `users` uses `ON DELETE SET NULL` on
+ * `userIdColumn`, allowing the column to become NULL when a user is deleted.
+ * Idempotent: skips when the table already has the clause. Preserves rows.
+ *
+ * Used to preserve a user's contributions (reviews, votes) after they
+ * delete their account — the account row goes away, the content stays,
+ * and the user_id is anonymised to NULL.
+ */
+function migrateUserFkToSetNull(
+  db: Database.Database,
+  tableName: string,
+  userIdColumn: string,
+  newCreateSql: string,
+  copyColumns: string[]
+): void {
+  const row = db
+    .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name=?`)
+    .get(tableName) as { sql?: string } | undefined;
+  if (!row?.sql) return; // table doesn't exist yet — initial CREATE is already correct
+
+  // Already migrated? Check for ON DELETE SET NULL on a FK to users.
+  // The pattern is loose enough to tolerate the column/targets being on
+  // either side of the REFERENCES clause.
+  const setNullRegex =
+    /REFERENCES\s+users\s*\([^)]+\)\s+ON\s+DELETE\s+SET\s+NULL/i;
+  if (setNullRegex.test(row.sql)) return;
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    db.exec('BEGIN');
+    db.exec(`ALTER TABLE ${tableName} RENAME TO ${tableName}__legacy`);
+    db.exec(newCreateSql);
+    const cols = copyColumns.join(', ');
+    db.exec(`INSERT INTO ${tableName} (${cols}) SELECT ${cols} FROM ${tableName}__legacy`);
+    db.exec(`DROP TABLE ${tableName}__legacy`);
+    db.exec('COMMIT');
+    console.log(
+      `[migration] ${tableName}: recreated with ${userIdColumn} nullable + ON DELETE SET NULL`
+    );
+  } catch (err: any) {
+    db.exec('ROLLBACK');
+    console.error(`[migration] ${tableName} SET NULL recreate failed:`, err.message);
+    throw err;
+  }
+}
+
+/**
  * Backfill a `-YYYY` year suffix onto any album slug that doesn't already have
  * one. Detects an existing year suffix permissively (ends in `-YYYY` or
  * `-YYYY-N`) so we don't double-append. Handles collisions by appending an
@@ -300,7 +347,7 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS album_votes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id),
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
       vote TEXT NOT NULL CHECK(vote IN ('up','down')),
       created_at TEXT DEFAULT (datetime('now')),
@@ -333,7 +380,7 @@ export function initializeDatabase(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS user_reviews (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       body TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
@@ -438,6 +485,35 @@ export function initializeDatabase(db: Database.Database): void {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `, ['id', 'album_id', 'user_id', 'url', 'store_name', 'store_favicon_url', 'price', 'currency', 'note', 'created_at']);
+
+  // One-time FK migration: recreate user_reviews / album_votes so that
+  // deleting a user anonymises the row (user_id → NULL) instead of wiping
+  // the content away. The user's own profile disappears, but the 50자 평
+  // bodies and 굿굿/별루 votes they left stay attached to the album.
+  migrateUserFkToSetNull(db, 'user_reviews', 'user_id', `
+    CREATE TABLE user_reviews (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      body TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      emoji TEXT,
+      rating TEXT,
+      UNIQUE(album_id, user_id)
+    )
+  `, ['id', 'album_id', 'user_id', 'body', 'created_at', 'updated_at', 'emoji', 'rating']);
+
+  migrateUserFkToSetNull(db, 'album_votes', 'user_id', `
+    CREATE TABLE album_votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      vote TEXT NOT NULL CHECK(vote IN ('up','down')),
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, album_id)
+    )
+  `, ['id', 'user_id', 'album_id', 'vote', 'created_at']);
 
   migrateSlugsAppendYear(db);
 

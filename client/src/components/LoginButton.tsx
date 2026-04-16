@@ -43,14 +43,20 @@ export default function LoginButton() {
           입장하기
         </button>
         {consentOpen && (
+          // Outer layer owns the backdrop + vertical scroll. The inner flex
+          // row centers the modal, but falls back to top-aligned scrolling
+          // when the modal is taller than the viewport — otherwise the top
+          // of the modal drifts above the browser chrome and gets clipped
+          // on short screens (mobile with the address bar visible).
           <div
-            className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-sm overflow-y-auto overscroll-contain"
             onClick={() => setConsentOpen(false)}
           >
-            <div
-              className="bg-[#141414] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
+            <div className="min-h-full flex items-center justify-center p-4">
+              <div
+                className="bg-[#141414] border border-white/10 rounded-2xl w-full max-w-sm p-6 shadow-2xl my-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
               <h2 className="text-base font-semibold text-white mb-3">
                 로그인하기 전에
               </h2>
@@ -92,6 +98,7 @@ export default function LoginButton() {
                 >
                   동의하고 계속
                 </button>
+              </div>
               </div>
             </div>
           </div>

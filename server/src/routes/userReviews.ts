@@ -69,7 +69,9 @@ interface Row {
   emoji: string | null;
   rating: 'up' | 'down' | 'soso' | null;
   created_at: string;
-  user_id: number;
+  // NULL when the review author has deleted their account — the body is
+  // preserved but the user reference is anonymised.
+  user_id: number | null;
   user_name: string | null;
   user_avatar: string | null;
 }
@@ -198,9 +200,11 @@ router.delete('/user-reviews/:id', requireAuth, (req, res) => {
   const existing = queryGet(
     `SELECT user_id, album_id FROM user_reviews WHERE id = ?`,
     [reviewId]
-  ) as { user_id: number; album_id: number } | null;
+  ) as { user_id: number | null; album_id: number } | null;
 
   if (!existing) return res.status(404).json({ error: 'Review not found' });
+  // A NULL user_id means the author has deleted their account — only an
+  // admin can remove anonymised reviews after the fact.
   if (existing.user_id !== user.id && !user.is_admin) {
     return res.status(403).json({ error: 'Forbidden' });
   }

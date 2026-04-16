@@ -113,11 +113,24 @@ function SpeechBubble({
             avatar (the previous absolute-positioned overlay disappeared
             when the avatar grew). */}
         <div className="flex items-center gap-2.5 min-w-0 mt-3 pt-2.5 border-t border-white/5">
-          <UserHoverCard userId={review.userId}>
-            <Avatar src={review.userAvatar} name={review.userName} size={36} />
-          </UserHoverCard>
-          <span className="text-sm text-gray-300 truncate flex-1">
-            {review.userName || '익명'}
+          {/* userId is null when the author has deleted their account —
+              the review body stays but the profile is gone, so skip the
+              hover card and show an anonymised label. */}
+          {review.userId != null ? (
+            <UserHoverCard userId={review.userId}>
+              <Avatar src={review.userAvatar} name={review.userName} size={36} />
+            </UserHoverCard>
+          ) : (
+            <Avatar src={null} name={null} size={36} />
+          )}
+          <span
+            className={`text-sm truncate flex-1 ${
+              review.userId == null ? 'text-gray-500 italic' : 'text-gray-300'
+            }`}
+          >
+            {review.userId == null
+              ? '탈퇴한 사용자'
+              : review.userName || '익명'}
           </span>
           {(canOwnerEdit || canAdminDelete) && (
             <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">

@@ -226,8 +226,8 @@ export default function Profile() {
   const handleDeleteAccount = async () => {
     const first = confirm(
       '정말로 계정을 탈퇴할까요?\n\n' +
-        '· 내가 남긴 50자 평, 굿굿/별루, 위시리스트, 컬렉션이 모두 삭제됩니다.\n' +
-        '· 내가 등록한 구매처 링크는 익명 처리되어 남습니다.\n' +
+        '· 내 위시리스트와 컬렉션은 삭제됩니다.\n' +
+        '· 내가 남긴 50자 평과 굿굿/별루 투표, 구매처 링크는 "탈퇴한 사용자"로 익명 처리되어 남습니다.\n' +
         '· 되돌릴 수 없습니다.'
     );
     if (!first) return;

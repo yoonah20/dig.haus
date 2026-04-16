@@ -231,13 +231,17 @@ router.get('/me/upvotes', requireAuth, (req, res) => {
 
 // ─── DELETE /api/me — hard-delete account ─────────────────────────────────
 //
-// Removes the user plus everything they own:
-//   user_reviews  → cascades via ON DELETE CASCADE
-//   album_votes, wishlists, collections, wants, dig_journal_posts → deleted
+// Removes the user account but preserves their public contributions:
+//   user_reviews.user_id → NULL (ON DELETE SET NULL) — 50자 평 stays
+//   album_votes.user_id  → NULL (ON DELETE SET NULL) — 굿굿/별루 stays
 //   purchase_links.user_id, album_dna.added_by_user_id → NULLed
-//     (these are album-level content the user contributed; keep the rows
-//     so the album page doesn't lose data when one admin leaves)
-// Also removes the uploaded avatar file from disk if any.
+//     (album-level content contributed by the user)
+//
+//   wishlists, collections, wants, dig_journal_posts → deleted
+//     (these are private library items, not public contributions)
+//
+// The anonymised rows surface as "탈퇴한 사용자" on the client. Also
+// removes the uploaded avatar file from disk if any.
 
 router.delete('/me', requireAuth, (req, res) => {
   const me = req.user as AppUser;
@@ -251,14 +255,16 @@ router.delete('/me', requireAuth, (req, res) => {
 
   try {
     transaction(() => {
-      execute(`DELETE FROM album_votes WHERE user_id = ?`, [me.id]);
+      // Private library items — not public, safe to remove.
       execute(`DELETE FROM wishlists WHERE user_id = ?`, [me.id]);
       execute(`DELETE FROM collections WHERE user_id = ?`, [me.id]);
       execute(`DELETE FROM wants WHERE user_id = ?`, [me.id]);
       execute(`DELETE FROM dig_journal_posts WHERE user_id = ?`, [me.id]);
+      // Public album-level content contributed by the user — anonymise.
       execute(`UPDATE purchase_links SET user_id = NULL WHERE user_id = ?`, [me.id]);
       execute(`UPDATE album_dna SET added_by_user_id = NULL WHERE added_by_user_id = ?`, [me.id]);
-      // user_reviews cascades automatically via ON DELETE CASCADE.
+      // user_reviews / album_votes are anonymised automatically via
+      // ON DELETE SET NULL when we drop the users row below.
       execute(`DELETE FROM users WHERE id = ?`, [me.id]);
     });
   } catch (err) {

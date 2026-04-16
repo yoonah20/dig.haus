@@ -6,7 +6,9 @@ export interface UserReview {
   body: string;
   emoji: string | null;
   rating: 'up' | 'down' | 'soso' | null;
-  userId: number;
+  // userId is null when the review's author has deleted their account —
+  // the row is preserved (via ON DELETE SET NULL) but anonymised.
+  userId: number | null;
   userName: string | null;
   userAvatar: string | null;
 }
