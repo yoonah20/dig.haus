@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { SearchOverlayProvider } from './contexts/SearchOverlayContext';
 import { HomeStateProvider } from './contexts/HomeStateContext';
 import TopNav from './components/TopNav';
+import SiteFooter from './components/SiteFooter';
 
 const Home = lazy(() => import('./pages/Home'));
 const Album = lazy(() => import('./pages/Album'));
@@ -72,6 +73,7 @@ export default function App() {
                 <Route path="/profile" element={<Profile />} />
               </Routes>
             </Suspense>
+            <SiteFooter />
           </div>
         </HomeStateProvider>
       </SearchOverlayProvider>

@@ -17,9 +17,6 @@ import { type SortValue } from '../lib/homeSort';
 interface AlbumListResponse {
   albums: AlbumSearchResult[];
   total: number;
-  // Site-level member count; shipped alongside the album list so the
-  // footer can render "N명이 땅 파는 중" without a separate round-trip.
-  totalUsers: number;
   page: number;
   pageSize: number;
   totalPages: number;
@@ -154,8 +151,6 @@ export default function Home() {
   const firstPage = isMobile
     ? mobileQuery.data?.pages[0]
     : desktopQuery.data;
-  const total = firstPage?.total ?? 0;
-  const totalUsers = firstPage?.totalUsers ?? 0;
   const totalPages = firstPage?.totalPages ?? 1;
   const isLoading = isMobile
     ? mobileQuery.isLoading
@@ -297,26 +292,6 @@ export default function Home() {
           </nav>
         )}
       </section>
-
-      <footer className="w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto mt-auto pt-8 pb-4 text-center text-gray-600 text-xs">
-        dig.haus &copy; 2026
-        {totalUsers > 0 && (
-          <>
-            {' · '}
-            {totalUsers.toLocaleString()}명이 땅 파는 중
-          </>
-        )}
-        {total > 0 && (
-          <>
-            {' · '}
-            앨범 {total.toLocaleString()}개 묻혀 있음
-          </>
-        )}
-        {' · '}
-        <a href="/privacy.html" className="hover:text-amber-500">개인정보처리방침</a>
-        {' · '}
-        <a href="/terms.html" className="hover:text-amber-500">서비스 약관</a>
-      </footer>
     </div>
   );
 }

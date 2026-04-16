@@ -82,7 +82,7 @@ interface AdminStats {
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
   return (
     <div className={`bg-[#1a1a1a] rounded-xl p-5 border ${accent ? 'border-[#e8a020]/40' : 'border-white/5'}`}>
-      <div className="text-xs uppercase tracking-wider text-gray-500 mb-2">{label}</div>
+      <div className="text-sm uppercase tracking-wider text-gray-500 mb-2">{label}</div>
       <div className={`text-3xl font-bold tabular-nums ${accent ? 'text-[#e8a020]' : 'text-white'}`}>
         {value}
       </div>
@@ -105,14 +105,14 @@ function Panel({
 }) {
   return (
     <div className="bg-[#1a1a1a] rounded-xl border border-white/5 overflow-hidden">
-      <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
-        {icon && <span aria-hidden>{icon}</span>}
-        <h3 className="text-sm font-semibold text-white">{title}</h3>
+      <div className="px-4 py-3.5 border-b border-white/5 flex items-center gap-2">
+        {icon && <span aria-hidden className="text-base">{icon}</span>}
+        <h3 className="text-base font-semibold text-white">{title}</h3>
         {typeof count === 'number' && count > 0 && (
-          <span className="ml-auto text-xs text-gray-500 tabular-nums">{count}</span>
+          <span className="ml-auto text-sm text-gray-500 tabular-nums">{count}</span>
         )}
       </div>
-      <div className="divide-y divide-white/5 max-h-[480px] overflow-y-auto">
+      <div className="divide-y divide-white/5 max-h-[520px] overflow-y-auto">
         {children}
       </div>
     </div>
@@ -120,7 +120,7 @@ function Panel({
 }
 
 function EmptyRow({ children }: { children: ReactNode }) {
-  return <div className="p-4 text-xs text-gray-500">{children}</div>;
+  return <div className="p-4 text-sm text-gray-500">{children}</div>;
 }
 
 // Compact pending-request row for the admin dashboard. Replaces the
@@ -179,12 +179,12 @@ function RequestRow({ request }: { request: AlbumRequest }) {
         ) : null}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-white font-medium truncate">{request.title}</p>
-        <p className="text-xs text-gray-400 truncate">
+        <p className="text-base text-white font-medium truncate">{request.title}</p>
+        <p className="text-sm text-gray-400 truncate">
           {request.artist}
           {request.year && ` · ${request.year}`}
         </p>
-        <p className="text-[11px] text-gray-500 truncate mt-0.5">
+        <p className="text-xs text-gray-500 truncate mt-0.5">
           {firstRequester?.userName || '익명'}
           {request.requestCount > 1 && ` 외 ${request.requestCount - 1}명`}
           {firstNote && <> · “{firstNote}”</>}
@@ -194,14 +194,14 @@ function RequestRow({ request }: { request: AlbumRequest }) {
         <button
           onClick={handleApprove}
           disabled={busy}
-          className="text-[11px] font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-2 py-1 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          className="text-xs font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           {approve.isPending ? '…' : '등록'}
         </button>
         <button
           onClick={handleDiscard}
           disabled={busy}
-          className="text-[11px] text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-2 py-1 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          className="text-xs text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           {discard.isPending ? '…' : '무시'}
         </button>
@@ -327,24 +327,24 @@ export default function Admin() {
                           src={resolveApiUrl(u.avatarUrl) ?? undefined}
                           alt=""
                           aria-hidden
-                          className="w-8 h-8 rounded-full shrink-0"
+                          className="w-10 h-10 rounded-full shrink-0"
                           referrerPolicy="no-referrer"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-xs font-bold shrink-0">
+                        <div className="w-10 h-10 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-sm font-bold shrink-0">
                           {(u.name || u.email)[0]?.toUpperCase()}
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm text-white font-medium truncate">
+                        <div className="text-base text-white font-medium truncate">
                           {u.name || u.email}
                           {u.isAdmin && (
-                            <span className="ml-1.5 text-[9px] bg-[#e8a020]/20 text-[#e8a020] px-1.5 py-0.5 rounded-full">
+                            <span className="ml-1.5 text-[10px] bg-[#e8a020]/20 text-[#e8a020] px-1.5 py-0.5 rounded-full">
                               ADMIN
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-gray-500 truncate">
+                        <div className="text-xs text-gray-500 truncate">
                           {u.email} · {new Date(u.createdAt).toLocaleDateString()}
                         </div>
                       </div>
@@ -371,28 +371,28 @@ export default function Admin() {
                             ? { emoji: '🤷', label: '쏘쏘', accent: false }
                             : null;
                     return (
-                      <div key={r.id} className="p-3 flex items-start gap-2.5">
+                      <div key={r.id} className="p-3 flex items-start gap-3">
                         {r.userAvatar ? (
                           <img
                             src={resolveApiUrl(r.userAvatar) ?? undefined}
                             alt=""
                             aria-hidden
-                            className="w-8 h-8 rounded-full flex-shrink-0"
+                            className="w-10 h-10 rounded-full flex-shrink-0"
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <div className="w-8 h-8 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-xs font-bold flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-sm font-bold flex-shrink-0">
                             {(r.userName || r.userEmail || '?')[0]?.toUpperCase()}
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
-                            <span className="text-xs text-white font-medium truncate">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <span className="text-sm text-white font-medium truncate">
                               {r.userName || r.userEmail || '익명'}
                             </span>
                             {ratingMeta && (
                               <span
-                                className={`inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full border ${
+                                className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border ${
                                   ratingMeta.accent
                                     ? 'bg-[#e8a020]/15 text-[#e8a020] border-[#e8a020]/30'
                                     : 'bg-white/5 text-gray-300 border-white/10'
@@ -403,7 +403,7 @@ export default function Admin() {
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-gray-100 leading-relaxed break-words line-clamp-2">
+                          <div className="text-sm text-gray-100 leading-relaxed break-words line-clamp-2">
                             {r.emoji && (
                               <span className="mr-1" aria-hidden>
                                 {r.emoji}
@@ -414,7 +414,7 @@ export default function Admin() {
                           {r.albumSlug && (
                             <Link
                               to={`/album/${r.albumSlug}`}
-                              className="mt-1 inline-block text-[10px] text-gray-500 hover:text-[#e8a020] truncate"
+                              className="mt-1 inline-block text-xs text-gray-500 hover:text-[#e8a020] truncate"
                             >
                               {r.albumArtist ? `${r.albumArtist} — ` : ''}
                               {r.albumTitle || r.albumSlug}
@@ -460,22 +460,22 @@ export default function Admin() {
                         src={a.coverArtUrl}
                         fallbacks={a.coverArtFallbacks}
                         alt={a.title}
-                        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                        className="w-12 h-12 rounded-md object-cover flex-shrink-0"
                       />
                       <div className="flex-1 min-w-0">
                         <Link
                           to={`/album/${a.mbid}`}
-                          className="text-sm text-white font-medium hover:text-[#e8a020] truncate block"
+                          className="text-base text-white font-medium hover:text-[#e8a020] truncate block"
                         >
                           {a.title}
                         </Link>
-                        <div className="text-[11px] text-gray-500 truncate">
+                        <div className="text-xs text-gray-500 truncate">
                           {a.artist} · {new Date(a.createdAt).toLocaleDateString()}
                         </div>
                       </div>
                       <button
                         onClick={() => handleDelete(a.mbid)}
-                        className="text-[11px] text-red-700 hover:text-red-400 cursor-pointer px-2 py-1 shrink-0"
+                        className="text-xs text-red-700 hover:text-red-400 cursor-pointer px-2 py-1 shrink-0"
                       >
                         삭제
                       </button>
@@ -496,7 +496,7 @@ export default function Admin() {
                     {/* Summary row — big numbers */}
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <div className="text-[10px] uppercase tracking-wider text-gray-500">
+                        <div className="text-xs uppercase tracking-wider text-gray-500">
                           예상 비용
                         </div>
                         <div className="text-xl font-bold text-[#e8a020] tabular-nums">
@@ -504,7 +504,7 @@ export default function Admin() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-wider text-gray-500">
+                        <div className="text-xs uppercase tracking-wider text-gray-500">
                           웹 검색
                         </div>
                         <div className="text-xl font-bold text-white tabular-nums">
@@ -512,18 +512,18 @@ export default function Admin() {
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-wider text-gray-500">
+                        <div className="text-xs uppercase tracking-wider text-gray-500">
                           입력 토큰
                         </div>
-                        <div className="text-sm text-gray-200 tabular-nums">
+                        <div className="text-base text-gray-200 tabular-nums">
                           {formatTokens(data.claudeUsage.last7d.inputTokens)}
                         </div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-wider text-gray-500">
+                        <div className="text-xs uppercase tracking-wider text-gray-500">
                           출력 토큰
                         </div>
-                        <div className="text-sm text-gray-200 tabular-nums">
+                        <div className="text-base text-gray-200 tabular-nums">
                           {formatTokens(data.claudeUsage.last7d.outputTokens)}
                         </div>
                       </div>
@@ -531,20 +531,20 @@ export default function Admin() {
 
                     {/* Per-operation breakdown */}
                     {data.claudeUsage.last7d.byOperation.length > 0 && (
-                      <div className="pt-3 border-t border-white/5 space-y-1.5">
+                      <div className="pt-3 border-t border-white/5 space-y-2">
                         {data.claudeUsage.last7d.byOperation.map((op) => (
                           <div
                             key={op.operation}
-                            className="flex items-center justify-between gap-3 text-xs"
+                            className="flex items-center justify-between gap-3 text-sm"
                           >
                             <span className="text-gray-300 truncate">
                               {OPERATION_LABEL(op.operation)}
                             </span>
-                            <span className="tabular-nums text-gray-500 shrink-0">
+                            <span className="tabular-nums text-gray-500 shrink-0 text-xs">
                               {formatTokens(op.tokens)}
                               {op.searches > 0 && ` · ${op.searches} 검색`}
                             </span>
-                            <span className="tabular-nums text-[#e8a020] shrink-0 w-14 text-right">
+                            <span className="tabular-nums text-[#e8a020] shrink-0 w-16 text-right">
                               ${op.usd.toFixed(2)}
                             </span>
                           </div>
@@ -586,32 +586,32 @@ function IncompleteSubsection({
 }) {
   if (bucket.count === 0) {
     return (
-      <div className="px-3 py-2.5 flex items-center justify-between text-xs">
+      <div className="px-4 py-3 flex items-center justify-between text-sm">
         <span className="text-gray-400">{label}</span>
-        <span className="text-emerald-400/80 text-[10px]">없음 ✓</span>
+        <span className="text-emerald-400/80 text-xs">없음 ✓</span>
       </div>
     );
   }
   return (
-    <div className="px-3 py-2.5">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-xs text-gray-300">{label}</span>
-        <span className="text-[10px] text-gray-500 tabular-nums">
+    <div className="px-4 py-3">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm text-gray-300">{label}</span>
+        <span className="text-xs text-gray-500 tabular-nums">
           {bucket.count}
         </span>
       </div>
-      <ul className="space-y-1">
+      <ul className="space-y-1.5">
         {bucket.samples.map((a) => (
           <li key={a.id}>
             <Link
               to={`/album/${a.mbid}`}
-              className="flex items-center gap-2 text-[11px] text-gray-400 hover:text-[#e8a020] truncate"
+              className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#e8a020] truncate"
             >
               <CoverArt
                 src={a.coverArtUrl}
                 fallbacks={a.coverArtFallbacks}
                 alt={a.title}
-                className="w-6 h-6 rounded object-cover flex-shrink-0"
+                className="w-7 h-7 rounded object-cover flex-shrink-0"
               />
               <span className="truncate">
                 <span className="text-gray-200">{a.title}</span>

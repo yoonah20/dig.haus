@@ -636,17 +636,9 @@ router.get('/', async (req, res) => {
       };
     });
 
-    // Member count is a cheap read and every /api/albums hit is already
-    // the homepage's primary query, so stashing it here saves adding a
-    // separate /stats round-trip for the footer's "N명이 땅 파는 중"
-    // line.
-    const totalUsers =
-      (queryGet(`SELECT COUNT(*) AS c FROM users`)?.c as number) || 0;
-
     res.json({
       albums: result,
       total,
-      totalUsers,
       page,
       pageSize,
       totalPages,

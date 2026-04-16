@@ -157,10 +157,9 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
 
         <div className="p-5">
           {isRequest && (
-            <p className="text-sm text-gray-300 mb-4 leading-relaxed">
+            <p className="text-base text-gray-300 mb-5 leading-relaxed">
               dig.haus 에 없는 앨범 등록 요청을 보낼 수 있어요. admin 이
-              검토한 뒤에 반영돼요. (리뷰/번역 등은 admin 승인 시점에
-              자동으로 수집됩니다.)
+              검토한 뒤에 반영돼요.
             </p>
           )}
           <div className="relative">
@@ -226,10 +225,10 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
                         ) : null}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-gray-100 truncate">
+                        <p className="text-base font-semibold text-gray-100 truncate">
                           {album.title}
                         </p>
-                        <p className="text-xs text-gray-400 truncate">
+                        <p className="text-sm text-gray-400 truncate">
                           {album.artist}
                           {album.year && (
                             <span className="text-gray-500"> ({album.year})</span>
@@ -240,7 +239,7 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
                         </p>
                       </div>
                       {wasSubmitted && (
-                        <span className="text-xs text-[#e8a020] shrink-0">요청 보냄 ✓</span>
+                        <span className="text-sm text-[#e8a020] shrink-0">요청 보냄 ✓</span>
                       )}
                     </button>
 
@@ -259,10 +258,10 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
                           placeholder="admin 에게 남길 한마디 (선택) — 왜 이 앨범을 원하는지 등"
                           rows={2}
                           disabled={!!pending}
-                          className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-2.5 py-2 text-xs text-gray-200 placeholder-gray-600 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
+                          className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
                         />
                         <div className="mt-2 flex items-center justify-end gap-2">
-                          <span className="text-[11px] text-gray-500 tabular-nums mr-auto">
+                          <span className="text-xs text-gray-500 tabular-nums mr-auto">
                             {notes.length}/{NOTES_MAX}
                           </span>
                           <button
@@ -272,7 +271,7 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
                               setNotes('');
                             }}
                             disabled={!!pending}
-                            className="text-xs text-gray-400 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
+                            className="text-sm text-gray-400 hover:text-white px-2.5 py-1 disabled:opacity-40 cursor-pointer"
                           >
                             취소
                           </button>
@@ -280,7 +279,7 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
                             type="button"
                             onClick={() => handleRequestSubmit(album)}
                             disabled={!!pending}
-                            className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-3 py-1 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-3.5 py-1.5 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                           >
                             {pending === album.mbid ? '보내는 중…' : '요청 보내기'}
                           </button>
