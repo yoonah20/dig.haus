@@ -186,37 +186,50 @@ export default function Home() {
     : desktopQuery.isLoading;
 
   // Mobile: bottom sentinel that pulls the next page in when it scrolls into
-  // view. The previous setup used a 600px rootMargin AND re-created the
-  // observer on every page load — which on a typical phone left the sentinel
-  // already inside the observation zone after page 1, immediately auto-firing
-  // page 2 (so the user saw 20 albums on first paint).
+  // view. Observer is created exactly once (after the first batch mounts)
+  // — `mobileQuery` is read through a ref so the callback always sees fresh
+  // hasNextPage / fetchNextPage.
   //
-  // Now: rootMargin is small (200px) so the sentinel is below the
-  // observation zone on first paint, and the observer is created exactly
-  // once (after the first batch mounts) — `mobileQuery` is read through a
-  // ref so the callback always sees fresh hasNextPage / fetchNextPage.
+  // Small deliberate pause before each fetch so the feed feels like batches
+  // of 10 landing one after another, not a bottomless waterfall. Combined
+  // with the tight rootMargin it reads as "finish reading these 10 → brief
+  // loading blink → next 10 appears", which the user described as less
+  // overwhelming than the old instant-preload behaviour.
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const mobileQueryRef = useRef(mobileQuery);
   useEffect(() => {
     mobileQueryRef.current = mobileQuery;
   });
   const hasAlbums = albums.length > 0;
+  const [nextBatchPending, setNextBatchPending] = useState(false);
   useEffect(() => {
     if (!isMobile || !hasAlbums) return;
     const node = sentinelRef.current;
     if (!node) return;
+    let pendingTimer: ReturnType<typeof setTimeout> | null = null;
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
         const q = mobileQueryRef.current;
-        if (q.hasNextPage && !q.isFetchingNextPage) {
-          q.fetchNextPage();
-        }
+        if (!q.hasNextPage || q.isFetchingNextPage) return;
+        if (pendingTimer) return;
+        setNextBatchPending(true);
+        pendingTimer = setTimeout(() => {
+          pendingTimer = null;
+          const q2 = mobileQueryRef.current;
+          if (q2.hasNextPage && !q2.isFetchingNextPage) {
+            q2.fetchNextPage();
+          }
+          setNextBatchPending(false);
+        }, 450);
       },
-      { rootMargin: '200px 0px' }
+      { rootMargin: '100px 0px' }
     );
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (pendingTimer) clearTimeout(pendingTimer);
+    };
   }, [isMobile, hasAlbums]);
 
   function updateParams(patch: Record<string, string | null>) {
@@ -304,7 +317,7 @@ export default function Home() {
           <>
             <div ref={sentinelRef} aria-hidden className="h-1" />
             <div className="mt-6 mb-4 text-center text-xs text-gray-600">
-              {mobileQuery.isFetchingNextPage
+              {nextBatchPending || mobileQuery.isFetchingNextPage
                 ? '더 불러오는 중…'
                 : mobileQuery.hasNextPage
                   ? null
