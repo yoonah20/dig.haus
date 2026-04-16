@@ -214,7 +214,7 @@ function Editor({
     <button
       type="button"
       onClick={() => !saving && setStep('rating')}
-      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] cursor-pointer transition-colors ${
+      className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] cursor-pointer transition-colors ${
         rating === 'up'
           ? 'bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30 hover:bg-[#e8a020]/25'
           : 'bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10'
@@ -230,7 +230,7 @@ function Editor({
     <button
       type="button"
       onClick={() => !saving && setStep('text')}
-      className="text-[10px] text-gray-300 bg-white/5 border border-white/10 rounded-full px-1.5 py-0.5 max-w-[140px] truncate cursor-pointer hover:bg-white/10"
+      className="text-[11px] text-gray-300 bg-white/5 border border-white/10 rounded-full px-1.5 py-0.5 max-w-[140px] truncate cursor-pointer hover:bg-white/10"
       title="수정하려면 클릭"
     >
       “{body}”
@@ -258,7 +258,7 @@ function Editor({
     <button
       onClick={onCancel}
       disabled={saving}
-      className="text-[10px] text-gray-500 hover:text-white px-1.5 py-1 disabled:opacity-40 cursor-pointer"
+      className="text-[11px] text-gray-500 hover:text-white px-1.5 py-1 disabled:opacity-40 cursor-pointer"
     >
       취소
     </button>
@@ -281,7 +281,7 @@ function Editor({
       <div key={step} className="animate-[fadeInUp_200ms_ease-out] flex-1 flex flex-col gap-2">
         {step === 'rating' && (
           <>
-            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
+            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
               “이 앨범 어땠어요?”
             </div>
             <div className="grid grid-cols-3 gap-1.5">
@@ -302,13 +302,13 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={label}
-                    className={`aspect-square w-full flex flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border ${
+                    className={`h-16 md:h-20 w-full flex flex-col items-center justify-center gap-0.5 rounded-xl text-xs font-medium transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border ${
                       selected
                         ? selectedStyle
                         : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
                     }`}
                   >
-                    <span className="text-2xl md:text-3xl leading-none" aria-hidden>
+                    <span className="text-xl md:text-2xl leading-none" aria-hidden>
                       {rEmoji}
                     </span>
                     <span>{label}</span>
@@ -322,7 +322,7 @@ function Editor({
 
         {step === 'text' && (
           <>
-            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
+            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
               “하고 싶은 말?”
             </div>
             <textarea
@@ -344,7 +344,7 @@ function Editor({
               disabled={saving}
               className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-2.5 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
             />
-            <div className="flex items-center justify-between gap-1 text-[10px] mt-auto">
+            <div className="flex items-center justify-between gap-1 text-[11px] mt-auto">
               <span
                 className={`tabular-nums shrink-0 ${
                   over ? 'text-red-400' : tooShort ? 'text-gray-400' : 'text-gray-500'
@@ -377,7 +377,7 @@ function Editor({
 
         {step === 'emoji' && (
           <>
-            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
+            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
               “들었을 때 기분!”
             </div>
             <div className="grid grid-cols-4 gap-1.5">
@@ -391,7 +391,7 @@ function Editor({
                     disabled={saving}
                     aria-pressed={selected}
                     aria-label={e}
-                    className={`h-9 md:h-10 w-full rounded-lg flex items-center justify-center text-lg md:text-xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`h-8 md:h-9 w-full rounded-lg flex items-center justify-center text-base md:text-lg leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
                         ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
                         : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-110'
@@ -402,7 +402,7 @@ function Editor({
                 );
               })}
             </div>
-            <div className="flex items-center justify-end gap-0.5 text-[10px] mt-auto">
+            <div className="flex items-center justify-end gap-0.5 text-[11px] mt-auto">
               {saving && <span className="text-gray-500 mr-auto">등록 중…</span>}
               {cancelButton}
               <button
