@@ -9,6 +9,12 @@ export interface AppUser {
   name: string | null;
   avatar_url: string | null;
   is_admin: number;
+  // User-editable overrides — take precedence over name/avatar_url on
+  // display. Google re-login never touches these.
+  display_name: string | null;
+  custom_avatar_url: string | null;
+  instagram_handle: string | null;
+  created_at: string | null;
 }
 
 function getAdminEmails(): Set<string> {

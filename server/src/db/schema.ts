@@ -386,6 +386,12 @@ export function initializeDatabase(db: Database.Database): void {
     'google_id TEXT',
     'name TEXT',
     'is_admin INTEGER DEFAULT 0',
+    // User-editable overrides. Kept separate from `name`/`avatar_url`
+    // (which passport overwrites on every Google login) so custom values
+    // survive re-auth.
+    'display_name TEXT',
+    'custom_avatar_url TEXT',
+    'instagram_handle TEXT',
   ]);
 
   migrateTable(db, 'purchase_links', [

@@ -34,8 +34,16 @@ router.get('/me', (req, res) => {
     user: {
       id: user.id,
       email: user.email,
-      name: user.name,
-      avatarUrl: user.avatar_url,
+      // Effective display fields — custom value wins, Google value as fallback.
+      name: user.display_name || user.name,
+      avatarUrl: user.custom_avatar_url || user.avatar_url,
+      // Raw fields too, so the profile editor can distinguish "no custom value
+      // set yet" from "custom value equals the Google default".
+      googleName: user.name,
+      googleAvatarUrl: user.avatar_url,
+      displayName: user.display_name,
+      customAvatarUrl: user.custom_avatar_url,
+      instagramHandle: user.instagram_handle,
       isAdmin: !!user.is_admin,
     },
   });

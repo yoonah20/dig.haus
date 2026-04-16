@@ -26,6 +26,8 @@ import coverRouter from './routes/cover.js';
 import customCoversRouter from './routes/customCovers.js';
 import sitemapRouter from './routes/sitemap.js';
 import userReviewsRouter from './routes/userReviews.js';
+import meRouter from './routes/me.js';
+import avatarsRouter from './routes/avatars.js';
 
 let server: Server;
 
@@ -95,6 +97,8 @@ async function start() {
   app.use('/api', votesRouter);
   app.use('/api', purchaseLinksRouter);
   app.use('/api', userReviewsRouter);
+  app.use('/api', meRouter);
+  app.use('/api/avatars', avatarsRouter);
   app.use('/api/albums', albumsRouter);
   app.use('/api/labels', labelsRouter);
   app.use('/api/admin', adminRouter);
