@@ -9,8 +9,10 @@ const SECONDS_PER_ITEM = 7;
 
 // Fixed width per ticker card so the CSS marquee math stays clean — the
 // track's total width is predictable and translateX(-50%) lands the
-// duplicate tail exactly where the head started.
-const ITEM_WIDTH_PX = 340;
+// duplicate tail exactly where the head started. ~20% wider than the
+// initial 340 to give the body more breathing room now that the avatar
+// column is tighter.
+const ITEM_WIDTH_PX = 408;
 const ITEM_GAP_PX = 16;
 
 const RATING_EMOJI: Record<'up' | 'down' | 'soso', string> = {
@@ -100,10 +102,12 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
       {/* Left column — avatar + display name. pt-1 puts the avatar
           centre at the same y as the bubble's tail (tail centre is
           hard-coded at y≈30 in index.css, which matches a 52px avatar
-          with pt-1). Column width is sized to fit an 8-char Korean
-          name on one line (~96px at text-[11px]); anything longer wraps
-          to 2 lines before ellipsis. */}
-      <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[96px]">
+          with pt-1). Column width is locked to the avatar's footprint
+          (52 + 2px padding each side) so the avatar's right edge sits
+          flush against the gap, leaving the bubble tail tip flush
+          against the avatar. Names longer than ~5 Korean chars wrap to
+          2 lines before ellipsis. */}
+      <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[56px]">
         <Avatar src={item.userAvatar} name={item.userName} size={52} />
         <span
           className={`text-[11px] text-center leading-tight line-clamp-2 break-words w-full ${
@@ -143,7 +147,7 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
           </div>
         )}
 
-        <p className="flex-1 min-w-0 text-gray-100 text-sm leading-snug line-clamp-3 break-words">
+        <p className="flex-1 min-w-0 text-gray-100 text-[13px] leading-snug line-clamp-3 break-words">
           {item.body}
         </p>
         {/* Blurred cover — the mystery. Default blur shows shape and

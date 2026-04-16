@@ -11,6 +11,13 @@ import CommentTicker from '../components/Home/CommentTicker';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import type { AlbumSearchResult } from '../types';
+import {
+  type SortValue,
+  DEFAULT_SORT,
+  SORT_STORAGE_KEY,
+  isSortValue,
+  readStoredSort,
+} from '../lib/homeSort';
 
 interface AlbumListResponse {
   albums: AlbumSearchResult[];
@@ -20,22 +27,6 @@ interface AlbumListResponse {
   totalPages: number;
 }
 
-const SORT_OPTIONS = [
-  { value: 'registered_desc', label: '등록 최신순' },
-  { value: 'release_date_desc', label: '발매 최신순' },
-  { value: 'random', label: '랜덤 순서로' },
-  { value: 'artist_az', label: '아티스트 A-Z' },
-  { value: 'score_desc', label: '리뷰 평점순' },
-  { value: 'price_asc', label: '가격 낮은순' },
-  { value: 'user_review_count_desc', label: '50자평 많은순' },
-  { value: 'upvotes_desc', label: '굿굿 많은순' },
-  { value: 'downvotes_desc', label: '별루 많은순' },
-] as const;
-
-type SortValue = (typeof SORT_OPTIONS)[number]['value'];
-const DEFAULT_SORT: SortValue = 'registered_desc';
-const SORT_STORAGE_KEY = 'home:sort';
-
 // Mobile/desktop split: desktop sticks with classic numbered pagination
 // (18 per page — 3 rows × 6 cols at lg; leaves room under the grid for
 // the comment ticker). Mobile uses infinite scroll in 10-item batches.
@@ -44,19 +35,6 @@ const SORT_STORAGE_KEY = 'home:sort';
 const MOBILE_QUERY = '(max-width: 767px)';
 const DESKTOP_PAGE_SIZE = 18;
 const MOBILE_PAGE_SIZE = 10;
-
-function isSortValue(v: string): v is SortValue {
-  return SORT_OPTIONS.some((o) => o.value === v);
-}
-
-function readStoredSort(): SortValue | null {
-  try {
-    const raw = localStorage.getItem(SORT_STORAGE_KEY) || '';
-    return isSortValue(raw) ? raw : null;
-  } catch {
-    return null;
-  }
-}
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState<boolean>(() =>
@@ -284,22 +262,6 @@ export default function Home() {
     setSearchParams(next);
   }
 
-  function handleSortChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const v = e.target.value as SortValue;
-    // Clear storage synchronously — otherwise the sort memo falls back to the
-    // stale stored value after we strip the URL param for DEFAULT_SORT.
-    try {
-      if (v === DEFAULT_SORT) localStorage.removeItem(SORT_STORAGE_KEY);
-      else localStorage.setItem(SORT_STORAGE_KEY, v);
-    } catch {
-      // ignore storage errors
-    }
-    updateParams({
-      sort: v === DEFAULT_SORT ? null : v,
-      page: null,
-    });
-  }
-
   function goToPage(p: number) {
     if (p < 1 || p > totalPages || p === page) return;
     updateParams({ page: p === 1 ? null : String(p) });
@@ -311,37 +273,9 @@ export default function Home() {
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-6xl mx-auto">
-        <div className="flex items-center mb-6 flex-wrap gap-3">
-          <div className="text-sm text-gray-500">
-            {total > 0 && (
-              <>
-                총 <span className="text-gray-300 font-medium">{total.toLocaleString()}</span>개 앨범
-                {!isMobile && (
-                  <>
-                    <span className="text-gray-600 mx-2">·</span>
-                    <span className="text-gray-300 font-medium">{page}</span>
-                    <span className="text-gray-500">/{totalPages} 페이지</span>
-                  </>
-                )}
-              </>
-            )}
-          </div>
-          <label className="ml-auto flex items-center gap-2 text-sm">
-            <span className="text-gray-500">정렬</span>
-            <select
-              value={sort}
-              onChange={handleSortChange}
-              className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none cursor-pointer"
-            >
-              {SORT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
+        {/* Top bar (count / page info / sort) was removed — sort lives
+            in TopNav as an icon, count moved into the footer below.
+            Grid is the first thing on the page. */}
         {isLoading && albums.length === 0 ? (
           <div className="text-center py-20 text-sm text-gray-500">불러오는 중...</div>
         ) : albums.length === 0 ? (
@@ -368,6 +302,15 @@ export default function Home() {
             </div>
           </>
         )}
+
+        {/* Desktop-only comment ticker. Sits between the grid and the
+            pagination so the community voice plays as a reading rest
+            and pagination ends up right above the footer (the spot
+            users instinctively reach for to advance the page).
+            Intentionally gated with !isMobile (not CSS `hidden md:…`)
+            so the feed query doesn't fire on phones at all — mobile
+            interleaves comments into the infinite scroll separately. */}
+        {!isMobile && albums.length > 0 && <CommentTicker />}
 
         {!isMobile && totalPages > 1 && (
           <nav className="mt-12 flex items-center justify-center gap-1 flex-wrap" aria-label="Pagination">
@@ -407,18 +350,16 @@ export default function Home() {
             </button>
           </nav>
         )}
-
-        {/* Desktop-only comment ticker. Sits below pagination so the
-            grid's full density reads first, then the community voice
-            comes in as a reading rest above the footer. Intentionally
-            gated with !isMobile (not CSS `hidden md:…`) so the feed
-            query doesn't fire on phones at all — mobile interleaves
-            comments into the infinite scroll separately. */}
-        {!isMobile && albums.length > 0 && <CommentTicker />}
       </section>
 
       <footer className="w-full max-w-6xl mx-auto mt-auto pt-8 pb-4 text-center text-gray-600 text-xs">
         dig.haus &copy; 2026
+        {total > 0 && (
+          <>
+            {' · '}
+            총 {total.toLocaleString()}개 앨범
+          </>
+        )}
         {' · '}
         <a href="/privacy.html" className="hover:text-amber-500">개인정보처리방침</a>
         {' · '}

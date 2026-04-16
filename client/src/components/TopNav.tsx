@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import LoginButton from './LoginButton';
 import RegisterAlbumModal from './RegisterAlbumModal';
 import SearchBar from './SearchBar';
+import SortMenu from './Home/SortMenu';
 import { useAuth } from '../contexts/AuthContext';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 
@@ -12,6 +13,11 @@ export default function TopNav() {
   const [registerOpen, setRegisterOpen] = useState(false);
   const { open: searchOpen, initialQuery, openOverlay, closeOverlay } = useSearchOverlay();
   const panelRef = useRef<HTMLDivElement>(null);
+  // Sort only makes sense on the home album list, so the trigger is
+  // gated on path. Anywhere else (album/artist/profile/admin) it's
+  // hidden so it doesn't suggest controls that don't apply.
+  const location = useLocation();
+  const isHome = location.pathname === '/';
 
   // ESC to close search
   useEffect(() => {
@@ -72,6 +78,7 @@ export default function TopNav() {
                 </svg>
               </button>
             )}
+            {isHome && <SortMenu />}
             <button
               onClick={() => (searchOpen ? closeOverlay() : openOverlay())}
               className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
