@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from '../lib/axios';
-import { useExternalSearch } from '../hooks/useSearch';
+import { useExternalSearch, useRequestSearch } from '../hooks/useSearch';
 import { useSubmitAlbumRequest } from '../hooks/useAlbumRequests';
 import type { AlbumSearchResult } from '../types';
 
@@ -33,7 +33,15 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
   const navigate = useNavigate();
   const submit = useSubmitAlbumRequest();
 
-  const { data, isLoading } = useExternalSearch(query, open);
+  // Admin → /api/search (admin-gated external). Logged-in user →
+  // /api/album-requests/search (auth-gated external + rate-limited).
+  // Only one fires at a time thanks to the `enabled` flag on the
+  // other hook dropping to false.
+  const isRequest = mode === 'request';
+  const adminSearch = useExternalSearch(query, open && !isRequest);
+  const userSearch = useRequestSearch(query, open && isRequest);
+  const data = isRequest ? userSearch.data : adminSearch.data;
+  const isLoading = isRequest ? userSearch.isLoading : adminSearch.isLoading;
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +73,6 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
   if (!open) return null;
 
   const albums = data?.albums ?? [];
-  const isRequest = mode === 'request';
   const title = isRequest ? '앨범 등록 요청' : '앨범 등록';
   const placeholder = isRequest
     ? '추가됐으면 하는 앨범 검색...'
@@ -150,7 +157,7 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
 
         <div className="p-5">
           {isRequest && (
-            <p className="text-xs text-gray-400 mb-3 leading-relaxed">
+            <p className="text-sm text-gray-300 mb-4 leading-relaxed">
               dig.haus 에 없는 앨범 등록 요청을 보낼 수 있어요. admin 이
               검토한 뒤에 반영돼요. (리뷰/번역 등은 admin 승인 시점에
               자동으로 수집됩니다.)

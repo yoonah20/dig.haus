@@ -3,25 +3,52 @@ import rateLimit from 'express-rate-limit';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { getCachedAlbum } from '../utils/cache.js';
+import { searchExternalMerged } from '../utils/externalSearch.js';
 import type { AppUser } from '../auth/passport.js';
 
 const router = Router();
 
-// 3 requests per minute per user. Generous enough for a handful of
-// genuine picks in one session, tight enough that a misbehaving client
-// (or a user with an opinion) can't dump dozens of rows into the admin
-// queue. Admin approve/discard endpoints are unrestricted — they're
-// admin-gated already.
-const createLimiter = rateLimit({
+function userKey(req: { user?: unknown; ip?: string }): string {
+  const uid = (req.user as AppUser | undefined)?.id;
+  return uid ? `u:${uid}` : (req.ip || 'anon');
+}
+
+// Burst guard for create: 5/min per user. Tight enough that a
+// misbehaving client can't dump a session's worth of rows into the
+// admin queue in seconds; loose enough that a genuine flurry of
+// "ooh and also this one, and this one…" doesn't get throttled.
+const createBurstLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 3,
+  limit: 5,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    const uid = (req.user as AppUser | undefined)?.id;
-    return uid ? `u:${uid}` : (req.ip || 'anon');
-  },
-  message: { error: '잠시 뒤에 다시 시도해주세요 (1분에 최대 3개).' },
+  keyGenerator: userKey,
+  message: { error: '잠시 뒤에 다시 시도해주세요 (1분에 최대 5개).' },
+});
+
+// Long-window cap on create: 500/day per user. Even the admin doesn't
+// register that many in a day — this is the "no one is acting in good
+// faith" ceiling, not the normal throttle.
+const createDailyLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  limit: 500,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: userKey,
+  message: { error: '하루에 500개 이상은 안 돼요. 내일 다시 시도해주세요.' },
+});
+
+// Rate limit for the request-mode search endpoint. MusicBrainz allows
+// ~1 req/sec from our server IP, so per-user throttling is the first
+// line of defence before we fan out to MB. 30/min lets an engaged
+// user iterate on queries comfortably while blocking scripts.
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  keyGenerator: userKey,
+  message: { error: '검색이 너무 잦아요. 잠시 뒤 다시 시도해주세요.' },
 });
 
 const NOTES_MAX = 280;
@@ -40,7 +67,12 @@ function normalizeString(raw: unknown, max: number): string | null {
 // User-submitted request for an album to be added to dig.haus. Writes
 // one row; does NOT trigger any Claude (review search, pronunciation,
 // similar-albums). Those run only on admin approve.
-router.post('/album-requests', requireAuth, createLimiter, (req, res) => {
+router.post(
+  '/album-requests',
+  requireAuth,
+  createDailyLimiter,
+  createBurstLimiter,
+  (req, res) => {
   const user = req.user as AppUser;
   const body = (req.body ?? {}) as Record<string, unknown>;
 
@@ -85,6 +117,28 @@ router.post('/album-requests', requireAuth, createLimiter, (req, res) => {
   } catch (err) {
     console.error('[album-requests] insert failed:', err);
     res.status(500).json({ error: '요청 저장에 실패했습니다.' });
+  }
+});
+
+// ─── GET /api/album-requests/search?q=… ───────────────────────────────
+//
+// MusicBrainz + Discogs search used by the album-request modal that
+// logged-in users see. /api/search still gates its external path
+// behind admin (the nav search bar is for finding already-registered
+// albums, and mixing in external results there would be noise) — this
+// endpoint is the user-facing equivalent, scoped to "I want to request
+// an album" and rate-limited so MB doesn't hate us.
+router.get('/album-requests/search', requireAuth, searchLimiter, async (req, res) => {
+  const query = (req.query.q as string || '').trim();
+  if (!query || query.length < 2) {
+    return res.json({ albums: [] });
+  }
+  try {
+    const albums = await searchExternalMerged(query);
+    res.json({ albums });
+  } catch (err) {
+    console.error('[album-requests/search] failed:', err);
+    res.json({ albums: [] });
   }
 });
 
