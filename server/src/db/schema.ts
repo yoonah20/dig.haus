@@ -449,6 +449,62 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_links_album_id ON purchase_links(album_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_albums_rank_score ON albums(rank_score DESC)');
 
+  // Backfill 굿굿 (upvote) on Kj Ahn's pre-rating-field reviews. These four
+  // reviews were left before the rating selector was wired into 50자 평, so
+  // they have no album_votes row. Idempotent via runOnce; only touches
+  // reviews whose rating is still NULL so any later explicit choice wins.
+  runOnce(db, 'backfill-kj-ahn-up-votes-2026-04-16', () => {
+    const slugs = [
+      'atka-untitled-album-1-2018',
+      'desolus-system-shock-2024',
+      'hedonist-scapulimancy-2025',
+      'oxygen-destroyer-guardian-of-the-universe-2024',
+    ];
+    for (const slug of slugs) {
+      const album = db
+        .prepare('SELECT id FROM albums WHERE slug = ?')
+        .get(slug) as { id: number } | undefined;
+      if (!album) {
+        console.log(`[migration] kj-ahn-up-votes: album not found (${slug})`);
+        continue;
+      }
+
+      const review = db
+        .prepare(
+          `SELECT ur.id, ur.user_id, ur.rating
+           FROM user_reviews ur
+           JOIN users u ON u.id = ur.user_id
+           WHERE ur.album_id = ? AND LOWER(u.name) = LOWER('Kj Ahn')`
+        )
+        .get(album.id) as { id: number; user_id: number; rating: string | null } | undefined;
+
+      if (!review) {
+        console.log(`[migration] kj-ahn-up-votes: no Kj Ahn review on ${slug}`);
+        continue;
+      }
+
+      if (review.rating === null) {
+        db.prepare(`UPDATE user_reviews SET rating = 'up' WHERE id = ?`).run(review.id);
+      }
+
+      const existingVote = db
+        .prepare(`SELECT id, vote FROM album_votes WHERE user_id = ? AND album_id = ?`)
+        .get(review.user_id, album.id) as { id: number; vote: string } | undefined;
+
+      if (existingVote) {
+        if (existingVote.vote !== 'up') {
+          db.prepare(`UPDATE album_votes SET vote = 'up' WHERE id = ?`).run(existingVote.id);
+        }
+      } else {
+        db.prepare(
+          `INSERT INTO album_votes (user_id, album_id, vote) VALUES (?, ?, 'up')`
+        ).run(review.user_id, album.id);
+      }
+
+      console.log(`[migration] kj-ahn-up-votes: backfilled on ${slug}`);
+    }
+  });
+
   // One-off reset of stray votes on two specific albums. Runs once per DB
   // (tracked in schema_migrations). Clears album_votes and the mirrored
   // user_reviews.rating for each target; leaves review bodies intact.
