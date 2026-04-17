@@ -7,6 +7,7 @@ import {
   useApproveAlbumRequest,
   useDeletePendingAlbum,
 } from '../hooks/useAlbumRequests';
+import { useGenerateReviewSummary } from '../hooks/useAlbum';
 import { useInView } from '../hooks/useInView';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import HeaderSection from '../components/AlbumDetail/HeaderSection';
@@ -33,6 +34,7 @@ export default function Album() {
   const isAdmin = !!user?.isAdmin;
   const approveRequest = useApproveAlbumRequest();
   const deletePending = useDeletePendingAlbum();
+  const generateSummary = useGenerateReviewSummary(slug!);
   const { data: base, isLoading: baseLoading, error: baseError } = useAlbumBase(slug!);
   const baseReady = !!base;
   const { sort } = useHomeState();
@@ -157,23 +159,34 @@ export default function Album() {
         <BuySection buy={base.buy} albumId={albumId} />
         <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
 
-        {/* Stage 2: reviews (slow) — when the album was user-submitted
-            and the review crawl hasn't run yet, swap in a placeholder
-            instead of loading the review section. Everything above
-            (cover, metadata, purchase links, 50자 평, voting) stays
-            fully functional in the meantime. Admins can approve or
-            delete straight from the placeholder — saves a bounce
-            back to the admin dashboard for routine moderation. */}
-        {base.album.reviewsCrawledAt === null ? (
-          <section className="rounded-2xl border border-white/5 bg-[#1a1a1a]/60 px-6 py-8 text-center space-y-3">
+        {/* Pending-album admin action bar — only shown when
+            reviews_crawled_at IS NULL (i.e. nobody has curated this
+            album's reviews yet). Gives admin three ways to move it
+            forward:
+              1) 리뷰 모아오기 — the full Claude pipeline (~$0.10)
+              2) 요약 생성 — use whatever reviews are already cached
+                 (typically URL-scraped manual adds) to generate the
+                 Korean summary via Sonnet (~$0.01)
+              3) 삭제 — wipe the album entirely.
+            Non-admins just see a friendly "pending" note. */}
+        {base.album.reviewsCrawledAt === null && !isAdmin && (
+          <section className="rounded-2xl border border-white/5 bg-[#1a1a1a]/60 px-6 py-8 text-center space-y-2">
             <div className="text-sm text-gray-400">
               리뷰 수집은 관리자 확인 후 진행됩니다.
             </div>
             <div className="text-xs text-gray-600">
               그동안 50자 평·굿굿/별루·구매처 등록은 자유롭게 남길 수 있어요.
             </div>
-            {isAdmin && (
-              <div className="flex items-center justify-center gap-2 pt-1">
+          </section>
+        )}
+        {base.album.reviewsCrawledAt === null && isAdmin && (
+          <section className="rounded-2xl border border-[#e8a020]/25 bg-[#1a1a1a]/80 px-4 sm:px-6 py-4 space-y-2">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="text-xs text-gray-500 leading-relaxed">
+                리뷰 수집 대기 — AI 검색을 돌리거나, 리뷰 링크를
+                직접 모은 뒤 요약만 만들 수 있어요.
+              </div>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={async () => {
@@ -181,13 +194,43 @@ export default function Album() {
                     try {
                       await approveRequest.mutateAsync(albumId);
                     } catch (err: any) {
-                      alert(err?.response?.data?.error || '승인에 실패했습니다.');
+                      alert(err?.response?.data?.error || '리뷰 수집에 실패했습니다.');
                     }
                   }}
-                  disabled={approveRequest.isPending || deletePending.isPending}
+                  disabled={
+                    approveRequest.isPending ||
+                    deletePending.isPending ||
+                    generateSummary.isPending
+                  }
                   className="text-xs font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Claude 웹 검색으로 리뷰 일괄 수집 (~$0.10)"
                 >
-                  {approveRequest.isPending ? '승인 중…' : '승인 (리뷰 수집 시작)'}
+                  {approveRequest.isPending ? '검색 중…' : '🔍 리뷰 모아오기'}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (generateSummary.isPending) return;
+                    try {
+                      await generateSummary.mutateAsync();
+                    } catch (err: any) {
+                      alert(
+                        err?.response?.data?.error ||
+                          '요약 생성에 실패했습니다. 리뷰가 2개 이상 필요합니다.'
+                      );
+                    }
+                  }}
+                  disabled={
+                    approveRequest.isPending ||
+                    deletePending.isPending ||
+                    generateSummary.isPending ||
+                    !reviewsData ||
+                    reviewsData.reviews.length < 2
+                  }
+                  className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/50 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="이미 등록된 리뷰만으로 한국어 요약 생성 (~$0.01). 리뷰가 2개 이상 있어야 가능."
+                >
+                  {generateSummary.isPending ? '생성 중…' : '📝 요약 생성'}
                 </button>
                 <button
                   type="button"
@@ -206,16 +249,27 @@ export default function Album() {
                       alert(err?.response?.data?.error || '삭제에 실패했습니다.');
                     }
                   }}
-                  disabled={approveRequest.isPending || deletePending.isPending}
+                  disabled={
+                    approveRequest.isPending ||
+                    deletePending.isPending ||
+                    generateSummary.isPending
+                  }
                   className="text-xs text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {deletePending.isPending ? '삭제 중…' : '삭제'}
+                  {deletePending.isPending ? '삭제 중…' : '🗑️ 삭제'}
                 </button>
               </div>
-            )}
+            </div>
           </section>
-        ) : reviewsLoading ? (
-          <SectionLoader text="리뷰를 수집하고 있습니다..." />
+        )}
+
+        {/* Review section. Always renders (not just when
+            reviews_crawled_at is set) so admin can add URL-scraped
+            reviews even on pending albums. ReviewSection's own
+            admin-only affordances (+ 리뷰 추가, score/excerpt edit)
+            handle the empty-state gracefully. */}
+        {reviewsLoading ? (
+          <SectionLoader text="리뷰를 불러오고 있습니다..." />
         ) : reviewsData ? (
           <ReviewSection
             reviews={reviewsData.reviews}
@@ -224,18 +278,25 @@ export default function Album() {
           />
         ) : null}
 
-        {/* Stage 2: similar albums (slow, lazy). Also gated by the
-            review-crawl marker — similar-album descriptions use Claude
-            too and belong on the same admin-approval fence. */}
-        {base.album.reviewsCrawledAt !== null && (
-          <div ref={similarRef} className="min-h-[280px]">
-            {!similarVisible ? null : similarLoading ? (
-              <SectionLoader text="비슷한 앨범을 찾고 있습니다..." />
-            ) : similarData?.similarAlbums && similarData.similarAlbums.length > 0 ? (
-              <SimilarAlbums albums={similarData.similarAlbums} albumId={albumId} />
-            ) : null}
-          </div>
-        )}
+        {/* Similar albums — the descriptions cost ~$0.005 per album
+            (first view only, cached afterward), so this runs
+            regardless of the review-crawl state now. Non-admins see
+            it only when at least one pick exists; admins always
+            see it (with the + add slot) per the component's own
+            gate. */}
+        <div ref={similarRef} className="min-h-[280px]">
+          {!similarVisible ? null : similarLoading ? (
+            <SectionLoader text="비슷한 앨범을 찾고 있습니다..." />
+          ) : similarData ? (
+            // Component gates itself: hidden for non-admins when the
+            // list is empty, always rendered for admins so the "추가"
+            // slot is reachable even before any pick exists.
+            <SimilarAlbums
+              albums={similarData.similarAlbums ?? []}
+              albumId={albumId}
+            />
+          ) : null}
+        </div>
 
         {/* Prev / Next album navigation */}
         {showNav && (

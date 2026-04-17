@@ -98,6 +98,29 @@ export function searchReviews(
   return p;
 }
 
+// Pricing used for the in-pipeline budget check. Kept in sync with
+// server/src/routes/admin.ts PRICING_PER_1M — if that changes, bump
+// this too. Rates are per 1M tokens (input/output) and per 1000 web
+// searches. The check itself is intentionally conservative: we only
+// block progress when Step 1 *already* spent more than the ceiling
+// (the call completed before we knew the real usage), so the goal is
+// to stop Step 2 + Step 3 from adding another ~$0.03 on top of a
+// runaway Step 1.
+const HAIKU_IN_PER_1M = 1;
+const HAIKU_OUT_PER_1M = 5;
+const WEB_SEARCH_PER_1000 = 10;
+const STEP1_BUDGET_CAP_USD = 0.10;
+
+function haikuResponseCostUsd(resp: any, webSearchCount: number): number {
+  const input = resp?.usage?.input_tokens ?? 0;
+  const output = resp?.usage?.output_tokens ?? 0;
+  const tokenUsd =
+    (input / 1_000_000) * HAIKU_IN_PER_1M +
+    (output / 1_000_000) * HAIKU_OUT_PER_1M;
+  const searchUsd = (webSearchCount / 1000) * WEB_SEARCH_PER_1000;
+  return tokenUsd + searchUsd;
+}
+
 async function _searchReviewsImpl(
   artist: string,
   album: string,
@@ -112,7 +135,7 @@ async function _searchReviewsImpl(
     // Haiku drop valid reviews from any publication not literally named
     // (Treble, Paste, Revolver, Invisible Oranges, Stereogum, etc.), which
     // previously caused otherwise well-covered albums to return 0 reviews.
-    const step1Prompt = `Find editorial reviews of the album "${album}" by ${artist}. Run 3–5 web searches combining the artist + album title with words like "review", "rating", "score", "out of 10". Include genre keywords (metal/punk/rock/indie/electronic/jazz/etc.) only if the first searches return too little.
+    const step1Prompt = `Find editorial reviews of the album "${album}" by ${artist}. Run 2–3 targeted web searches combining the artist + album title with words like "review", "rating", "score", "out of 10". Include a genre keyword (metal/punk/rock/indie/electronic/jazz/etc.) only if the first search returns too little.
 
 INCLUDE: any editorial music coverage — professional music publications, magazines, and dedicated music blogs of any size. Pitchfork, AllMusic, Sputnikmusic, Angry Metal Guy, MetalStorm, Blabbermouth, Metal Hammer, Kerrang, Dead Rhetoric, Nine Circles, Heavy Blog is Heavy, New Noise, The Quietus, Loud and Quiet, Clash, NME, Drowned in Sound, Consequence, Stereogum, Tiny Mix Tapes, Treble, Paste, Revolver, Invisible Oranges, Slant, PopMatters, The Line of Best Fit, Exclaim, Louder Sound, and many others all count — the list above is illustrative, NOT exhaustive. If a site has a writer byline and an evaluative take, treat it as editorial.
 
@@ -122,21 +145,23 @@ EXCLUDE — never return any of these:
 - Anything that is user ratings, customer reviews, product pages, or storefront listings
 
 For each review: source name, score (e.g. "8/10", "4/5", "85/100"; omit if the review has none), 1–2 sentence excerpt from the review body, URL.
-Aim for 8–15 reviews. Do not return an empty list if there are editorial reviews on the web — return whatever you find.`;
+Aim for 6–10 reviews. Do not return an empty list if there are editorial reviews on the web — return whatever you find.`;
 
-    async function runStep1(maxUses: number): Promise<string> {
+    // Step 1 budget: max_uses 6 → 3. Each web_search invocation costs
+    // $0.01 AND pulls a few tens of thousands of tokens of page
+    // content back into the Haiku context (billed as input tokens
+    // at $1/M) — that's where the bulk of a "why did this album
+    // cost $0.15" hit came from. Capping searches tightens the
+    // whole envelope. No retry: a thin first pass almost always
+    // meant the album isn't indexed well enough for web search to
+    // help, and retrying with more searches just burned another
+    // $0.10 to confirm the same miss.
+    async function runStep1(maxUses: number) {
       const resp = await client.messages.create({
         model: HAIKU,
-        // max_tokens is a billing-safe ceiling — Anthropic only charges for
-        // tokens actually generated, but capping prevents a runaway response.
-        // 2500 comfortably fits 8–15 review entries with URLs + excerpts.
         max_tokens: 2500,
         tools: [
           {
-            // web_search is billed PER CALL ($10/1000 searches), separately
-            // from tokens. 6 hits the sweet spot — enough headroom for
-            // obscure releases that need a few extra angles, while still
-            // well below the previous cap of 10.
             type: 'web_search_20250305' as const,
             name: 'web_search' as const,
             max_uses: maxUses,
@@ -144,36 +169,44 @@ Aim for 8–15 reviews. Do not return an empty list if there are editorial revie
         ],
         messages: [{ role: 'user', content: step1Prompt }],
       });
-      logClaudeUsage('reviews_search', resp, countWebSearchUses(resp));
-      const out: string[] = [];
+      const searchCount = countWebSearchUses(resp);
+      logClaudeUsage('reviews_search', resp, searchCount);
+      const text: string[] = [];
       for (const block of resp.content) {
-        if (block.type === 'text') out.push(block.text);
+        if (block.type === 'text') text.push(block.text);
       }
-      return out.join('\n');
+      return {
+        text: text.join('\n'),
+        costUsd: haikuResponseCostUsd(resp, searchCount),
+      };
     }
 
     console.log(`[reviews] Step 1: Haiku web search for "${artist} - ${album}"...`);
-    let rawReviewData = await runStep1(6);
-    console.log(`[reviews] Step 1: ${rawReviewData.length} chars returned`);
+    const step1 = await runStep1(3);
+    console.log(
+      `[reviews] Step 1: ${step1.text.length} chars, $${step1.costUsd.toFixed(4)}`
+    );
 
-    // Single retry with a wider search budget when the first pass came
-    // back near-empty — covers the case where 6 searches didn't surface
-    // anything for an obscure release. Only fires on the failure path so
-    // healthy albums don't pay for a second call.
-    if (rawReviewData.length < 50) {
+    if (step1.text.length < 50) {
       console.warn(
-        `[reviews] Step 1 thin response (${rawReviewData.length} chars) for "${artist} - ${album}" — retrying with max_uses=10`
-      );
-      rawReviewData = await runStep1(10);
-      console.log(`[reviews] Step 1 retry: ${rawReviewData.length} chars returned`);
-    }
-
-    if (rawReviewData.length < 50) {
-      console.warn(
-        `[reviews] Step 1 still empty after retry for "${artist} - ${album}" — giving up`
+        `[reviews] Step 1 empty for "${artist} - ${album}" — giving up (no retry)`
       );
       return { reviews: [], koreanSummary: null, artistKo: null, titleKo: null, titleMeaning: null };
     }
+
+    // Hard cap. If Step 1 alone blew past the per-album ceiling (a
+    // single big album with lots of page content pulled back into
+    // context can still push over even with max_uses=3), don't throw
+    // another Haiku + Sonnet call after it. The data we got is
+    // discarded; better to stop the bleeding than add $0.03 more.
+    if (step1.costUsd > STEP1_BUDGET_CAP_USD) {
+      console.warn(
+        `[reviews] Step 1 cost $${step1.costUsd.toFixed(4)} exceeds $${STEP1_BUDGET_CAP_USD} cap for "${artist} - ${album}" — aborting pipeline`
+      );
+      return { reviews: [], koreanSummary: null, artistKo: null, titleKo: null, titleMeaning: null };
+    }
+
+    const rawReviewData = step1.text;
 
     // ── Step 2: Haiku — structure + translate + pronunciation ──────────
     console.log(`[reviews] Step 2: Haiku structuring...`);

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 
 interface AlbumBase {
@@ -149,5 +149,30 @@ export function useAlbumNeighbors(id: string, sort: string, enabled: boolean) {
     },
     enabled: !!id && enabled,
     staleTime: 1000 * 60 * 5,
+  });
+}
+
+// Admin action: take the album's already-cached reviews (manually
+// scraped via /reviews/add-url, typically) and ask Sonnet for the
+// Korean summary that normally comes out of Step 3 of the full
+// review pipeline. Stamps reviews_crawled_at on success so the card
+// un-dims on the home grid. Cheap path (~$0.01) for when admin
+// doesn't want to trigger the $0.10 web-search pipeline.
+export function useGenerateReviewSummary(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await axios.post(
+        `/api/albums/${encodeURIComponent(id)}/reviews/generate-summary`
+      );
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['album', id] });
+      qc.invalidateQueries({ queryKey: ['album-reviews', id] });
+      qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
+      qc.invalidateQueries({ queryKey: ['album-list'] });
+      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+    },
   });
 }

@@ -127,7 +127,6 @@ router.post(
     // circular dep between albums.ts and albumRequests.ts.
     const { getOrFetchAlbumBaseForSubmission } = await import('./albums.js');
     const result = await getOrFetchAlbumBaseForSubmission(mbid, {
-      skipReviewWarmup: true,
       requestedByUserId: user.id,
     });
     if (!result) {

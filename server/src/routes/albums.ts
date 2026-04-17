@@ -21,7 +21,7 @@ import { searchBandcamp } from '../services/bandcamp.js';
 import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases, getDiscogsMasterMainRelease } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
 import { searchReviews, scrapeReviewFromUrl } from '../services/reviews.js';
-import { generateSimilarDescriptions, generatePronunciation, getClient as getAnthropicClient, HAIKU, logClaudeUsage } from '../services/claude.js';
+import { generateSimilarDescriptions, generatePronunciation, generateKoreanSummary, getClient as getAnthropicClient, HAIKU, logClaudeUsage } from '../services/claude.js';
 import { hostCustomCover, CustomCoverError } from '../services/customCoverHost.js';
 import {
   getCachedAlbum,
@@ -95,22 +95,20 @@ function cleanGenres(raw: string[], artistName?: string): string[] {
 // ─── Helper: build album base data (fast path) ─────────────────────────────
 
 interface GetOrFetchOpts {
-  /** When true, don't fire the Claude review-search warm-up after
-   *  caching the album. Used by the user-submitted registration path
-   *  so regular users can seed an album without triggering the
-   *  expensive review-crawl cost — admin approves that separately. */
-  skipReviewWarmup?: boolean;
   /** Stamped into albums.requested_by_user_id for new rows only
-   *  (never overrides an existing value). Non-null marks the row as
-   *  user-submitted, which drives the home-grid dim + the admin
-   *  "리뷰 수집 대기" queue. */
+   *  (never overrides an existing value). Unified registration flow
+   *  as of 2026-04: every new album (admin or user) lands with
+   *  reviews_crawled_at NULL. Admin explicitly kicks off the Claude
+   *  review pipeline later via approveAlbumRequest / 리뷰 모아오기.
+   *  Similar-album + pronunciation calls are still fine to run eagerly
+   *  — they're ~$0.005 each, not the $0.10+ that reviews_search costs. */
   requestedByUserId?: number;
 }
 
 // Public wrapper used by routes/albumRequests.ts for user submissions.
 // Exposed via a separate name so the module-private internals stay
-// private; the request path always wants `skipReviewWarmup: true` +
-// `requestedByUserId` set.
+// private; the request path passes `requestedByUserId` for
+// attribution on the "내 등록 앨범" profile section.
 export async function getOrFetchAlbumBaseForSubmission(
   mbid: string,
   opts: GetOrFetchOpts
@@ -355,10 +353,10 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     artistKo,
     titleKo,
     titleMeaning,
-    // Fresh-fetch path: admin registration stamps the crawl marker
-    // (opts.skipReviewWarmup !== true). User-submission path stays
-    // NULL until admin approves.
-    reviewsCrawledAt: opts.skipReviewWarmup ? null : new Date().toISOString(),
+    // Unified flow: every fresh album lands with reviews_crawled_at
+    // NULL. Admin opts into the Claude review pipeline later via
+    // 리뷰 모아오기 or 요약 생성.
+    reviewsCrawledAt: null,
   };
 
   const streamingData = {
@@ -406,36 +404,15 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     title_meaning: titleMeaning,
   });
 
-  // Stamp the user-submission marker + leave reviews_crawled_at NULL
-  // when the caller opted out of the warm-up. Admin-path callers skip
-  // both (no requestedByUserId and no skipReviewWarmup flag).
-  const postFields: Record<string, any> = {};
+  // Stamp the user-submission marker. reviews_crawled_at stays NULL
+  // regardless of who registered — admin kicks the Claude review
+  // pipeline later via "리뷰 모아오기", or drops manual reviews in
+  // and clicks "요약 생성" to stamp. No more review warmup on
+  // registration for anyone: the ~$0.10 cost is opt-in now, not a
+  // side effect of clicking "+ 등록".
   if (opts.requestedByUserId != null) {
-    postFields.requested_by_user_id = opts.requestedByUserId;
-  }
-  if (!opts.skipReviewWarmup) {
-    // Admin path: mark the album as "crawl triggered". The warm-up
-    // fires async below; stamping here (not after) means the marker
-    // reflects curator intent, not completion, which is what the UI
-    // actually cares about (dim vs not).
-    postFields.reviews_crawled_at = new Date().toISOString();
-  }
-  if (Object.keys(postFields).length > 0) {
-    updateAlbumFields(mbid, postFields);
-  }
-
-  // Fire-and-forget warm-up so the FIRST visitor (usually the admin who
-  // just registered, occasionally a public user) doesn't pay for review
-  // search synchronously. Shifts the cost to the moment of intent
-  // (registration) instead of leaking onto random user traffic.
-  // searchReviews has its own in-flight dedup, so a near-simultaneous
-  // /reviews call from the admin landing on the page collapses into the
-  // same Claude request.
-  if (!opts.skipReviewWarmup && mbid && artistName && albumTitle) {
-    setImmediate(() => {
-      warmUpAlbumReviews(mbid, artistName, albumTitle).catch((err) => {
-        console.warn(`[warm-up] reviews failed for ${mbid}:`, (err as Error).message);
-      });
+    updateAlbumFields(mbid, {
+      requested_by_user_id: opts.requestedByUserId,
     });
   }
 
@@ -1230,6 +1207,60 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
   }
 });
 
+// ─── POST /api/albums/:id/reviews/generate-summary ─────────────────────
+//
+// Cheap alternative to the full Claude review pipeline. Takes whatever
+// reviews are already cached for the album (typically URL-scraped
+// ones added by admin via /reviews/add-url), hands them to Sonnet,
+// and writes the Korean summary + stamps reviews_crawled_at so the
+// album un-dims on the home grid. Costs ~$0.01 per call vs ~$0.10
+// for the full 리뷰 모아오기 path.
+router.post(
+  '/:id/reviews/generate-summary',
+  adminClaudeLimiter,
+  requireAdmin,
+  async (req, res) => {
+    const resolved = resolveAlbumId(req.params.id as string);
+    const mbid = resolved?.mbid || (req.params.id as string);
+
+    const cached = getCachedAlbum(mbid);
+    if (!cached) return res.status(404).json({ error: 'Album not found' });
+
+    const existing = getCachedReviews(mbid) || [];
+    // Need at least 2 reviews for the summary to be worth anything —
+    // one review summarising itself is pointless, zero is impossible.
+    if (existing.length < 2) {
+      return res.status(400).json({
+        error: '요약을 생성하려면 리뷰가 최소 2개 필요합니다.',
+      });
+    }
+
+    const summary = await generateKoreanSummary(
+      cached.title,
+      cached.artist_name,
+      existing.map((r: any) => ({
+        source: r.source_name,
+        score: r.manual_score ?? r.score,
+        excerpt: r.excerpt,
+      }))
+    );
+
+    const fields: Record<string, any> = {
+      // Stamp the crawl marker regardless of summary success — admin
+      // deliberately curated this album manually; the "pending" state
+      // is no longer accurate even if Sonnet fails.
+      reviews_crawled_at: new Date().toISOString(),
+    };
+    if (summary) {
+      fields.korean_summary = summary;
+      fields.korean_summary_generated_at = new Date().toISOString();
+    }
+    updateAlbumFields(mbid, fields);
+
+    res.json({ ok: true, summary, stamped: true });
+  }
+);
+
 // ─── PATCH /api/albums/:id/tags — admin replace genre tag list ──────────
 
 router.patch('/:id/tags', requireAdmin, (req, res) => {
@@ -1608,46 +1639,13 @@ router.get('/:id/reviews', async (req, res) => {
     const artistName = cached?.artist_name || '';
     const albumTitle = cached?.title || '';
 
-    // Check cached reviews
-    let reviews = getCachedReviews(mbid);
-    let koreanSummary = cached?.korean_summary || null;
-
-    if (!reviews && albumTitle && artistName) {
-      try {
-        const result = await searchReviews(artistName, albumTitle);
-        if (result.reviews.length > 0) {
-          cacheReviews(
-            mbid,
-            result.reviews.map((r) => ({
-              source_name: r.sourceName,
-              score: r.score,
-              score_max: r.scoreMax,
-              excerpt: r.excerpt,
-              excerpt_ko: r.excerptKo,
-              full_review_url: r.fullReviewUrl,
-            }))
-          );
-          reviews = getCachedReviews(mbid);
-        }
-        const fieldsToUpdate: Record<string, any> = {};
-        if (result.koreanSummary && !koreanSummary) {
-          koreanSummary = result.koreanSummary;
-          fieldsToUpdate.korean_summary = koreanSummary;
-          fieldsToUpdate.korean_summary_generated_at = new Date().toISOString();
-        }
-        if (result.artistKo) fieldsToUpdate.artist_ko = result.artistKo;
-        if (result.titleKo) fieldsToUpdate.title_ko = result.titleKo;
-        if (result.titleMeaning) fieldsToUpdate.title_meaning = result.titleMeaning;
-        if (Object.keys(fieldsToUpdate).length > 0) {
-          updateAlbumFields(mbid, fieldsToUpdate);
-        }
-      } catch (error) {
-        console.error('Review search error:', error);
-      }
-    }
-
-    // Summary is generated in searchReviews Step 3 (Sonnet).
-    // No separate fallback needed — if it failed there, retrying won't help.
+    // Cached-only read. The automatic searchReviews fallback that
+    // used to live here has moved: review collection is now an
+    // explicit admin action ("리뷰 모아오기" / "요약 생성") on the
+    // album page. That keeps the $0.10+ Claude pipeline from firing
+    // on every first-visitor view of a pending album.
+    const reviews = getCachedReviews(mbid);
+    const koreanSummary = cached?.korean_summary || null;
 
     const formattedReviews = (reviews || []).map((r: any) => ({
       id: r.id,
