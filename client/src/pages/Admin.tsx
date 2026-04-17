@@ -79,12 +79,33 @@ interface AdminStats {
   };
 }
 
-function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
-  return (
-    <div className={`bg-[#1a1a1a] rounded-xl p-5 border ${accent ? 'border-[#e8a020]/40' : 'border-white/5'}`}>
+function StatCard({
+  label,
+  value,
+  accent,
+  hoverContent,
+}: {
+  label: string;
+  value: string | number;
+  accent?: boolean;
+  hoverContent?: ReactNode;
+}) {
+  const card = (
+    <div
+      className={`bg-[#1a1a1a] rounded-xl p-5 border ${accent ? 'border-[#e8a020]/40' : 'border-white/5'} ${hoverContent ? 'cursor-default' : ''}`}
+    >
       <div className="text-sm uppercase tracking-wider text-gray-500 mb-2">{label}</div>
       <div className={`text-3xl font-bold tabular-nums ${accent ? 'text-[#e8a020]' : 'text-white'}`}>
         {value}
+      </div>
+    </div>
+  );
+  if (!hoverContent) return card;
+  return (
+    <div className="relative group">
+      {card}
+      <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity absolute left-0 right-0 top-full mt-2 z-20 bg-[#1a1a1a] rounded-xl border border-white/10 shadow-xl overflow-hidden">
+        {hoverContent}
       </div>
     </div>
   );
@@ -296,11 +317,18 @@ export default function Admin() {
 
       {data && (
         <>
-          {/* Top stat cards — at-a-glance totals unchanged from before. */}
+          {/* Top stat cards — at-a-glance totals. "전체 유저" reveals the
+              recent-signup list on hover (replaces the dedicated panel). */}
           <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <StatCard label="전체 앨범" value={data.totalAlbums.toLocaleString()} />
             <StatCard label="오늘 추가 앨범" value={data.albumsToday} accent={data.albumsToday > 0} />
-            <StatCard label="전체 유저" value={data.totalUsers.toLocaleString()} />
+            <StatCard
+              label="전체 유저"
+              value={data.totalUsers.toLocaleString()}
+              hoverContent={
+                <RecentUsersList users={data.recentUsers} />
+              }
+            />
             <StatCard
               label="오늘 투표"
               value={`▲${data.votesToday.up} / ▼${data.votesToday.down}`}
@@ -310,125 +338,7 @@ export default function Admin() {
           {/* 3-column dashboard grid. lg+: 3 columns, md: 2, below: 1.
               Each column is a stack of panels (gap-4 between). */}
           <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* ── Column 1: 멤버 ──────────────────────────────────── */}
-            <div className="flex flex-col gap-4">
-              <Panel
-                title="최근 가입 유저"
-                icon="🧑‍🎤"
-                count={data.recentUsers.length}
-              >
-                {data.recentUsers.length === 0 ? (
-                  <EmptyRow>없음</EmptyRow>
-                ) : (
-                  data.recentUsers.map((u) => (
-                    <div key={u.id} className="p-3 flex items-center gap-3">
-                      {u.avatarUrl ? (
-                        <img
-                          src={resolveApiUrl(u.avatarUrl) ?? undefined}
-                          alt=""
-                          aria-hidden
-                          className="w-10 h-10 rounded-full shrink-0"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-sm font-bold shrink-0">
-                          {(u.name || u.email)[0]?.toUpperCase()}
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-base text-white font-medium truncate">
-                          {u.name || u.email}
-                          {u.isAdmin && (
-                            <span className="ml-1.5 text-[10px] bg-[#e8a020]/20 text-[#e8a020] px-1.5 py-0.5 rounded-full">
-                              ADMIN
-                            </span>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-500 truncate">
-                          {u.email} · {new Date(u.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </Panel>
-
-              <Panel
-                title="최근 50자 평"
-                icon="💬"
-                count={data.recentReviews.length}
-              >
-                {data.recentReviews.length === 0 ? (
-                  <EmptyRow>없음</EmptyRow>
-                ) : (
-                  data.recentReviews.map((r) => {
-                    const ratingMeta =
-                      r.rating === 'up'
-                        ? { emoji: '👍', label: '굿굿', accent: true }
-                        : r.rating === 'down'
-                          ? { emoji: '👎', label: '별루', accent: false }
-                          : r.rating === 'soso'
-                            ? { emoji: '🤷', label: '쏘쏘', accent: false }
-                            : null;
-                    return (
-                      <div key={r.id} className="p-3 flex items-start gap-3">
-                        {r.userAvatar ? (
-                          <img
-                            src={resolveApiUrl(r.userAvatar) ?? undefined}
-                            alt=""
-                            aria-hidden
-                            className="w-10 h-10 rounded-full flex-shrink-0"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-sm font-bold flex-shrink-0">
-                            {(r.userName || r.userEmail || '?')[0]?.toUpperCase()}
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                            <span className="text-sm text-white font-medium truncate">
-                              {r.userName || r.userEmail || '익명'}
-                            </span>
-                            {ratingMeta && (
-                              <span
-                                className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border ${
-                                  ratingMeta.accent
-                                    ? 'bg-[#e8a020]/15 text-[#e8a020] border-[#e8a020]/30'
-                                    : 'bg-white/5 text-gray-300 border-white/10'
-                                }`}
-                              >
-                                <span aria-hidden>{ratingMeta.emoji}</span>
-                                <span>{ratingMeta.label}</span>
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-sm text-gray-100 leading-relaxed break-words line-clamp-2">
-                            {r.emoji && (
-                              <span className="mr-1" aria-hidden>
-                                {r.emoji}
-                              </span>
-                            )}
-                            {r.body}
-                          </div>
-                          {r.albumSlug && (
-                            <Link
-                              to={`/album/${r.albumSlug}`}
-                              className="mt-1 inline-block text-xs text-gray-500 hover:text-[#e8a020] truncate"
-                            >
-                              {r.albumArtist ? `${r.albumArtist} — ` : ''}
-                              {r.albumTitle || r.albumSlug}
-                            </Link>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </Panel>
-            </div>
-
-            {/* ── Column 2: 앨범 ──────────────────────────────────── */}
+            {/* ── Column 1: 등록요청 / API 사용량 / 미완 앨범 ────────── */}
             <div className="flex flex-col gap-4">
               <Panel
                 title="등록 요청 앨범"
@@ -446,47 +356,6 @@ export default function Admin() {
                 )}
               </Panel>
 
-              <Panel
-                title="최근 추가 앨범"
-                icon="💿"
-                count={data.recentAlbums.length}
-              >
-                {data.recentAlbums.length === 0 ? (
-                  <EmptyRow>없음</EmptyRow>
-                ) : (
-                  data.recentAlbums.map((a) => (
-                    <div key={a.id} className="p-3 flex items-center gap-3">
-                      <CoverArt
-                        src={a.coverArtUrl}
-                        fallbacks={a.coverArtFallbacks}
-                        alt={a.title}
-                        className="w-12 h-12 rounded-md object-cover flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <Link
-                          to={`/album/${a.mbid}`}
-                          className="text-base text-white font-medium hover:text-[#e8a020] truncate block"
-                        >
-                          {a.title}
-                        </Link>
-                        <div className="text-xs text-gray-500 truncate">
-                          {a.artist} · {new Date(a.createdAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDelete(a.mbid)}
-                        className="text-xs text-red-700 hover:text-red-400 cursor-pointer px-2 py-1 shrink-0"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  ))
-                )}
-              </Panel>
-            </div>
-
-            {/* ── Column 3: 시스템 ─────────────────────────────────── */}
-            <div className="flex flex-col gap-4">
               <Panel title="Claude API 사용량 (지난 7일)" icon="🪙">
                 {data.claudeUsage.last7d.webSearchCount === 0 &&
                 data.claudeUsage.last7d.inputTokens === 0 ? (
@@ -570,10 +439,171 @@ export default function Admin() {
                 />
               </Panel>
             </div>
+
+            {/* ── Column 2: 최근 50자 평 ──────────────────────────── */}
+            <div className="flex flex-col gap-4">
+              <Panel
+                title="최근 50자 평"
+                icon="💬"
+                count={data.recentReviews.length}
+              >
+                {data.recentReviews.length === 0 ? (
+                  <EmptyRow>없음</EmptyRow>
+                ) : (
+                  data.recentReviews.map((r) => {
+                    const ratingMeta =
+                      r.rating === 'up'
+                        ? { emoji: '👍', label: '굿굿', accent: true }
+                        : r.rating === 'down'
+                          ? { emoji: '👎', label: '별루', accent: false }
+                          : r.rating === 'soso'
+                            ? { emoji: '🤷', label: '쏘쏘', accent: false }
+                            : null;
+                    return (
+                      <div key={r.id} className="p-3 flex items-start gap-3">
+                        {r.userAvatar ? (
+                          <img
+                            src={resolveApiUrl(r.userAvatar) ?? undefined}
+                            alt=""
+                            aria-hidden
+                            className="w-10 h-10 rounded-full flex-shrink-0"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-sm font-bold flex-shrink-0">
+                            {(r.userName || r.userEmail || '?')[0]?.toUpperCase()}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                            <span className="text-sm text-white font-medium truncate">
+                              {r.userName || r.userEmail || '익명'}
+                            </span>
+                            {ratingMeta && (
+                              <span
+                                className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                  ratingMeta.accent
+                                    ? 'bg-[#e8a020]/15 text-[#e8a020] border-[#e8a020]/30'
+                                    : 'bg-white/5 text-gray-300 border-white/10'
+                                }`}
+                              >
+                                <span aria-hidden>{ratingMeta.emoji}</span>
+                                <span>{ratingMeta.label}</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-gray-100 leading-relaxed break-words line-clamp-2">
+                            {r.emoji && (
+                              <span className="mr-1" aria-hidden>
+                                {r.emoji}
+                              </span>
+                            )}
+                            {r.body}
+                          </div>
+                          {r.albumSlug && (
+                            <Link
+                              to={`/album/${r.albumSlug}`}
+                              className="mt-1 inline-block text-xs text-gray-500 hover:text-[#e8a020] truncate"
+                            >
+                              {r.albumArtist ? `${r.albumArtist} — ` : ''}
+                              {r.albumTitle || r.albumSlug}
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </Panel>
+            </div>
+
+            {/* ── Column 3: 최근 등록 앨범 ─────────────────────────── */}
+            <div className="flex flex-col gap-4">
+              <Panel
+                title="최근 등록 앨범"
+                icon="💿"
+                count={data.recentAlbums.length}
+              >
+                {data.recentAlbums.length === 0 ? (
+                  <EmptyRow>없음</EmptyRow>
+                ) : (
+                  data.recentAlbums.map((a) => (
+                    <div key={a.id} className="p-3 flex items-center gap-3">
+                      <CoverArt
+                        src={a.coverArtUrl}
+                        fallbacks={a.coverArtFallbacks}
+                        alt={a.title}
+                        className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <Link
+                          to={`/album/${a.mbid}`}
+                          className="text-base text-white font-medium hover:text-[#e8a020] truncate block"
+                        >
+                          {a.title}
+                        </Link>
+                        <div className="text-xs text-gray-500 truncate">
+                          {a.artist} · {new Date(a.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDelete(a.mbid)}
+                        className="text-xs text-red-700 hover:text-red-400 cursor-pointer px-2 py-1 shrink-0"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  ))
+                )}
+              </Panel>
+            </div>
           </section>
         </>
       )}
     </main>
+  );
+}
+
+function RecentUsersList({ users }: { users: AdminStats['recentUsers'] }) {
+  if (users.length === 0) {
+    return <div className="p-4 text-sm text-gray-500">최근 가입 유저가 없습니다.</div>;
+  }
+  return (
+    <div className="divide-y divide-white/5 max-h-[420px] overflow-y-auto">
+      <div className="px-4 py-2.5 text-xs uppercase tracking-wider text-gray-500 bg-[#151515]">
+        최근 가입 유저
+      </div>
+      {users.map((u) => (
+        <div key={u.id} className="p-3 flex items-center gap-3">
+          {u.avatarUrl ? (
+            <img
+              src={resolveApiUrl(u.avatarUrl) ?? undefined}
+              alt=""
+              aria-hidden
+              className="w-8 h-8 rounded-full shrink-0"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-xs font-bold shrink-0">
+              {(u.name || u.email)[0]?.toUpperCase()}
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-white font-medium truncate">
+              {u.name || u.email}
+              {u.isAdmin && (
+                <span className="ml-1.5 text-[10px] bg-[#e8a020]/20 text-[#e8a020] px-1.5 py-0.5 rounded-full">
+                  ADMIN
+                </span>
+              )}
+            </div>
+            <div className="text-xs text-gray-500 truncate">
+              {u.email} · {new Date(u.createdAt).toLocaleDateString()}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
