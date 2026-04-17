@@ -244,8 +244,8 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
     || `https://www.discogs.com/search/?q=${encodeURIComponent(`${album.artist} ${album.title}`)}&type=master`;
 
   return (
-    <a href={discogsHref} target="_blank" rel="noopener noreferrer" className="relative block group/card">
-      <div className="bg-[#1a1a1a] rounded-xl overflow-hidden hover:bg-[#252525] transition-colors group">
+    <a href={discogsHref} target="_blank" rel="noopener noreferrer" className="relative block group/card h-full">
+      <div className="h-full flex flex-col bg-[#1a1a1a] rounded-xl overflow-hidden hover:bg-[#252525] transition-colors group">
         <div className="relative aspect-square bg-[#111] overflow-hidden">
           {album.imageUrl ? (
             <img
@@ -265,7 +265,11 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
           )}
           <ServiceIcons album={album} />
         </div>
-        <div className="p-3">
+        {/* flex-1 lets the text block absorb the leftover height of the
+            tallest card in the row — grid items are already stretched
+            via items-stretch, so every card ends up the same height
+            regardless of how long the Korean reason text is. */}
+        <div className="p-3 flex-1 flex flex-col">
           <p className="text-white font-semibold line-clamp-2" style={{ fontSize: '0.9375rem' }} title={album.title}>
             {album.title}
           </p>
@@ -273,7 +277,13 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
             {album.artist}
           </p>
           {album.reason && (
-            <p className="text-gray-500 mt-2 leading-snug" style={{ fontSize: '0.8125rem' }}>{album.reason}</p>
+            <p
+              className="text-gray-500 mt-2 leading-snug line-clamp-4"
+              style={{ fontSize: '0.8125rem' }}
+              title={album.reason}
+            >
+              {album.reason}
+            </p>
           )}
         </div>
       </div>
@@ -399,22 +409,40 @@ function AddSlot({ albumId }: { albumId: string }) {
 export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbum[]; albumId: string }) {
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
-  const showAddSlot = isAdmin && albums.length < 5;
 
-  if (albums.length === 0 && !isAdmin) return null;
+  // Current AI output is unreliable enough that showing it to the
+  // public hurts more than it helps. Hide the section entirely for
+  // regular users; admins still see it so they can curate (edit,
+  // delete, or manually add).
+  if (!isAdmin) return null;
+
+  const showAddSlot = albums.length < 5;
 
   return (
     <section>
-      <h2 className="text-2xl font-bold text-white mb-6 font-serif">
-        비앨추 (비슷한 앨범 추천)
+      <h2 className="text-2xl font-bold text-white mb-6 font-serif flex items-baseline gap-2">
+        <span>비앨추 (비슷한 앨범 추천)</span>
+        <AiSummaryBadge />
       </h2>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 items-stretch">
         {albums.map((album, idx) => (
           <AlbumCard key={album.mbid ?? idx} album={album} index={idx} albumId={albumId} />
         ))}
         {showAddSlot && <AddSlot albumId={albumId} />}
       </div>
     </section>
+  );
+}
+
+export function AiSummaryBadge() {
+  return (
+    <span
+      className="inline-flex items-center text-[10px] font-sans font-semibold tracking-wider uppercase text-[#e8a020]/80 border border-[#e8a020]/40 rounded-full px-1.5 py-0.5 leading-none align-middle translate-y-[-2px]"
+      title="Claude가 정리한 내용입니다."
+      aria-label="AI 요약"
+    >
+      AI 요약
+    </span>
   );
 }

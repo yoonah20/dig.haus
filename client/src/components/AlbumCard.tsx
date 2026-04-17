@@ -38,10 +38,29 @@ const TAP_THRESHOLD_PX = 12;
 const SCROLL_CANCEL_DY = 5;
 const TAP_MAX_MS = 350;
 
+// Releases stamped within this window get the "NEW!" sticker so the
+// grid reads like a record-shop 신보 코너. 30 days is forgiving enough
+// to catch late-add releases from the last few weeks; any longer and
+// the badge stops feeling informative.
+const NEW_BADGE_DAYS = 30;
+
+function isRecentRelease(releaseDate: string | null | undefined): boolean {
+  if (!releaseDate) return false;
+  const match = releaseDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return false;
+  const ts = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(ts)) return false;
+  const diffDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
+  // Include not-yet-released albums too — the sticker already reads as
+  // "new". The floor is what matters (> 30 days = not new).
+  return diffDays <= NEW_BADGE_DAYS;
+}
+
 export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
   const priceTagLinks = album.priceTagLinks ?? [];
+  const isNew = isRecentRelease(album.releaseDate);
 
   // Flip-side glow follows the review score — cyan > green > yellow > red.
   // If there aren't at least 3 scored reviews yet, leave the back plain dark
@@ -184,7 +203,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
         style={{ perspective: '1000px' }}
       >
         <div className="album-flip relative w-full h-full">
-          {/* Front — cover art + price stickers */}
+          {/* Front — cover art + price stickers + optional NEW! flag */}
           <div
             className="absolute inset-0 bg-[#1a1a1a] rounded-xl overflow-hidden"
             style={{
@@ -198,6 +217,15 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               alt={album.title}
               className="w-full h-full object-cover"
             />
+            {isNew && (
+              <span
+                className="absolute top-2 left-2 bg-[#f5c542] text-black text-[10px] font-extrabold tracking-wider uppercase px-1.5 py-0.5 rounded-sm shadow-md select-none"
+                style={{ fontFamily: "'Syne', 'Inter', sans-serif", letterSpacing: '0.06em' }}
+                aria-label="최근 30일 이내 발매"
+              >
+                NEW!
+              </span>
+            )}
             <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
           </div>
 

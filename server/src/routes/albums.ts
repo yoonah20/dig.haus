@@ -700,6 +700,7 @@ router.get('/', async (req, res) => {
         title: a.title,
         artist: a.artist_name,
         year: a.release_date?.substring(0, 4) || a.release_year?.toString() || null,
+        releaseDate: a.release_date || null,
         coverArtUrl: a.cover_art_url,
         coverArtFallbacks: a.cover_art_fallbacks ? JSON.parse(a.cover_art_fallbacks) : [],
         averageScore: a.avg_score != null ? Math.round(a.avg_score) : null,
@@ -1677,7 +1678,15 @@ router.get('/:id/similar', async (req, res) => {
       }
     }
 
-    if (similarAlbums.length === 0 && albumTitle && artistName) {
+    // Only auto-generate on the FIRST visit to an album (when the
+    // field has never been populated, i.e. still NULL). Once the
+    // column stores anything — including an empty array after an
+    // admin cleared hallucinated picks — skip the Claude round trip.
+    // Previously `length === 0` re-fired the pipeline after admins
+    // deleted all 5, and the same bad Last.fm + Claude output came
+    // back on the next request.
+    const neverGenerated = cached?.similar_albums_lastfm == null;
+    if (neverGenerated && albumTitle && artistName) {
       try {
         const lastfmSimilar = await getSimilarAlbums(artistName, albumTitle);
 
@@ -1752,12 +1761,14 @@ router.get('/:id/similar', async (req, res) => {
             })
           );
 
-          if (similarAlbums.length > 0) {
-            updateAlbumFields(mbid, {
-              similar_albums_lastfm: JSON.stringify(similarAlbums),
-            });
-          }
         }
+        // Persist the result even when it's empty so a future request
+        // doesn't re-run the same Last.fm + Claude call on an album
+        // with no similar matches. The "first visit only" gate
+        // above relies on this stamp.
+        updateAlbumFields(mbid, {
+          similar_albums_lastfm: JSON.stringify(similarAlbums),
+        });
       } catch (error) {
         console.error('Similar albums error:', error);
       }

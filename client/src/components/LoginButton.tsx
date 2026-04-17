@@ -4,11 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAlbumRequests } from '../hooks/useAlbumRequests';
 import { resolveApiUrl } from '../utils/apiUrl';
 
-// Fixed bottom-left auth affordance. Used to sit in the top-right of
-// the nav next to search/sort; moved here so it stays put as the user
-// scrolls and absorbs the admin pending-requests badge that previously
-// lived beside it. Menu and consent popovers open upward so they don't
-// fall off the bottom of the viewport.
+// Top-right nav affordance. Absorbs the admin pending-requests badge
+// (previously a separate bell) so the nav stays clean — count shows
+// as a small red circle on the user's avatar pill, and the dropdown
+// surfaces the same count next to "관리자 대시보드".
 export default function LoginButton() {
   const { user, loading, login, logout } = useAuth();
   const navigate = useNavigate();
@@ -31,9 +30,6 @@ export default function LoginButton() {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, [menuOpen]);
 
-  // Close the consent popover on Escape and on outside click. The popover
-  // is anchored above the 입장하기 button (no fullscreen backdrop), so we
-  // need an explicit document listener to dismiss it.
   useEffect(() => {
     if (!consentOpen) return;
     function onKey(e: KeyboardEvent) {
@@ -53,19 +49,15 @@ export default function LoginButton() {
   }, [consentOpen]);
 
   if (loading) {
-    return (
-      <div className="fixed bottom-4 left-4 z-40">
-        <div className="w-20 h-8 bg-white/5 rounded-full animate-pulse" />
-      </div>
-    );
+    return <div className="w-20 h-8 bg-white/5 rounded-full animate-pulse" />;
   }
 
   if (!user) {
     return (
-      <div className="fixed bottom-4 left-4 z-40" ref={consentRef}>
+      <div className="relative" ref={consentRef}>
         <button
           onClick={() => setConsentOpen((v) => !v)}
-          className="px-4 py-1.5 border border-[#e8a020]/60 text-[#e8a020] bg-[#120c05]/90 backdrop-blur-sm hover:bg-[#e8a020] hover:text-black rounded-full text-sm font-medium tracking-wide transition-colors cursor-pointer shadow-lg"
+          className="px-4 py-1.5 border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black rounded-full text-sm font-medium tracking-wide transition-colors cursor-pointer"
           title="Google 계정으로 입장하기"
         >
           입장하기
@@ -74,7 +66,7 @@ export default function LoginButton() {
           <div
             role="dialog"
             aria-label="로그인 동의"
-            className="absolute left-0 bottom-full mb-2 w-80 max-w-[calc(100vw-2rem)] bg-[#141414] border border-white/10 rounded-2xl p-5 shadow-2xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[#141414] border border-white/10 rounded-2xl p-5 shadow-2xl z-50"
           >
             <h2 className="text-base font-semibold text-white mb-3">
               로그인하기 전에
@@ -125,10 +117,10 @@ export default function LoginButton() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 z-40" ref={menuRef}>
+    <div className="relative" ref={menuRef}>
       <button
         onClick={() => setMenuOpen((v) => !v)}
-        className="relative flex items-center gap-2 border border-[#e8a020]/60 bg-[#120c05]/90 backdrop-blur-sm hover:bg-[#e8a020]/15 rounded-full pl-1 pr-3 py-1 transition-colors cursor-pointer shadow-lg"
+        className="relative flex items-center gap-2 border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-full pl-1 pr-3 py-1 transition-colors cursor-pointer"
       >
         {user.avatarUrl ? (
           <img
@@ -145,10 +137,6 @@ export default function LoginButton() {
         <span className="text-sm text-[#e8a020] max-w-[120px] truncate">
           {user.name || user.email}
         </span>
-        {/* Admin-only pending-requests badge. Overlaps the top-right
-            of the pill so the nav never had to carry a separate bell
-            button. Click behaviour is still handled by the pill
-            (opens the menu → 관리자 대시보드); the badge is visual. */}
         {isAdmin && pendingCount > 0 && (
           <span
             className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none px-1 border border-[#120c05]"
@@ -161,7 +149,7 @@ export default function LoginButton() {
       </button>
 
       {menuOpen && (
-        <div className="absolute left-0 bottom-full mb-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl py-1 z-50">
+        <div className="absolute right-0 mt-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl py-1 z-50">
           <Link
             to="/profile"
             onClick={() => setMenuOpen(false)}

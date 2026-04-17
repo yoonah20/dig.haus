@@ -473,95 +473,119 @@ function LinkForm({
     <div className="space-y-1.5">
       <form
         onSubmit={handleSubmit}
-        className="bg-[#141414] rounded-lg p-2 flex flex-col gap-2 max-w-2xl"
+        className="bg-[#141414] rounded-xl border border-white/10 p-4 max-w-2xl space-y-3.5"
       >
-        {/* Row 1: URL, price + currency, format — the core identity of
-            the listing. Kept together so even at narrower widths these
-            don't detach from each other. */}
-        <div className="flex items-stretch gap-2 flex-wrap">
+        {/* URL — full width, labelled, because it's the one required
+            field and people paste long URLs into it. */}
+        <label className="block">
+          <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
+            구매처 URL
+          </span>
           <input
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://..."
-            className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-1 min-w-[180px]"
+            className="w-full bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60"
             required
           />
+        </label>
 
-          {/* Price + currency */}
-          <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 focus-within:border-[#e8a020]/60 divide-x divide-white/10">
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={priceInput}
-              onChange={(e) => setPriceInput(e.target.value)}
-              placeholder="0.00"
-              className="bg-transparent text-white text-sm px-2 outline-none w-20 tabular-nums"
-            />
-            {CURRENCIES.map((c) => (
-              <SegButton
-                key={c}
-                active={currency === c}
-                onClick={() => setCurrency(c)}
-                title={c}
-              >
-                {CURRENCY_SYMBOL[c]}
-              </SegButton>
-            ))}
+        {/* Format + price together on one row. Both are compact and
+            have obvious fixed widths so nothing wraps unexpectedly. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
+              포맷
+            </span>
+            <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
+              {FORMATS.map((f) => (
+                <SegButton key={f} active={format === f} onClick={() => setFormat(f)}>
+                  <span className="mr-1">{FORMAT_EMOJI[f]}</span>
+                  {f}
+                </SegButton>
+              ))}
+            </div>
           </div>
 
-          {/* Format */}
-          <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
-            {FORMATS.map((f) => (
-              <SegButton key={f} active={format === f} onClick={() => setFormat(f)}>
-                <span className="mr-1">{FORMAT_EMOJI[f]}</span>
-                {f}
-              </SegButton>
-            ))}
+          <div>
+            <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
+              가격 (선택)
+            </span>
+            <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 focus-within:border-[#e8a020]/60 divide-x divide-white/10">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                value={priceInput}
+                onChange={(e) => setPriceInput(e.target.value)}
+                placeholder="0.00"
+                className="flex-1 min-w-0 bg-transparent text-white text-sm px-2 outline-none tabular-nums"
+              />
+              {CURRENCIES.map((c) => (
+                <SegButton
+                  key={c}
+                  active={currency === c}
+                  onClick={() => setCurrency(c)}
+                  title={c}
+                >
+                  {CURRENCY_SYMBOL[c]}
+                </SegButton>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Row 2: status, note, and the two action buttons — the
-            optional / auxiliary bits. */}
-        <div className="flex items-stretch gap-2 flex-wrap">
-          {/* Status — optional; clicking the active one clears it */}
-          <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
-            {STATUSES.map((s) => (
-              <SegButton
-                key={s.value}
-                active={status === s.value}
-                onClick={() => setStatus(status === s.value ? null : s.value)}
-              >
-                <span className="mr-1">{s.emoji}</span>
-                {s.label}
-              </SegButton>
-            ))}
+        {/* Status + note on one row. Status pills collapse to a
+            compact group; note takes the rest of the row so long
+            descriptions have room without stealing focus. */}
+        <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-3.5">
+          <div>
+            <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
+              상태 (선택)
+            </span>
+            <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
+              {STATUSES.map((s) => (
+                <SegButton
+                  key={s.value}
+                  active={status === s.value}
+                  onClick={() => setStatus(status === s.value ? null : s.value)}
+                >
+                  <span className="mr-1">{s.emoji}</span>
+                  {s.label}
+                </SegButton>
+              ))}
+            </div>
           </div>
 
-          <input
-            type="text"
-            value={note}
-            onChange={(e) => setNote(e.target.value.slice(0, 200))}
-            placeholder="black, 180g, red/blue split..."
-            className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 w-44"
-          />
+          <label className="block">
+            <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
+              메모 (선택)
+            </span>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value.slice(0, 200))}
+              placeholder="black, 180g, red/blue split..."
+              className="w-full bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60"
+            />
+          </label>
+        </div>
 
-          <button
-            type="submit"
-            disabled={!canSubmit || submitting}
-            className="bg-[#e8a020] text-black font-semibold text-sm rounded-md px-3 h-9 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
-          >
-            {submitting ? '...' : submitLabel}
-          </button>
-
+        <div className="flex items-center justify-end gap-2 pt-1">
           <button
             type="button"
             onClick={onCancel}
-            className="text-gray-500 hover:text-gray-300 text-sm h-9 px-2 cursor-pointer"
-            title="취소"
+            className="text-gray-500 hover:text-gray-200 text-sm h-9 px-3 cursor-pointer"
           >
-            ×
+            취소
+          </button>
+          <button
+            type="submit"
+            disabled={!canSubmit || submitting}
+            className="bg-[#e8a020] text-black font-semibold text-sm rounded-md px-4 h-9 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
+          >
+            {submitting ? '...' : submitLabel}
           </button>
         </div>
       </form>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import LoginButton from './LoginButton';
 import RegisterAlbumModal from './RegisterAlbumModal';
 import SearchBar from './SearchBar';
 import SortMenu from './Home/SortMenu';
@@ -135,12 +136,11 @@ export default function TopNav() {
                 />
               </svg>
             </button>
-            {/* Sort sits next to search so the "find" cluster reads
-                as one group. The LoginButton (plus any admin pending
-                badge) now floats in a fixed bottom-left overlay —
-                rendered once at the app root so it persists across
-                routes and stays visible as users scroll. */}
+            {/* Sort sits next to search so the whole "find" cluster
+                reads as one group; login pill (with any admin
+                pending-badge) anchors the right edge. */}
             {isHome && <SortMenu />}
+            <LoginButton />
           </div>
         </div>
 

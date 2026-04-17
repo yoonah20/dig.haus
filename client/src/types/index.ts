@@ -25,6 +25,10 @@ export interface AlbumSearchResult {
   title: string;
   artist: string;
   year: number | null;
+  /** Full ISO date (YYYY-MM-DD) when the album was released. Home
+   *  grid uses this to flag releases from the last 30 days with a
+   *  "NEW!" sticker; year alone is too coarse for a monthly window. */
+  releaseDate?: string | null;
   format: string | null;
   label: string | null;
   coverArtUrl: string | null;

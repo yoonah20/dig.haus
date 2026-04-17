@@ -5,6 +5,7 @@ import axios from '../../lib/axios';
 import type { Review } from '../../types';
 import { getScoreColor as scoreColor, getScoreBgColor as scoreBgColor } from '../../utils/score';
 import { useAuth } from '../../contexts/AuthContext';
+import { AiSummaryBadge } from './SimilarAlbums';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -370,10 +371,9 @@ export default function ReviewSection({ reviews, koreanSummary, averageScore }: 
 
   return (
     <section>
-      <h2
-        className="text-2xl font-bold text-white mb-6 font-serif"
-      >
-        리뷰 모음집
+      <h2 className="text-2xl font-bold text-white mb-6 font-serif flex items-baseline gap-2">
+        <span>리뷰 모음집</span>
+        <AiSummaryBadge />
       </h2>
 
       {!hasContent ? (
