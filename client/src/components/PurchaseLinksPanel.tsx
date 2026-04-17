@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import {
   usePurchaseLinks,
   useCreatePurchaseLink,
   useUpdatePurchaseLink,
   useDeletePurchaseLink,
+  useReportPurchaseLink,
   type PurchaseLinkPayload,
+  type PurchaseLinkReportReason,
 } from '../hooks/usePurchaseLinks';
 import type { PurchaseLink, FormatPrice, PurchaseLinkStatus } from '../types';
+import { formatRelativeKo } from '../utils/relativeTime';
 
 const CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'KRW'] as const;
 type Currency = (typeof CURRENCIES)[number];
@@ -34,6 +37,15 @@ const CURRENCY_SYMBOL: Record<string, string> = {
   EUR: '€',
   KRW: '₩',
 };
+
+const REPORT_REASONS: ReadonlyArray<{
+  value: PurchaseLinkReportReason;
+  label: string;
+}> = [
+  { value: 'soldout', label: '품절 됨' },
+  { value: 'price', label: '가격 다름' },
+  { value: 'expired', label: '링크 만료' },
+];
 
 function formatPrice(price: number | null, currency: string): string {
   if (price === null || price === undefined) return '';
@@ -70,19 +82,155 @@ function Subline({ parts }: { parts: Array<string | null | undefined> }) {
   );
 }
 
+// Small overlay button for the three card actions (report/edit/delete).
+// Styles kept uniform so the overhang reads as one group, not three
+// different control families.
+function OverlayButton({
+  onClick,
+  title,
+  children,
+  variant = 'neutral',
+}: {
+  onClick: (e: React.MouseEvent) => void;
+  title: string;
+  children: React.ReactNode;
+  variant?: 'neutral' | 'danger';
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`w-6 h-6 rounded-full border flex items-center justify-center text-[13px] leading-none shadow-[0_2px_4px_rgba(0,0,0,0.4)] cursor-pointer transition-colors ${
+        variant === 'danger'
+          ? 'bg-[#1a1a1a] border-white/10 text-red-500 hover:text-red-300 hover:border-red-500/40'
+          : 'bg-[#1a1a1a] border-white/10 text-gray-300 hover:text-[#e8a020] hover:border-[#e8a020]/50'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Small popover anchored to the link card. Closes on outside click,
+// Escape, or successful submit.
+function ReportPopover({
+  linkId,
+  onClose,
+}: {
+  linkId: number;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState<PurchaseLinkReportReason>('soldout');
+  const [err, setErr] = useState<string | null>(null);
+  const report = useReportPurchaseLink();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    const onDocClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    // pointerdown would fire BEFORE the trigger's own onClick completed
+    // synchronously, so the popover would close immediately after
+    // opening. `click` on the next event loop tick is safe.
+    document.addEventListener('click', onDocClick);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('click', onDocClick);
+    };
+  }, [onClose]);
+
+  const submit = async () => {
+    setErr(null);
+    try {
+      await report.mutateAsync({ linkId, reason });
+      onClose();
+    } catch (e: any) {
+      const msg = e?.response?.data?.error ?? '신고에 실패했습니다.';
+      setErr(msg);
+    }
+  };
+
+  return (
+    <div
+      ref={rootRef}
+      role="dialog"
+      aria-label="구매처 신고"
+      className="absolute top-full right-0 mt-2 z-30 w-52 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl p-2.5 text-xs"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="text-gray-400 text-[11px] uppercase tracking-wider mb-1.5">
+        신고 사유
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {REPORT_REASONS.map((r) => (
+          <label
+            key={r.value}
+            className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-white/5 cursor-pointer text-gray-200"
+          >
+            <input
+              type="radio"
+              name={`report-${linkId}`}
+              value={r.value}
+              checked={reason === r.value}
+              onChange={() => setReason(r.value)}
+              className="accent-[#e8a020]"
+            />
+            {r.label}
+          </label>
+        ))}
+      </div>
+      {err && (
+        <div className="text-red-400 text-[11px] mt-1.5 px-1">{err}</div>
+      )}
+      <div className="flex items-center justify-end gap-1.5 mt-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-gray-500 hover:text-gray-300 px-2 py-1 cursor-pointer"
+        >
+          취소
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={report.isPending}
+          className="bg-[#e8a020] text-black font-semibold rounded-md px-2.5 py-1 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
+        >
+          {report.isPending ? '…' : '신고'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function LinkButton({
   link,
-  canManage,
+  canReport,
+  canEdit,
+  canDelete,
   onEdit,
   onDelete,
 }: {
   link: PurchaseLink;
-  canManage: boolean;
+  canReport: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const [reporting, setReporting] = useState(false);
   const showKrwConversion =
     link.priceKrw != null && link.currency && link.currency !== 'KRW';
+  const hasAnyOverlay = canReport || canEdit || canDelete;
+  const registeredLabel = formatRelativeKo(link.createdAt);
 
   return (
     <div className="group relative flex items-center gap-3 bg-[#1a1a1a] hover:bg-[#252525] rounded-xl px-4 py-3 transition-colors">
@@ -90,7 +238,7 @@ function LinkButton({
         href={link.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex items-center gap-3"
+        className="flex items-center gap-3 flex-1 min-w-0"
       >
         {link.storeFaviconUrl ? (
           <img
@@ -103,7 +251,7 @@ function LinkButton({
         ) : (
           <span className="w-5 h-5 rounded-sm bg-white/10 flex-shrink-0" />
         )}
-        <div>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-white text-sm font-medium group-hover:text-[#e8a020] transition-colors">
               {link.storeName}
@@ -120,35 +268,62 @@ function LinkButton({
               link.status ? STATUS_LABEL[link.status] : null,
               showKrwConversion ? formatKrw(link.priceKrw) : null,
               link.note,
+              // Relative time sits at the end of the second line — a
+              // quiet "this was added 3 days ago" cue so readers can
+              // weigh freshness without a date column cluttering the
+              // card.
+              registeredLabel || null,
             ]}
           />
         </div>
       </a>
-      {canManage && (
-        <div className="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity -ml-1">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              onEdit();
-            }}
-            className="text-gray-400 hover:text-[#e8a020] text-sm cursor-pointer px-1.5 py-1 leading-none"
-            title="수정"
-            aria-label="수정"
-          >
-            ✎
-          </button>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              if (confirm('이 구매처 링크를 삭제할까요?')) onDelete();
-            }}
-            className="text-red-700 hover:text-red-400 text-sm cursor-pointer px-1.5 py-1 leading-none"
-            title="삭제"
-            aria-label="삭제"
-          >
-            ×
-          </button>
+
+      {/* Overlay — three pill buttons overhanging the card's top-right
+          corner, hover-revealed. Pulled out of the card body via
+          -top-3 so adding/removing these doesn't change the card's
+          layout height. */}
+      {hasAnyOverlay && (
+        <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          {canReport && (
+            <OverlayButton
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setReporting((v) => !v);
+              }}
+              title="신고"
+            >
+              ⚑
+            </OverlayButton>
+          )}
+          {canEdit && (
+            <OverlayButton
+              onClick={(e) => {
+                e.preventDefault();
+                onEdit();
+              }}
+              title="수정"
+            >
+              ✎
+            </OverlayButton>
+          )}
+          {canDelete && (
+            <OverlayButton
+              variant="danger"
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirm('이 구매처 링크를 삭제할까요?')) onDelete();
+              }}
+              title="삭제"
+            >
+              ×
+            </OverlayButton>
+          )}
         </div>
+      )}
+
+      {reporting && (
+        <ReportPopover linkId={link.id} onClose={() => setReporting(false)} />
       )}
     </div>
   );
@@ -196,6 +371,27 @@ function DiscogsFormatCard({ fmt }: { fmt: FormatPrice }) {
   );
 }
 
+// Dotted-outline sibling card that sits between user links and the
+// Discogs price card. Neutral grey tone instead of amber so it reads
+// as a companion to the existing link cards rather than a CTA peeking
+// out — the user explicitly wanted this to blend into the row.
+function AddPurchaseLinkCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex items-center gap-3 bg-transparent hover:bg-[#1a1a1a] border border-dashed border-white/15 hover:border-white/30 rounded-xl px-4 py-3 transition-colors cursor-pointer"
+    >
+      <span className="w-5 h-5 rounded-sm border border-dashed border-white/25 group-hover:border-white/50 flex items-center justify-center text-gray-400 group-hover:text-gray-200 text-sm flex-shrink-0">
+        +
+      </span>
+      <span className="text-sm text-gray-400 group-hover:text-gray-200 font-medium">
+        구매처 추가
+      </span>
+    </button>
+  );
+}
+
 function SegButton({
   active,
   onClick,
@@ -226,14 +422,16 @@ function SegButton({
 function LinkForm({
   initial,
   submitting,
-  errored,
+  errorMessage,
   submitLabel,
   onSubmit,
   onCancel,
 }: {
   initial?: PurchaseLink;
   submitting: boolean;
-  errored: boolean;
+  /** Pre-formatted server error (409 cap, invalid URL, etc.) — null
+   *  when nothing has gone wrong yet. */
+  errorMessage: string | null;
   submitLabel: string;
   onSubmit: (payload: PurchaseLinkPayload) => Promise<void>;
   onCancel: () => void;
@@ -275,91 +473,100 @@ function LinkForm({
     <div className="space-y-1.5">
       <form
         onSubmit={handleSubmit}
-        className="bg-[#141414] rounded-lg p-2 flex items-stretch gap-2 flex-wrap"
+        className="bg-[#141414] rounded-lg p-2 flex flex-col gap-2"
       >
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://..."
-          className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-[2] min-w-[180px]"
-          required
-        />
-
-        {/* Price + currency */}
-        <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 focus-within:border-[#e8a020]/60 divide-x divide-white/10">
+        {/* Row 1: URL, price + currency, format — the core identity of
+            the listing. Kept together so even at narrower widths these
+            don't detach from each other. */}
+        <div className="flex items-stretch gap-2 flex-wrap">
           <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={priceInput}
-            onChange={(e) => setPriceInput(e.target.value)}
-            placeholder="0.00"
-            className="bg-transparent text-white text-sm px-2 outline-none w-20 tabular-nums"
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://..."
+            className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-[2] min-w-[180px]"
+            required
           />
-          {CURRENCIES.map((c) => (
-            <SegButton
-              key={c}
-              active={currency === c}
-              onClick={() => setCurrency(c)}
-              title={c}
-            >
-              {CURRENCY_SYMBOL[c]}
-            </SegButton>
-          ))}
+
+          {/* Price + currency */}
+          <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 focus-within:border-[#e8a020]/60 divide-x divide-white/10">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={priceInput}
+              onChange={(e) => setPriceInput(e.target.value)}
+              placeholder="0.00"
+              className="bg-transparent text-white text-sm px-2 outline-none w-20 tabular-nums"
+            />
+            {CURRENCIES.map((c) => (
+              <SegButton
+                key={c}
+                active={currency === c}
+                onClick={() => setCurrency(c)}
+                title={c}
+              >
+                {CURRENCY_SYMBOL[c]}
+              </SegButton>
+            ))}
+          </div>
+
+          {/* Format */}
+          <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
+            {FORMATS.map((f) => (
+              <SegButton key={f} active={format === f} onClick={() => setFormat(f)}>
+                <span className="mr-1">{FORMAT_EMOJI[f]}</span>
+                {f}
+              </SegButton>
+            ))}
+          </div>
         </div>
 
-        {/* Format */}
-        <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
-          {FORMATS.map((f) => (
-            <SegButton key={f} active={format === f} onClick={() => setFormat(f)}>
-              <span className="mr-1">{FORMAT_EMOJI[f]}</span>
-              {f}
-            </SegButton>
-          ))}
+        {/* Row 2: status, note, and the two action buttons — the
+            optional / auxiliary bits. */}
+        <div className="flex items-stretch gap-2 flex-wrap">
+          {/* Status — optional; clicking the active one clears it */}
+          <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
+            {STATUSES.map((s) => (
+              <SegButton
+                key={s.value}
+                active={status === s.value}
+                onClick={() => setStatus(status === s.value ? null : s.value)}
+              >
+                <span className="mr-1">{s.emoji}</span>
+                {s.label}
+              </SegButton>
+            ))}
+          </div>
+
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value.slice(0, 200))}
+            placeholder="black, 180g, red/blue split..."
+            className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-1 min-w-[140px]"
+          />
+
+          <button
+            type="submit"
+            disabled={!canSubmit || submitting}
+            className="bg-[#e8a020] text-black font-semibold text-sm rounded-md px-3 h-9 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
+          >
+            {submitting ? '...' : submitLabel}
+          </button>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-gray-500 hover:text-gray-300 text-sm h-9 px-2 cursor-pointer"
+            title="취소"
+          >
+            ×
+          </button>
         </div>
-
-        {/* Status — optional; clicking the active one clears it */}
-        <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
-          {STATUSES.map((s) => (
-            <SegButton
-              key={s.value}
-              active={status === s.value}
-              onClick={() => setStatus(status === s.value ? null : s.value)}
-            >
-              <span className="mr-1">{s.emoji}</span>
-              {s.label}
-            </SegButton>
-          ))}
-        </div>
-
-        <input
-          type="text"
-          value={note}
-          onChange={(e) => setNote(e.target.value.slice(0, 200))}
-          placeholder="black, 180g, red/blue split..."
-          className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-[2] min-w-[140px]"
-        />
-
-        <button
-          type="submit"
-          disabled={!canSubmit || submitting}
-          className="bg-[#e8a020] text-black font-semibold text-sm rounded-md px-3 h-9 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
-        >
-          {submitting ? '...' : submitLabel}
-        </button>
-
-        <button
-          type="button"
-          onClick={onCancel}
-          className="text-gray-500 hover:text-gray-300 text-sm h-9 px-2 cursor-pointer"
-          title="취소"
-        >
-          ×
-        </button>
       </form>
-      {errored && (
-        <div className="text-red-400 text-xs pl-2">저장 실패. URL을 확인해 주세요.</div>
+      {errorMessage && (
+        <div className="text-red-400 text-xs pl-2">{errorMessage}</div>
       )}
     </div>
   );
@@ -367,16 +574,21 @@ function LinkForm({
 
 function AddLinkForm({ albumId, onDone }: { albumId: string; onDone: () => void }) {
   const create = useCreatePurchaseLink(albumId);
+  const [err, setErr] = useState<string | null>(null);
   return (
     <LinkForm
       submitting={create.isPending}
-      errored={create.isError}
+      errorMessage={err}
       submitLabel="저장"
       onSubmit={async (payload) => {
+        setErr(null);
         try {
           await create.mutateAsync(payload);
           onDone();
-        } catch {}
+        } catch (e: any) {
+          const msg = e?.response?.data?.error ?? '저장 실패. URL을 확인해 주세요.';
+          setErr(msg);
+        }
       }}
       onCancel={onDone}
     />
@@ -393,17 +605,22 @@ function EditLinkForm({
   onDone: () => void;
 }) {
   const update = useUpdatePurchaseLink(albumId);
+  const [err, setErr] = useState<string | null>(null);
   return (
     <LinkForm
       initial={link}
       submitting={update.isPending}
-      errored={update.isError}
+      errorMessage={err}
       submitLabel="수정"
       onSubmit={async (payload) => {
+        setErr(null);
         try {
           await update.mutateAsync({ id: link.id, ...payload });
           onDone();
-        } catch {}
+        } catch (e: any) {
+          const msg = e?.response?.data?.error ?? '저장 실패. URL을 확인해 주세요.';
+          setErr(msg);
+        }
       }}
       onCancel={onDone}
     />
@@ -422,7 +639,7 @@ export default function PurchaseLinksPanel({
   const { user } = useAuth();
   const { data } = usePurchaseLinks(albumId);
   const del = useDeletePurchaseLink(albumId);
-  const [open, setOpen] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const sortedLinks = [...(data?.purchaseLinks || [])].sort(
@@ -439,14 +656,25 @@ export default function PurchaseLinksPanel({
         (DISCOGS_FORMAT_ORDER[b.format] ?? 99)
     );
 
-  const hasAnyCard = sortedLinks.length > 0 || discogsCards.length > 0;
+  const hasAnyCard =
+    sortedLinks.length > 0 || discogsCards.length > 0 || !!user || adding;
 
   return (
     <div className="space-y-3">
+      {adding && (
+        <AddLinkForm albumId={albumId} onDone={() => setAdding(false)} />
+      )}
+
       {hasAnyCard && (
         <div className="flex flex-wrap gap-3">
           {sortedLinks.map((link) => {
-            const canManage = !!user && (user.id === link.userId || user.isAdmin);
+            const isOwner = !!user && user.id === link.userId;
+            const canEdit = !!user && (isOwner || user.isAdmin);
+            const canDelete = !!user && (isOwner || user.isAdmin);
+            // Non-owners can flag a link; owners and admins don't need
+            // the button (owners can just delete, admins handle from
+            // the dashboard).
+            const canReport = !!user && !isOwner && !user.isAdmin;
             if (editingId === link.id) {
               return (
                 <div key={link.id} className="w-full">
@@ -462,29 +690,27 @@ export default function PurchaseLinksPanel({
               <LinkButton
                 key={link.id}
                 link={link}
-                canManage={canManage}
+                canReport={canReport}
+                canEdit={canEdit}
+                canDelete={canDelete}
                 onEdit={() => setEditingId(link.id)}
                 onDelete={() => del.mutate(link.id)}
               />
             );
           })}
+
+          {/* Dotted add-card sits between user links and the Discogs
+              price card — any logged-in user can trigger it, the
+              server caps at 3 per user per album and surfaces the 409
+              as a form error if they overshoot. */}
+          {!!user && !adding && (
+            <AddPurchaseLinkCard onClick={() => setAdding(true)} />
+          )}
+
           {discogsCards.map((fmt) => (
             <DiscogsFormatCard key={fmt.format} fmt={fmt} />
           ))}
         </div>
-      )}
-
-      {user?.isAdmin && (
-        open ? (
-          <AddLinkForm albumId={albumId} onDone={() => setOpen(false)} />
-        ) : (
-          <button
-            onClick={() => setOpen(true)}
-            className="text-sm text-[#e8a020]/80 hover:text-[#e8a020] cursor-pointer"
-          >
-            + 구매처 추가
-          </button>
-        )
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { queryGet, queryAll, execute } from '../db/index.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireAuth } from '../middleware/auth.js';
 import { resolveAlbumPk } from '../utils/slug.js';
 import { convertToKrw, getRates, convertToKrwSync } from '../services/exchangeRates.js';
 
@@ -9,6 +9,12 @@ const router = Router();
 const ALLOWED_CURRENCIES = new Set(['USD', 'JPY', 'GBP', 'EUR', 'KRW']);
 const ALLOWED_FORMATS = new Set(['Vinyl', 'CD', 'Cassette', 'Box', 'Other']);
 const ALLOWED_STATUSES = new Set(['upcoming', 'sale', 'soldout']);
+const ALLOWED_REPORT_REASONS = new Set(['soldout', 'price', 'expired']);
+
+// Per-user cap on purchase-link submissions, scoped to a single album.
+// Keeps one user from flooding one album's listings while still letting
+// them seed other albums they care about. Admin bypasses this cap.
+const MAX_LINKS_PER_USER_PER_ALBUM = 3;
 
 function normalizeStatus(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
@@ -89,11 +95,27 @@ router.get('/albums/:id/purchase-links', async (req, res) => {
   res.json({ purchaseLinks: enriched });
 });
 
-// POST /api/albums/:id/purchase-links (admin only)
-router.post('/albums/:id/purchase-links', requireAdmin, async (req, res) => {
+// POST /api/albums/:id/purchase-links (logged-in users; non-admins
+// capped at MAX_LINKS_PER_USER_PER_ALBUM on this album).
+router.post('/albums/:id/purchase-links', requireAuth, async (req, res) => {
   const user = req.user!;
   const albumPk = resolveAlbumPk((req.params.id as string));
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
+
+  // Per-album spam cap. Admin bypass — they seed most canonical
+  // listings so the cap would get in the way of routine curation.
+  if (!user.is_admin) {
+    const count = queryGet(
+      `SELECT COUNT(*) AS n FROM purchase_links
+       WHERE album_id = ? AND user_id = ?`,
+      [albumPk, user.id]
+    ) as { n: number };
+    if (count.n >= MAX_LINKS_PER_USER_PER_ALBUM) {
+      return res.status(409).json({
+        error: `이 앨범에는 이미 ${MAX_LINKS_PER_USER_PER_ALBUM}개의 구매처를 등록하셨어요.`,
+      });
+    }
+  }
 
   const { url, price, currency, format, note, status } = req.body as {
     url?: string;
@@ -273,7 +295,7 @@ router.patch('/purchase-links/:id', requireAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/purchase-links/:id (owner only)
+// DELETE /api/purchase-links/:id (owner or admin)
 router.delete('/purchase-links/:id', requireAuth, (req, res) => {
   const user = req.user!;
   const linkId = parseInt((req.params.id as string), 10);
@@ -286,6 +308,140 @@ router.delete('/purchase-links/:id', requireAuth, (req, res) => {
   }
 
   execute(`DELETE FROM purchase_links WHERE id = ?`, [linkId]);
+  res.json({ ok: true });
+});
+
+// POST /api/purchase-links/:id/report (logged-in users)
+//
+// Flags a link with one of the three fixed reasons (soldout / price /
+// expired). A user can't report their own link, and the UNIQUE
+// (link_id, user_id) constraint stops repeat reports from the same
+// person — they'd need to dismiss+re-report if they want a different
+// reason. Admin polls these via /api/admin/purchase-link-reports.
+router.post('/purchase-links/:id/report', requireAuth, (req, res) => {
+  const user = req.user!;
+  const linkId = parseInt((req.params.id as string), 10);
+  if (isNaN(linkId)) return res.status(400).json({ error: 'Invalid id' });
+
+  const link = queryGet(
+    `SELECT user_id FROM purchase_links WHERE id = ?`,
+    [linkId]
+  ) as { user_id: number | null } | null;
+  if (!link) return res.status(404).json({ error: 'Link not found' });
+  if (link.user_id === user.id) {
+    return res.status(400).json({ error: '본인이 등록한 링크는 신고할 수 없습니다.' });
+  }
+
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+  if (!ALLOWED_REPORT_REASONS.has(reason)) {
+    return res.status(400).json({ error: 'Invalid reason' });
+  }
+
+  try {
+    execute(
+      `INSERT INTO purchase_link_reports (link_id, user_id, reason)
+       VALUES (?, ?, ?)`,
+      [linkId, user.id, reason]
+    );
+    res.json({ ok: true });
+  } catch (err: any) {
+    // UNIQUE(link_id, user_id) collision — treat as idempotent success
+    // from the client's POV, the first report already exists.
+    if (err?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: '이미 신고한 링크입니다.' });
+    }
+    console.error('[purchase-links/report] insert failed:', err);
+    res.status(500).json({ error: 'Failed to save report' });
+  }
+});
+
+// GET /api/admin/purchase-link-reports (admin)
+//
+// Returns every open report, joined with link + album + reporter info
+// so the admin dashboard renders one row per report with enough
+// context to decide dismiss-vs-delete without a follow-up query.
+router.get('/admin/purchase-link-reports', requireAuth, (req, res) => {
+  const user = req.user!;
+  if (!user.is_admin) return res.status(403).json({ error: 'Forbidden' });
+
+  const rows = queryAll(
+    `SELECT r.id, r.reason, r.created_at,
+            r.link_id,
+            pl.url AS link_url, pl.store_name AS link_store,
+            pl.price AS link_price, pl.currency AS link_currency,
+            pl.status AS link_status,
+            a.id AS album_id, a.slug AS album_slug, a.mbid AS album_mbid,
+            a.title AS album_title, a.artist_name AS album_artist,
+            r.user_id AS reporter_id,
+            COALESCE(ru.display_name, ru.name) AS reporter_name,
+            pl.user_id AS link_user_id,
+            COALESCE(lu.display_name, lu.name) AS link_user_name
+     FROM purchase_link_reports r
+     INNER JOIN purchase_links pl ON pl.id = r.link_id
+     INNER JOIN albums a ON a.id = pl.album_id
+     LEFT JOIN users ru ON ru.id = r.user_id
+     LEFT JOIN users lu ON lu.id = pl.user_id
+     ORDER BY r.created_at DESC`
+  ) as Array<{
+    id: number;
+    reason: 'soldout' | 'price' | 'expired';
+    created_at: string;
+    link_id: number;
+    link_url: string;
+    link_store: string | null;
+    link_price: number | null;
+    link_currency: string | null;
+    link_status: string | null;
+    album_id: number;
+    album_slug: string | null;
+    album_mbid: string | null;
+    album_title: string;
+    album_artist: string | null;
+    reporter_id: number | null;
+    reporter_name: string | null;
+    link_user_id: number | null;
+    link_user_name: string | null;
+  }>;
+
+  res.json({
+    reports: rows.map((r) => ({
+      id: r.id,
+      reason: r.reason,
+      createdAt: r.created_at,
+      linkId: r.link_id,
+      linkUrl: r.link_url,
+      linkStore: r.link_store,
+      linkPrice: r.link_price,
+      linkCurrency: r.link_currency,
+      linkStatus: normalizeStatus(r.link_status),
+      albumSlug: r.album_slug || r.album_mbid || '',
+      albumTitle: r.album_title,
+      albumArtist: r.album_artist,
+      reporterId: r.reporter_id,
+      reporterName: r.reporter_name,
+      linkUserId: r.link_user_id,
+      linkUserName: r.link_user_name,
+    })),
+  });
+});
+
+// DELETE /api/admin/purchase-link-reports/:id (admin) — dismiss one
+// specific report without touching the underlying link. Used when a
+// report is false-positive and the link is still valid.
+router.delete('/admin/purchase-link-reports/:id', requireAuth, (req, res) => {
+  const user = req.user!;
+  if (!user.is_admin) return res.status(403).json({ error: 'Forbidden' });
+
+  const reportId = parseInt((req.params.id as string), 10);
+  if (isNaN(reportId)) return res.status(400).json({ error: 'Invalid id' });
+
+  const row = queryGet(
+    `SELECT id FROM purchase_link_reports WHERE id = ?`,
+    [reportId]
+  );
+  if (!row) return res.status(404).json({ error: 'Report not found' });
+
+  execute(`DELETE FROM purchase_link_reports WHERE id = ?`, [reportId]);
   res.json({ ok: true });
 });
 

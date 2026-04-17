@@ -63,6 +63,36 @@ router.get('/stats', (_req, res) => {
     coverArtFallbacks: safeParseArray(a.cover_art_fallbacks),
   }));
 
+  // Recent purchase-link activity — complements the per-album view by
+  // surfacing "who's seeding store links lately" at the dashboard
+  // level. Scoped to 20 rows to keep the payload cheap.
+  const recentPurchaseLinks = queryAll(
+    `SELECT pl.id, pl.url, pl.store_name, pl.store_favicon_url,
+            pl.price, pl.currency, pl.created_at,
+            a.slug AS album_slug, a.mbid AS album_mbid,
+            a.title AS album_title, a.artist_name AS album_artist,
+            pl.user_id,
+            COALESCE(u.display_name, u.name) AS user_name
+     FROM purchase_links pl
+     INNER JOIN albums a ON a.id = pl.album_id
+     LEFT JOIN users u ON u.id = pl.user_id
+     ORDER BY pl.created_at DESC
+     LIMIT 20`
+  ).map((r: any) => ({
+    id: r.id,
+    url: r.url,
+    storeName: r.store_name,
+    storeFaviconUrl: r.store_favicon_url,
+    price: r.price,
+    currency: r.currency,
+    createdAt: r.created_at,
+    albumSlug: r.album_slug || r.album_mbid || '',
+    albumTitle: r.album_title,
+    albumArtist: r.album_artist,
+    userId: r.user_id,
+    userName: r.user_name,
+  }));
+
   const recentUsers = queryAll(
     `SELECT id, email, name, avatar_url, is_admin, created_at
      FROM users ORDER BY created_at DESC LIMIT 20`
@@ -244,6 +274,7 @@ router.get('/stats', (_req, res) => {
       down: votesToday?.down || 0,
     },
     recentAlbums,
+    recentPurchaseLinks,
     recentUsers,
     recentReviews,
     claudeUsage,

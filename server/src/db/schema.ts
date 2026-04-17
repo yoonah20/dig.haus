@@ -344,6 +344,25 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
+  // User-submitted reports on purchase links. A logged-in user who
+  // isn't the link's author can flag a link as one of three reasons;
+  // UNIQUE(link_id, user_id) prevents the same reporter from spamming
+  // multiple reports on the same link (they can delete + re-submit
+  // with a different reason if needed). Admin dashboard groups by
+  // link_id to surface the most-reported items first.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS purchase_link_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      link_id INTEGER NOT NULL REFERENCES purchase_links(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL CHECK(reason IN ('soldout','price','expired')),
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(link_id, user_id)
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_link_reports_link ON purchase_link_reports(link_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_link_reports_created ON purchase_link_reports(created_at DESC)');
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS album_votes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
