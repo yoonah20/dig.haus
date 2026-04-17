@@ -195,13 +195,12 @@ export default function Album() {
                   className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${!hasNext ? 'col-span-full max-w-sm mx-auto' : ''}`}
                 >
                   <span className="text-gray-600 group-hover:text-[#e8a020] transition-colors text-lg shrink-0">←</span>
-                  {neighbors!.prev!.coverArtUrl && (
-                    <CoverArt
-                      src={neighbors!.prev!.coverArtUrl}
-                      alt=""
-                      className="w-12 h-12 rounded-md object-cover shrink-0"
-                    />
-                  )}
+                  <CoverArt
+                    src={neighbors!.prev!.coverArtUrl}
+                    fallbacks={neighbors!.prev!.coverArtFallbacks}
+                    alt={neighbors!.prev!.title}
+                    className="w-12 h-12 rounded-md object-cover shrink-0"
+                  />
                   <div className="min-w-0">
                     <div className="text-[11px] text-gray-600 mb-0.5">이전 앨범</div>
                     <div className="text-sm text-white font-medium truncate group-hover:text-[#e8a020] transition-colors">
@@ -223,13 +222,12 @@ export default function Album() {
                     </div>
                     <div className="text-xs text-gray-500 truncate">{neighbors!.next!.artist}</div>
                   </div>
-                  {neighbors!.next!.coverArtUrl && (
-                    <CoverArt
-                      src={neighbors!.next!.coverArtUrl}
-                      alt=""
-                      className="w-12 h-12 rounded-md object-cover shrink-0"
-                    />
-                  )}
+                  <CoverArt
+                    src={neighbors!.next!.coverArtUrl}
+                    fallbacks={neighbors!.next!.coverArtFallbacks}
+                    alt={neighbors!.next!.title}
+                    className="w-12 h-12 rounded-md object-cover shrink-0"
+                  />
                   <span className="text-gray-600 group-hover:text-[#e8a020] transition-colors text-lg shrink-0">→</span>
                 </Link>
               )}

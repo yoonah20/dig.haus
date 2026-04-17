@@ -130,6 +130,7 @@ interface AlbumNeighbor {
   title: string;
   artist: string;
   coverArtUrl: string | null;
+  coverArtFallbacks?: string[];
 }
 
 interface NeighborsData {

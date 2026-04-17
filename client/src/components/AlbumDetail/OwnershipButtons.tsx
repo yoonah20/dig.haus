@@ -1,10 +1,6 @@
 import { useAuth } from '../../contexts/AuthContext';
 import { useSetOwnership } from '../../hooks/useOwnership';
-import {
-  OWNERSHIP_FORMATS,
-  type OwnershipFormat,
-  type OwnershipState,
-} from '../../types';
+import type { OwnershipFormat } from '../../types';
 
 interface Props {
   albumId: string;
@@ -14,18 +10,13 @@ interface Props {
   wantedCount: number;
 }
 
-const FORMAT_EMOJI: Record<OwnershipFormat, string> = {
-  Vinyl: '🖤',
-  CD: '💿',
-  Cassette: '📼',
-};
+// Flat 샀음/살거 toggle — format selection intentionally absent.
+// The data layer still records per-format rows, but every new click
+// operates on the default format (Vinyl). When turning a state off
+// for a user who has legacy multi-format rows, we fire a clear for
+// each format so the visible state matches reality.
+const DEFAULT_FORMAT: OwnershipFormat = 'Vinyl';
 
-// Per-format 2×3 toggle grid. Each cell is independent: a collector
-// can mark vinyl as 샀음 and CD as 살거 on the same album. Clicking
-// an already-active cell clears it; clicking the opposite-row cell
-// of the same format moves the state (server enforces). Logged-out
-// visitors see the grid disabled — the social counts still show so
-// the page reads as a collector hub regardless of auth state.
 export default function OwnershipButtons({
   albumId,
   ownedFormats,
@@ -36,107 +27,123 @@ export default function OwnershipButtons({
   const { user, login } = useAuth();
   const mutate = useSetOwnership(albumId);
 
-  const ownedSet = new Set(ownedFormats);
-  const wantedSet = new Set(wantedFormats);
+  const ownedActive = ownedFormats.length > 0;
+  const wantedActive = wantedFormats.length > 0;
 
-  const handleClick = (row: 'owned' | 'wanted', format: OwnershipFormat) => {
+  const handleClick = async (row: 'owned' | 'wanted') => {
     if (!user) {
       login();
       return;
     }
     if (mutate.isPending) return;
-    const currentlyActive =
-      row === 'owned' ? ownedSet.has(format) : wantedSet.has(format);
-    // Clicking an active cell clears it; clicking an inactive one
-    // sets that row's state (and server auto-clears the opposite
-    // row for this format).
-    const target: OwnershipState = currentlyActive ? null : row;
-    mutate.mutate({ state: target, format });
+
+    const currentFormats = row === 'owned' ? ownedFormats : wantedFormats;
+    const active = currentFormats.length > 0;
+
+    if (active) {
+      // Clear every format this user has for that row.
+      for (const fmt of currentFormats) {
+        await mutate.mutateAsync({ state: null, format: fmt });
+      }
+      return;
+    }
+    mutate.mutate({ state: row, format: DEFAULT_FORMAT });
   };
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <OwnershipRow
+    <>
+      <OwnershipButton
         row="owned"
         label="샀음"
-        leadEmoji="💿"
+        emoji="💿"
         count={ownedCount}
-        activeSet={ownedSet}
+        active={ownedActive}
         onClick={handleClick}
         pending={mutate.isPending}
       />
-      <OwnershipRow
+      <OwnershipButton
         row="wanted"
         label="살거"
-        leadEmoji="🎯"
+        emoji="🎯"
         count={wantedCount}
-        activeSet={wantedSet}
+        active={wantedActive}
         onClick={handleClick}
         pending={mutate.isPending}
       />
-    </div>
+    </>
   );
 }
 
-function OwnershipRow({
+function OwnershipButton({
   row,
   label,
-  leadEmoji,
+  emoji,
   count,
-  activeSet,
+  active,
   onClick,
   pending,
 }: {
   row: 'owned' | 'wanted';
   label: string;
-  leadEmoji: string;
+  emoji: string;
   count: number;
-  activeSet: Set<OwnershipFormat>;
-  onClick: (row: 'owned' | 'wanted', format: OwnershipFormat) => void;
+  active: boolean;
+  onClick: (row: 'owned' | 'wanted') => void;
   pending: boolean;
 }) {
-  // 샀음 row uses amber (the brand colour), 살거 row uses sky so the
-  // two rows read as distinct choices even at a glance.
-  const activeClass =
-    row === 'owned'
-      ? 'bg-[#e8a020]/20 border-[#e8a020]/60 text-[#e8a020]'
-      : 'bg-sky-500/15 border-sky-500/50 text-sky-300';
+  // Match the VoteButtons pill styling so 굿굿/별루/샀음/살거 read as
+  // one cohesive row. 샀음 uses the amber brand accent when active;
+  // 살거 uses a neutral dark fill.
+  let buttonStyle: React.CSSProperties;
+  if (active && row === 'owned') {
+    buttonStyle = {
+      background: '#e8a020',
+      color: '#0f0f0f',
+      border: '1px solid transparent',
+    };
+  } else if (active && row === 'wanted') {
+    buttonStyle = {
+      background: '#3a3a3a',
+      color: '#ffffff',
+      border: '1px solid transparent',
+    };
+  } else if (row === 'owned') {
+    buttonStyle = {
+      background: 'transparent',
+      color: '#e8a020',
+      border: '1px solid #e8a020',
+      opacity: 0.5,
+    };
+  } else {
+    buttonStyle = {
+      background: 'transparent',
+      color: '#9a9a9a',
+      border: '1px solid #4a4a4a',
+      opacity: 0.5,
+    };
+  }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <span
-        className="inline-flex items-center gap-1 text-xs text-gray-400 min-w-[52px]"
-        aria-hidden
-      >
-        <span>{leadEmoji}</span>
-        <span>{label}</span>
-        {count > 0 && (
-          <span className="tabular-nums text-gray-500">{count}</span>
-        )}
-      </span>
-      <div className="flex items-center gap-1">
-        {OWNERSHIP_FORMATS.map((fmt) => {
-          const active = activeSet.has(fmt);
-          return (
-            <button
-              key={fmt}
-              type="button"
-              aria-pressed={active}
-              aria-label={`${label} ${fmt}`}
-              disabled={pending}
-              onClick={() => onClick(row, fmt)}
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 h-7 text-xs font-medium border transition-colors cursor-pointer disabled:opacity-60 ${
-                active
-                  ? activeClass
-                  : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
-              }`}
-            >
-              <span aria-hidden>{FORMAT_EMOJI[fmt]}</span>
-              <span>{fmt}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
+    <button
+      type="button"
+      aria-pressed={active}
+      aria-label={label}
+      disabled={pending}
+      onClick={() => onClick(row)}
+      style={{
+        ...buttonStyle,
+        padding: '6px 14px',
+        borderRadius: '6px',
+        fontSize: '13px',
+        fontWeight: 600,
+        transition: 'all 150ms ease',
+      }}
+      className="inline-flex items-center gap-1.5 cursor-pointer disabled:cursor-wait disabled:opacity-60 hover:!opacity-80"
+    >
+      <span style={{ fontSize: '13px', lineHeight: 1 }}>{emoji}</span>
+      <span>{label}</span>
+      <span className="tabular-nums">{count.toLocaleString()}</span>
+    </button>
   );
 }
+

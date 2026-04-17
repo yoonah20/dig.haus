@@ -17,7 +17,7 @@ import {
   useAdminDeletePurchaseLink,
   type ReportedLink,
 } from '../hooks/usePurchaseLinks';
-import { formatRelativeKo } from '../utils/relativeTime';
+import { formatRelativeKo, parseServerTimestamp } from '../utils/relativeTime';
 
 interface IncompleteAlbumSample {
   id: number;
@@ -267,6 +267,73 @@ function formatTokens(n: number): string {
   return n.toLocaleString();
 }
 
+// Two-row stat tile that sits beside the album/user counters. Mirrors
+// the StatCard chrome so the top band reads as a single unit, but gets
+// its own compact summary layout because we want the $ total + per-op
+// breakdown visible at a glance.
+function ClaudeUsageCard({
+  usage,
+}: {
+  usage: AdminStats['claudeUsage']['last7d'];
+}) {
+  const empty = usage.webSearchCount === 0 && usage.inputTokens === 0;
+  return (
+    <div className="bg-[#1a1a1a] rounded-xl p-5 border border-white/5 flex flex-col">
+      <div className="flex items-baseline justify-between gap-2 mb-3">
+        <span className="text-sm uppercase tracking-wider text-gray-500">
+          🪙 API 사용량 (7일)
+        </span>
+        <span className="text-2xl font-bold text-[#e8a020] tabular-nums">
+          ${usage.usd.toFixed(2)}
+        </span>
+      </div>
+      {empty ? (
+        <div className="text-sm text-gray-500">기록된 호출이 없습니다.</div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-2 text-xs mb-3">
+            <div>
+              <div className="text-gray-500 uppercase tracking-wider">검색</div>
+              <div className="text-gray-200 tabular-nums text-sm">
+                {usage.webSearchCount}
+              </div>
+            </div>
+            <div>
+              <div className="text-gray-500 uppercase tracking-wider">입력</div>
+              <div className="text-gray-200 tabular-nums text-sm">
+                {formatTokens(usage.inputTokens)}
+              </div>
+            </div>
+            <div>
+              <div className="text-gray-500 uppercase tracking-wider">출력</div>
+              <div className="text-gray-200 tabular-nums text-sm">
+                {formatTokens(usage.outputTokens)}
+              </div>
+            </div>
+          </div>
+          {usage.byOperation.length > 0 && (
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 text-xs pt-2 border-t border-white/5">
+              {usage.byOperation.map((op) => (
+                <div
+                  key={op.operation}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="text-gray-400 truncate">
+                    {OPERATION_LABEL(op.operation)}
+                  </span>
+                  <span className="tabular-nums text-[#e8a020] shrink-0">
+                    ${op.usd.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 const REPORT_REASON_LABEL: Record<ReportedLink['reason'], string> = {
   soldout: '품절 됨',
   price: '가격 다름',
@@ -415,33 +482,39 @@ export default function Admin() {
 
       {data && (
         <>
-          {/* Top stat cards — at-a-glance totals. "전체 유저" reveals the
-              recent-signup list on hover (replaces the dedicated panel). */}
-          <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <StatCard label="전체 앨범" value={data.totalAlbums.toLocaleString()} />
-            <StatCard
-              label="오늘 추가 앨범"
-              value={data.albumsToday}
-              accent={data.albumsToday > 0}
-              hoverContent={<RecentAlbumsList albums={data.recentAlbums} />}
-            />
-            <StatCard
-              label="전체 유저"
-              value={data.totalUsers.toLocaleString()}
-              hoverContent={
-                <RecentUsersList users={data.recentUsers} />
-              }
-            />
-            <StatCard
-              label="오늘 투표"
-              value={`▲${data.votesToday.up} / ▼${data.votesToday.down}`}
-            />
+          {/* Top stats — four tiles on the left (album + user totals) plus a
+              two-row API-usage tile on the right. The API column used to live
+              down in column 1 of the dashboard, but it reads as a dashboard-
+              level signal so promoting it up here keeps the 3-column grid
+              focused on queues and recent activity. */}
+          <section className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-2 gap-4 md:col-span-2">
+              <StatCard label="전체 앨범" value={data.totalAlbums.toLocaleString()} />
+              <StatCard
+                label="전체 유저"
+                value={data.totalUsers.toLocaleString()}
+                hoverContent={
+                  <RecentUsersList users={data.recentUsers} />
+                }
+              />
+              <StatCard
+                label="오늘 추가 앨범"
+                value={data.albumsToday}
+                accent={data.albumsToday > 0}
+                hoverContent={<RecentAlbumsList albums={data.recentAlbums} />}
+              />
+              <StatCard
+                label="오늘 투표"
+                value={`▲${data.votesToday.up} / ▼${data.votesToday.down}`}
+              />
+            </div>
+            <ClaudeUsageCard usage={data.claudeUsage.last7d} />
           </section>
 
           {/* 3-column dashboard grid. lg+: 3 columns, md: 2, below: 1.
               Each column is a stack of panels (gap-4 between). */}
           <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* ── Column 1: 등록요청 / API 사용량 / 미완 앨범 ────────── */}
+            {/* ── Column 1: 등록요청 / 신고된 구매처 / 미완 앨범 ────────── */}
             <div className="flex flex-col gap-4">
               <Panel
                 title="리뷰 수집 대기"
@@ -480,74 +553,6 @@ export default function Admin() {
                       }}
                     />
                   ))
-                )}
-              </Panel>
-
-              <Panel title="Claude API 사용량 (지난 7일)" icon="🪙">
-                {data.claudeUsage.last7d.webSearchCount === 0 &&
-                data.claudeUsage.last7d.inputTokens === 0 ? (
-                  <EmptyRow>기록된 호출이 없습니다.</EmptyRow>
-                ) : (
-                  <div className="p-4 space-y-3">
-                    {/* Summary row — big numbers */}
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="text-xs uppercase tracking-wider text-gray-500">
-                          예상 비용
-                        </div>
-                        <div className="text-xl font-bold text-[#e8a020] tabular-nums">
-                          ${data.claudeUsage.last7d.usd.toFixed(2)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-wider text-gray-500">
-                          웹 검색
-                        </div>
-                        <div className="text-xl font-bold text-white tabular-nums">
-                          {data.claudeUsage.last7d.webSearchCount}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-wider text-gray-500">
-                          입력 토큰
-                        </div>
-                        <div className="text-base text-gray-200 tabular-nums">
-                          {formatTokens(data.claudeUsage.last7d.inputTokens)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs uppercase tracking-wider text-gray-500">
-                          출력 토큰
-                        </div>
-                        <div className="text-base text-gray-200 tabular-nums">
-                          {formatTokens(data.claudeUsage.last7d.outputTokens)}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Per-operation breakdown */}
-                    {data.claudeUsage.last7d.byOperation.length > 0 && (
-                      <div className="pt-3 border-t border-white/5 space-y-2">
-                        {data.claudeUsage.last7d.byOperation.map((op) => (
-                          <div
-                            key={op.operation}
-                            className="flex items-center justify-between gap-3 text-sm"
-                          >
-                            <span className="text-gray-300 truncate">
-                              {OPERATION_LABEL(op.operation)}
-                            </span>
-                            <span className="tabular-nums text-gray-500 shrink-0 text-xs">
-                              {formatTokens(op.tokens)}
-                              {op.searches > 0 && ` · ${op.searches} 검색`}
-                            </span>
-                            <span className="tabular-nums text-[#e8a020] shrink-0 w-16 text-right">
-                              ${op.usd.toFixed(2)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 )}
               </Panel>
 
@@ -802,7 +807,7 @@ function RecentUsersList({ users }: { users: AdminStats['recentUsers'] }) {
               )}
             </div>
             <div className="text-xs text-gray-500 truncate">
-              {u.email} · {new Date(u.createdAt).toLocaleDateString()}
+              {u.email} · {parseServerTimestamp(u.createdAt).toLocaleDateString()}
             </div>
           </div>
         </div>

@@ -916,7 +916,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             )}
           </div>
 
-          <div className="mb-6 flex flex-col gap-3">
+          <div className="mb-6 flex items-center gap-2 flex-wrap">
             <VoteButtons
               albumId={albumId}
               upvotes={album.upvotes ?? 0}

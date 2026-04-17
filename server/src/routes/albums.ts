@@ -750,6 +750,7 @@ router.get('/neighbors', (req, res) => {
         title: r.title,
         artist: r.artist_name,
         coverArtUrl: r.cover_art_url,
+        coverArtFallbacks: r.cover_art_fallbacks ? JSON.parse(r.cover_art_fallbacks) : [],
       } : null;
       return res.json({
         prev: fmt(randoms[0] || null),
@@ -778,6 +779,7 @@ router.get('/neighbors', (req, res) => {
       title: r.title,
       artist: r.artist_name,
       coverArtUrl: r.cover_art_url,
+      coverArtFallbacks: r.cover_art_fallbacks ? JSON.parse(r.cover_art_fallbacks) : [],
     } : null;
 
     res.json({
