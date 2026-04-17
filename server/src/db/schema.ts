@@ -487,7 +487,38 @@ export function initializeDatabase(db: Database.Database): void {
     'rank_score INTEGER DEFAULT 0',
     'rank_updated_at TEXT',
     'is_vinyl_wall INTEGER DEFAULT 0',
+    // Marker set when the expensive review-search pipeline has run
+    // against an album. NULL means "user-submitted, not yet approved
+    // for review crawl". Home grid dims cards with NULL, and the
+    // album-detail review section swaps in a placeholder.
+    'reviews_crawled_at TEXT',
+    // Non-null when a regular user (not admin) registered this album
+    // — powers the "50 per day" cap and the admin's "리뷰 수집 대기"
+    // queue. Admin-registered rows stay NULL.
+    'requested_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL',
   ]);
+
+  // One-time backfill: every album that existed BEFORE we split the
+  // pipeline is treated as fully crawled so none of them get dimmed on
+  // the home grid. Idempotent via schema_migrations.
+  try {
+    const row = db
+      .prepare(`SELECT name FROM schema_migrations WHERE name = ?`)
+      .get('backfill-reviews-crawled-at-2026-04-17') as { name: string } | undefined;
+    if (!row) {
+      db.exec(
+        `UPDATE albums
+         SET reviews_crawled_at = COALESCE(updated_at, datetime('now'))
+         WHERE reviews_crawled_at IS NULL`
+      );
+      db.prepare(`INSERT INTO schema_migrations (name) VALUES (?)`).run(
+        'backfill-reviews-crawled-at-2026-04-17'
+      );
+      console.log('[migration] backfilled reviews_crawled_at on existing albums');
+    }
+  } catch (err) {
+    console.error('[migration] backfill reviews_crawled_at failed:', err);
+  }
 
   migrateTable(db, 'reviews', [
     'excerpt_ko TEXT',

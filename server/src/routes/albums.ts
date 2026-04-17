@@ -94,7 +94,31 @@ function cleanGenres(raw: string[], artistName?: string): string[] {
 
 // ─── Helper: build album base data (fast path) ─────────────────────────────
 
-async function getOrFetchAlbumBase(mbid: string) {
+interface GetOrFetchOpts {
+  /** When true, don't fire the Claude review-search warm-up after
+   *  caching the album. Used by the user-submitted registration path
+   *  so regular users can seed an album without triggering the
+   *  expensive review-crawl cost — admin approves that separately. */
+  skipReviewWarmup?: boolean;
+  /** Stamped into albums.requested_by_user_id for new rows only
+   *  (never overrides an existing value). Non-null marks the row as
+   *  user-submitted, which drives the home-grid dim + the admin
+   *  "리뷰 수집 대기" queue. */
+  requestedByUserId?: number;
+}
+
+// Public wrapper used by routes/albumRequests.ts for user submissions.
+// Exposed via a separate name so the module-private internals stay
+// private; the request path always wants `skipReviewWarmup: true` +
+// `requestedByUserId` set.
+export async function getOrFetchAlbumBaseForSubmission(
+  mbid: string,
+  opts: GetOrFetchOpts
+) {
+  return getOrFetchAlbumBase(mbid, opts);
+}
+
+async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
   let cached = getCachedAlbum(mbid);
 
   if (cached && cached.updated_at) {
@@ -181,6 +205,7 @@ async function getOrFetchAlbumBase(mbid: string) {
         artistKo: cached.artist_ko || null,
         titleKo: cached.title_ko || null,
         titleMeaning,
+        reviewsCrawledAt: cached.reviews_crawled_at || null,
       },
       streaming: {
         spotify: cached.spotify_url,
@@ -330,6 +355,10 @@ async function getOrFetchAlbumBase(mbid: string) {
     artistKo,
     titleKo,
     titleMeaning,
+    // Fresh-fetch path: admin registration stamps the crawl marker
+    // (opts.skipReviewWarmup !== true). User-submission path stays
+    // NULL until admin approves.
+    reviewsCrawledAt: opts.skipReviewWarmup ? null : new Date().toISOString(),
   };
 
   const streamingData = {
@@ -377,6 +406,24 @@ async function getOrFetchAlbumBase(mbid: string) {
     title_meaning: titleMeaning,
   });
 
+  // Stamp the user-submission marker + leave reviews_crawled_at NULL
+  // when the caller opted out of the warm-up. Admin-path callers skip
+  // both (no requestedByUserId and no skipReviewWarmup flag).
+  const postFields: Record<string, any> = {};
+  if (opts.requestedByUserId != null) {
+    postFields.requested_by_user_id = opts.requestedByUserId;
+  }
+  if (!opts.skipReviewWarmup) {
+    // Admin path: mark the album as "crawl triggered". The warm-up
+    // fires async below; stamping here (not after) means the marker
+    // reflects curator intent, not completion, which is what the UI
+    // actually cares about (dim vs not).
+    postFields.reviews_crawled_at = new Date().toISOString();
+  }
+  if (Object.keys(postFields).length > 0) {
+    updateAlbumFields(mbid, postFields);
+  }
+
   // Fire-and-forget warm-up so the FIRST visitor (usually the admin who
   // just registered, occasionally a public user) doesn't pay for review
   // search synchronously. Shifts the cost to the moment of intent
@@ -384,7 +431,7 @@ async function getOrFetchAlbumBase(mbid: string) {
   // searchReviews has its own in-flight dedup, so a near-simultaneous
   // /reviews call from the admin landing on the page collapses into the
   // same Claude request.
-  if (mbid && artistName && albumTitle) {
+  if (!opts.skipReviewWarmup && mbid && artistName && albumTitle) {
     setImmediate(() => {
       warmUpAlbumReviews(mbid, artistName, albumTitle).catch((err) => {
         console.warn(`[warm-up] reviews failed for ${mbid}:`, (err as Error).message);
@@ -440,17 +487,32 @@ async function warmUpAlbumReviews(
   console.log(`[warm-up] reviews ready for ${mbid}: ${result.reviews.length} reviews`);
 }
 
-// Called by routes/albumRequests.ts when an admin approves a user
-// request: runs the full register path for `mbid` so reviews / Korean
-// summary / similar-albums all kick off, exactly like a direct admin
-// registration would. Exposed here (rather than being re-implemented
-// in albumRequests.ts) because getOrFetchAlbumBase is the single
-// source of truth for the register pipeline.
+// Called by routes/albumRequests.ts when an admin approves a user-
+// submitted album. At this point the album row already exists (the
+// user's initial submission went through the minimal pipeline), so
+// this just triggers the expensive review-crawl that was deferred
+// and stamps reviews_crawled_at. Idempotent: stamping an already-
+// approved album re-runs the warm-up, which in turn is a no-op once
+// reviews are cached.
 export async function approveAlbumRequest(mbid: string): Promise<void> {
-  const result = await getOrFetchAlbumBase(mbid);
-  if (!result) {
-    throw new Error(`Album not found on external sources: ${mbid}`);
+  const cached = getCachedAlbum(mbid);
+  if (!cached) {
+    throw new Error(`Album not yet registered: ${mbid}`);
   }
+  const artistName = cached.artist_name as string | null;
+  const albumTitle = cached.title as string | null;
+  if (!artistName || !albumTitle) {
+    throw new Error(`Album missing metadata: ${mbid}`);
+  }
+  // Mark the album as crawl-approved immediately so the home-grid
+  // dim + the admin queue update on the next refresh, without
+  // waiting on the async Claude calls to finish.
+  updateAlbumFields(mbid, { reviews_crawled_at: new Date().toISOString() });
+  setImmediate(() => {
+    warmUpAlbumReviews(mbid, artistName, albumTitle).catch((err) => {
+      console.warn(`[approve] review warm-up failed for ${mbid}:`, (err as Error).message);
+    });
+  });
 }
 
 // ─── GET /api/albums — list all albums (paginated + sorted) ─────────────
@@ -477,6 +539,7 @@ const SORT_CLAUSES: Record<string, string> = {
 const ALBUM_ROW_SELECT = `
   SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.release_date, a.release_year,
          a.cover_art_url, a.cover_art_fallbacks, a.genres,
+         a.reviews_crawled_at,
          COALESCE((SELECT SUM(CASE WHEN vote='up' THEN 1 ELSE 0 END) FROM album_votes WHERE album_id = a.id), 0) AS upvotes,
          COALESCE((SELECT SUM(CASE WHEN vote='down' THEN 1 ELSE 0 END) FROM album_votes WHERE album_id = a.id), 0) AS downvotes,
          (SELECT AVG(CASE
@@ -633,6 +696,7 @@ router.get('/', async (req, res) => {
         downvotes: a.downvotes || 0,
         priceTagLinks: topLinksByAlbum.get(a.id) || [],
         genres,
+        reviewsCrawledAt: a.reviews_crawled_at,
       };
     });
 

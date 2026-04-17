@@ -6,6 +6,11 @@ import { getCachedAlbum } from '../utils/cache.js';
 import { searchExternalMerged } from '../utils/externalSearch.js';
 import type { AppUser } from '../auth/passport.js';
 
+// Max albums a non-admin can submit in one calendar day. Caps spam
+// without getting in the way of a motivated curator adding a batch.
+// Admin bypasses this cap entirely.
+const USER_DAILY_ALBUM_CAP = 50;
+
 const router = Router();
 
 function userKey(req: { user?: unknown; ip?: string }): string {
@@ -64,15 +69,19 @@ function normalizeString(raw: unknown, max: number): string | null {
 
 // ─── POST /api/album-requests ─────────────────────────────────────────
 //
-// User-submitted request for an album to be added to dig.haus. Writes
-// one row; does NOT trigger any Claude (review search, pronunciation,
-// similar-albums). Those run only on admin approve.
+// User-submitted album registration. Creates the album row immediately
+// (MB metadata + cover + pronunciation + Discogs prices — all of which
+// are cheap or free) but defers the expensive review-crawl until an
+// admin approves. Albums with reviews_crawled_at IS NULL show as
+// dimmed cards on the home grid and use a placeholder for their
+// review section; voting, 50자 평, and purchase-link curation all
+// work normally in the meantime.
 router.post(
   '/album-requests',
   requireAuth,
   createDailyLimiter,
   createBurstLimiter,
-  (req, res) => {
+  async (req, res) => {
   const user = req.user as AppUser;
   const body = (req.body ?? {}) as Record<string, unknown>;
 
@@ -83,40 +92,60 @@ router.post(
     return res.status(400).json({ error: 'mbid, title, artist는 필수입니다.' });
   }
 
-  // Already registered? Nothing to request.
+  // Already registered? Short-circuit with the existing slug so the
+  // modal can redirect the user to the album page instead of firing
+  // the external-fetch pipeline again.
   const existingAlbum = getCachedAlbum(mbid);
   if (existingAlbum) {
-    return res.status(400).json({ error: '이미 등록된 앨범입니다.' });
+    return res.status(200).json({
+      ok: true,
+      existed: true,
+      mbid,
+      slug: existingAlbum.slug || mbid,
+    });
   }
 
-  // Soft dedup: same user can't have a pending request for the same
-  // mbid twice. Other users still can — multiple users requesting the
-  // same album is the "social proof" signal for admin.
-  const dupe = queryGet(
-    `SELECT id FROM album_requests
-     WHERE user_id = ? AND mbid = ? AND status = 'pending'`,
-    [user.id, mbid]
-  );
-  if (dupe) {
-    return res.status(409).json({ error: '이미 요청하신 앨범입니다.' });
+  // Daily cap on non-admin submissions. Counted against albums the
+  // user created today (via requested_by_user_id), not against
+  // album_requests rows — the table is legacy now. Admin bypasses.
+  if (!user.is_admin) {
+    const submittedToday = queryGet(
+      `SELECT COUNT(*) AS n FROM albums
+       WHERE requested_by_user_id = ?
+         AND DATE(created_at) = DATE('now')`,
+      [user.id]
+    ) as { n: number };
+    if (submittedToday.n >= USER_DAILY_ALBUM_CAP) {
+      return res.status(429).json({
+        error: `하루 ${USER_DAILY_ALBUM_CAP}개까지 등록할 수 있어요. 내일 다시 시도해주세요.`,
+      });
+    }
   }
-
-  const yearRaw = Number(body.year);
-  const year = Number.isFinite(yearRaw) && yearRaw > 0 ? Math.floor(yearRaw) : null;
-  const coverArtUrl = normalizeString(body.coverArtUrl, 500);
-  const notes = normalizeString(body.notes, NOTES_MAX);
 
   try {
-    execute(
-      `INSERT INTO album_requests
-         (user_id, mbid, title, artist_name, release_year, cover_art_url, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [user.id, mbid, title, artist, year, coverArtUrl, notes]
-    );
-    res.json({ ok: true });
+    // Dynamic import matches the approve path — keeps us out of a
+    // circular dep between albums.ts and albumRequests.ts.
+    const { getOrFetchAlbumBaseForSubmission } = await import('./albums.js');
+    const result = await getOrFetchAlbumBaseForSubmission(mbid, {
+      skipReviewWarmup: true,
+      requestedByUserId: user.id,
+    });
+    if (!result) {
+      return res.status(404).json({
+        error: '외부 소스에서 이 앨범을 찾지 못했어요. 다시 검색해 주세요.',
+      });
+    }
+    // Freshly-cached row is now queryable.
+    const cached = getCachedAlbum(mbid);
+    res.json({
+      ok: true,
+      existed: false,
+      mbid,
+      slug: cached?.slug || mbid,
+    });
   } catch (err) {
-    console.error('[album-requests] insert failed:', err);
-    res.status(500).json({ error: '요청 저장에 실패했습니다.' });
+    console.error('[album-requests] submission failed:', err);
+    res.status(500).json({ error: '앨범 등록에 실패했어요. 잠시 뒤 다시 시도해주세요.' });
   }
 });
 
@@ -142,63 +171,47 @@ router.get('/album-requests/search', requireAuth, searchLimiter, async (req, res
   }
 });
 
-// ─── GET /api/album-requests?status=pending ───────────────────────────
+// ─── GET /api/album-requests ─────────────────────────────────────────
 //
-// Admin-only list. Rows with the same mbid (multiple users requesting
-// the same album) collapse into one entry here — the admin acts on the
-// album, not on the individual request. request_count + a compact
-// requester list powers the social-proof bit on the request card.
-router.get('/album-requests', requireAdmin, (req, res) => {
-  const statusRaw = (req.query.status as string) || 'pending';
-  const status =
-    statusRaw === 'approved' || statusRaw === 'discarded' ? statusRaw : 'pending';
-
-  // json_group_array + json_object bundles the requester list per row
-  // so the UI can render a stack of avatars without an N+1 follow-up
-  // call. Nulls (deleted-account requesters) are kept as `{id:null,...}`
-  // so the count still reflects reality.
+// Admin-only feed for the "리뷰 수집 대기" panel — lists every
+// user-submitted album whose review crawl hasn't run yet. Albums the
+// admin added directly (requested_by_user_id IS NULL) never appear
+// here since they were approved at the moment of registration.
+router.get('/album-requests', requireAdmin, (_req, res) => {
   const rows = queryAll(
-    `SELECT ar.mbid,
-            MAX(ar.title) AS title,
-            MAX(ar.artist_name) AS artist_name,
-            MAX(ar.release_year) AS release_year,
-            MAX(ar.cover_art_url) AS cover_art_url,
-            MIN(ar.created_at) AS first_requested_at,
-            COUNT(*) AS request_count,
-            json_group_array(
-              json_object(
-                'id', ar.id,
-                'userId', ar.user_id,
-                'userName', COALESCE(u.display_name, u.name),
-                'userAvatar', COALESCE(u.custom_avatar_url, u.avatar_url),
-                'notes', ar.notes,
-                'createdAt', ar.created_at
-              )
-            ) AS requesters_json
-     FROM album_requests ar
-     LEFT JOIN users u ON u.id = ar.user_id
-     WHERE ar.status = ?
-     GROUP BY ar.mbid
-     ORDER BY request_count DESC, first_requested_at DESC`,
-    [status]
+    `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.release_year,
+            a.cover_art_url, a.cover_art_fallbacks, a.created_at,
+            COALESCE(u.display_name, u.name) AS user_name,
+            u.avatar_url AS user_avatar,
+            u.id AS user_id
+     FROM albums a
+     LEFT JOIN users u ON u.id = a.requested_by_user_id
+     WHERE a.reviews_crawled_at IS NULL
+     ORDER BY a.created_at DESC`
   );
 
   res.json({
     requests: rows.map((r: any) => ({
-      mbid: r.mbid,
+      mbid: r.slug || r.mbid,
       title: r.title,
       artist: r.artist_name,
       year: r.release_year,
       coverArtUrl: r.cover_art_url,
-      firstRequestedAt: r.first_requested_at,
-      requestCount: r.request_count,
-      requesters: (() => {
+      coverArtFallbacks: (() => {
         try {
-          return JSON.parse(r.requesters_json);
+          return r.cover_art_fallbacks ? JSON.parse(r.cover_art_fallbacks) : [];
         } catch {
           return [];
         }
       })(),
+      createdAt: r.created_at,
+      requester: r.user_id
+        ? {
+            userId: r.user_id,
+            userName: r.user_name,
+            userAvatar: r.user_avatar,
+          }
+        : null,
     })),
   });
 });
@@ -215,79 +228,76 @@ router.get('/album-requests', requireAdmin, (req, res) => {
 // than HTTP-self-loop to keep the logic synchronous and easier to
 // error-handle. getOrFetchAlbumBase lives in routes/albums.ts though,
 // so we dynamically import it to avoid a circular dep.
+// ─── POST /api/album-requests/:mbid/approve ───────────────────────────
+//
+// Admin action. The album row already exists (user-submitted via the
+// new POST /album-requests flow). This stamps reviews_crawled_at and
+// fires the Claude review-search warm-up — after which the card
+// un-dims on the home grid and the detail page's review section
+// starts populating. Idempotent: stamping an already-approved row
+// kicks the warm-up again, which is a cached no-op.
+//
+// The `mbid` param may be a slug or raw mbid; we resolve both.
 router.post('/album-requests/:mbid/approve', requireAdmin, async (req, res) => {
-  const mbid = req.params.mbid as string;
-  if (!mbid) return res.status(400).json({ error: 'mbid 누락' });
+  const param = req.params.mbid as string;
+  if (!param) return res.status(400).json({ error: 'mbid 누락' });
 
-  const any = queryGet(
-    `SELECT id FROM album_requests WHERE mbid = ? AND status = 'pending' LIMIT 1`,
-    [mbid]
-  );
-  if (!any) {
-    return res.status(404).json({ error: '요청을 찾을 수 없습니다.' });
+  // Accept either slug or raw mbid. Try raw first, then slug lookup.
+  let cached = getCachedAlbum(param);
+  if (!cached) {
+    cached = queryGet(
+      `SELECT mbid FROM albums WHERE slug = ? LIMIT 1`,
+      [param]
+    ) as { mbid: string } | null;
   }
+  if (!cached) {
+    return res.status(404).json({ error: '앨범을 찾을 수 없습니다.' });
+  }
+  const realMbid = (cached as any).mbid;
 
   try {
     const { approveAlbumRequest } = await import('./albums.js');
-    await approveAlbumRequest(mbid);
+    await approveAlbumRequest(realMbid);
   } catch (err) {
-    console.error('[album-requests] approve/fetch failed:', err);
-    return res.status(500).json({ error: '앨범 데이터를 가져오지 못했습니다.' });
+    console.error('[album-requests] approve failed:', err);
+    return res.status(500).json({ error: '리뷰 수집을 시작하지 못했어요.' });
   }
 
-  execute(
-    `UPDATE album_requests
-     SET status = 'approved', decided_at = datetime('now')
-     WHERE mbid = ? AND status = 'pending'`,
-    [mbid]
-  );
-  res.json({ ok: true, mbid });
+  res.json({ ok: true, mbid: realMbid });
 });
 
-// ─── POST /api/album-requests/:mbid/discard ───────────────────────────
-router.post('/album-requests/:mbid/discard', requireAdmin, (req, res) => {
-  const mbid = req.params.mbid as string;
-  if (!mbid) return res.status(400).json({ error: 'mbid 누락' });
-
-  const result = execute(
-    `UPDATE album_requests
-     SET status = 'discarded', decided_at = datetime('now')
-     WHERE mbid = ? AND status = 'pending'`,
-    [mbid]
-  );
-  // execute() wrapper returns void; no row count here, but we treat a
-  // zero-row discard as a 404 anyway — check presence first.
-  // (Skipped the extra SELECT — the discard is idempotent enough that
-  //  double-clicks return ok safely.)
-  void result;
-  res.json({ ok: true });
-});
+// 거절(discard) 엔드포인트는 제거됨 — admin은 승인하거나
+// DELETE /api/albums/:id 로 완전 삭제하는 두 선택지만 가진다.
 
 // ─── GET /api/me/album-requests ───────────────────────────────────────
 //
-// Auth'd user's own request history for the Profile page. Returns all
-// statuses so the user can see pending / approved / discarded outcomes.
+// Auth'd user's own registration history for the Profile page. Queries
+// `albums` directly (not the legacy album_requests table) since the
+// new flow creates the album row immediately. Status is derived from
+// reviews_crawled_at: NULL → 'pending' (admin hasn't run review crawl
+// yet), non-NULL → 'approved'. Discarded no longer exists — admin
+// deletion just removes the row.
 router.get('/me/album-requests', requireAuth, (req, res) => {
   const user = req.user as AppUser;
   const rows = queryAll(
-    `SELECT id, mbid, title, artist_name, release_year, cover_art_url,
-            status, created_at, decided_at
-     FROM album_requests
-     WHERE user_id = ?
+    `SELECT id, mbid, slug, title, artist_name, release_year,
+            cover_art_url, created_at, reviews_crawled_at
+     FROM albums
+     WHERE requested_by_user_id = ?
      ORDER BY created_at DESC, id DESC`,
     [user.id]
   );
   res.json({
     requests: rows.map((r: any) => ({
       id: r.id,
-      mbid: r.mbid,
+      mbid: r.slug || r.mbid,
       title: r.title,
       artist: r.artist_name,
       year: r.release_year,
       coverArtUrl: r.cover_art_url,
-      status: r.status,
+      status: r.reviews_crawled_at ? 'approved' : 'pending',
       createdAt: r.created_at,
-      decidedAt: r.decided_at,
+      decidedAt: r.reviews_crawled_at,
     })),
   });
 });
