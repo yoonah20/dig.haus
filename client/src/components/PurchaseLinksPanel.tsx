@@ -724,17 +724,18 @@ export default function PurchaseLinksPanel({
             );
           })}
 
-          {/* Dotted add-card sits between user links and the Discogs
-              price card — any logged-in user can trigger it, the
-              server caps at 3 per user per album and surfaces the 409
-              as a form error if they overshoot. */}
-          {!!user && !adding && (
-            <AddPurchaseLinkCard onClick={() => setAdding(true)} />
-          )}
-
           {discogsCards.map((fmt) => (
             <DiscogsFormatCard key={fmt.format} fmt={fmt} />
           ))}
+
+          {/* Dotted add-card anchors the end of the row so it reads as
+              an action, not a divider between user links and Discogs
+              prices. Any logged-in user can trigger it; the server
+              caps at 3 per user per album and surfaces the 409 as a
+              form error if they overshoot. */}
+          {!!user && !adding && (
+            <AddPurchaseLinkCard onClick={() => setAdding(true)} />
+          )}
         </div>
       )}
     </div>
