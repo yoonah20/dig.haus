@@ -244,15 +244,6 @@ export default function Home() {
           </>
         )}
 
-        {/* Desktop-only comment ticker. Sits between the grid and the
-            pagination so the community voice plays as a reading rest
-            and pagination ends up right above the footer (the spot
-            users instinctively reach for to advance the page).
-            Intentionally gated with !isMobile (not CSS `hidden md:…`)
-            so the feed query doesn't fire on phones at all — mobile
-            interleaves comments into the infinite scroll separately. */}
-        {!isMobile && albums.length > 0 && <CommentTicker />}
-
         {!isMobile && totalPages > 1 && (
           <nav className="mt-12 flex items-center justify-center gap-1 flex-wrap" aria-label="Pagination">
             <button
@@ -291,6 +282,9 @@ export default function Home() {
             </button>
           </nav>
         )}
+
+        {/* Desktop-only comment ticker below pagination. */}
+        {!isMobile && albums.length > 0 && <CommentTicker />}
       </section>
     </div>
   );

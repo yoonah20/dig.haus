@@ -277,7 +277,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [coverInput, setCoverInput] = useState('');
   const [updatingCover, setUpdatingCover] = useState(false);
   const [coverSize, setCoverSize] = useState<{ w: number; h: number } | null>(null);
-  const [coverQueryCopied, setCoverQueryCopied] = useState(false);
+
   const [refreshingReviews, setRefreshingReviews] = useState(false);
   const [editingKo, setEditingKo] = useState(false);
   const [savingKo, setSavingKo] = useState(false);
@@ -610,11 +610,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               className="absolute right-0 mt-1 w-48 bg-[#111] border border-white/10 rounded-md shadow-xl py-1 z-30"
             >
               <AdminMenuItem
-                onClick={() => { setAdminMenuOpen(false); startEditAlbum(); }}
-              >
-                ✏️ 앨범 수정
-              </AdminMenuItem>
-              <AdminMenuItem
                 onClick={() => { setAdminMenuOpen(false); void handleRefreshDiscogs(); }}
                 disabled={refreshingDiscogs}
               >
@@ -684,51 +679,29 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 </svg>
               </button>
               <button
-                onClick={async () => {
+                onClick={() => {
                   const query = `${album.title} ${album.artist} cover`;
-                  try {
-                    await navigator.clipboard.writeText(query);
-                    setCoverQueryCopied(true);
-                    setTimeout(() => setCoverQueryCopied(false), 1500);
-                  } catch {}
+                  const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
+                  window.open(url, '_blank', 'noopener,noreferrer');
                 }}
                 className="w-8 h-8 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-[#e8a020]/40 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-all cursor-pointer"
-                title={coverQueryCopied ? '복사됨' : `"${album.title} ${album.artist} cover" 복사 (Google 검색용)`}
-                aria-label="구글 검색용 텍스트 복사"
+                title={`"${album.title} ${album.artist} cover" Google 이미지 검색`}
+                aria-label="구글 이미지 검색"
               >
-                {coverQueryCopied ? (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2.5}
-                    stroke="currentColor"
-                  >
-                    <polyline
-                      points="20 6 9 17 4 12"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="w-4 h-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={2}
-                    stroke="currentColor"
-                  >
-                    <rect x="8" y="8" width="14" height="14" rx="2" />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M16 8V4a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4"
-                    />
-                  </svg>
-                )}
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-4 h-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                  />
+                </svg>
               </button>
             </div>
           )}
@@ -786,11 +759,21 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             >
               {album.title}
             </h1>
-            <div className="pt-2 md:pt-3 flex-shrink-0">
+            <div className="pt-2 md:pt-3 flex-shrink-0 flex items-center gap-1.5">
               <CopyTitleButton
                 text={`${album.title} ${album.artist} vinyl`}
                 label={`"${album.title} ${album.artist} vinyl" 복사`}
               />
+              {user?.isAdmin && (
+                <button
+                  onClick={startEditAlbum}
+                  className="text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer text-xs px-1.5 py-0.5 rounded border border-transparent hover:border-white/10"
+                  title="앨범 수정"
+                  aria-label="앨범 수정"
+                >
+                  ✏️
+                </button>
+              )}
             </div>
           </div>
 

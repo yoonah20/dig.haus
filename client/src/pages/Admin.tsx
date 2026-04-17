@@ -133,7 +133,7 @@ function Panel({
           <span className="ml-auto text-sm text-gray-500 tabular-nums">{count}</span>
         )}
       </div>
-      <div className="divide-y divide-white/5 max-h-[520px] overflow-y-auto">
+      <div className="divide-y divide-white/5 max-h-[calc(100vh-280px)] overflow-y-auto">
         {children}
       </div>
     </div>
