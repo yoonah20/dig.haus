@@ -59,7 +59,8 @@ function isRecentRelease(releaseDate: string | null | undefined): boolean {
 // Record-shop sticker: NEW = yellow (신보), HOT = red (인기). Both
 // share the same chip shape so a card showing both (appears below
 // NEW) reads as a stacked row of labels rather than two competing
-// elements. Sizing shrunk 20% from the original NEW-only draft.
+// elements. Sizing: ~9.5px font, padding scaled to match — 15%
+// larger than the previous ~8px to read at a glance on the grid.
 function CoverStickerBadge({ kind }: { kind: 'new' | 'hot' }) {
   const palette =
     kind === 'new'
@@ -72,9 +73,9 @@ function CoverStickerBadge({ kind }: { kind: 'new' | 'hot' }) {
         background: palette.bg,
         color: palette.fg,
         fontFamily: "'Syne', 'Inter', sans-serif",
-        fontSize: '8px',
+        fontSize: '9.2px',
         letterSpacing: '0.06em',
-        padding: '2px 5px',
+        padding: '2.5px 6px',
         lineHeight: 1,
       }}
       aria-label={palette.aria}

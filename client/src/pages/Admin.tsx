@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import CoverArt from '../components/CoverArt';
@@ -85,7 +85,8 @@ interface AdminStats {
     userAvatar: string | null;
   }>;
   claudeUsage: {
-    last7d: {
+    month: {
+      label: string; // YYYY-MM
       inputTokens: number;
       outputTokens: number;
       webSearchCount: number;
@@ -296,31 +297,65 @@ function formatTokens(n: number): string {
   return n.toLocaleString();
 }
 
-// Two-row stat tile that sits beside the album/user counters. Mirrors
-// the StatCard chrome so the top band reads as a single unit, but gets
-// its own compact summary layout because we want the $ total + per-op
-// breakdown visible at a glance.
+// Stat tile that sits beside the album/user counters. Layout splits
+// into two columns at sm+: left = month-to-date totals (cost +
+// tokens), right = per-operation breakdown. On narrow viewports the
+// columns stack so nothing scrolls horizontally. Reset wipes the
+// usage log via DELETE /api/admin/claude-usage; natural reset still
+// happens at the start of each calendar month.
 function ClaudeUsageCard({
   usage,
 }: {
-  usage: AdminStats['claudeUsage']['last7d'];
+  usage: AdminStats['claudeUsage']['month'];
 }) {
+  const qc = useQueryClient();
+  const reset = useMutation({
+    mutationFn: async () => axios.delete('/api/admin/claude-usage'),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-stats'] }),
+  });
   const empty = usage.webSearchCount === 0 && usage.inputTokens === 0;
+  const monthDisplay = (() => {
+    const [y, m] = usage.label.split('-');
+    return y && m ? `${y}년 ${parseInt(m, 10)}월` : usage.label;
+  })();
+
+  const handleReset = () => {
+    if (reset.isPending) return;
+    if (!confirm(`Claude API 사용량 기록을 모두 삭제할까요?\n(현재: $${usage.usd.toFixed(2)})\n\n되돌릴 수 없습니다.`)) return;
+    reset.mutate();
+  };
+
   return (
     <div className="bg-[#1a1a1a] rounded-xl p-5 border border-white/5 flex flex-col">
-      <div className="flex items-baseline justify-between gap-2 mb-3">
-        <span className="text-sm uppercase tracking-wider text-gray-500">
-          🪙 API 사용량 (7일)
-        </span>
-        <span className="text-2xl font-bold text-[#e8a020] tabular-nums">
+      {/* Header: title + reset on the left of the row, big USD figure
+          on the right. Reset is a small text button so it doesn't
+          fight the dollar number for attention. */}
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="text-sm uppercase tracking-wider text-gray-500 truncate">
+            🪙 API 사용량 ({monthDisplay})
+          </span>
+          <button
+            type="button"
+            onClick={handleReset}
+            disabled={reset.isPending || empty}
+            className="text-[10px] text-gray-500 hover:text-red-400 underline-offset-2 hover:underline disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            title="사용량 기록 삭제 (월간 자동 리셋과 별개로 지금 바로 비우기)"
+          >
+            {reset.isPending ? '리셋 중…' : '리셋'}
+          </button>
+        </div>
+        <span className="text-2xl font-bold text-[#e8a020] tabular-nums shrink-0">
           ${usage.usd.toFixed(2)}
         </span>
       </div>
+
       {empty ? (
-        <div className="text-sm text-gray-500">기록된 호출이 없습니다.</div>
+        <div className="text-sm text-gray-500">이번 달 기록된 호출이 없습니다.</div>
       ) : (
-        <>
-          <div className="grid grid-cols-3 gap-2 text-xs mb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Left column — totals */}
+          <div className="grid grid-cols-3 sm:grid-cols-1 gap-2 text-xs">
             <div>
               <div className="text-gray-500 uppercase tracking-wider">검색</div>
               <div className="text-gray-200 tabular-nums text-sm">
@@ -328,20 +363,22 @@ function ClaudeUsageCard({
               </div>
             </div>
             <div>
-              <div className="text-gray-500 uppercase tracking-wider">입력</div>
+              <div className="text-gray-500 uppercase tracking-wider">입력 토큰</div>
               <div className="text-gray-200 tabular-nums text-sm">
                 {formatTokens(usage.inputTokens)}
               </div>
             </div>
             <div>
-              <div className="text-gray-500 uppercase tracking-wider">출력</div>
+              <div className="text-gray-500 uppercase tracking-wider">출력 토큰</div>
               <div className="text-gray-200 tabular-nums text-sm">
                 {formatTokens(usage.outputTokens)}
               </div>
             </div>
           </div>
+
+          {/* Right column — per-operation breakdown */}
           {usage.byOperation.length > 0 && (
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-1 text-xs pt-2 border-t border-white/5">
+            <div className="space-y-1 text-xs sm:border-l sm:border-white/5 sm:pl-4">
               {usage.byOperation.map((op) => (
                 <div
                   key={op.operation}
@@ -357,7 +394,7 @@ function ClaudeUsageCard({
               ))}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
@@ -552,7 +589,7 @@ export default function Admin() {
               ]}
             />
             <div className="md:col-span-2">
-              <ClaudeUsageCard usage={data.claudeUsage.last7d} />
+              <ClaudeUsageCard usage={data.claudeUsage.month} />
             </div>
           </section>
 

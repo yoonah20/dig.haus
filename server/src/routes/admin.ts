@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { queryGet, queryAll } from '../db/index.js';
+import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
@@ -147,10 +147,14 @@ router.get('/stats', (_req, res) => {
     userAvatar: r.user_avatar,
   }));
 
-  // ── Claude API usage (rolling 7 days) ─────────────────────────────
+  // ── Claude API usage (current calendar month, UTC) ────────────────
   // Aggregate per (operation, model) then translate tokens + web
-  // searches to USD client-side-friendly shape. `operation` labels
-  // come from the logClaudeUsage() call sites.
+  // searches to USD client-side-friendly shape. The window resets at
+  // the start of each calendar month — so the dashboard reads as
+  // "this month's spend" instead of a sliding 7-day total. Admins
+  // can also wipe the log entirely via DELETE /api/admin/claude-usage
+  // when they want a hard reset (e.g. clearing experimentation
+  // noise during testing).
   const usageRows = queryAll(
     `SELECT operation, model,
             SUM(input_tokens) AS in_tok,
@@ -158,7 +162,7 @@ router.get('/stats', (_req, res) => {
             SUM(web_search_count) AS search_n,
             COUNT(*) AS calls
      FROM claude_usage_log
-     WHERE created_at >= datetime('now', '-7 days')
+     WHERE created_at >= strftime('%Y-%m-01 00:00:00', 'now')
      GROUP BY operation, model`
   ) as Array<{
     operation: string;
@@ -205,8 +209,10 @@ router.get('/stats', (_req, res) => {
     }))
     .sort((a, b) => b.usd - a.usd);
 
+  const monthLabel = new Date().toISOString().slice(0, 7); // YYYY-MM (UTC)
   const claudeUsage = {
-    last7d: {
+    month: {
+      label: monthLabel,
       inputTokens: totalInputTokens,
       outputTokens: totalOutputTokens,
       webSearchCount: totalSearchCount,
@@ -311,6 +317,18 @@ router.get('/stats', (_req, res) => {
     claudeUsage,
     incompleteAlbums,
   });
+});
+
+// DELETE /api/admin/claude-usage — wipe the rolling usage log.
+//
+// Used as a hard reset from the API 사용량 panel — the natural
+// monthly window above is the default behaviour, but during testing
+// or after a billing reconciliation the admin sometimes wants the
+// counters cleared without waiting for the calendar to flip.
+router.delete('/claude-usage', (_req, res) => {
+  const before = queryGet(`SELECT COUNT(*) AS c FROM claude_usage_log`)?.c ?? 0;
+  execute(`DELETE FROM claude_usage_log`);
+  res.json({ deleted: before });
 });
 
 export default router;

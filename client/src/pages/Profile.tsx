@@ -169,7 +169,7 @@ function StatPill({
 }: {
   label: string;
   value: number;
-  accent?: 'brand' | 'blue' | 'red';
+  accent?: 'brand' | 'blue' | 'red' | 'purple';
 }) {
   const valueClass =
     accent === 'brand'
@@ -178,7 +178,9 @@ function StatPill({
         ? 'text-[#88a2bf]'
         : accent === 'red'
           ? 'text-[#c08888]'
-          : 'text-white';
+          : accent === 'purple'
+            ? 'text-[#a896c9]'
+            : 'text-white';
   return (
     <div className="flex flex-col items-start px-3 py-2 bg-black/30 rounded-lg border border-white/5 min-w-0">
       <span className="text-[11px] uppercase tracking-wider text-gray-500">
@@ -436,59 +438,64 @@ export default function Profile() {
         <div className="text-red-400 text-sm">프로필을 불러오지 못했습니다.</div>
       )}
 
-      {/* ─── Hero: identity + stats in one full-width card ─────────
-          Avatar on the left, name/email/join + editable fields in
-          the middle, stat pills anchored to the right. Collapses to
-          a vertical stack below md so the stat row doesn't crowd
-          the form on phones. */}
+      {/* ─── Hero row: identity card + activity-stats card ─────────
+          Two compact cards side-by-side at md+, stacked on mobile.
+          Identity stays focused on edit affordances; activity card
+          surfaces all the counters (50자 평 / 굿굿 / 별루 / 샀음 /
+          살거 / 등록) so the page feels like a profile dashboard
+          rather than just a settings screen. */}
       {me && (
-        <section className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-6 border border-white/5">
-          <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
-            <div className="flex-1 min-w-0 space-y-5">
-              <AvatarEditor
-                avatarUrl={effectiveAvatar}
-                isCustom={isCustomAvatar}
-                onUpload={handleUpload}
-                onReset={handleReset}
-                uploading={upload.isPending}
-                resetting={reset.isPending}
-              />
-              {/* flex-wrap + gap-y lets a long email drop to its own
-                  line instead of pushing past the card's right edge on
-                  narrow phones. break-all on the email itself is a
-                  second-line defence for addresses with no natural
-                  break points. */}
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400 min-w-0">
-                <span className="text-gray-200 font-medium truncate max-w-full">
-                  {me.name}
-                </span>
-                <span className="text-gray-600" aria-hidden>·</span>
-                <span className="break-all">{me.email}</span>
-                {me.createdAt && (
-                  <>
-                    <span className="text-gray-600" aria-hidden>·</span>
-                    <span className="whitespace-nowrap">
-                      가입 {formatJoined(me.createdAt)}
-                    </span>
-                  </>
-                )}
-              </div>
-              <ProfileFields
-                initialDisplayName={me.displayName ?? ''}
-                initialInstagram={me.instagramHandle ?? ''}
-                saving={update.isPending}
-                onSave={handleSave}
-              />
+        <section className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] gap-4">
+          {/* Identity / settings card */}
+          <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-5 border border-white/5 space-y-4">
+            <AvatarEditor
+              avatarUrl={effectiveAvatar}
+              isCustom={isCustomAvatar}
+              onUpload={handleUpload}
+              onReset={handleReset}
+              uploading={upload.isPending}
+              resetting={reset.isPending}
+            />
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-400 min-w-0">
+              <span className="text-gray-200 font-medium truncate max-w-full">
+                {me.name}
+              </span>
+              <span className="text-gray-600" aria-hidden>·</span>
+              <span className="break-all">{me.email}</span>
+              {me.createdAt && (
+                <>
+                  <span className="text-gray-600" aria-hidden>·</span>
+                  <span className="whitespace-nowrap">
+                    가입 {formatJoined(me.createdAt)}
+                  </span>
+                </>
+              )}
             </div>
+            <ProfileFields
+              initialDisplayName={me.displayName ?? ''}
+              initialInstagram={me.instagramHandle ?? ''}
+              saving={update.isPending}
+              onSave={handleSave}
+            />
+          </div>
 
-            {stats && (
-              <div className="lg:w-56 lg:shrink-0 lg:border-l lg:border-white/5 lg:pl-6 grid grid-cols-3 lg:grid-cols-1 gap-2">
+          {/* Activity-stats card — at-a-glance counts that the
+              dashboard would otherwise have to scroll to learn. */}
+          {stats && (
+            <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-5 border border-white/5">
+              <div className="text-[11px] uppercase tracking-wider text-gray-500 mb-3">
+                내 활동
+              </div>
+              <div className="grid grid-cols-3 gap-2">
                 <StatPill label="50자 평" value={stats.reviewCount} />
                 <StatPill label="굿굿" value={stats.upvoteCount} accent="blue" />
                 <StatPill label="별루" value={stats.downvoteCount} accent="red" />
+                <StatPill label="샀음" value={collection.data?.items.length ?? 0} accent="brand" />
+                <StatPill label="살거" value={wantlist.data?.items.length ?? 0} accent="purple" />
+                <StatPill label="등록" value={myRequestList.length} />
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -515,72 +522,86 @@ export default function Profile() {
       />
 
       {/* ─── Activity: 50자 평 + registered albums side-by-side.
-          Reviews carry body text and so benefit from more width on
-          the left; the register list is narrower by design. Both
-          collapse to a single column on mobile. */}
+          Reviews now render as a compact scrollable panel matching
+          the admin "최근 50자 평" style — keeps long histories from
+          dominating the page. Register list stays as inline rows
+          since it tops out at a few entries per user. */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] gap-8">
         <section>
           <SectionHeader emoji="💬" title="내 50자 평" count={myReviews.length} />
           {reviews.isLoading ? (
             <div className="text-sm text-gray-500">불러오는 중…</div>
           ) : myReviews.length > 0 ? (
-            <ul className="space-y-3">
-              {myReviews.map((r) => {
-                const ratingMeta = r.rating ? RATING_META[r.rating] : null;
-                return (
-                  <li
-                    key={r.id}
-                    className="bg-[#1a1a1a] rounded-xl p-4 border border-white/5 flex gap-4 items-start"
-                  >
-                    <Link
-                      to={`/album/${r.albumSlug}`}
-                      className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-[#252525]"
-                    >
-                      <CoverArt
-                        src={r.albumCoverUrl}
-                        fallbacks={r.albumCoverFallbacks}
-                        alt={r.albumTitle}
-                        className="w-full h-full object-cover"
-                      />
-                    </Link>
-                    <div className="flex-1 min-w-0">
+            <div className="bg-[#1a1a1a] rounded-xl border border-white/5 overflow-hidden">
+              <div className="divide-y divide-white/5 max-h-[480px] overflow-y-auto">
+                {myReviews.map((r) => {
+                  const ratingMeta = r.rating ? RATING_META[r.rating] : null;
+                  return (
+                    <div key={r.id} className="p-3 flex items-start gap-3">
                       <Link
                         to={`/album/${r.albumSlug}`}
-                        className="text-sm text-gray-300 hover:text-[#e8a020] transition-colors block truncate"
-                        title={`${r.albumTitle} — ${r.albumArtist ?? ''}`}
+                        className="shrink-0 w-10 h-10 rounded-md overflow-hidden bg-[#252525]"
                       >
-                        <span className="font-medium">{r.albumTitle}</span>
-                        <span className="text-gray-600 mx-1.5">·</span>
-                        <span className="text-gray-500">{r.albumArtist}</span>
+                        <CoverArt
+                          src={r.albumCoverUrl}
+                          fallbacks={r.albumCoverFallbacks}
+                          alt={r.albumTitle}
+                          className="w-full h-full object-cover"
+                        />
                       </Link>
-                      <div className="text-sm text-gray-100 mt-1 leading-relaxed break-words">
-                        {r.body}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
-                        {ratingMeta && (
-                          <span title={ratingMeta.label}>
-                            {ratingMeta.emoji} {ratingMeta.label}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <Link
+                            to={`/album/${r.albumSlug}`}
+                            className="text-sm text-white font-medium truncate hover:text-[#e8a020] transition-colors"
+                            title={`${r.albumTitle} — ${r.albumArtist ?? ''}`}
+                          >
+                            {r.albumTitle}
+                          </Link>
+                          {ratingMeta && (
+                            <span
+                              className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border ${
+                                r.rating === 'up'
+                                  ? 'bg-[#3b82f6]/15 text-[#88a2bf] border-[#3b82f6]/30'
+                                  : r.rating === 'down'
+                                    ? 'bg-[#dc2626]/15 text-[#c08888] border-[#dc2626]/30'
+                                    : 'bg-white/5 text-gray-300 border-white/10'
+                              }`}
+                            >
+                              <span aria-hidden>{ratingMeta.emoji}</span>
+                              <span>{ratingMeta.label}</span>
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-100 leading-relaxed break-words line-clamp-2">
+                          {r.emoji && (
+                            <span className="mr-1" aria-hidden>
+                              {r.emoji}
+                            </span>
+                          )}
+                          {r.body}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+                          <span className="truncate">{r.albumArtist}</span>
+                          <span className="ml-auto tabular-nums shrink-0">
+                            {r.updatedAt?.slice(0, 10)}
                           </span>
-                        )}
-                        {r.emoji && <span>{r.emoji}</span>}
-                        <span className="ml-auto tabular-nums">
-                          {r.updatedAt?.slice(0, 10)}
-                        </span>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => handleDeleteReview(r.id, r.body)}
+                        disabled={del.isPending}
+                        className="shrink-0 text-gray-500 hover:text-red-400 text-sm px-2 py-1 cursor-pointer disabled:opacity-40 self-start"
+                        title="삭제"
+                        aria-label="삭제"
+                      >
+                        🗑️
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteReview(r.id, r.body)}
-                      disabled={del.isPending}
-                      className="shrink-0 text-gray-500 hover:text-red-400 text-sm px-2 py-1 cursor-pointer disabled:opacity-40"
-                      title="삭제"
-                      aria-label="삭제"
-                    >
-                      🗑️
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
             <div className="text-sm text-gray-500">아직 작성한 50자 평이 없습니다.</div>
           )}
