@@ -48,6 +48,9 @@ export interface AlbumSearchResult {
   ownedCount?: number;
   /** How many users have this album on their 살거 wantlist. */
   wantedCount?: number;
+  /** Server-computed: true when the album is in the site-wide top 10
+   *  by 굿굿 count (with a ≥3 floor). Drives the red HOT! sticker. */
+  isHot?: boolean;
 }
 
 export interface AuthUser {

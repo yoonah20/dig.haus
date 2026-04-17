@@ -64,8 +64,8 @@ export default function TopNav() {
 
   return (
     <>
-      <nav className="sticky top-0 z-40 bg-[#120c05]/95 backdrop-blur-sm border-b border-[#e8a020]/15 px-4 py-3">
-        <div className="max-w-[1280px] mx-auto flex items-center justify-between gap-3">
+      <nav className="sticky top-0 z-40 bg-[#120c05]/95 backdrop-blur-sm border-b border-[#e8a020]/15 px-3 sm:px-4 py-3">
+        <div className="max-w-[1280px] mx-auto flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-baseline gap-2 sm:gap-3 min-w-0">
             <Link
               to="/"
@@ -91,7 +91,7 @@ export default function TopNav() {
               dig by cover, find by feel
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             {/* The "+" affordance opens the same modal for both admin
                 and logged-in users — mode changes the submit action:
                 admin directly registers; a user creates a request row

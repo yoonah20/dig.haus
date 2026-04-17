@@ -56,6 +56,34 @@ function isRecentRelease(releaseDate: string | null | undefined): boolean {
   return diffDays <= NEW_BADGE_DAYS;
 }
 
+// Record-shop sticker: NEW = yellow (신보), HOT = red (인기). Both
+// share the same chip shape so a card showing both (appears below
+// NEW) reads as a stacked row of labels rather than two competing
+// elements. Sizing shrunk 20% from the original NEW-only draft.
+function CoverStickerBadge({ kind }: { kind: 'new' | 'hot' }) {
+  const palette =
+    kind === 'new'
+      ? { bg: '#f5c542', fg: '#000000', label: 'NEW!', aria: '최근 30일 이내 발매' }
+      : { bg: '#e84a3b', fg: '#ffffff', label: 'HOT!', aria: '굿굿 상위 10' };
+  return (
+    <span
+      className="font-extrabold uppercase rounded-sm shadow-md"
+      style={{
+        background: palette.bg,
+        color: palette.fg,
+        fontFamily: "'Syne', 'Inter', sans-serif",
+        fontSize: '8px',
+        letterSpacing: '0.06em',
+        padding: '2px 5px',
+        lineHeight: 1,
+      }}
+      aria-label={palette.aria}
+    >
+      {palette.label}
+    </span>
+  );
+}
+
 export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
@@ -203,7 +231,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
         style={{ perspective: '1000px' }}
       >
         <div className="album-flip relative w-full h-full">
-          {/* Front — cover art + price stickers + optional NEW! flag */}
+          {/* Front — cover art + price stickers + optional NEW / HOT flags */}
           <div
             className="absolute inset-0 bg-[#1a1a1a] rounded-xl overflow-hidden"
             style={{
@@ -217,14 +245,11 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               alt={album.title}
               className="w-full h-full object-cover"
             />
-            {isNew && (
-              <span
-                className="absolute top-2 left-2 bg-[#f5c542] text-black text-[10px] font-extrabold tracking-wider uppercase px-1.5 py-0.5 rounded-sm shadow-md select-none"
-                style={{ fontFamily: "'Syne', 'Inter', sans-serif", letterSpacing: '0.06em' }}
-                aria-label="최근 30일 이내 발매"
-              >
-                NEW!
-              </span>
+            {(isNew || album.isHot) && (
+              <div className="absolute top-2 left-2 flex flex-col items-start gap-1 select-none">
+                {isNew && <CoverStickerBadge kind="new" />}
+                {album.isHot && <CoverStickerBadge kind="hot" />}
+              </div>
             )}
             <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
           </div>
