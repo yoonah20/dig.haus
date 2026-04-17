@@ -159,115 +159,12 @@ export default function Album() {
         <BuySection buy={base.buy} albumId={albumId} />
         <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
 
-        {/* Pending-album admin action bar — only shown when
-            reviews_crawled_at IS NULL (i.e. nobody has curated this
-            album's reviews yet). Gives admin three ways to move it
-            forward:
-              1) 리뷰 모아오기 — the full Claude pipeline (~$0.10)
-              2) 요약 생성 — use whatever reviews are already cached
-                 (typically URL-scraped manual adds) to generate the
-                 Korean summary via Sonnet (~$0.01)
-              3) 삭제 — wipe the album entirely.
-            Non-admins just see a friendly "pending" note. */}
-        {base.album.reviewsCrawledAt === null && !isAdmin && (
-          <section className="rounded-2xl border border-white/5 bg-[#1a1a1a]/60 px-6 py-8 text-center space-y-2">
-            <div className="text-sm text-gray-400">
-              리뷰 수집은 관리자 확인 후 진행됩니다.
-            </div>
-            <div className="text-xs text-gray-600">
-              그동안 50자 평·굿굿/별루·구매처 등록은 자유롭게 남길 수 있어요.
-            </div>
-          </section>
-        )}
-        {base.album.reviewsCrawledAt === null && isAdmin && (
-          <section className="rounded-2xl border border-[#e8a020]/25 bg-[#1a1a1a]/80 px-4 sm:px-6 py-4 space-y-2">
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="text-xs text-gray-500 leading-relaxed">
-                리뷰 수집 대기 — AI 검색을 돌리거나, 리뷰 링크를
-                직접 모은 뒤 요약만 만들 수 있어요.
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (approveRequest.isPending) return;
-                    try {
-                      await approveRequest.mutateAsync(albumId);
-                    } catch (err: any) {
-                      alert(err?.response?.data?.error || '리뷰 수집에 실패했습니다.');
-                    }
-                  }}
-                  disabled={
-                    approveRequest.isPending ||
-                    deletePending.isPending ||
-                    generateSummary.isPending
-                  }
-                  className="text-xs font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  title="Claude 웹 검색으로 리뷰 일괄 수집 (~$0.10)"
-                >
-                  {approveRequest.isPending ? '검색 중…' : '🔍 리뷰 모아오기'}
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (generateSummary.isPending) return;
-                    try {
-                      await generateSummary.mutateAsync();
-                    } catch (err: any) {
-                      alert(
-                        err?.response?.data?.error ||
-                          '요약 생성에 실패했습니다. 리뷰가 2개 이상 필요합니다.'
-                      );
-                    }
-                  }}
-                  disabled={
-                    approveRequest.isPending ||
-                    deletePending.isPending ||
-                    generateSummary.isPending ||
-                    !reviewsData ||
-                    reviewsData.reviews.length < 2
-                  }
-                  className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/50 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                  title="이미 등록된 리뷰만으로 한국어 요약 생성 (~$0.01). 리뷰가 2개 이상 있어야 가능."
-                >
-                  {generateSummary.isPending ? '생성 중…' : '📝 요약 생성'}
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (deletePending.isPending) return;
-                    if (
-                      !confirm(
-                        `"${base.album.artist} — ${base.album.title}" 앨범을 삭제할까요?\n50자 평·구매처 등록도 함께 사라집니다.`
-                      )
-                    )
-                      return;
-                    try {
-                      await deletePending.mutateAsync(albumId);
-                      navigate('/', { replace: true });
-                    } catch (err: any) {
-                      alert(err?.response?.data?.error || '삭제에 실패했습니다.');
-                    }
-                  }}
-                  disabled={
-                    approveRequest.isPending ||
-                    deletePending.isPending ||
-                    generateSummary.isPending
-                  }
-                  className="text-xs text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                >
-                  {deletePending.isPending ? '삭제 중…' : '🗑️ 삭제'}
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {/* Review section. Always renders (not just when
-            reviews_crawled_at is set) so admin can add URL-scraped
-            reviews even on pending albums. ReviewSection's own
-            admin-only affordances (+ 리뷰 추가, score/excerpt edit)
-            handle the empty-state gracefully. */}
+        {/* Review section always renders — ReviewSection handles
+            admin empty-state (+ 리뷰 추가, score/excerpt edit) and
+            now accepts a pendingNotice slot for the "리뷰 수집
+            대기" banner that shows under the title when
+            reviews_crawled_at IS NULL. Admin gets the three-button
+            action bar; guest gets a friendly wait-notice. */}
         {reviewsLoading ? (
           <SectionLoader text="리뷰를 불러오고 있습니다..." />
         ) : reviewsData ? (
@@ -275,6 +172,101 @@ export default function Album() {
             reviews={reviewsData.reviews}
             koreanSummary={reviewsData.koreanSummary}
             averageScore={reviewsData.averageScore}
+            pendingNotice={
+              base.album.reviewsCrawledAt === null
+                ? isAdmin
+                  ? (
+                      <div className="rounded-xl border border-[#e8a020]/25 bg-[#1a1a1a]/80 px-4 sm:px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+                        <div className="text-xs text-gray-500 leading-relaxed">
+                          리뷰 수집 대기 — AI 검색을 돌리거나, 리뷰 링크를
+                          직접 모은 뒤 요약만 만들 수 있어요.
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (approveRequest.isPending) return;
+                              try {
+                                await approveRequest.mutateAsync(albumId);
+                              } catch (err: any) {
+                                alert(err?.response?.data?.error || '리뷰 수집에 실패했습니다.');
+                              }
+                            }}
+                            disabled={
+                              approveRequest.isPending ||
+                              deletePending.isPending ||
+                              generateSummary.isPending
+                            }
+                            className="text-xs font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            title="Claude 웹 검색으로 리뷰 일괄 수집 (~$0.10)"
+                          >
+                            {approveRequest.isPending ? '검색 중…' : '🔍 리뷰 모아오기'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (generateSummary.isPending) return;
+                              try {
+                                await generateSummary.mutateAsync();
+                              } catch (err: any) {
+                                alert(
+                                  err?.response?.data?.error ||
+                                    '요약 생성에 실패했습니다. 리뷰가 2개 이상 필요합니다.'
+                                );
+                              }
+                            }}
+                            disabled={
+                              approveRequest.isPending ||
+                              deletePending.isPending ||
+                              generateSummary.isPending ||
+                              reviewsData.reviews.length < 2
+                            }
+                            className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/50 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            title="이미 등록된 리뷰만으로 한국어 요약 생성 (~$0.01). 리뷰가 2개 이상 있어야 가능."
+                          >
+                            {generateSummary.isPending ? '생성 중…' : '📝 요약 생성'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (deletePending.isPending) return;
+                              if (
+                                !confirm(
+                                  `"${base.album.artist} — ${base.album.title}" 앨범을 삭제할까요?\n50자 평·구매처 등록도 함께 사라집니다.`
+                                )
+                              )
+                                return;
+                              try {
+                                await deletePending.mutateAsync(albumId);
+                                navigate('/', { replace: true });
+                              } catch (err: any) {
+                                alert(err?.response?.data?.error || '삭제에 실패했습니다.');
+                              }
+                            }}
+                            disabled={
+                              approveRequest.isPending ||
+                              deletePending.isPending ||
+                              generateSummary.isPending
+                            }
+                            className="text-xs text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                          >
+                            {deletePending.isPending ? '삭제 중…' : '🗑️ 삭제'}
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  : (
+                      <div className="rounded-xl border border-white/5 bg-[#1a1a1a]/60 px-5 py-4 space-y-1">
+                        <div className="text-sm text-gray-400">
+                          리뷰 수집은 관리자 확인 후 진행됩니다.
+                        </div>
+                        <div className="text-xs text-gray-600">
+                          그동안 50자 평·굿굿/별루·구매처 등록은 자유롭게 남길 수 있어요.
+                        </div>
+                      </div>
+                    )
+                : null
+            }
           />
         ) : null}
 

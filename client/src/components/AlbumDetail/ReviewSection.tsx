@@ -266,15 +266,26 @@ interface ReviewSectionProps {
   reviews: Review[];
   koreanSummary: string | null;
   averageScore: number | null;
+  /** Optional card rendered between the section title and the review
+   *  body. Used by the Album page to show either the admin action bar
+   *  (리뷰 모아오기 / 요약 생성 / 삭제) or the guest "리뷰 수집은
+   *  관리자 확인 후…" notice when reviews_crawled_at IS NULL. Keeps
+   *  the pending UX inside the review section instead of floating
+   *  above it as a separate card. */
+  pendingNotice?: React.ReactNode;
 }
 
-export default function ReviewSection({ reviews, koreanSummary, averageScore }: ReviewSectionProps) {
+export default function ReviewSection({
+  reviews,
+  koreanSummary,
+  averageScore,
+  pendingNotice,
+}: ReviewSectionProps) {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
   const scoredCount = reviews.filter(r => r.score !== null).length;
-  const hasContent = reviews.length > 0 || koreanSummary || averageScore !== null;
   const [expanded, setExpanded] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
@@ -376,23 +387,22 @@ export default function ReviewSection({ reviews, koreanSummary, averageScore }: 
         <AiSummaryBadge />
       </h2>
 
-      {!hasContent ? (
-        <p className="text-gray-500">리뷰를 찾을 수 없습니다</p>
-      ) : (
-        <div className="space-y-6">
-          {averageScore !== null && (
-            <div className="flex items-baseline gap-2">
-              <span className={`text-5xl font-bold ${scoreColor(averageScore)}`}>
-                {Math.round(averageScore)}
-              </span>
-              <span className="text-gray-500 text-lg">/ 100</span>
-              {scoredCount > 0 && (
-                <span className="text-gray-600 text-sm ml-1">({scoredCount}개 사이트 평균)</span>
-              )}
-            </div>
-          )}
+      <div className="space-y-6">
+        {pendingNotice}
 
-          {(koreanSummary || isAdmin) && (
+        {averageScore !== null && (
+          <div className="flex items-baseline gap-2">
+            <span className={`text-5xl font-bold ${scoreColor(averageScore)}`}>
+              {Math.round(averageScore)}
+            </span>
+            <span className="text-gray-500 text-lg">/ 100</span>
+            {scoredCount > 0 && (
+              <span className="text-gray-600 text-sm ml-1">({scoredCount}개 사이트 평균)</span>
+            )}
+          </div>
+        )}
+
+        {(koreanSummary || isAdmin) && (
             <div className="bg-[#1a1a1a] rounded-xl p-5 border-l-4 border-[#e8a020]">
               {editingSummary ? (
                 <div className="space-y-2">
@@ -524,8 +534,7 @@ export default function ReviewSection({ reviews, koreanSummary, averageScore }: 
               )}
             </div>
           )}
-        </div>
-      )}
+      </div>
     </section>
   );
 }

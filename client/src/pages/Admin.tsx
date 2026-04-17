@@ -5,12 +5,11 @@ import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import CoverArt from '../components/CoverArt';
 import { resolveApiUrl } from '../utils/apiUrl';
-import {
-  useAlbumRequests,
-  useApproveAlbumRequest,
-  useDeletePendingAlbum,
-  type AlbumRequest,
-} from '../hooks/useAlbumRequests';
+// useAlbumRequests is no longer referenced here — the pending-queue
+// panel was dropped in favour of a 최근 등록 앨범 feed after every
+// registration started landing pending (admin + user). The approve /
+// delete hooks live on the album page now (inside the pending notice
+// slot inside ReviewSection).
 import {
   useReportedPurchaseLinks,
   useDismissPurchaseLinkReport,
@@ -200,96 +199,6 @@ function Panel({
 
 function EmptyRow({ children }: { children: ReactNode }) {
   return <div className="p-4 text-sm text-gray-500">{children}</div>;
-}
-
-// Compact pending-review row for the admin dashboard. The album row
-// already exists in the DB — "승인" runs the deferred Claude review-
-// crawl (sets reviews_crawled_at and fires warm-up); "삭제" removes
-// the album entirely via the existing admin delete route and the FK
-// cascade wipes any user-contributed 50자 평 / purchase links with it.
-function RequestRow({ request }: { request: AlbumRequest }) {
-  const approve = useApproveAlbumRequest();
-  const del = useDeletePendingAlbum();
-  const busy = approve.isPending || del.isPending;
-
-  const handleApprove = async () => {
-    if (busy) return;
-    try {
-      await approve.mutateAsync(request.mbid);
-    } catch (err: any) {
-      alert(err?.response?.data?.error || '승인에 실패했습니다.');
-    }
-  };
-
-  const handleDelete = async () => {
-    if (busy) return;
-    if (
-      !confirm(
-        `"${request.artist} — ${request.title}" 앨범을 삭제할까요?\n이 앨범에 달린 50자 평·구매처 등록도 함께 사라집니다.`
-      )
-    )
-      return;
-    try {
-      await del.mutateAsync(request.mbid);
-    } catch (err: any) {
-      alert(err?.response?.data?.error || '삭제에 실패했습니다.');
-    }
-  };
-
-  return (
-    <div className="p-3 flex items-start gap-3">
-      <Link
-        to={`/album/${request.mbid}`}
-        className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden"
-      >
-        {request.coverArtUrl ? (
-          <img
-            src={request.coverArtUrl}
-            alt=""
-            aria-hidden
-            loading="lazy"
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        ) : null}
-      </Link>
-      <div className="flex-1 min-w-0">
-        <Link
-          to={`/album/${request.mbid}`}
-          className="text-base text-white font-medium hover:text-[#e8a020] truncate block"
-        >
-          {request.title}
-        </Link>
-        <p className="text-sm text-gray-400 truncate">
-          {request.artist}
-          {request.year && ` · ${request.year}`}
-        </p>
-        <p className="text-xs text-gray-500 truncate mt-0.5">
-          {request.requester?.userName || '알 수 없음'}
-          <span className="text-gray-600 mx-1.5">·</span>
-          {formatRelativeKo(request.createdAt)}
-        </p>
-      </div>
-      <div className="flex flex-col gap-1 shrink-0">
-        <button
-          onClick={handleApprove}
-          disabled={busy}
-          className="text-xs font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {approve.isPending ? '…' : '승인'}
-        </button>
-        <button
-          onClick={handleDelete}
-          disabled={busy}
-          className="text-xs text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {del.isPending ? '…' : '삭제'}
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function formatTokens(n: number): string {
@@ -602,17 +511,11 @@ export default function Admin() {
     staleTime: 30_000,
   });
 
-  // Pending album requests live in their own query so approve/discard
-  // mutations can surgically invalidate just this feed (invalidating
-  // the big stats bundle would refetch everything).
-  const requestsQuery = useAlbumRequests(!!user?.isAdmin);
   const reportsQuery = useReportedPurchaseLinks(!!user?.isAdmin);
   const dismissReport = useDismissPurchaseLinkReport();
   const adminDeleteLink = useAdminDeletePurchaseLink();
 
   if (loading || !user?.isAdmin) return null;
-
-  const pendingRequests = requestsQuery.data?.requests ?? [];
 
   return (
     <main className="max-w-[1280px] mx-auto px-4 py-8">
@@ -625,11 +528,17 @@ export default function Admin() {
 
       {data && (
         <>
-          {/* Top stats — two grouped panels (전체 / 오늘) plus the two-row
-              API-usage tile. "전체" collects cumulative counters, "오늘"
-              collects 24h activity; the API tile sits beside them as a
-              dashboard-level cost signal. */}
-          <section className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          {/* Top area — split in two rows.
+              Row A: 전체 / 오늘 counters + API 사용량 tile (cost signal).
+              Row B: 신고된 구매처 (flag queue) + 데이터 미완 앨범 (backlog).
+              These are "must-look-at-today" moderation signals so they
+              belong above the fold rather than buried in a column with
+              recent-activity feeds.
+
+              Below the hero: three equal feed columns that all read as
+              "최근 ~" — 최근 등록 앨범 (new), 최근 50자 평, 최근 등록
+              구매처. */}
+          <section className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <StatGroupCard
               title="전체"
               rows={[
@@ -651,7 +560,6 @@ export default function Admin() {
                   label: '추가 앨범',
                   value: data.albumsToday,
                   accent: data.albumsToday > 0,
-                  hoverContent: <RecentAlbumsList albums={data.recentAlbums} />,
                 },
                 {
                   label: '가입 유저',
@@ -670,64 +578,91 @@ export default function Admin() {
             </div>
           </section>
 
-          {/* 3-column dashboard grid. lg+: 3 columns, md: 2, below: 1.
-              Each column is a stack of panels (gap-4 between). */}
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <Panel
+              title="신고된 구매처"
+              icon="🚩"
+              count={reportsQuery.data?.reports.length ?? 0}
+            >
+              {reportsQuery.isLoading ? (
+                <EmptyRow>불러오는 중…</EmptyRow>
+              ) : !reportsQuery.data || reportsQuery.data.reports.length === 0 ? (
+                <EmptyRow>신고된 구매처가 없습니다.</EmptyRow>
+              ) : (
+                reportsQuery.data.reports.map((r) => (
+                  <ReportRow
+                    key={r.id}
+                    report={r}
+                    onDismiss={() => dismissReport.mutate(r.id)}
+                    onDeleteLink={() => {
+                      if (!confirm('이 구매처 링크를 삭제할까요? 같은 링크의 다른 신고도 모두 정리됩니다.')) return;
+                      adminDeleteLink.mutate(r.linkId);
+                    }}
+                  />
+                ))
+              )}
+            </Panel>
+
+            <Panel title="데이터 미완 앨범" icon="⚠️">
+              <IncompleteSubsection
+                label="리뷰 없음"
+                bucket={data.incompleteAlbums.noReviews}
+              />
+              <IncompleteSubsection
+                label="한국어 요약 없음"
+                bucket={data.incompleteAlbums.noSummary}
+              />
+              <IncompleteSubsection
+                label="커버 없음"
+                bucket={data.incompleteAlbums.noCover}
+              />
+            </Panel>
+          </section>
+
+          {/* 3-column feed grid — all "최근 ~" columns. */}
           <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* ── Column 1: 등록요청 / 신고된 구매처 / 미완 앨범 ────────── */}
+            {/* ── Column 1: 최근 등록 앨범 ─────────────────────────
+                Replaces the old "리뷰 수집 대기" panel: now that
+                every registration lands pending (admin + user), the
+                queue would otherwise be every album in the last
+                week. This feed is more useful — shows what was
+                added, who added it, and links to each album page
+                where admin can trigger 리뷰 모아오기 or 요약 생성
+                if they want. */}
             <div className="flex flex-col gap-4">
               <Panel
-                title="리뷰 수집 대기"
+                title="최근 등록 앨범"
                 icon="📥"
-                count={pendingRequests.length}
+                count={data.recentAlbums.length}
               >
-                {requestsQuery.isLoading ? (
-                  <EmptyRow>불러오는 중…</EmptyRow>
-                ) : pendingRequests.length === 0 ? (
-                  <EmptyRow>리뷰 수집을 기다리는 앨범이 없습니다.</EmptyRow>
+                {data.recentAlbums.length === 0 ? (
+                  <EmptyRow>최근 등록된 앨범이 없습니다.</EmptyRow>
                 ) : (
-                  pendingRequests.map((req) => (
-                    <RequestRow key={req.mbid} request={req} />
+                  data.recentAlbums.map((a) => (
+                    <Link
+                      key={a.id}
+                      to={`/album/${a.mbid}`}
+                      className="p-3 flex items-center gap-3 hover:bg-white/5"
+                    >
+                      <CoverArt
+                        src={a.coverArtUrl}
+                        fallbacks={a.coverArtFallbacks}
+                        alt={a.title}
+                        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-white font-medium truncate">
+                          {a.title}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">
+                          {a.artist}
+                          <span className="text-gray-600 mx-1.5">·</span>
+                          {formatRelativeKo(a.createdAt)}
+                        </div>
+                      </div>
+                    </Link>
                   ))
                 )}
-              </Panel>
-
-              <Panel
-                title="신고된 구매처"
-                icon="🚩"
-                count={reportsQuery.data?.reports.length ?? 0}
-              >
-                {reportsQuery.isLoading ? (
-                  <EmptyRow>불러오는 중…</EmptyRow>
-                ) : !reportsQuery.data || reportsQuery.data.reports.length === 0 ? (
-                  <EmptyRow>신고된 구매처가 없습니다.</EmptyRow>
-                ) : (
-                  reportsQuery.data.reports.map((r) => (
-                    <ReportRow
-                      key={r.id}
-                      report={r}
-                      onDismiss={() => dismissReport.mutate(r.id)}
-                      onDeleteLink={() => {
-                        if (!confirm('이 구매처 링크를 삭제할까요? 같은 링크의 다른 신고도 모두 정리됩니다.')) return;
-                        adminDeleteLink.mutate(r.linkId);
-                      }}
-                    />
-                  ))
-                )}
-              </Panel>
-
-              <Panel title="데이터 미완 앨범" icon="⚠️">
-                <IncompleteSubsection
-                  label="리뷰 없음"
-                  bucket={data.incompleteAlbums.noReviews}
-                />
-                <IncompleteSubsection
-                  label="한국어 요약 없음"
-                  bucket={data.incompleteAlbums.noSummary}
-                />
-                <IncompleteSubsection
-                  label="커버 없음"
-                  bucket={data.incompleteAlbums.noCover}
-                />
               </Panel>
             </div>
 
@@ -887,48 +822,6 @@ export default function Admin() {
         </>
       )}
     </main>
-  );
-}
-
-// Compact list that lives inside the "오늘 추가 앨범" StatCard hover.
-// Replaces the dedicated Column-3 panel that used to host this list —
-// kept deliberately light (no delete action) since hover popovers are
-// for scanning, not management; delete still lives on the album page
-// itself for admins.
-function RecentAlbumsList({ albums }: { albums: AdminStats['recentAlbums'] }) {
-  if (albums.length === 0) {
-    return <div className="p-4 text-sm text-gray-500">최근 등록된 앨범이 없습니다.</div>;
-  }
-  return (
-    <div className="divide-y divide-white/5 max-h-[420px] overflow-y-auto">
-      <div className="px-4 py-2.5 text-xs uppercase tracking-wider text-gray-500 bg-[#151515]">
-        최근 등록 앨범
-      </div>
-      {albums.map((a) => (
-        <Link
-          key={a.id}
-          to={`/album/${a.mbid}`}
-          className="p-3 flex items-center gap-3 hover:bg-white/5"
-        >
-          <CoverArt
-            src={a.coverArtUrl}
-            fallbacks={a.coverArtFallbacks}
-            alt={a.title}
-            className="w-10 h-10 rounded-md object-cover flex-shrink-0"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="text-sm text-white font-medium truncate">
-              {a.title}
-            </div>
-            <div className="text-xs text-gray-500 truncate">
-              {a.artist}
-              <span className="text-gray-600 mx-1.5">·</span>
-              {formatRelativeKo(a.createdAt)}
-            </div>
-          </div>
-        </Link>
-      ))}
-    </div>
   );
 }
 
