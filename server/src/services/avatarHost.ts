@@ -1,9 +1,19 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import sharp from 'sharp';
 
-export const AVATARS_DIR = path.resolve(process.cwd(), 'data', 'avatars');
+// Resolved from this module's location rather than process.cwd() so the
+// path is stable regardless of how the server is launched. Compiled file
+// lives at <app>/server/dist/services/ → ../../data lands on
+// <app>/server/data, which is where the Railway Volume is mounted. The
+// cwd-based version broke in production because Railway's startCommand
+// launched node from /app, so writes landed in /app/data (ephemeral,
+// wiped on every deploy) while the volume at /app/server/data sat empty
+// — every redeploy silently dropped users' uploaded avatars.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const AVATARS_DIR = path.resolve(__dirname, '..', '..', 'data', 'avatars');
 fs.mkdirSync(AVATARS_DIR, { recursive: true });
 
 export const AVATARS_ROUTE = '/api/avatars';

@@ -2,5 +2,8 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "node server/dist/index.js"
+# cd into server/ before starting so process.cwd() is /app/server — the
+# avatar / custom-cover / cover-cache writers resolve their paths off cwd
+# and need this to land on the mounted Volume at /app/server/data.
+startCommand = "cd server && node dist/index.js"
 restartPolicyType = "on_failure"

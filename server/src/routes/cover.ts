@@ -2,11 +2,16 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { CACHE_MAX_AGE_SECONDS, fetchAndResize } from '../utils/coverImage.js';
 
 const router = Router();
 
-const CACHE_DIR = path.resolve(process.cwd(), 'data', 'cover-cache');
+// __dirname-relative so the cache lives on the Railway Volume
+// (<app>/server/data/cover-cache) rather than the container's ephemeral
+// FS. See avatarHost.ts for the full story.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CACHE_DIR = path.resolve(__dirname, '..', '..', 'data', 'cover-cache');
 fs.mkdirSync(CACHE_DIR, { recursive: true });
 
 // Bump whenever the output format changes (target size, fit mode, codec).

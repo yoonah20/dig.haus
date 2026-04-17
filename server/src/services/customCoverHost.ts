@@ -2,9 +2,15 @@ import axios from 'axios';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { fetchAndResize, isSafeRemoteHost } from '../utils/coverImage.js';
 
-export const CUSTOM_COVERS_DIR = path.resolve(process.cwd(), 'data', 'custom-covers');
+// __dirname-relative (not cwd-relative) so the path lands on the mounted
+// Railway Volume at <app>/server/data regardless of where node was
+// launched from. See avatarHost.ts for the long version of why this
+// matters — same class of bug.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const CUSTOM_COVERS_DIR = path.resolve(__dirname, '..', '..', 'data', 'custom-covers');
 fs.mkdirSync(CUSTOM_COVERS_DIR, { recursive: true });
 
 export const CUSTOM_COVERS_ROUTE = '/api/custom-covers';
