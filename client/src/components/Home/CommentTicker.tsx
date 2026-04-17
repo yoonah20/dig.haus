@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState, type CSSProperties } from 'react';
 import CoverArt from '../CoverArt';
-import UserHoverCard from '../UserHoverCard';
 import { useUserReviewsFeed, type UserReviewFeedItem } from '../../hooks/useUserReviewsFeed';
 import { resolveApiUrl } from '../../utils/apiUrl';
 import { parseServerTimestamp } from '../../utils/relativeTime';
@@ -95,42 +94,6 @@ function Avatar({
 // chars still fit on one line without forcing weird 4-char wraps).
 const CJK_RE = /[\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]/;
 
-// Avatar + display-name pair shared by the anonymous branch (no
-// hover card) and the identified branch (wrapped in UserHoverCard).
-// Kept inline so the hover card doesn't need to inherit the column's
-// flex layout — it just contains this identity block as-is.
-function TickerIdentity({
-  userAvatar,
-  userName,
-  displayName,
-  isCjk,
-  isAnon,
-}: {
-  userAvatar: string | null;
-  userName: string | null;
-  displayName: string;
-  isCjk: boolean;
-  isAnon: boolean;
-}) {
-  return (
-    <>
-      <Avatar src={userAvatar} name={userName} size={52} />
-      <span
-        // CJK glyphs are ~em-wide so 44px caps each line at ~4 chars.
-        // Latin glyphs are about half that, so 88px fits 'fabric
-        // fabric' (13 chars) on a single line. The span overflows
-        // the 56px column into the gutter below the tail's vertical
-        // band — nothing collides.
-        className={`text-[11px] text-center leading-tight line-clamp-2 break-all ${
-          isCjk ? 'max-w-[44px]' : 'max-w-[88px]'
-        } ${isAnon ? 'italic text-gray-600' : 'text-gray-400'}`}
-      >
-        {displayName}
-      </span>
-    </>
-  );
-}
-
 export function TickerItem({
   item,
   fullWidth = false,
@@ -166,31 +129,39 @@ export function TickerItem({
       style={fullWidth ? undefined : { maxWidth: MAX_ITEM_WIDTH_PX }}
       aria-label={`${displayName}의 50자 평: ${item.body}. ${item.albumArtist ?? ''} — ${item.albumTitle} 로 이동`}
     >
-      {/* Left column — avatar + display name, wrapped in a hover
-          card so hovering/tapping either element opens the digger's
-          public profile popover. Anonymous comments (user deleted)
-          skip the hover card since there's nothing to show.
-          Column geometry unchanged: 56px column with pt-1 so the
-          avatar centre aligns with the bubble tail at y≈30. */}
+      {/* Left column — avatar + display name. Column width is locked
+          to the avatar's footprint (52 + 2px padding each side); pt-1
+          puts the avatar centre at the same y as the bubble's tail
+          (tail centre hard-coded at y≈30 in index.css). The name
+          span happily overflows the 56px column horizontally — the
+          overlap lands below the tail's vertical band so nothing
+          collides. */}
       <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[56px]">
-        {!isAnon && item.userId != null ? (
-          <UserHoverCard userId={item.userId} className="flex-col gap-1.5">
-            <TickerIdentity
-              userAvatar={item.userAvatar}
-              userName={item.userName}
-              displayName={displayName}
-              isCjk={isCjk}
-              isAnon={false}
-            />
-          </UserHoverCard>
+        <Avatar src={item.userAvatar} name={item.userName} size={52} />
+        {/* Two layouts for name rendering:
+            - CJK: glyphs are ~em-wide, so cap at 44px and let it
+              wrap up to 2 lines (break-all → glyph-boundary breaks).
+            - Latin: whitespace-nowrap keeps the whole name on one
+              line (fixes the "fabric fabric" case where the trailing
+              'c' was wrapping when break-all + a numeric max-w was
+              fighting it). max-w + text-ellipsis truncates anything
+              ridiculously long instead of forcing a second row. */}
+        {isCjk ? (
+          <span
+            className={`text-[11px] text-center leading-tight line-clamp-2 break-all max-w-[44px] ${
+              isAnon ? 'italic text-gray-600' : 'text-gray-400'
+            }`}
+          >
+            {displayName}
+          </span>
         ) : (
-          <TickerIdentity
-            userAvatar={item.userAvatar}
-            userName={item.userName}
-            displayName={displayName}
-            isCjk={isCjk}
-            isAnon
-          />
+          <span
+            className={`text-[11px] text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] ${
+              isAnon ? 'italic text-gray-600' : 'text-gray-400'
+            }`}
+          >
+            {displayName}
+          </span>
         )}
       </div>
 
