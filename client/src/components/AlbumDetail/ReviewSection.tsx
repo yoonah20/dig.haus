@@ -390,15 +390,17 @@ export default function ReviewSection({
       <div className="space-y-6">
         {pendingNotice}
 
-        {averageScore !== null && (
+        {/* Average hidden when fewer than 3 scored reviews — with 1
+            or 2, the "average" is really just one opinion and the
+            big headline number misleads. Individual review scores
+            still show in their cards below. */}
+        {averageScore !== null && scoredCount >= 3 && (
           <div className="flex items-baseline gap-2">
             <span className={`text-5xl font-bold ${scoreColor(averageScore)}`}>
               {Math.round(averageScore)}
             </span>
             <span className="text-gray-500 text-lg">/ 100</span>
-            {scoredCount > 0 && (
-              <span className="text-gray-600 text-sm ml-1">({scoredCount}개 사이트 평균)</span>
-            )}
+            <span className="text-gray-600 text-sm ml-1">({scoredCount}개 사이트 평균)</span>
           </div>
         )}
 

@@ -5,6 +5,7 @@ import {
   SONNET,
   logClaudeUsage,
   countWebSearchUses,
+  stripSummaryPreamble,
 } from './claude.js';
 
 export interface ReviewResult {
@@ -299,13 +300,17 @@ Max 15 reviews. Deduplicate by source.` }],
           max_tokens: 500,
           messages: [{
             role: 'user',
-            content: `'${album}' by ${artist} 리뷰 3-4문장 한국어 요약. 매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술.\n${reviewsText}`,
+            content:
+              `'${album}' by ${artist} 리뷰 3-4문장 한국어 요약. ` +
+              `매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술. ` +
+              `출력 규칙: 요약 본문만 작성. 앨범 제목이나 아티스트명을 헤더로 넣지 말 것. ` +
+              `마크다운(#, **, *, -) 사용하지 말고 순수 문장으로만.\n${reviewsText}`,
           }],
         });
         logClaudeUsage('reviews_summary', summaryResponse);
         const summaryBlock = summaryResponse.content.find((b) => b.type === 'text');
         if (summaryBlock && summaryBlock.type === 'text') {
-          koreanSummary = summaryBlock.text.trim();
+          koreanSummary = stripSummaryPreamble(summaryBlock.text, album, artist);
         }
       } catch (err: any) {
         console.log(`[reviews] Sonnet summary failed (${err.status || err.message}), skipping`);

@@ -408,7 +408,7 @@ function SegButton({
       type="button"
       onClick={onClick}
       title={title}
-      className={`px-2.5 text-xs font-semibold transition-colors cursor-pointer ${
+      className={`px-2.5 text-xs font-semibold transition-colors cursor-pointer flex-1 flex items-center justify-center ${
         active
           ? 'bg-[#e8a020] text-black'
           : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -473,7 +473,7 @@ function LinkForm({
     <div className="space-y-1.5">
       <form
         onSubmit={handleSubmit}
-        className="bg-[#141414] rounded-xl border border-white/10 p-4 max-w-2xl space-y-3.5"
+        className="bg-[#141414] rounded-xl border border-white/10 p-4 max-w-xl space-y-3.5"
       >
         {/* URL — full width, labelled, because it's the one required
             field and people paste long URLs into it. */}
@@ -527,11 +527,16 @@ function LinkForm({
               포맷
             </span>
             <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
+              {/* flex-1 + basis-0 makes the three cells share width
+                  evenly so "Cassette" doesn't stretch past "Vinyl" /
+                  "CD". min-w-0 lets the label shrink if needed. */}
               {FORMATS.map((f) => (
-                <SegButton key={f} active={format === f} onClick={() => setFormat(f)}>
-                  <span className="mr-1">{FORMAT_EMOJI[f]}</span>
-                  {f}
-                </SegButton>
+                <div key={f} className="flex-1 basis-0 min-w-0 flex">
+                  <SegButton active={format === f} onClick={() => setFormat(f)}>
+                    <span className="mr-1">{FORMAT_EMOJI[f]}</span>
+                    {f}
+                  </SegButton>
+                </div>
               ))}
             </div>
           </div>

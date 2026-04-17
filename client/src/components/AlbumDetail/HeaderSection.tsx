@@ -310,15 +310,9 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const regenSummary = useGenerateReviewSummary(albumId);
 
   const handleRegenerateSummary = useCallback(async () => {
+    // No confirm: action is cheap (~$0.01), idempotent, and the
+    // admin is explicitly triggering it from the ⚙️ 관리 menu.
     if (regenSummary.isPending) return;
-    if (
-      !confirm(
-        '이미 등록된 리뷰들로 한국어 요약을 새로 만들까요?\n\n' +
-          'Claude Sonnet을 호출합니다 (약 $0.01). ' +
-          '기존 요약은 덮어씌워지며, 되돌릴 수 없습니다.'
-      )
-    )
-      return;
     try {
       await regenSummary.mutateAsync();
     } catch (err: any) {

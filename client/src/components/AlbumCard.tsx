@@ -61,25 +61,32 @@ function isRecentRelease(releaseDate: string | null | undefined): boolean {
 // → SALE → SOLD OUT) reads as one column of labels rather than
 // five competing elements. NEW moved from yellow to sky so it
 // doesn't collide with SALE's yellow. Labels drop the trailing
-// '!'; the typography carries the energy.
+// '!'; the typography carries the energy. PRE-ORDER and SOLD OUT
+// render as two-line chips (hyphen/space split) so they stay
+// narrow enough to sit over the cover without stretching past
+// single-word stickers.
 type CoverStickerKind = 'new' | 'hot' | 'preorder' | 'sale' | 'soldout';
 
-const STICKER_PALETTE: Record<
-  CoverStickerKind,
-  { bg: string; fg: string; label: string; aria: string }
-> = {
-  new:      { bg: '#5aa9e6', fg: '#0b1d2e', label: 'NEW',       aria: '최근 30일 이내 발매' },
-  hot:      { bg: '#e84a3b', fg: '#ffffff', label: 'HOT',       aria: '굿굿 또는 별루 상위 10' },
-  preorder: { bg: '#2fa46a', fg: '#07231a', label: 'PRE-ORDER', aria: '발매 예정 구매처 있음' },
-  sale:     { bg: '#f5c542', fg: '#3a2400', label: 'SALE',      aria: '세일 중인 구매처 있음' },
-  soldout:  { bg: '#f08a3c', fg: '#2a1300', label: 'SOLD OUT',  aria: '품절된 구매처 있음' },
+interface StickerSpec {
+  bg: string;
+  fg: string;
+  lines: string[];
+  aria: string;
+}
+
+const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
+  new:      { bg: '#5aa9e6', fg: '#0b1d2e', lines: ['NEW'],          aria: '최근 30일 이내 발매' },
+  hot:      { bg: '#e84a3b', fg: '#ffffff', lines: ['HOT'],          aria: '굿굿 또는 별루 상위 10' },
+  preorder: { bg: '#2fa46a', fg: '#07231a', lines: ['PRE', 'ORDER'], aria: '발매 예정 구매처 있음' },
+  sale:     { bg: '#f5c542', fg: '#3a2400', lines: ['SALE'],         aria: '세일 중인 구매처 있음' },
+  soldout:  { bg: '#f08a3c', fg: '#2a1300', lines: ['SOLD', 'OUT'],  aria: '품절된 구매처 있음' },
 };
 
 function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
   const palette = STICKER_PALETTE[kind];
   return (
     <span
-      className="font-extrabold uppercase rounded-sm shadow-md whitespace-nowrap"
+      className="inline-flex flex-col items-center justify-center font-extrabold uppercase rounded-sm shadow-md"
       style={{
         background: palette.bg,
         color: palette.fg,
@@ -87,11 +94,13 @@ function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
         fontSize: '8.3px',
         letterSpacing: '0.06em',
         padding: '2.2px 5.4px',
-        lineHeight: 1,
+        lineHeight: 1.1,
       }}
       aria-label={palette.aria}
     >
-      {palette.label}
+      {palette.lines.map((line) => (
+        <span key={line}>{line}</span>
+      ))}
     </span>
   );
 }
@@ -111,11 +120,16 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const hasAnyCoverSticker =
     isNew || album.isHot || hasPreorder || hasSale || hasSoldout;
 
-  // Flip-side glow follows the review score — cyan > green > yellow > red.
-  // If there aren't at least 3 scored reviews yet, leave the back plain dark
-  // so a single outlier rating doesn't mislead the color.
-  const hasGlow =
-    album.averageScore != null && (album.reviewCount ?? 0) >= GLOW_MIN_REVIEWS;
+  // Flip-side glow + card-face score both need at least 3 scored
+  // reviews before we surface a number — one or two hot takes can
+  // skew the colour and the displayed grade in misleading ways.
+  // album.reviewCount counts *scored* reviews only (server SQL
+  // filters manual_score OR score IS NOT NULL), so it's the right
+  // denominator here.
+  const scoredCount = album.reviewCount ?? 0;
+  const hasEnoughScores = scoredCount >= GLOW_MIN_REVIEWS;
+  const hasGlow = album.averageScore != null && hasEnoughScores;
+  const showAvg = album.averageScore != null && hasEnoughScores;
   const glowRgb = hasGlow ? getScoreGlowRgb(album.averageScore!) : null;
   const ctaColor = glowRgb ? `rgb(${glowRgb})` : '#9a9a9a';
 
@@ -340,13 +354,13 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                   {album.artist}
                   {album.year && <> · {album.year}</>}
                 </p>
-                {(album.averageScore != null || up > 0 || down > 0) && (
+                {(showAvg || up > 0 || down > 0) && (
                   <div
                     className="flex items-center gap-2 tabular-nums"
                     style={{ marginTop: '6px', fontSize: '12px' }}
                   >
-                    {album.averageScore != null && (
-                      <span className={`font-semibold ${getScoreColor(album.averageScore)}`}>
+                    {showAvg && (
+                      <span className={`font-semibold ${getScoreColor(album.averageScore!)}`}>
                         ★ {album.averageScore}/100
                       </span>
                     )}

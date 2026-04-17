@@ -139,17 +139,78 @@ export async function generateKoreanSummary(
       max_tokens: 500,
       messages: [{
         role: 'user',
-        content: `'${albumTitle}' by ${artist} 리뷰 3-4문장 한국어 요약. 매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술.\n${reviewsText}`,
+        content:
+          `'${albumTitle}' by ${artist} 리뷰 3-4문장 한국어 요약. ` +
+          `매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술. ` +
+          `출력 규칙: 요약 본문만 작성. 앨범 제목이나 아티스트명을 헤더로 넣지 말 것. ` +
+          `마크다운(#, **, *, -) 사용하지 말고 순수 문장으로만.\n${reviewsText}`,
       }],
     });
     logClaudeUsage('summary_fallback', message);
 
     const textBlock = message.content.find((b) => b.type === 'text');
-    return textBlock ? textBlock.text : null;
+    if (!textBlock) return null;
+    return stripSummaryPreamble(textBlock.text, albumTitle, artist);
   } catch (err) {
     console.warn(`[claude] generateKoreanSummary failed for "${artist} - ${albumTitle}":`, (err as Error).message);
     return null;
   }
+}
+
+// Post-process the summary in case Sonnet sneaks in a "# Album -
+// Artist" heading or a markdown lead despite being told not to.
+// Strips:
+//   1. Markdown heading lines (starts with #)
+//   2. Lines that are essentially "{title}" / "{artist}" /
+//      "{title} - {artist}" / "{title} by {artist}" in any order
+//      (case-insensitive, ignoring punctuation)
+//   3. Leading/trailing bold markers (**text**) and hyphen bullets
+//      — keeps the text content.
+export function stripSummaryPreamble(
+  raw: string,
+  albumTitle: string,
+  artist: string
+): string {
+  const titleLower = albumTitle.toLowerCase();
+  const artistLower = artist.toLowerCase();
+  const normalise = (s: string) =>
+    s
+      .replace(/[#*_`~>]/g, '')
+      .replace(/[-–—]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  const isTitleArtistLine = (line: string): boolean => {
+    const n = normalise(line);
+    if (!n) return false;
+    const hasTitle = titleLower && n.includes(titleLower);
+    const hasArtist = artistLower && n.includes(artistLower);
+    // Line consists mostly of title/artist (and connectors like "by",
+    // "-", etc). Length check keeps us from eating a real sentence
+    // that happens to mention the title + artist in passing.
+    return !!(hasTitle || hasArtist) && n.length <= titleLower.length + artistLower.length + 8;
+  };
+
+  const lines = raw.split(/\r?\n/);
+  let start = 0;
+  while (start < lines.length) {
+    const trimmed = lines[start].trim();
+    if (!trimmed) {
+      start++;
+      continue;
+    }
+    if (trimmed.startsWith('#') || isTitleArtistLine(trimmed)) {
+      start++;
+      continue;
+    }
+    break;
+  }
+  return lines
+    .slice(start)
+    .join('\n')
+    .replace(/\*\*/g, '')
+    .replace(/^\s*[-*]\s+/gm, '')
+    .trim();
 }
 
 /**

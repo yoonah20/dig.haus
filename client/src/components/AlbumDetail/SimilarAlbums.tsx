@@ -265,10 +265,12 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
           )}
           <ServiceIcons album={album} />
         </div>
-        {/* flex-1 lets the text block absorb the leftover height of the
-            tallest card in the row — grid items are already stretched
-            via items-stretch, so every card ends up the same height
-            regardless of how long the Korean reason text is. */}
+        {/* flex-1 lets this block fill the leftover height of the
+            tallest card in the row — items-stretch on the grid
+            equalises card heights, shorter reasons just leave extra
+            whitespace. Titles truncate (1–2 lines) because the pick
+            is identifiable by cover + artist anyway; reason text is
+            never clipped so the curator's rationale reads in full. */}
         <div className="p-3 flex-1 flex flex-col">
           <p className="text-white font-semibold line-clamp-2" style={{ fontSize: '0.9375rem' }} title={album.title}>
             {album.title}
@@ -278,9 +280,8 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
           </p>
           {album.reason && (
             <p
-              className="text-gray-500 mt-2 leading-snug line-clamp-4"
+              className="text-gray-500 mt-2 leading-snug break-words"
               style={{ fontSize: '0.8125rem' }}
-              title={album.reason}
             >
               {album.reason}
             </p>
