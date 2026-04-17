@@ -180,7 +180,7 @@ function StatPill({
           ? 'text-[#c08888]'
           : 'text-white';
   return (
-    <div className="flex flex-col items-start px-3 py-2 bg-black/30 rounded-lg border border-white/5 min-w-[72px]">
+    <div className="flex flex-col items-start px-3 py-2 bg-black/30 rounded-lg border border-white/5 min-w-0">
       <span className="text-[11px] uppercase tracking-wider text-gray-500">
         {label}
       </span>
@@ -221,18 +221,18 @@ function AvatarEditor({
   // actually appears after upload.
   const resolvedAvatarUrl = resolveApiUrl(avatarUrl);
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-4 min-w-0">
       {resolvedAvatarUrl ? (
         <img
           src={resolvedAvatarUrl}
           alt=""
-          className="w-20 h-20 rounded-full object-cover border border-white/10"
+          className="w-20 h-20 rounded-full object-cover border border-white/10 shrink-0"
           referrerPolicy="no-referrer"
         />
       ) : (
-        <div className="w-20 h-20 rounded-full bg-[#2a1f10] border border-white/10" />
+        <div className="w-20 h-20 rounded-full bg-[#2a1f10] border border-white/10 shrink-0" />
       )}
-      <div className="flex flex-col gap-2 items-start">
+      <div className="flex flex-col gap-2 items-start min-w-0">
         <input
           ref={fileRef}
           type="file"
@@ -248,7 +248,7 @@ function AvatarEditor({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="px-3 py-1.5 text-sm rounded-md border border-[#e8a020]/50 text-[#e8a020] hover:bg-[#e8a020] hover:text-black disabled:opacity-40 transition-colors cursor-pointer"
+          className="px-3 py-1.5 text-sm rounded-md border border-[#e8a020]/50 text-[#e8a020] hover:bg-[#e8a020] hover:text-black disabled:opacity-40 transition-colors cursor-pointer text-left"
         >
           {uploading ? '업로드 중…' : '새 아바타 올리기'}
         </button>
@@ -257,7 +257,7 @@ function AvatarEditor({
             type="button"
             onClick={onReset}
             disabled={resetting}
-            className="text-xs text-gray-500 hover:text-white disabled:opacity-40 cursor-pointer"
+            className="text-xs text-gray-500 hover:text-white disabled:opacity-40 cursor-pointer text-left"
           >
             {resetting ? '복귀 중…' : '기본 아바타로 돌아가기 (Google)'}
           </button>
@@ -294,7 +294,7 @@ function ProfileFields({
   const dirty = name !== initialDisplayName || ig !== initialInstagram;
 
   return (
-    <div className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-3 items-center text-sm max-w-lg">
+    <div className="grid grid-cols-[5rem_minmax(0,1fr)] sm:grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-3 items-center text-sm max-w-lg">
       <label className="text-gray-400">표시 이름</label>
       <input
         type="text"
@@ -302,18 +302,18 @@ function ProfileFields({
         maxLength={DISPLAY_NAME_MAX}
         onChange={(e) => setName(e.target.value)}
         placeholder="비우면 Google 이름"
-        className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none"
+        className="w-full min-w-0 bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none"
       />
       <label className="text-gray-400">Instagram</label>
-      <div className="flex items-center gap-1">
-        <span className="text-gray-500">@</span>
+      <div className="flex items-center gap-1 min-w-0">
+        <span className="text-gray-500 shrink-0">@</span>
         <input
           type="text"
           value={ig}
           maxLength={INSTAGRAM_MAX}
           onChange={(e) => setIg(e.target.value.replace(/^@+/, ''))}
           placeholder="yourhandle (선택)"
-          className="flex-1 bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none"
+          className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none"
         />
       </div>
       <div className="col-span-2 flex justify-end">
@@ -442,7 +442,7 @@ export default function Profile() {
           a vertical stack below md so the stat row doesn't crowd
           the form on phones. */}
       {me && (
-        <section className="bg-[#1a1a1a] rounded-2xl p-6 border border-white/5">
+        <section className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-6 border border-white/5">
           <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
             <div className="flex-1 min-w-0 space-y-5">
               <AvatarEditor
@@ -453,14 +453,23 @@ export default function Profile() {
                 uploading={upload.isPending}
                 resetting={reset.isPending}
               />
-              <div className="text-sm text-gray-400">
-                <span className="text-gray-200 font-medium">{me.name}</span>
-                <span className="text-gray-600 mx-2">·</span>
-                <span>{me.email}</span>
+              {/* flex-wrap + gap-y lets a long email drop to its own
+                  line instead of pushing past the card's right edge on
+                  narrow phones. break-all on the email itself is a
+                  second-line defence for addresses with no natural
+                  break points. */}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-400 min-w-0">
+                <span className="text-gray-200 font-medium truncate max-w-full">
+                  {me.name}
+                </span>
+                <span className="text-gray-600" aria-hidden>·</span>
+                <span className="break-all">{me.email}</span>
                 {me.createdAt && (
                   <>
-                    <span className="text-gray-600 mx-2">·</span>
-                    <span>가입 {formatJoined(me.createdAt)}</span>
+                    <span className="text-gray-600" aria-hidden>·</span>
+                    <span className="whitespace-nowrap">
+                      가입 {formatJoined(me.createdAt)}
+                    </span>
                   </>
                 )}
               </div>
@@ -473,7 +482,7 @@ export default function Profile() {
             </div>
 
             {stats && (
-              <div className="lg:w-56 shrink-0 lg:border-l lg:border-white/5 lg:pl-6 flex lg:flex-col flex-wrap gap-2">
+              <div className="lg:w-56 lg:shrink-0 lg:border-l lg:border-white/5 lg:pl-6 grid grid-cols-3 lg:grid-cols-1 gap-2">
                 <StatPill label="50자 평" value={stats.reviewCount} />
                 <StatPill label="굿굿" value={stats.upvoteCount} accent="blue" />
                 <StatPill label="별루" value={stats.downvoteCount} accent="red" />
@@ -537,7 +546,8 @@ export default function Profile() {
                     <div className="flex-1 min-w-0">
                       <Link
                         to={`/album/${r.albumSlug}`}
-                        className="text-sm text-gray-300 hover:text-[#e8a020] transition-colors"
+                        className="text-sm text-gray-300 hover:text-[#e8a020] transition-colors block truncate"
+                        title={`${r.albumTitle} — ${r.albumArtist ?? ''}`}
                       >
                         <span className="font-medium">{r.albumTitle}</span>
                         <span className="text-gray-600 mx-1.5">·</span>
