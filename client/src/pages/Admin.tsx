@@ -32,6 +32,11 @@ interface AdminStats {
   totalAlbums: number;
   albumsToday: number;
   totalUsers: number;
+  usersToday: number;
+  totalReviews: number;
+  reviewsToday: number;
+  totalPurchaseLinks: number;
+  purchaseLinksToday: number;
   votesToday: { up: number; down: number };
   recentAlbums: Array<{
     id: number;
@@ -100,33 +105,63 @@ interface AdminStats {
   };
 }
 
-function StatCard({
-  label,
-  value,
-  accent,
-  hoverContent,
-}: {
+interface StatRow {
   label: string;
   value: string | number;
   accent?: boolean;
   hoverContent?: ReactNode;
+}
+
+// Grouped stat panel — one header (전체 / 오늘) over a vertical stack
+// of labelled numbers. Each row can still reveal a hover popover
+// (e.g. "오늘 추가 앨범" opens the recent-albums list) without
+// fighting the panel's bounds; the popover is anchored to the row.
+function StatGroupCard({
+  title,
+  accent,
+  rows,
+}: {
+  title: string;
+  accent?: boolean;
+  rows: StatRow[];
 }) {
-  const card = (
+  return (
     <div
-      className={`bg-[#1a1a1a] rounded-xl p-5 border ${accent ? 'border-[#e8a020]/40' : 'border-white/5'} ${hoverContent ? 'cursor-default' : ''}`}
+      className={`bg-[#1a1a1a] rounded-xl border ${
+        accent ? 'border-[#e8a020]/40' : 'border-white/5'
+      }`}
     >
-      <div className="text-sm uppercase tracking-wider text-gray-500 mb-2">{label}</div>
-      <div className={`text-3xl font-bold tabular-nums ${accent ? 'text-[#e8a020]' : 'text-white'}`}>
-        {value}
+      <div className="px-5 pt-4 pb-2 text-xs uppercase tracking-wider text-gray-500">
+        {title}
+      </div>
+      <div className="px-5 pb-4 space-y-2">
+        {rows.map((row) => (
+          <StatRowView key={row.label} row={row} />
+        ))}
       </div>
     </div>
   );
-  if (!hoverContent) return card;
+}
+
+function StatRowView({ row }: { row: StatRow }) {
+  const line = (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-sm text-gray-400 truncate">{row.label}</span>
+      <span
+        className={`text-xl font-bold tabular-nums shrink-0 ${
+          row.accent ? 'text-[#e8a020]' : 'text-white'
+        }`}
+      >
+        {row.value}
+      </span>
+    </div>
+  );
+  if (!row.hoverContent) return line;
   return (
-    <div className="relative group">
-      {card}
-      <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity absolute left-0 right-0 top-full mt-2 z-20 bg-[#1a1a1a] rounded-xl border border-white/10 shadow-xl overflow-hidden">
-        {hoverContent}
+    <div className="relative group/row">
+      <div className="cursor-default">{line}</div>
+      <div className="invisible opacity-0 group-hover/row:visible group-hover/row:opacity-100 transition-opacity absolute left-0 right-0 top-full mt-1 z-20 bg-[#1a1a1a] rounded-xl border border-white/10 shadow-xl overflow-hidden">
+        {row.hoverContent}
       </div>
     </div>
   );
@@ -482,33 +517,49 @@ export default function Admin() {
 
       {data && (
         <>
-          {/* Top stats — four tiles on the left (album + user totals) plus a
-              two-row API-usage tile on the right. The API column used to live
-              down in column 1 of the dashboard, but it reads as a dashboard-
-              level signal so promoting it up here keeps the 3-column grid
-              focused on queues and recent activity. */}
-          <section className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-            <div className="grid grid-cols-2 gap-4 md:col-span-2">
-              <StatCard label="전체 앨범" value={data.totalAlbums.toLocaleString()} />
-              <StatCard
-                label="전체 유저"
-                value={data.totalUsers.toLocaleString()}
-                hoverContent={
-                  <RecentUsersList users={data.recentUsers} />
-                }
-              />
-              <StatCard
-                label="오늘 추가 앨범"
-                value={data.albumsToday}
-                accent={data.albumsToday > 0}
-                hoverContent={<RecentAlbumsList albums={data.recentAlbums} />}
-              />
-              <StatCard
-                label="오늘 투표"
-                value={`▲${data.votesToday.up} / ▼${data.votesToday.down}`}
-              />
+          {/* Top stats — two grouped panels (전체 / 오늘) plus the two-row
+              API-usage tile. "전체" collects cumulative counters, "오늘"
+              collects 24h activity; the API tile sits beside them as a
+              dashboard-level cost signal. */}
+          <section className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <StatGroupCard
+              title="전체"
+              rows={[
+                { label: '앨범', value: data.totalAlbums.toLocaleString() },
+                {
+                  label: '유저',
+                  value: data.totalUsers.toLocaleString(),
+                  hoverContent: <RecentUsersList users={data.recentUsers} />,
+                },
+                { label: '50자 평', value: data.totalReviews.toLocaleString() },
+                { label: '구매처', value: data.totalPurchaseLinks.toLocaleString() },
+              ]}
+            />
+            <StatGroupCard
+              title="오늘 (24시간)"
+              accent={data.albumsToday > 0 || data.usersToday > 0}
+              rows={[
+                {
+                  label: '추가 앨범',
+                  value: data.albumsToday,
+                  accent: data.albumsToday > 0,
+                  hoverContent: <RecentAlbumsList albums={data.recentAlbums} />,
+                },
+                {
+                  label: '가입 유저',
+                  value: data.usersToday,
+                  accent: data.usersToday > 0,
+                },
+                { label: '50자 평', value: data.reviewsToday },
+                {
+                  label: '투표',
+                  value: `▲${data.votesToday.up} / ▼${data.votesToday.down}`,
+                },
+              ]}
+            />
+            <div className="md:col-span-2">
+              <ClaudeUsageCard usage={data.claudeUsage.last7d} />
             </div>
-            <ClaudeUsageCard usage={data.claudeUsage.last7d} />
           </section>
 
           {/* 3-column dashboard grid. lg+: 3 columns, md: 2, below: 1.

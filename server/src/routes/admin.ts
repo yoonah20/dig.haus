@@ -43,6 +43,21 @@ router.get('/stats', (_req, res) => {
     `SELECT COUNT(*) AS n FROM albums WHERE DATE(created_at) = DATE('now')`
   )?.n || 0;
   const totalUsers = queryGet(`SELECT COUNT(*) AS n FROM users`)?.n || 0;
+  const usersToday = queryGet(
+    `SELECT COUNT(*) AS n FROM users WHERE DATE(created_at) = DATE('now')`
+  )?.n || 0;
+  const totalReviews = queryGet(
+    `SELECT COUNT(*) AS n FROM user_reviews`
+  )?.n || 0;
+  const reviewsToday = queryGet(
+    `SELECT COUNT(*) AS n FROM user_reviews WHERE DATE(created_at) = DATE('now')`
+  )?.n || 0;
+  const totalPurchaseLinks = queryGet(
+    `SELECT COUNT(*) AS n FROM purchase_links`
+  )?.n || 0;
+  const purchaseLinksToday = queryGet(
+    `SELECT COUNT(*) AS n FROM purchase_links WHERE DATE(created_at) = DATE('now')`
+  )?.n || 0;
   const votesToday = queryGet(
     `SELECT
        SUM(CASE WHEN vote='up' THEN 1 ELSE 0 END) AS up,
@@ -280,6 +295,11 @@ router.get('/stats', (_req, res) => {
     totalAlbums,
     albumsToday,
     totalUsers,
+    usersToday,
+    totalReviews,
+    reviewsToday,
+    totalPurchaseLinks,
+    purchaseLinksToday,
     votesToday: {
       up: votesToday?.up || 0,
       down: votesToday?.down || 0,
