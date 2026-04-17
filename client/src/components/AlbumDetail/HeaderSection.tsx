@@ -279,7 +279,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [updatingCover, setUpdatingCover] = useState(false);
   const [coverSize, setCoverSize] = useState<{ w: number; h: number } | null>(null);
 
-  const [refreshingReviews, setRefreshingReviews] = useState(false);
   const [editingKo, setEditingKo] = useState(false);
   const [savingKo, setSavingKo] = useState(false);
   const [regeneratingKo, setRegeneratingKo] = useState(false);
@@ -307,16 +306,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const { openOverlay } = useSearchOverlay();
 
   const albumId = album.slug || album.mbid;
-
-  const handleRefreshReviews = useCallback(async () => {
-    if (!confirm('추가 리뷰를 검색할까요? 기존 리뷰는 유지됩니다.')) return;
-    setRefreshingReviews(true);
-    try {
-      await axios.post(`/api/albums/${albumId}/refresh-reviews`);
-      await queryClient.invalidateQueries({ queryKey: ['album-reviews', albumId] });
-    } catch {}
-    setRefreshingReviews(false);
-  }, [albumId, queryClient]);
 
   const handleRefreshDiscogs = useCallback(async () => {
     if (refreshingDiscogs) return;
@@ -615,12 +604,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 disabled={refreshingDiscogs}
               >
                 {refreshingDiscogs ? '갱신 중...' : '💰 시세 갱신'}
-              </AdminMenuItem>
-              <AdminMenuItem
-                onClick={() => { setAdminMenuOpen(false); void handleRefreshReviews(); }}
-                disabled={refreshingReviews}
-              >
-                {refreshingReviews ? '검색 중...' : '🔍 리뷰 추가 검색'}
               </AdminMenuItem>
               <div className="my-1 border-t border-white/10" />
               <AdminMenuItem

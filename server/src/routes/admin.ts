@@ -177,7 +177,10 @@ router.get('/stats', (_req, res) => {
   let totalOutputTokens = 0;
   let totalSearchCount = 0;
   let totalUsd = 0;
-  const byOperation: Record<string, { tokens: number; searches: number; usd: number }> = {};
+  const byOperation: Record<
+    string,
+    { calls: number; tokens: number; searches: number; usd: number }
+  > = {};
 
   for (const row of usageRows) {
     const prices = pricingFor(row.model);
@@ -191,8 +194,10 @@ router.get('/stats', (_req, res) => {
     totalSearchCount += row.search_n;
     totalUsd += usd;
 
-    const prev = byOperation[row.operation] || { tokens: 0, searches: 0, usd: 0 };
+    const prev =
+      byOperation[row.operation] || { calls: 0, tokens: 0, searches: 0, usd: 0 };
     byOperation[row.operation] = {
+      calls: prev.calls + row.calls,
       tokens: prev.tokens + row.in_tok + row.out_tok,
       searches: prev.searches + row.search_n,
       usd: prev.usd + usd,
@@ -203,6 +208,7 @@ router.get('/stats', (_req, res) => {
   const operationsBreakdown = Object.entries(byOperation)
     .map(([op, v]) => ({
       operation: op,
+      calls: v.calls,
       tokens: v.tokens,
       searches: v.searches,
       usd: Math.round(v.usd * 100) / 100,
@@ -329,6 +335,55 @@ router.delete('/claude-usage', (_req, res) => {
   const before = queryGet(`SELECT COUNT(*) AS c FROM claude_usage_log`)?.c ?? 0;
   execute(`DELETE FROM claude_usage_log`);
   res.json({ deleted: before });
+});
+
+// GET /api/admin/claude-usage/recent — last N Claude calls for
+// forensic "where did my $3 go" inspection. The aggregated panel
+// hides how many times each operation fired; this endpoint shows
+// one row per actual call so admin can spot unexpected repeat
+// patterns (refresh-reviews clicked 12 times, retranslate burning
+// on every review, etc.). Limited to 100 rows by default.
+router.get('/claude-usage/recent', (req, res) => {
+  const limitRaw = parseInt((req.query.limit as string) || '', 10);
+  const limit =
+    Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 500) : 100;
+
+  const rows = queryAll(
+    `SELECT id, operation, model,
+            input_tokens, output_tokens, web_search_count,
+            created_at
+     FROM claude_usage_log
+     ORDER BY id DESC
+     LIMIT ?`,
+    [limit]
+  ) as Array<{
+    id: number;
+    operation: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    web_search_count: number;
+    created_at: string;
+  }>;
+
+  res.json({
+    calls: rows.map((r) => {
+      const prices = pricingFor(r.model);
+      const inUsd = (r.input_tokens / 1_000_000) * prices.input;
+      const outUsd = (r.output_tokens / 1_000_000) * prices.output;
+      const searchUsd = (r.web_search_count / 1000) * WEB_SEARCH_PER_1000;
+      return {
+        id: r.id,
+        operation: r.operation,
+        model: r.model,
+        inputTokens: r.input_tokens,
+        outputTokens: r.output_tokens,
+        webSearchCount: r.web_search_count,
+        usd: Math.round((inUsd + outUsd + searchUsd) * 10000) / 10000,
+        createdAt: r.created_at,
+      };
+    }),
+  });
 });
 
 export default router;

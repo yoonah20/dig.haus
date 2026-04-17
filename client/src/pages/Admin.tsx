@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
@@ -93,6 +93,7 @@ interface AdminStats {
       usd: number;
       byOperation: Array<{
         operation: string;
+        calls: number;
         tokens: number;
         searches: number;
         usd: number;
@@ -297,21 +298,49 @@ function formatTokens(n: number): string {
   return n.toLocaleString();
 }
 
+interface ClaudeUsageCall {
+  id: number;
+  operation: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  webSearchCount: number;
+  usd: number;
+  createdAt: string;
+}
+
 // Stat tile that sits beside the album/user counters. Layout splits
 // into two columns at sm+: left = month-to-date totals (cost +
 // tokens), right = per-operation breakdown. On narrow viewports the
 // columns stack so nothing scrolls horizontally. Reset wipes the
 // usage log via DELETE /api/admin/claude-usage; natural reset still
-// happens at the start of each calendar month.
+// happens at the start of each calendar month. A "상세" toggle
+// reveals the last 50 individual Claude calls for forensic "why is
+// this so high" inspection.
 function ClaudeUsageCard({
   usage,
 }: {
   usage: AdminStats['claudeUsage']['month'];
 }) {
   const qc = useQueryClient();
+  const [showRecent, setShowRecent] = useState(false);
   const reset = useMutation({
     mutationFn: async () => axios.delete('/api/admin/claude-usage'),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-stats'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-stats'] });
+      qc.invalidateQueries({ queryKey: ['claude-usage-recent'] });
+    },
+  });
+  const recent = useQuery<{ calls: ClaudeUsageCall[] }>({
+    queryKey: ['claude-usage-recent'],
+    queryFn: async () => {
+      const { data } = await axios.get('/api/admin/claude-usage/recent', {
+        params: { limit: 50 },
+      });
+      return data;
+    },
+    enabled: showRecent,
+    staleTime: 10_000,
   });
   const empty = usage.webSearchCount === 0 && usage.inputTokens === 0;
   const monthDisplay = (() => {
@@ -331,10 +360,18 @@ function ClaudeUsageCard({
           on the right. Reset is a small text button so it doesn't
           fight the dollar number for attention. */}
       <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-baseline gap-2 min-w-0">
+        <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
           <span className="text-sm uppercase tracking-wider text-gray-500 truncate">
             🪙 API 사용량 ({monthDisplay})
           </span>
+          <button
+            type="button"
+            onClick={() => setShowRecent((v) => !v)}
+            className="text-[10px] text-gray-500 hover:text-[#e8a020] underline-offset-2 hover:underline cursor-pointer"
+            title="최근 50건의 개별 Claude 호출을 펼쳐서 봅니다."
+          >
+            {showRecent ? '상세 접기' : '상세'}
+          </button>
           <button
             type="button"
             onClick={handleReset}
@@ -376,19 +413,59 @@ function ClaudeUsageCard({
             </div>
           </div>
 
-          {/* Right column — per-operation breakdown */}
+          {/* Right column — per-operation breakdown, now with call
+              count so it's obvious when one op was re-fired. */}
           {usage.byOperation.length > 0 && (
             <div className="space-y-1 text-xs sm:border-l sm:border-white/5 sm:pl-4">
               {usage.byOperation.map((op) => (
                 <div
                   key={op.operation}
-                  className="flex items-center justify-between gap-2"
+                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2"
                 >
                   <span className="text-gray-400 truncate">
                     {OPERATION_LABEL(op.operation)}
                   </span>
-                  <span className="tabular-nums text-[#e8a020] shrink-0">
+                  <span className="tabular-nums text-gray-500 text-[10px]">
+                    {op.calls}회
+                    {op.searches > 0 && ` · ${op.searches}검색`}
+                  </span>
+                  <span className="tabular-nums text-[#e8a020] text-right w-14">
                     ${op.usd.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {showRecent && (
+        <div className="mt-4 pt-3 border-t border-white/5">
+          <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">
+            최근 개별 호출 (최신순, 최대 50건)
+          </div>
+          {recent.isLoading ? (
+            <div className="text-xs text-gray-500">불러오는 중…</div>
+          ) : !recent.data || recent.data.calls.length === 0 ? (
+            <div className="text-xs text-gray-500">기록 없음</div>
+          ) : (
+            <div className="max-h-[280px] overflow-y-auto divide-y divide-white/5 text-xs">
+              {recent.data.calls.map((c) => (
+                <div
+                  key={c.id}
+                  className="py-1.5 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 items-baseline"
+                >
+                  <span className="text-gray-300 truncate">
+                    {OPERATION_LABEL(c.operation)}
+                    {c.webSearchCount > 0 && (
+                      <span className="ml-1 text-gray-500">· {c.webSearchCount}검색</span>
+                    )}
+                  </span>
+                  <span className="text-gray-500 text-[10px] tabular-nums whitespace-nowrap">
+                    {c.createdAt.replace('T', ' ').slice(5, 16)}
+                  </span>
+                  <span className="tabular-nums text-[#e8a020] text-right w-14">
+                    ${c.usd.toFixed(4)}
                   </span>
                 </div>
               ))}
