@@ -315,17 +315,24 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
+  // 샀음 (collections) + 살거 (wants). Per-format ownership — a
+  // collector can own the vinyl and want the CD of the same title,
+  // so UNIQUE spans (user_id, album_id, format) not just the pair.
+  // Fresh installs land on this shape directly; existing installs
+  // migrate via the recreate block below.
   db.exec(`
     CREATE TABLE IF NOT EXISTS collections (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id),
-      album_id INTEGER REFERENCES albums(id),
-      format TEXT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      format TEXT NOT NULL DEFAULT 'Vinyl'
+        CHECK(format IN ('Vinyl','CD','Cassette')),
       press_info TEXT,
       condition TEXT,
       purchase_price REAL,
       purchase_date TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, album_id, format)
     )
   `);
 
@@ -377,11 +384,13 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS wants (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id),
-      album_id INTEGER REFERENCES albums(id),
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      format TEXT NOT NULL DEFAULT 'Vinyl'
+        CHECK(format IN ('Vinyl','CD','Cassette')),
       note TEXT,
       created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(user_id, album_id)
+      UNIQUE(user_id, album_id, format)
     )
   `);
 
@@ -549,6 +558,86 @@ export function initializeDatabase(db: Database.Database): void {
   // request hasn't been rolled into an admin email yet; populated with
   // the send timestamp once the 5-minute batch job emails it out.
   migrateTable(db, 'album_requests', ['admin_notified_at TEXT']);
+
+  // Format-aware collections + wants — one row per (user, album, format).
+  // v1 of the ownership feature keyed on (user, album) only and
+  // collections had no UNIQUE at all; this migration recreates both
+  // tables with UNIQUE(user_id, album_id, format) + format NOT NULL so
+  // a collector can own vinyl and want CD of the same title. Any
+  // legacy rows from the brief v1 window get format='Vinyl' by
+  // default (safe: it's the most common format and the user can
+  // re-toggle if wrong). Idempotent via schema_migrations.
+  try {
+    const row = db
+      .prepare(`SELECT name FROM schema_migrations WHERE name = ?`)
+      .get('format-aware-collections-wants-2026-04-18') as
+      | { name: string }
+      | undefined;
+    if (!row) {
+      db.exec('PRAGMA foreign_keys = OFF');
+      db.exec(`
+        CREATE TABLE collections_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+          format TEXT NOT NULL DEFAULT 'Vinyl'
+            CHECK(format IN ('Vinyl','CD','Cassette')),
+          press_info TEXT,
+          condition TEXT,
+          purchase_price REAL,
+          purchase_date TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(user_id, album_id, format)
+        )
+      `);
+      db.exec(`
+        INSERT INTO collections_new
+          (id, user_id, album_id, format, press_info, condition,
+           purchase_price, purchase_date, created_at)
+        SELECT id, user_id, album_id,
+               COALESCE(
+                 CASE WHEN format IN ('Vinyl','CD','Cassette') THEN format END,
+                 'Vinyl'
+               ),
+               press_info, condition, purchase_price, purchase_date, created_at
+        FROM collections
+        WHERE user_id IS NOT NULL AND album_id IS NOT NULL
+      `);
+      db.exec(`DROP TABLE collections`);
+      db.exec(`ALTER TABLE collections_new RENAME TO collections`);
+
+      db.exec(`
+        CREATE TABLE wants_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+          format TEXT NOT NULL DEFAULT 'Vinyl'
+            CHECK(format IN ('Vinyl','CD','Cassette')),
+          note TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(user_id, album_id, format)
+        )
+      `);
+      db.exec(`
+        INSERT INTO wants_new
+          (id, user_id, album_id, format, note, created_at)
+        SELECT id, user_id, album_id, 'Vinyl', note, created_at
+        FROM wants
+        WHERE user_id IS NOT NULL AND album_id IS NOT NULL
+      `);
+      db.exec(`DROP TABLE wants`);
+      db.exec(`ALTER TABLE wants_new RENAME TO wants`);
+      db.exec('PRAGMA foreign_keys = ON');
+
+      db.prepare(`INSERT INTO schema_migrations (name) VALUES (?)`).run(
+        'format-aware-collections-wants-2026-04-18'
+      );
+      console.log('[migration] recreated collections + wants with per-format UNIQUE');
+    }
+  } catch (err) {
+    console.error('[migration] format-aware collections/wants failed:', err);
+    try { db.exec('PRAGMA foreign_keys = ON'); } catch {}
+  }
 
   // One-time backfill for requests that existed BEFORE the notifier
   // shipped — treat them as already-notified so the first post-deploy

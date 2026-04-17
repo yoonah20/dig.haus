@@ -231,18 +231,22 @@ router.get('/me/upvotes', requireAuth, (req, res) => {
 
 // ─── GET /api/me/collection — albums I own ────────────────────────────────
 //
-// Returns the caller's private collection, one row per album. Ordered
-// by most-recently added so the Profile page leads with fresh picks.
+// Grouped by album so each title appears once even if the user marked
+// multiple formats (vinyl + CD etc.); `formats` carries the set.
+// Ordered by the earliest add for a given album so the most recent
+// addition surfaces first.
 router.get('/me/collection', requireAuth, (req, res) => {
   const me = req.user as AppUser;
   const rows = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name,
             a.cover_art_url, a.cover_art_fallbacks,
-            c.created_at AS added_at
+            MAX(c.created_at) AS added_at,
+            GROUP_CONCAT(DISTINCT c.format) AS formats
      FROM collections c
      JOIN albums a ON a.id = c.album_id
      WHERE c.user_id = ?
-     ORDER BY c.created_at DESC, c.id DESC`,
+     GROUP BY c.album_id
+     ORDER BY added_at DESC`,
     [me.id]
   );
   res.json({
@@ -261,6 +265,7 @@ router.get('/me/collection', requireAuth, (req, res) => {
           })()
         : [],
       addedAt: a.added_at,
+      formats: a.formats ? String(a.formats).split(',').filter(Boolean) : [],
     })),
   });
 });
@@ -271,11 +276,13 @@ router.get('/me/wantlist', requireAuth, (req, res) => {
   const rows = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name,
             a.cover_art_url, a.cover_art_fallbacks,
-            w.created_at AS added_at
+            MAX(w.created_at) AS added_at,
+            GROUP_CONCAT(DISTINCT w.format) AS formats
      FROM wants w
      JOIN albums a ON a.id = w.album_id
      WHERE w.user_id = ?
-     ORDER BY w.created_at DESC, w.id DESC`,
+     GROUP BY w.album_id
+     ORDER BY added_at DESC`,
     [me.id]
   );
   res.json({
@@ -294,6 +301,7 @@ router.get('/me/wantlist', requireAuth, (req, res) => {
           })()
         : [],
       addedAt: a.added_at,
+      formats: a.formats ? String(a.formats).split(',').filter(Boolean) : [],
     })),
   });
 });
@@ -399,14 +407,19 @@ router.get('/users/:id/public', (req, res) => {
   const down = votes?.down || 0;
   const total = up + down;
 
-  // Collection-feature counts — how many albums this user owns /
-  // wants. Shown on the hover card so collectors can scan someone
-  // else's engagement without opening their profile.
+  // Collection-feature counts — how many distinct albums this user
+  // owns / wants (DISTINCT so someone with vinyl + CD of the same
+  // title counts as one title, not two).
   const ownedCount =
-    queryGet(`SELECT COUNT(*) AS c FROM collections WHERE user_id = ?`, [id])
-      ?.c || 0;
+    queryGet(
+      `SELECT COUNT(DISTINCT album_id) AS c FROM collections WHERE user_id = ?`,
+      [id]
+    )?.c || 0;
   const wantedCount =
-    queryGet(`SELECT COUNT(*) AS c FROM wants WHERE user_id = ?`, [id])?.c || 0;
+    queryGet(
+      `SELECT COUNT(DISTINCT album_id) AS c FROM wants WHERE user_id = ?`,
+      [id]
+    )?.c || 0;
 
   res.json({
     user: {

@@ -38,7 +38,15 @@ const RATING_META: Record<'up' | 'down' | 'soso', { emoji: string; label: string
 
 // Shared grid layout for the 샀음 / 살거 sections. Mirrors the
 // existing 굿굿한 앨범들 grid (4/row mobile, 5/row desktop, square
-// cover tiles linking to the album page).
+// cover tiles linking to the album page). Adds per-tile format
+// badges so a collector can see at a glance which copies of an album
+// they have (e.g. "🖤📼" = vinyl + cassette).
+const FORMAT_BADGE_EMOJI: Record<'Vinyl' | 'CD' | 'Cassette', string> = {
+  Vinyl: '🖤',
+  CD: '💿',
+  Cassette: '📼',
+};
+
 function CollectionGrid({
   title,
   emoji,
@@ -56,6 +64,7 @@ function CollectionGrid({
     artist: string;
     coverArtUrl: string | null;
     coverArtFallbacks?: string[];
+    formats?: Array<'Vinyl' | 'CD' | 'Cassette'>;
   }>;
   emptyMessage: string;
   /** Tailwind classname for hover ring — lets callers differentiate
@@ -73,21 +82,34 @@ function CollectionGrid({
         <div className="text-sm text-gray-500">불러오는 중…</div>
       ) : items.length > 0 ? (
         <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-          {items.map((a) => (
-            <Link
-              key={a.slug}
-              to={`/album/${a.slug}`}
-              className={`aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 transition-all ${accentRing}`}
-              title={`${a.title} — ${a.artist}`}
-            >
-              <CoverArt
-                src={a.coverArtUrl}
-                fallbacks={a.coverArtFallbacks}
-                alt={a.title}
-                className="w-full h-full object-cover"
-              />
-            </Link>
-          ))}
+          {items.map((a) => {
+            const formats = a.formats ?? [];
+            return (
+              <Link
+                key={a.slug}
+                to={`/album/${a.slug}`}
+                className={`relative aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 transition-all ${accentRing}`}
+                title={`${a.title} — ${a.artist}${formats.length > 0 ? ` (${formats.join(' · ')})` : ''}`}
+              >
+                <CoverArt
+                  src={a.coverArtUrl}
+                  fallbacks={a.coverArtFallbacks}
+                  alt={a.title}
+                  className="w-full h-full object-cover"
+                />
+                {formats.length > 0 && (
+                  <div
+                    className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1 rounded-sm bg-black/55 text-[11px] leading-none"
+                    aria-hidden
+                  >
+                    {formats.map((f) => (
+                      <span key={f}>{FORMAT_BADGE_EMOJI[f]}</span>
+                    ))}
+                  </div>
+                )}
+              </Link>
+            );
+          })}
         </div>
       ) : (
         <div className="text-sm text-gray-500">{emptyMessage}</div>

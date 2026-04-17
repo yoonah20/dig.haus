@@ -916,7 +916,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             )}
           </div>
 
-          <div className="mb-6 flex items-center gap-3 flex-wrap">
+          <div className="mb-6 flex flex-col gap-3">
             <VoteButtons
               albumId={albumId}
               upvotes={album.upvotes ?? 0}
@@ -925,7 +925,8 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             />
             <OwnershipButtons
               albumId={albumId}
-              state={album.userOwnership ?? null}
+              ownedFormats={album.userOwnedFormats ?? []}
+              wantedFormats={album.userWantedFormats ?? []}
               ownedCount={album.ownedCount ?? 0}
               wantedCount={album.wantedCount ?? 0}
             />

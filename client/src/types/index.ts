@@ -13,6 +13,12 @@ export interface PriceTagLink {
 }
 
 export type OwnershipState = 'owned' | 'wanted' | null;
+export type OwnershipFormat = 'Vinyl' | 'CD' | 'Cassette';
+export const OWNERSHIP_FORMATS: readonly OwnershipFormat[] = [
+  'Vinyl',
+  'CD',
+  'Cassette',
+] as const;
 
 export interface AlbumSearchResult {
   mbid: string;
@@ -161,7 +167,8 @@ export interface AlbumDetail {
     userVote?: 'up' | 'down' | null;
     ownedCount?: number;
     wantedCount?: number;
-    userOwnership?: OwnershipState;
+    userOwnedFormats?: OwnershipFormat[];
+    userWantedFormats?: OwnershipFormat[];
   };
   streaming: StreamingLinks;
   buy: BuyInfo;

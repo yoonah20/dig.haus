@@ -24,7 +24,8 @@ interface AlbumBase {
     reviewsCrawledAt: string | null;
     ownedCount?: number;
     wantedCount?: number;
-    userOwnership?: 'owned' | 'wanted' | null;
+    userOwnedFormats?: Array<'Vinyl' | 'CD' | 'Cassette'>;
+    userWantedFormats?: Array<'Vinyl' | 'CD' | 'Cassette'>;
   };
   streaming: {
     spotify: string | null;

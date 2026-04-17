@@ -552,8 +552,8 @@ const ALBUM_ROW_SELECT = `
             AND COALESCE(r.manual_score, r.score) IS NOT NULL
             AND r.score_max > 0) AS review_count,
          COALESCE((SELECT COUNT(*) FROM user_reviews WHERE album_id = a.id), 0) AS user_review_count,
-         COALESCE((SELECT COUNT(*) FROM collections WHERE album_id = a.id), 0) AS owned_count,
-         COALESCE((SELECT COUNT(*) FROM wants WHERE album_id = a.id), 0) AS wanted_count
+         COALESCE((SELECT COUNT(DISTINCT user_id) FROM collections WHERE album_id = a.id), 0) AS owned_count,
+         COALESCE((SELECT COUNT(DISTINCT user_id) FROM wants WHERE album_id = a.id), 0) AS wanted_count
   FROM albums a
 `;
 
@@ -1471,9 +1471,11 @@ router.get('/:id', async (req, res) => {
       }
     }
 
-    // Vote counts + current user's vote, plus collection/wantlist
-    // counts + the caller's ownership state so the album detail page
-    // can render toggle buttons and social counts in one round trip.
+    // Vote counts + current user's vote, plus per-format collection
+    // data. ownedCount/wantedCount are DISTINCT-user aggregates so a
+    // single collector owning multiple formats doesn't triple-count.
+    // userOwnedFormats / userWantedFormats carry the caller's exact
+    // per-format state for rendering the 2×3 toggle grid.
     const albumRow = queryGet(`SELECT id FROM albums WHERE mbid = ?`, [mbid]);
     const albumPk = albumRow?.id;
     let upvotes = 0;
@@ -1481,7 +1483,8 @@ router.get('/:id', async (req, res) => {
     let userVote: 'up' | 'down' | null = null;
     let ownedCount = 0;
     let wantedCount = 0;
-    let userOwnership: 'owned' | 'wanted' | null = null;
+    let userOwnedFormats: string[] = [];
+    let userWantedFormats: string[] = [];
     if (albumPk) {
       const counts = queryGet(
         `SELECT
@@ -1494,13 +1497,14 @@ router.get('/:id', async (req, res) => {
       downvotes = counts?.down || 0;
       ownedCount =
         (queryGet(
-          `SELECT COUNT(*) AS c FROM collections WHERE album_id = ?`,
+          `SELECT COUNT(DISTINCT user_id) AS c FROM collections WHERE album_id = ?`,
           [albumPk]
         )?.c as number) || 0;
       wantedCount =
-        (queryGet(`SELECT COUNT(*) AS c FROM wants WHERE album_id = ?`, [
-          albumPk,
-        ])?.c as number) || 0;
+        (queryGet(
+          `SELECT COUNT(DISTINCT user_id) AS c FROM wants WHERE album_id = ?`,
+          [albumPk]
+        )?.c as number) || 0;
       const currentUser = req.user;
       if (currentUser) {
         const uv = queryGet(
@@ -1508,19 +1512,18 @@ router.get('/:id', async (req, res) => {
           [currentUser.id, albumPk]
         );
         userVote = uv?.vote || null;
-        const ownsIt = queryGet(
-          `SELECT 1 FROM collections WHERE user_id = ? AND album_id = ?`,
-          [currentUser.id, albumPk]
-        );
-        if (ownsIt) {
-          userOwnership = 'owned';
-        } else {
-          const wantsIt = queryGet(
-            `SELECT 1 FROM wants WHERE user_id = ? AND album_id = ?`,
+        userOwnedFormats = (
+          queryAll(
+            `SELECT format FROM collections WHERE user_id = ? AND album_id = ?`,
             [currentUser.id, albumPk]
-          );
-          if (wantsIt) userOwnership = 'wanted';
-        }
+          ) as Array<{ format: string }>
+        ).map((r) => r.format);
+        userWantedFormats = (
+          queryAll(
+            `SELECT format FROM wants WHERE user_id = ? AND album_id = ?`,
+            [currentUser.id, albumPk]
+          ) as Array<{ format: string }>
+        ).map((r) => r.format);
       }
     }
 
@@ -1541,7 +1544,8 @@ router.get('/:id', async (req, res) => {
         userVote,
         ownedCount,
         wantedCount,
-        userOwnership,
+        userOwnedFormats,
+        userWantedFormats,
       },
       streaming: result.streaming,
       buy: { ...result.buy, formats: formatsWithKrw },
