@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
 import CoverArt from '../components/CoverArt';
@@ -11,6 +11,13 @@ import {
   useDiscardAlbumRequest,
   type AlbumRequest,
 } from '../hooks/useAlbumRequests';
+import {
+  useReportedPurchaseLinks,
+  useDismissPurchaseLinkReport,
+  useAdminDeletePurchaseLink,
+  type ReportedLink,
+} from '../hooks/usePurchaseLinks';
+import { formatRelativeKo } from '../utils/relativeTime';
 
 interface IncompleteAlbumSample {
   id: number;
@@ -34,6 +41,20 @@ interface AdminStats {
     createdAt: string;
     coverArtUrl: string | null;
     coverArtFallbacks?: string[];
+  }>;
+  recentPurchaseLinks: Array<{
+    id: number;
+    url: string;
+    storeName: string | null;
+    storeFaviconUrl: string | null;
+    price: number | null;
+    currency: string | null;
+    createdAt: string;
+    albumSlug: string;
+    albumTitle: string;
+    albumArtist: string | null;
+    userId: number | null;
+    userName: string | null;
   }>;
   recentUsers: Array<{
     id: number;
@@ -237,6 +258,87 @@ function formatTokens(n: number): string {
   return n.toLocaleString();
 }
 
+const REPORT_REASON_LABEL: Record<ReportedLink['reason'], string> = {
+  soldout: '품절 됨',
+  price: '가격 다름',
+  expired: '링크 만료',
+};
+
+// One row per submitted report. Multiple reports on the same link show
+// as multiple rows so the admin can see who complained about what and
+// decide action per-report (dismiss this one) or wholesale (delete the
+// link, which cascade-wipes any sibling reports via FK).
+function ReportRow({
+  report,
+  onDismiss,
+  onDeleteLink,
+}: {
+  report: ReportedLink;
+  onDismiss: () => void;
+  onDeleteLink: () => void;
+}) {
+  const hostname = (() => {
+    try {
+      return new URL(report.linkUrl).hostname.replace(/^www\./, '');
+    } catch {
+      return report.linkStore || report.linkUrl;
+    }
+  })();
+
+  return (
+    <div className="p-3 flex items-start gap-3 text-sm">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/20">
+            {REPORT_REASON_LABEL[report.reason]}
+          </span>
+          <Link
+            to={`/album/${report.albumSlug}`}
+            className="text-gray-100 hover:text-[#e8a020] truncate"
+          >
+            {report.albumArtist ? `${report.albumArtist} — ` : ''}
+            {report.albumTitle}
+          </Link>
+        </div>
+        <div className="mt-1 text-xs text-gray-400 truncate">
+          <a
+            href={report.linkUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-[#e8a020]"
+          >
+            {report.linkStore || hostname}
+          </a>
+          <span className="text-gray-600 mx-1.5">·</span>
+          등록: {report.linkUserName || '알 수 없음'}
+          <span className="text-gray-600 mx-1.5">·</span>
+          신고: {report.reporterName || '알 수 없음'}
+          <span className="text-gray-600 mx-1.5">·</span>
+          {formatRelativeKo(report.createdAt)}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-xs text-gray-400 hover:text-gray-100 px-2 py-1 cursor-pointer"
+          title="이 신고만 정리"
+        >
+          무시
+        </button>
+        <button
+          type="button"
+          onClick={onDeleteLink}
+          className="text-xs text-red-400 hover:text-red-300 px-2 py-1 cursor-pointer"
+          title="구매처 링크 삭제"
+        >
+          링크 삭제
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function OPERATION_LABEL(op: string): string {
   switch (op) {
     case 'reviews_search':
@@ -261,7 +363,6 @@ function OPERATION_LABEL(op: string): string {
 export default function Admin() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const qc = useQueryClient();
 
   useEffect(() => {
     document.title = 'Admin | dig.haus';
@@ -286,23 +387,11 @@ export default function Admin() {
   // mutations can surgically invalidate just this feed (invalidating
   // the big stats bundle would refetch everything).
   const requestsQuery = useAlbumRequests(!!user?.isAdmin);
+  const reportsQuery = useReportedPurchaseLinks(!!user?.isAdmin);
+  const dismissReport = useDismissPurchaseLinkReport();
+  const adminDeleteLink = useAdminDeletePurchaseLink();
 
   if (loading || !user?.isAdmin) return null;
-
-  const handleDelete = async (mbid: string) => {
-    if (!confirm('이 앨범을 삭제할까요?')) return;
-    try {
-      await axios.delete(`/api/albums/${mbid}`);
-      qc.removeQueries({ queryKey: ['album', mbid] });
-      qc.removeQueries({ queryKey: ['album-reviews', mbid] });
-      qc.removeQueries({ queryKey: ['album-similar', mbid] });
-      qc.removeQueries({ queryKey: ['purchase-links', mbid] });
-      await qc.invalidateQueries({ queryKey: ['album-list'] });
-      await qc.invalidateQueries({ queryKey: ['admin-stats'] });
-    } catch {
-      alert('삭제 실패');
-    }
-  };
 
   const pendingRequests = requestsQuery.data?.requests ?? [];
 
@@ -321,7 +410,12 @@ export default function Admin() {
               recent-signup list on hover (replaces the dedicated panel). */}
           <section className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <StatCard label="전체 앨범" value={data.totalAlbums.toLocaleString()} />
-            <StatCard label="오늘 추가 앨범" value={data.albumsToday} accent={data.albumsToday > 0} />
+            <StatCard
+              label="오늘 추가 앨범"
+              value={data.albumsToday}
+              accent={data.albumsToday > 0}
+              hoverContent={<RecentAlbumsList albums={data.recentAlbums} />}
+            />
             <StatCard
               label="전체 유저"
               value={data.totalUsers.toLocaleString()}
@@ -352,6 +446,30 @@ export default function Admin() {
                 ) : (
                   pendingRequests.map((req) => (
                     <RequestRow key={req.mbid} request={req} />
+                  ))
+                )}
+              </Panel>
+
+              <Panel
+                title="신고된 구매처"
+                icon="🚩"
+                count={reportsQuery.data?.reports.length ?? 0}
+              >
+                {reportsQuery.isLoading ? (
+                  <EmptyRow>불러오는 중…</EmptyRow>
+                ) : !reportsQuery.data || reportsQuery.data.reports.length === 0 ? (
+                  <EmptyRow>신고된 구매처가 없습니다.</EmptyRow>
+                ) : (
+                  reportsQuery.data.reports.map((r) => (
+                    <ReportRow
+                      key={r.id}
+                      report={r}
+                      onDismiss={() => dismissReport.mutate(r.id)}
+                      onDeleteLink={() => {
+                        if (!confirm('이 구매처 링크를 삭제할까요? 같은 링크의 다른 신고도 모두 정리됩니다.')) return;
+                        adminDeleteLink.mutate(r.linkId);
+                      }}
+                    />
                   ))
                 )}
               </Panel>
@@ -517,43 +635,78 @@ export default function Admin() {
               </Panel>
             </div>
 
-            {/* ── Column 3: 최근 등록 앨범 ─────────────────────────── */}
+            {/* ── Column 3: 최근 등록 구매처 ─────────────────────────
+                The album list moved to the "오늘 추가 앨범" StatCard
+                hover so this column could surface a newer signal —
+                which albums are getting store-link contributions and
+                who's contributing them. */}
             <div className="flex flex-col gap-4">
               <Panel
-                title="최근 등록 앨범"
-                icon="💿"
-                count={data.recentAlbums.length}
+                title="최근 등록 구매처"
+                icon="🛒"
+                count={data.recentPurchaseLinks.length}
               >
-                {data.recentAlbums.length === 0 ? (
+                {data.recentPurchaseLinks.length === 0 ? (
                   <EmptyRow>없음</EmptyRow>
                 ) : (
-                  data.recentAlbums.map((a) => (
-                    <div key={a.id} className="p-3 flex items-center gap-3">
-                      <CoverArt
-                        src={a.coverArtUrl}
-                        fallbacks={a.coverArtFallbacks}
-                        alt={a.title}
-                        className="w-12 h-12 rounded-md object-cover flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <Link
-                          to={`/album/${a.mbid}`}
-                          className="text-base text-white font-medium hover:text-[#e8a020] truncate block"
-                        >
-                          {a.title}
-                        </Link>
-                        <div className="text-xs text-gray-500 truncate">
-                          {a.artist} · {new Date(a.createdAt).toLocaleDateString()}
+                  data.recentPurchaseLinks.map((pl) => {
+                    const hostname = (() => {
+                      try {
+                        return new URL(pl.url).hostname.replace(/^www\./, '');
+                      } catch {
+                        return pl.storeName || '';
+                      }
+                    })();
+                    const priceLabel =
+                      pl.price != null && pl.currency
+                        ? `${pl.currency} ${pl.currency === 'JPY' || pl.currency === 'KRW' ? Math.round(pl.price).toLocaleString() : pl.price.toFixed(2)}`
+                        : null;
+                    return (
+                      <div key={pl.id} className="p-3 flex items-start gap-3 text-sm">
+                        {pl.storeFaviconUrl ? (
+                          <img
+                            src={pl.storeFaviconUrl}
+                            alt=""
+                            aria-hidden
+                            className="w-6 h-6 rounded-sm flex-shrink-0 mt-0.5"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-6 h-6 rounded-sm bg-white/10 flex-shrink-0 mt-0.5" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <a
+                              href={pl.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-white font-medium hover:text-[#e8a020] truncate"
+                            >
+                              {pl.storeName || hostname}
+                            </a>
+                            {priceLabel && (
+                              <span className="text-[#e8a020] text-xs font-semibold tabular-nums">
+                                {priceLabel}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate mt-0.5">
+                            <Link
+                              to={`/album/${pl.albumSlug}`}
+                              className="hover:text-[#e8a020]"
+                            >
+                              {pl.albumArtist ? `${pl.albumArtist} — ` : ''}
+                              {pl.albumTitle}
+                            </Link>
+                            <span className="text-gray-600 mx-1.5">·</span>
+                            {pl.userName || '알 수 없음'}
+                            <span className="text-gray-600 mx-1.5">·</span>
+                            {formatRelativeKo(pl.createdAt)}
+                          </div>
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDelete(a.mbid)}
-                        className="text-xs text-red-700 hover:text-red-400 cursor-pointer px-2 py-1 shrink-0"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </Panel>
             </div>
@@ -561,6 +714,48 @@ export default function Admin() {
         </>
       )}
     </main>
+  );
+}
+
+// Compact list that lives inside the "오늘 추가 앨범" StatCard hover.
+// Replaces the dedicated Column-3 panel that used to host this list —
+// kept deliberately light (no delete action) since hover popovers are
+// for scanning, not management; delete still lives on the album page
+// itself for admins.
+function RecentAlbumsList({ albums }: { albums: AdminStats['recentAlbums'] }) {
+  if (albums.length === 0) {
+    return <div className="p-4 text-sm text-gray-500">최근 등록된 앨범이 없습니다.</div>;
+  }
+  return (
+    <div className="divide-y divide-white/5 max-h-[420px] overflow-y-auto">
+      <div className="px-4 py-2.5 text-xs uppercase tracking-wider text-gray-500 bg-[#151515]">
+        최근 등록 앨범
+      </div>
+      {albums.map((a) => (
+        <Link
+          key={a.id}
+          to={`/album/${a.mbid}`}
+          className="p-3 flex items-center gap-3 hover:bg-white/5"
+        >
+          <CoverArt
+            src={a.coverArtUrl}
+            fallbacks={a.coverArtFallbacks}
+            alt={a.title}
+            className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm text-white font-medium truncate">
+              {a.title}
+            </div>
+            <div className="text-xs text-gray-500 truncate">
+              {a.artist}
+              <span className="text-gray-600 mx-1.5">·</span>
+              {formatRelativeKo(a.createdAt)}
+            </div>
+          </div>
+        </Link>
+      ))}
+    </div>
   );
 }
 

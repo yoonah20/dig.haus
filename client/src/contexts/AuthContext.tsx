@@ -34,7 +34,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(() => {
-    window.location.href = `${import.meta.env.VITE_API_URL}/auth/google`;
+    // Fall back to an empty prefix in dev (no VITE_API_URL set) so the
+    // URL resolves to /auth/google on the client origin — Vite's
+    // server.proxy forwards that to the backend on :3001. Without the
+    // fallback the template literal interpolates the string "undefined"
+    // and the browser resolves `undefined/auth/google` against the
+    // current path (e.g. /album/xxx/undefined/auth/google).
+    const base = import.meta.env.VITE_API_URL || '';
+    window.location.href = `${base}/auth/google`;
   }, []);
 
   const logout = useCallback(async () => {

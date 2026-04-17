@@ -1,5 +1,37 @@
 @import "tailwindcss";
 
+/* Dark scrollbars everywhere — default browser scrollbars ship as a
+   light/grey slab that reads as a seam against the #0a0703 page. These
+   blend the track into the page background and keep the thumb in the
+   same #2a2a2a..#3a3a3a band the card borders already use. Firefox
+   uses scrollbar-color; WebKit/Blink uses ::-webkit-scrollbar. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2a2a2a #0a0703;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #0a0703;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 5px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #3a3a3a;
+}
+
+*::-webkit-scrollbar-corner {
+  background: #0a0703;
+}
+
 @theme {
   --color-background: #15110a;
   --color-background-secondary: #1a1a1a;
