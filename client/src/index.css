@@ -117,6 +117,61 @@ body {
   border-right: 11px solid var(--tail-fill, rgba(255, 255, 255, 0.04));
 }
 
+/* Album-grid reveal. Pure vertical translate — no scale, no overshoot
+   — so the card reads as "dropped from above" rather than "popped
+   into place". Starts 72px above the target; the ease-in timing
+   function accelerates the fall the whole way down and stops hard on
+   arrival. Opacity fades in quickly so the card is visible before
+   impact instead of materialising mid-air. Delay is set per-card via
+   inline style for the random (desktop) and wave (mobile) patterns.
+
+   fill-mode: both keeps the card at its 0% state during the delay
+   (invisible, 72px above) and at 100% after — so there's no flash
+   before the animation starts and no snap back after it ends. */
+@keyframes albumDropIn {
+  /* Opacity flashes to 1 almost immediately (0 → 1 across 1% of
+     duration) instead of easing in — card appears at the top and falls
+     as a solid object, with the whole duration spent on pure vertical
+     motion. No gradual fade competing with the drop. */
+  0% {
+    opacity: 0;
+    transform: translateY(-80px);
+  }
+  1% {
+    opacity: 1;
+    transform: translateY(-80px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ease-out: moves fast from the start and decelerates into the
+   landing — card reads as "dropped, stopped" without the physics-engine
+   bounce that would now feel try-hard. */
+.album-reveal {
+  animation: albumDropIn 500ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Pre-animation holder — batch wrappers use this to keep cards hidden
+   until the batch scrolls into view. Without it, cards would render at
+   full opacity briefly before the animation class is added on
+   intersection, causing a visible flash. */
+.album-reveal-off {
+  opacity: 0;
+  transform: translateY(-80px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .album-reveal,
+  .album-reveal-off {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Mirrored variant — tail emerges from the right edge so the bubble can
    sit next to an avatar placed on its right. Used in the mobile feed
    ticker cards for an alternating-orientation rhythm. */

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   useInfiniteQuery,
   useQuery,
@@ -10,7 +10,11 @@ import AlbumCard from '../components/AlbumCard';
 import CommentTicker, { TickerItem } from '../components/Home/CommentTicker';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
-import { useUserReviewsFeed } from '../hooks/useUserReviewsFeed';
+import { useInView } from '../hooks/useInView';
+import {
+  useUserReviewsFeed,
+  type UserReviewFeedItem,
+} from '../hooks/useUserReviewsFeed';
 import { useHomeState } from '../contexts/HomeStateContext';
 import type { AlbumSearchResult } from '../types';
 import { type SortValue } from '../lib/homeSort';
@@ -84,6 +88,73 @@ function useMobileAlbumList(sort: SortValue, enabled: boolean, seed?: number) {
     staleTime: 1000 * 60 * 5,
     enabled,
   });
+}
+
+// One infinite-scroll batch on mobile — 10 albums (2 × 5 rows) plus a
+// pair of ticker cards at the tail. Gated by IntersectionObserver: the
+// wave animation only runs once the batch actually enters the
+// viewport, so batches fetched eagerly by the sentinel don't burn
+// their reveal while the user is still scrolling above them.
+const MOBILE_ROW_STAGGER_MS = 90;
+function MobileAlbumBatch({
+  albums,
+  tickerPair,
+  batchIdx,
+}: {
+  albums: AlbumSearchResult[];
+  tickerPair: UserReviewFeedItem[];
+  batchIdx: number;
+}) {
+  // rootMargin 0px: fires the moment any part of the batch crosses
+  // into the viewport. A pre-fetch margin would defeat the purpose —
+  // we'd fire the wave for off-screen batches again.
+  const { ref, inView } = useInView<HTMLDivElement>('0px');
+  const cardClass = inView ? 'album-reveal' : 'album-reveal-off';
+
+  return (
+    <div ref={ref} className="flex flex-col gap-5">
+      <div className="grid grid-cols-2 gap-5">
+        {albums.map((album, idx) => (
+          <div
+            key={album.mbid}
+            className={cardClass}
+            style={
+              inView
+                ? {
+                    animationDelay: `${Math.floor(idx / 2) * MOBILE_ROW_STAGGER_MS}ms`,
+                  }
+                : undefined
+            }
+          >
+            <AlbumCard album={album} />
+          </div>
+        ))}
+      </div>
+      {tickerPair.length > 0 && (
+        <div className="flex flex-col gap-4">
+          {tickerPair.map((item, idx) => (
+            <div
+              key={`${batchIdx}-${item.id}`}
+              className={cardClass}
+              style={
+                inView
+                  ? {
+                      animationDelay: `${(5 + idx) * MOBILE_ROW_STAGGER_MS}ms`,
+                    }
+                  : undefined
+              }
+            >
+              <TickerItem
+                item={item}
+                fullWidth
+                orientation={idx === 0 ? 'left' : 'right'}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function paginationItems(current: number, total: number): Array<number | 'ellipsis-left' | 'ellipsis-right'> {
@@ -175,6 +246,25 @@ export default function Home() {
     return arr;
   }, [feedQuery.data?.items]);
 
+  // Desktop reveal: each card drops in at a shuffled delay so the 18
+  // tiles don't all land simultaneously — the order reshuffles on every
+  // page change (and reseed, and sort change), so flipping through the
+  // grid always reads as a new scatter rather than a repeating cascade.
+  // Max delay caps the total reveal window at ~400ms so the grid feels
+  // lively, not laggy.
+  const DESKTOP_STAGGER_MS = 22;
+  const desktopRevealDelays = useMemo(() => {
+    const arr = Array.from({ length: DESKTOP_PAGE_SIZE }, (_, i) => i);
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+    // Reshuffle whenever the rendered page changes. seed is also a dep
+    // so a "random" sort's successive refreshes each reveal differently.
+  }, [sort, page, seed]);
+
+
   // Mobile: bottom sentinel that pulls the next page in when it scrolls into
   // view. Observer is created exactly once (after the first batch mounts)
   // — `mobileQuery` is read through a ref so the callback always sees fresh
@@ -261,35 +351,37 @@ export default function Home() {
                     ]
                   : [];
               return (
-                <Fragment key={i}>
-                  <div className="grid grid-cols-2 gap-5">
-                    {p.albums.map((album) => (
-                      <AlbumCard key={album.mbid} album={album} />
-                    ))}
-                  </div>
-                  {pair.length > 0 && (
-                    // Emojis now live inline under each name (not
-                    // overhanging the bubble), so the wrapper no longer
-                    // needs pt-3 reserved headroom.
-                    <div className="flex flex-col gap-4">
-                      {pair.map((item, idx) => (
-                        <TickerItem
-                          key={`${i}-${item.id}`}
-                          item={item}
-                          fullWidth
-                          orientation={idx === 0 ? 'left' : 'right'}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </Fragment>
+                <MobileAlbumBatch
+                  key={i}
+                  batchIdx={i}
+                  albums={p.albums}
+                  tickerPair={pair}
+                />
               );
             })}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
-            {albums.map((album) => (
-              <AlbumCard key={album.mbid} album={album} />
+          // Desktop: grid key tracks the actual displayed album list
+          // (first + last mbid + length) rather than the query params,
+          // so the remount — and the reveal animation — fires only
+          // when new data lands, not at the click that requested it.
+          // keepPreviousData keeps the previous page visible during
+          // fetch; if we keyed on `page` instead, animations would
+          // play on the stale page just before it got replaced.
+          <div
+            key={`desktop-${albums.length}-${albums[0]?.mbid ?? ''}-${albums[albums.length - 1]?.mbid ?? ''}`}
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
+          >
+            {albums.map((album, i) => (
+              <div
+                key={album.mbid}
+                className="album-reveal"
+                style={{
+                  animationDelay: `${(desktopRevealDelays[i] ?? i) * DESKTOP_STAGGER_MS}ms`,
+                }}
+              >
+                <AlbumCard album={album} />
+              </div>
             ))}
           </div>
         )}
