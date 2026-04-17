@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import LoginButton from './LoginButton';
 import RegisterAlbumModal from './RegisterAlbumModal';
 import SearchBar from './SearchBar';
 import SortMenu from './Home/SortMenu';
 import { useAuth } from '../contexts/AuthContext';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
-import { useAlbumRequests } from '../hooks/useAlbumRequests';
+import { useHomeState } from '../contexts/HomeStateContext';
 
 export default function TopNav() {
   const { user } = useAuth();
@@ -14,14 +13,27 @@ export default function TopNav() {
   const [registerOpen, setRegisterOpen] = useState(false);
   const { open: searchOpen, initialQuery, openOverlay, closeOverlay } = useSearchOverlay();
   const navigate = useNavigate();
-  const requestsQuery = useAlbumRequests(isAdmin);
-  const pendingCount = requestsQuery.data?.requests.length ?? 0;
   const panelRef = useRef<HTMLDivElement>(null);
   // Sort only makes sense on the home album list, so the trigger is
   // gated on path. Anywhere else (album/artist/profile/admin) it's
   // hidden so it doesn't suggest controls that don't apply.
   const location = useLocation();
   const isHome = location.pathname === '/';
+  const { setPage } = useHomeState();
+
+  // Clicking the logo always sends the user to the home page's
+  // first card. From another route = normal navigation + scroll top.
+  // From the home page itself = reset page state (paginated users
+  // would otherwise sit on their last page with nothing visible).
+  const handleLogoClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setPage(1);
+    if (location.pathname === '/') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      navigate('/');
+    }
+  };
 
   // ESC to close search
   useEffect(() => {
@@ -56,7 +68,8 @@ export default function TopNav() {
           <div className="flex items-baseline gap-2 sm:gap-3 min-w-0">
             <Link
               to="/"
-              className="text-[#e8a020] text-2xl md:text-3xl lowercase tracking-tight leading-none shrink-0"
+              onClick={handleLogoClick}
+              className="text-[#e8a020] text-2xl md:text-3xl lowercase tracking-tight leading-none shrink-0 cursor-pointer"
               style={{ fontFamily: "'Syne', 'Inter', sans-serif", fontWeight: 700, letterSpacing: '-0.03em' }}
             >
               dig.haus
@@ -122,26 +135,12 @@ export default function TopNav() {
                 />
               </svg>
             </button>
-            {/* Sort sits next to search so the whole "find" cluster
-                (add? → search → sort) reads as one group with login
-                anchored at the right edge. */}
+            {/* Sort sits next to search so the "find" cluster reads
+                as one group. The LoginButton (plus any admin pending
+                badge) now floats in a fixed bottom-left overlay —
+                rendered once at the app root so it persists across
+                routes and stays visible as users scroll. */}
             {isHome && <SortMenu />}
-            {isAdmin && pendingCount > 0 && (
-              <button
-                onClick={() => navigate('/admin')}
-                className="relative w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
-                title={`등록 요청 ${pendingCount}건`}
-                aria-label={`등록 요청 ${pendingCount}건`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
-                </svg>
-                <span className="absolute -bottom-1 -right-1 min-w-[16px] h-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none px-1">
-                  {pendingCount}
-                </span>
-              </button>
-            )}
-            <LoginButton />
           </div>
         </div>
 

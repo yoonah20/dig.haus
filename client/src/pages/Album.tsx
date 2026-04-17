@@ -2,6 +2,11 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAlbumBase, useAlbumReviews, useAlbumSimilar, useAlbumNeighbors } from '../hooks/useAlbum';
 import { useHomeState } from '../contexts/HomeStateContext';
+import { useAuth } from '../contexts/AuthContext';
+import {
+  useApproveAlbumRequest,
+  useDeletePendingAlbum,
+} from '../hooks/useAlbumRequests';
 import { useInView } from '../hooks/useInView';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import HeaderSection from '../components/AlbumDetail/HeaderSection';
@@ -24,6 +29,10 @@ function SectionLoader({ text }: { text: string }) {
 export default function Album() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = !!user?.isAdmin;
+  const approveRequest = useApproveAlbumRequest();
+  const deletePending = useDeletePendingAlbum();
   const { data: base, isLoading: baseLoading, error: baseError } = useAlbumBase(slug!);
   const baseReady = !!base;
   const { sort } = useHomeState();
@@ -152,15 +161,58 @@ export default function Album() {
             and the review crawl hasn't run yet, swap in a placeholder
             instead of loading the review section. Everything above
             (cover, metadata, purchase links, 50자 평, voting) stays
-            fully functional in the meantime. */}
+            fully functional in the meantime. Admins can approve or
+            delete straight from the placeholder — saves a bounce
+            back to the admin dashboard for routine moderation. */}
         {base.album.reviewsCrawledAt === null ? (
-          <section className="rounded-2xl border border-white/5 bg-[#1a1a1a]/60 px-6 py-8 text-center space-y-2">
+          <section className="rounded-2xl border border-white/5 bg-[#1a1a1a]/60 px-6 py-8 text-center space-y-3">
             <div className="text-sm text-gray-400">
               리뷰 수집은 관리자 확인 후 진행됩니다.
             </div>
             <div className="text-xs text-gray-600">
               그동안 50자 평·굿굿/별루·구매처 등록은 자유롭게 남길 수 있어요.
             </div>
+            {isAdmin && (
+              <div className="flex items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (approveRequest.isPending) return;
+                    try {
+                      await approveRequest.mutateAsync(albumId);
+                    } catch (err: any) {
+                      alert(err?.response?.data?.error || '승인에 실패했습니다.');
+                    }
+                  }}
+                  disabled={approveRequest.isPending || deletePending.isPending}
+                  className="text-xs font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {approveRequest.isPending ? '승인 중…' : '승인 (리뷰 수집 시작)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (deletePending.isPending) return;
+                    if (
+                      !confirm(
+                        `"${base.album.artist} — ${base.album.title}" 앨범을 삭제할까요?\n50자 평·구매처 등록도 함께 사라집니다.`
+                      )
+                    )
+                      return;
+                    try {
+                      await deletePending.mutateAsync(albumId);
+                      navigate('/', { replace: true });
+                    } catch (err: any) {
+                      alert(err?.response?.data?.error || '삭제에 실패했습니다.');
+                    }
+                  }}
+                  disabled={approveRequest.isPending || deletePending.isPending}
+                  className="text-xs text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {deletePending.isPending ? '삭제 중…' : '삭제'}
+                </button>
+              </div>
+            )}
           </section>
         ) : reviewsLoading ? (
           <SectionLoader text="리뷰를 수집하고 있습니다..." />

@@ -51,7 +51,7 @@ export default function SortMenu() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
+        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
         title={`정렬: ${currentLabel}`}
         aria-label={`정렬: ${currentLabel}`}
         aria-haspopup="menu"
@@ -60,7 +60,7 @@ export default function SortMenu() {
         {/* Three lines of decreasing length — universal sort/list affordance */}
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          className="w-4 h-4"
+          className="w-4 h-4 shrink-0"
           fill="none"
           viewBox="0 0 24 24"
           strokeWidth={2.2}
@@ -73,6 +73,12 @@ export default function SortMenu() {
             d="M4 6h16M4 12h10M4 18h6"
           />
         </svg>
+        {/* Hide the label on very narrow viewports so the nav row
+            still fits beside search + register. Icon alone is enough
+            on mobile; full label returns at sm. */}
+        <span className="hidden sm:inline text-xs font-medium whitespace-nowrap">
+          {currentLabel}
+        </span>
       </button>
 
       {open && (

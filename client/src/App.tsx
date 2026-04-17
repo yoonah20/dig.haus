@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { SearchOverlayProvider } from './contexts/SearchOverlayContext';
 import { HomeStateProvider } from './contexts/HomeStateContext';
 import TopNav from './components/TopNav';
+import LoginButton from './components/LoginButton';
 import SiteFooter from './components/SiteFooter';
 
 const Home = lazy(() => import('./pages/Home'));
@@ -74,6 +75,7 @@ export default function App() {
               </Routes>
             </Suspense>
             <SiteFooter />
+            <LoginButton />
           </div>
         </HomeStateProvider>
       </SearchOverlayProvider>

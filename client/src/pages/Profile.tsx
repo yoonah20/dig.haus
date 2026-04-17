@@ -6,7 +6,6 @@ import { resolveApiUrl } from '../utils/apiUrl';
 import {
   useMyProfile,
   useMyReviews,
-  useMyUpvotes,
   useUpdateMyProfile,
   useUploadMyAvatar,
   useResetMyAvatar,
@@ -47,6 +46,12 @@ const FORMAT_BADGE_EMOJI: Record<'Vinyl' | 'CD' | 'Cassette', string> = {
   Cassette: '📼',
 };
 
+// Covers visible before the "더 보기" toggle expands the grid. Picked
+// so desktop (8 cols) shows two full rows and mobile (4 cols) shows
+// four — enough to feel substantial without dominating the page once
+// a collector's library grows.
+const COLLECTION_INITIAL_LIMIT = 16;
+
 function CollectionGrid({
   title,
   emoji,
@@ -71,42 +76,58 @@ function CollectionGrid({
    *  accent so scanning back-to-back rows stays oriented. */
   accentRing: string;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const canCollapse = items.length > COLLECTION_INITIAL_LIMIT;
+  const visible = expanded || !canCollapse ? items : items.slice(0, COLLECTION_INITIAL_LIMIT);
+  const hiddenCount = items.length - COLLECTION_INITIAL_LIMIT;
+
   return (
     <section>
       <SectionHeader emoji={emoji} title={title} count={items.length} />
       {loading ? (
         <div className="text-sm text-gray-500">불러오는 중…</div>
       ) : items.length > 0 ? (
-        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-          {items.map((a) => {
-            const formats = a.formats ?? [];
-            return (
-              <Link
-                key={a.slug}
-                to={`/album/${a.slug}`}
-                className={`relative aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 transition-all ${accentRing}`}
-                title={`${a.title} — ${a.artist}${formats.length > 0 ? ` (${formats.join(' · ')})` : ''}`}
-              >
-                <CoverArt
-                  src={a.coverArtUrl}
-                  fallbacks={a.coverArtFallbacks}
-                  alt={a.title}
-                  className="w-full h-full object-cover"
-                />
-                {formats.length > 0 && (
-                  <div
-                    className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1 rounded-sm bg-black/55 text-[11px] leading-none"
-                    aria-hidden
-                  >
-                    {formats.map((f) => (
-                      <span key={f}>{FORMAT_BADGE_EMOJI[f]}</span>
-                    ))}
-                  </div>
-                )}
-              </Link>
-            );
-          })}
-        </div>
+        <>
+          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+            {visible.map((a) => {
+              const formats = a.formats ?? [];
+              return (
+                <Link
+                  key={a.slug}
+                  to={`/album/${a.slug}`}
+                  className={`relative aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 transition-all ${accentRing}`}
+                  title={`${a.title} — ${a.artist}${formats.length > 0 ? ` (${formats.join(' · ')})` : ''}`}
+                >
+                  <CoverArt
+                    src={a.coverArtUrl}
+                    fallbacks={a.coverArtFallbacks}
+                    alt={a.title}
+                    className="w-full h-full object-cover"
+                  />
+                  {formats.length > 0 && (
+                    <div
+                      className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1 rounded-sm bg-black/55 text-[11px] leading-none"
+                      aria-hidden
+                    >
+                      {formats.map((f) => (
+                        <span key={f}>{FORMAT_BADGE_EMOJI[f]}</span>
+                      ))}
+                    </div>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+          {canCollapse && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-3 text-xs text-gray-500 hover:text-[#e8a020] cursor-pointer"
+            >
+              {expanded ? '접기' : `+${hiddenCount}개 더 보기`}
+            </button>
+          )}
+        </>
       ) : (
         <div className="text-sm text-gray-500">{emptyMessage}</div>
       )}
@@ -324,7 +345,6 @@ export default function Profile() {
 
   const profile = useMyProfile();
   const reviews = useMyReviews();
-  const upvotes = useMyUpvotes();
   const myRequests = useMyAlbumRequests();
   const collection = useMyCollection();
   const wantlist = useMyWantlist();
@@ -405,7 +425,6 @@ export default function Profile() {
     }
   };
 
-  const upvotedAlbums = upvotes.data?.upvotes ?? [];
   const myReviews = reviews.data?.reviews ?? [];
   const myRequestList = myRequests.data?.requests ?? [];
 
@@ -464,38 +483,10 @@ export default function Profile() {
         </section>
       )}
 
-      {/* ─── Collections — the fun, browsable portfolio area.
-          Wider grids (8 cols desktop, 6 sm, 4 mobile) let covers
-          breathe instead of cramping into a 5-wide sidebar. Each
-          section gets a distinct accent ring so scanning
-          back-to-back rows stays oriented. */}
-      <section>
-        <SectionHeader emoji="👍" title="굿굿한 앨범들" count={upvotedAlbums.length} />
-        {upvotes.isLoading ? (
-          <div className="text-sm text-gray-500">불러오는 중…</div>
-        ) : upvotedAlbums.length > 0 ? (
-          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-            {upvotedAlbums.map((a) => (
-              <Link
-                key={a.slug}
-                to={`/album/${a.slug}`}
-                className="aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-[#88a2bf]/60 transition-all"
-                title={`${a.title} — ${a.artist}`}
-              >
-                <CoverArt
-                  src={a.coverArtUrl}
-                  fallbacks={a.coverArtFallbacks}
-                  alt={a.title}
-                  className="w-full h-full object-cover"
-                />
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="text-sm text-gray-500">아직 굿굿한 앨범이 없습니다.</div>
-        )}
-      </section>
-
+      {/* Collections — 샀음 / 살거 are the page's record-crate moment.
+          굿굿한 앨범 intentionally isn't a separate grid — the total
+          is still surfaced in the hero stat pill; a long "I like this"
+          list added noise without adding signal. */}
       <CollectionGrid
         title="샀음"
         emoji="💿"

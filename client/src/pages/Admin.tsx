@@ -212,12 +212,6 @@ function RequestRow({ request }: { request: AlbumRequest }) {
 
   const handleApprove = async () => {
     if (busy) return;
-    if (
-      !confirm(
-        `"${request.artist} — ${request.title}" 의 리뷰 수집을 시작할까요?\n\nClaude 파이프라인(리뷰/유사작)이 실행됩니다.`
-      )
-    )
-      return;
     try {
       await approve.mutateAsync(request.mbid);
     } catch (err: any) {

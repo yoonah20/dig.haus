@@ -2,9 +2,14 @@ import Anthropic from '@anthropic-ai/sdk';
 import { memoAsync } from '../utils/memoCache.js';
 import { execute } from '../db/index.js';
 
+// maxRetries=5 amplified 429 storms into 5×-call cascades per failed
+// request. 2 absorbs transient blips without turning a rate-limit
+// into a much bigger one — especially important since reviews_search
+// itself already does a thin-response retry (so a bad call could
+// balloon to 10+ web searches).
 let _client: Anthropic | null = null;
 export function getClient(): Anthropic {
-  if (!_client) _client = new Anthropic({ maxRetries: 5 });
+  if (!_client) _client = new Anthropic({ maxRetries: 2 });
   return _client;
 }
 

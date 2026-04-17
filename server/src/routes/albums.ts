@@ -488,12 +488,21 @@ async function warmUpAlbumReviews(
 }
 
 // Called by routes/albumRequests.ts when an admin approves a user-
-// submitted album. At this point the album row already exists (the
-// user's initial submission went through the minimal pipeline), so
-// this just triggers the expensive review-crawl that was deferred
-// and stamps reviews_crawled_at. Idempotent: stamping an already-
-// approved album re-runs the warm-up, which in turn is a no-op once
-// reviews are cached.
+// submitted album. Stamps reviews_crawled_at immediately so the UI
+// (admin queue + home-grid dim) clears the moment the admin clicks
+// 승인, then fires the Claude warm-up async. If the warm-up throws
+// (malformed JSON, 429 after retries, timeout), we roll the stamp
+// back to null so the album reappears in 리뷰 수집 대기 on the next
+// dashboard refresh and the admin can retry with a single click.
+//
+// The old code committed to the stamp without a rollback path, which
+// left "approved" albums with zero cached reviews whenever Claude
+// flaked — the detail page rendered an empty review section and the
+// admin queue looked clean while the pipeline had actually stalled.
+// A legitimate "0 reviews found" (obscure release, all results
+// filtered) returns without throwing, so the stamp sticks — those
+// albums can still be re-crawled from the admin menu on the album
+// page.
 export async function approveAlbumRequest(mbid: string): Promise<void> {
   const cached = getCachedAlbum(mbid);
   if (!cached) {
@@ -504,13 +513,14 @@ export async function approveAlbumRequest(mbid: string): Promise<void> {
   if (!artistName || !albumTitle) {
     throw new Error(`Album missing metadata: ${mbid}`);
   }
-  // Mark the album as crawl-approved immediately so the home-grid
-  // dim + the admin queue update on the next refresh, without
-  // waiting on the async Claude calls to finish.
   updateAlbumFields(mbid, { reviews_crawled_at: new Date().toISOString() });
   setImmediate(() => {
     warmUpAlbumReviews(mbid, artistName, albumTitle).catch((err) => {
-      console.warn(`[approve] review warm-up failed for ${mbid}:`, (err as Error).message);
+      console.warn(
+        `[approve] review warm-up failed for ${mbid} — rolling back stamp so admin can retry:`,
+        (err as Error).message
+      );
+      updateAlbumFields(mbid, { reviews_crawled_at: null });
     });
   });
 }

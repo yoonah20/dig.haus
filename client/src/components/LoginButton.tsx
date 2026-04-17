@@ -1,10 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useAlbumRequests } from '../hooks/useAlbumRequests';
 import { resolveApiUrl } from '../utils/apiUrl';
 
+// Fixed bottom-left auth affordance. Used to sit in the top-right of
+// the nav next to search/sort; moved here so it stays put as the user
+// scrolls and absorbs the admin pending-requests badge that previously
+// lived beside it. Menu and consent popovers open upward so they don't
+// fall off the bottom of the viewport.
 export default function LoginButton() {
   const { user, loading, login, logout } = useAuth();
+  const navigate = useNavigate();
+  const isAdmin = !!user?.isAdmin;
+  const requestsQuery = useAlbumRequests(isAdmin);
+  const pendingCount = requestsQuery.data?.requests.length ?? 0;
   const [menuOpen, setMenuOpen] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -22,7 +32,7 @@ export default function LoginButton() {
   }, [menuOpen]);
 
   // Close the consent popover on Escape and on outside click. The popover
-  // is anchored under the 입장하기 button (no fullscreen backdrop), so we
+  // is anchored above the 입장하기 button (no fullscreen backdrop), so we
   // need an explicit document listener to dismiss it.
   useEffect(() => {
     if (!consentOpen) return;
@@ -43,33 +53,28 @@ export default function LoginButton() {
   }, [consentOpen]);
 
   if (loading) {
-    return <div className="w-20 h-8 bg-white/5 rounded-full animate-pulse" />;
+    return (
+      <div className="fixed bottom-4 left-4 z-40">
+        <div className="w-20 h-8 bg-white/5 rounded-full animate-pulse" />
+      </div>
+    );
   }
 
   if (!user) {
-    // Anchor the consent text right under the 입장하기 button as a popover
-    // (vs. a centered modal). A centered fixed-position modal was clipping
-    // off the top of the viewport on short screens — the top of the
-    // consent text sat above the visible area with no way to scroll up to
-    // it. Putting the popover next to the trigger also makes it obvious
-    // what the popover relates to.
     return (
-      <div className="relative" ref={consentRef}>
+      <div className="fixed bottom-4 left-4 z-40" ref={consentRef}>
         <button
           onClick={() => setConsentOpen((v) => !v)}
-          className="px-4 py-1.5 border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black rounded-full text-sm font-medium tracking-wide transition-colors cursor-pointer"
+          className="px-4 py-1.5 border border-[#e8a020]/60 text-[#e8a020] bg-[#120c05]/90 backdrop-blur-sm hover:bg-[#e8a020] hover:text-black rounded-full text-sm font-medium tracking-wide transition-colors cursor-pointer shadow-lg"
           title="Google 계정으로 입장하기"
         >
           입장하기
         </button>
         {consentOpen && (
-          // right-0 keeps the popover flush with the button's right edge so
-          // it never extends past the viewport on the narrow side. Width
-          // caps to viewport-minus-gutters on small screens.
           <div
             role="dialog"
             aria-label="로그인 동의"
-            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[#141414] border border-white/10 rounded-2xl p-5 shadow-2xl z-50"
+            className="absolute left-0 bottom-full mb-2 w-80 max-w-[calc(100vw-2rem)] bg-[#141414] border border-white/10 rounded-2xl p-5 shadow-2xl z-50"
           >
             <h2 className="text-base font-semibold text-white mb-3">
               로그인하기 전에
@@ -120,10 +125,10 @@ export default function LoginButton() {
   }
 
   return (
-    <div className="relative" ref={menuRef}>
+    <div className="fixed bottom-4 left-4 z-40" ref={menuRef}>
       <button
         onClick={() => setMenuOpen((v) => !v)}
-        className="flex items-center gap-2 border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-full pl-1 pr-3 py-1 transition-colors cursor-pointer"
+        className="relative flex items-center gap-2 border border-[#e8a020]/60 bg-[#120c05]/90 backdrop-blur-sm hover:bg-[#e8a020]/15 rounded-full pl-1 pr-3 py-1 transition-colors cursor-pointer shadow-lg"
       >
         {user.avatarUrl ? (
           <img
@@ -140,10 +145,23 @@ export default function LoginButton() {
         <span className="text-sm text-[#e8a020] max-w-[120px] truncate">
           {user.name || user.email}
         </span>
+        {/* Admin-only pending-requests badge. Overlaps the top-right
+            of the pill so the nav never had to carry a separate bell
+            button. Click behaviour is still handled by the pill
+            (opens the menu → 관리자 대시보드); the badge is visual. */}
+        {isAdmin && pendingCount > 0 && (
+          <span
+            className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none px-1 border border-[#120c05]"
+            title={`등록 요청 ${pendingCount}건`}
+            aria-label={`등록 요청 ${pendingCount}건 대기 중`}
+          >
+            {pendingCount}
+          </span>
+        )}
       </button>
 
       {menuOpen && (
-        <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl py-1 z-50">
+        <div className="absolute left-0 bottom-full mb-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl py-1 z-50">
           <Link
             to="/profile"
             onClick={() => setMenuOpen(false)}
@@ -152,13 +170,20 @@ export default function LoginButton() {
             🧑‍🎤 내 프로필
           </Link>
           {user.isAdmin && (
-            <Link
-              to="/admin"
-              onClick={() => setMenuOpen(false)}
-              className="block px-4 py-2 text-sm text-[#e8a020] hover:bg-white/5"
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                navigate('/admin');
+              }}
+              className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-[#e8a020] hover:bg-white/5 cursor-pointer"
             >
-              🛠 관리자 대시보드
-            </Link>
+              <span>🛠 관리자 대시보드</span>
+              {pendingCount > 0 && (
+                <span className="ml-auto min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none px-1">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
           )}
           <button
             onClick={async () => {
