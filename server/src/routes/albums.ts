@@ -686,24 +686,29 @@ router.get('/', async (req, res) => {
     }
 
     // ── HOT flag ─────────────────────────────────────────────────────
-    // Top-10 albums by net 굿굿 votes, with a minimum of 3 upvotes so
-    // a single early vote doesn't earn the sticker. Computed once per
-    // request from the full `album_votes` table and threaded through
-    // the row mapper below so the client doesn't need a second round
-    // trip to figure out what's hot.
-    const HOT_MIN_UPVOTES = 3;
+    // Top-10 albums by either side of the 굿굿/별루 vote. The sticker
+    // is "this album is moving the needle, in either direction" — a
+    // pile of 별루 votes is just as worth flagging as a pile of 굿굿.
+    // Floor: 3 on whichever side qualifies, so a single early vote
+    // doesn't earn the badge. Ranking key: max(up, down) desc, so an
+    // album with 50 굿굿 ranks alongside one with 50 별루.
+    const HOT_MIN = 3;
     const HOT_LIMIT = 10;
     const hotIdRows = queryAll(
-      `SELECT a.id,
-              COALESCE((SELECT SUM(CASE WHEN vote='up' THEN 1 ELSE 0 END)
-                        FROM album_votes WHERE album_id = a.id), 0) AS upvotes
-       FROM albums a
-       WHERE (SELECT COUNT(*) FROM album_votes
-              WHERE album_id = a.id AND vote='up') >= ?
-       ORDER BY upvotes DESC, a.id DESC
+      `WITH vote_counts AS (
+         SELECT album_id,
+                SUM(CASE WHEN vote='up' THEN 1 ELSE 0 END) AS up_count,
+                SUM(CASE WHEN vote='down' THEN 1 ELSE 0 END) AS down_count
+         FROM album_votes
+         GROUP BY album_id
+       )
+       SELECT album_id AS id, up_count, down_count
+       FROM vote_counts
+       WHERE up_count >= ? OR down_count >= ?
+       ORDER BY MAX(up_count, down_count) DESC, album_id DESC
        LIMIT ?`,
-      [HOT_MIN_UPVOTES, HOT_LIMIT]
-    ) as Array<{ id: number; upvotes: number }>;
+      [HOT_MIN, HOT_MIN, HOT_LIMIT]
+    ) as Array<{ id: number; up_count: number; down_count: number }>;
     const hotAlbumIds = new Set(hotIdRows.map((r) => r.id));
 
     const result = albums.map((a: any) => {

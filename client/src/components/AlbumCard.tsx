@@ -65,7 +65,7 @@ function CoverStickerBadge({ kind }: { kind: 'new' | 'hot' }) {
   const palette =
     kind === 'new'
       ? { bg: '#f5c542', fg: '#000000', label: 'NEW!', aria: '최근 30일 이내 발매' }
-      : { bg: '#e84a3b', fg: '#ffffff', label: 'HOT!', aria: '굿굿 상위 10' };
+      : { bg: '#e84a3b', fg: '#ffffff', label: 'HOT!', aria: '굿굿 또는 별루 상위 10' };
   return (
     <span
       className="font-extrabold uppercase rounded-sm shadow-md"
