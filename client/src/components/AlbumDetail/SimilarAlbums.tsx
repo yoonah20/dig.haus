@@ -410,13 +410,13 @@ export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbu
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
 
-  // Current AI output is unreliable enough that showing it to the
-  // public hurts more than it helps. Hide the section entirely for
-  // regular users; admins still see it so they can curate (edit,
-  // delete, or manually add).
-  if (!isAdmin) return null;
+  // Non-admins only see the section once at least one curated pick
+  // exists — an empty AI-seeded section would just advertise broken
+  // recommendations. Admins always see it so they can edit, delete,
+  // or manually add (+ button).
+  if (!isAdmin && albums.length === 0) return null;
 
-  const showAddSlot = albums.length < 5;
+  const showAddSlot = isAdmin && albums.length < 5;
 
   return (
     <section>
