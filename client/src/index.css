@@ -193,10 +193,18 @@ body {
   filter: brightness(0.42) sepia(0.6) saturate(1.35) hue-rotate(-8deg);
   transition: filter 0.2s ease;
 }
-.album-card-outer.album-card-dim:hover,
 .album-card-outer.album-card-dim:focus-within,
 .album-card-outer.album-card-dim.is-active {
   filter: none;
+}
+/* Hover behaviour is gated behind a real-pointer media query so
+   mobile Safari's speculative :hover (fired on any touch, even
+   mid-scroll) can't un-dim the card. `is-active` / focus-within
+   above cover the legitimate paths. */
+@media (hover: hover) and (pointer: fine) {
+  .album-card-outer.album-card-dim:hover {
+    filter: none;
+  }
 }
 
 /* Album-grid reveal. Pure vertical translate — no scale, no overshoot
@@ -283,19 +291,30 @@ body {
 
 /* Album card — hover / tap flips the card 180° on Y axis to reveal
    info on the back. Touch devices add `.is-active` via JS after the
-   first tap; a second tap (anywhere on the card) navigates. */
+   first tap; a second tap (anywhere on the card) navigates. The
+   hover/z-index rules are gated behind a real-pointer media query
+   so mobile Safari's speculative :hover (fired on any touch, even
+   while the user is just starting to scroll) can't flip the card
+   accidentally. JS tap logic in AlbumCard.tsx already filters out
+   scroll-start touches before setting `is-active`. */
 .album-card-outer .album-flip {
   transform-style: preserve-3d;
   transition: transform 0.5s ease;
 }
-.album-card-outer:hover .album-flip,
 .album-card-outer:focus-visible .album-flip,
 .album-card-outer.is-active .album-flip {
   transform: rotateY(180deg);
 }
-.album-card-outer:hover,
 .album-card-outer.is-active {
   z-index: 10;
+}
+@media (hover: hover) and (pointer: fine) {
+  .album-card-outer:hover .album-flip {
+    transform: rotateY(180deg);
+  }
+  .album-card-outer:hover {
+    z-index: 10;
+  }
 }
 
 /* Keyboard focus ring (accessible) */
