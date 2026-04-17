@@ -62,9 +62,9 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
   if (!open) return null;
 
   const albums = data?.albums ?? [];
-  const title = isRequest ? '앨범 등록 요청' : '앨범 등록';
+  const title = isRequest ? '새 앨범 등록' : '앨범 등록';
   const placeholder = isRequest
-    ? '추가됐으면 하는 앨범 검색...'
+    ? '검색어 넣기 (아티스트, 앨범) …'
     : 'MusicBrainz / Discogs에서 앨범 검색...';
 
   async function handleRegister(album: AlbumSearchResult) {
@@ -146,12 +146,10 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
           {isRequest && (
             <div className="mb-5 space-y-1.5">
               <p className="text-base text-gray-300 leading-relaxed">
-                dig.haus 에 없는 앨범을 등록할 수 있어요. 등록 직후 바로
-                앨범 페이지로 이동합니다.
+                dig.haus에 없는 앨범(정규작, EP, 라이브만~싱글, 컴필레이션은 제외)을 직접 등록해 보세요.
               </p>
               <p className="text-xs text-gray-500 leading-relaxed">
-                리뷰 수집은 관리자 확인 후 진행됩니다. 커뮤니티 가이드에
-                맞지 않는 앨범은 관리자가 수정·삭제할 수 있어요.
+                커뮤니티 가이드에 맞지 않는 앨범은 관리자가 수정·삭제할 수 있어요.
               </p>
             </div>
           )}

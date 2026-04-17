@@ -78,17 +78,17 @@ export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: P
           activeFrom: '#4a6b8c',
           activeTo: '#35506e',
           activeText: '#f2f6fb',
-          idleFrom: '#22313f',
-          idleTo: '#1a2633',
-          idleText: '#88a2bf',
+          idleFrom: '#131a22',
+          idleTo: '#0b0f14',
+          idleText: '#6d8299',
         }
       : {
           activeFrom: '#8a4a4a',
           activeTo: '#6e3636',
           activeText: '#fbf0f0',
-          idleFrom: '#382222',
-          idleTo: '#2a1919',
-          idleText: '#c08888',
+          idleFrom: '#1f1313',
+          idleTo: '#140b0b',
+          idleText: '#a06e6e',
         };
 
     return (

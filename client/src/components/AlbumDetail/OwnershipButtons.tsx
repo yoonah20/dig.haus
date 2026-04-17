@@ -59,17 +59,17 @@ export default function OwnershipButtons({
           activeFrom: '#8a6a2a',
           activeTo: '#6c5222',
           activeText: '#fff3de',
-          idleFrom: '#3a2f18',
-          idleTo: '#2a2212',
-          idleText: '#c9a66a',
+          idleFrom: '#1f1810',
+          idleTo: '#15100a',
+          idleText: '#a88856',
         }
       : {
           activeFrom: '#6e5697',
           activeTo: '#543f78',
           activeText: '#f2ecfb',
-          idleFrom: '#2e2340',
-          idleTo: '#231a33',
-          idleText: '#a896c9',
+          idleFrom: '#1b1628',
+          idleTo: '#120e1c',
+          idleText: '#8f7cb3',
         };
 
     return (

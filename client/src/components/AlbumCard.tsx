@@ -275,8 +275,8 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                     )}
                     {(up > 0 || down > 0) && (
                       <>
-                        <span className="text-[#e8a020]">▲{up}</span>
-                        <span className="text-[#9a9a9a]">▼{down}</span>
+                        <span style={{ color: '#88a2bf' }}>▲{up}</span>
+                        <span style={{ color: '#c08888' }}>▼{down}</span>
                       </>
                     )}
                   </div>

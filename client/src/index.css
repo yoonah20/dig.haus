@@ -183,18 +183,20 @@ body {
   }
 }
 
-/* User-submitted albums awaiting an admin review-crawl. The dim reads
-   as "incomplete" against neighbouring full-brightness cards — enough
-   of a visual hint without a corner badge. Hover restores full
-   opacity so the card's flip-to-back animation isn't obscured. */
+/* User-submitted albums awaiting an admin review-crawl. We tint the
+   cover amber and darken it so it reads as "incomplete, pending" on
+   the grid without a corner badge. Filter stack: sepia pushes the hue
+   toward brown/amber, saturate deepens it, brightness pulls it darker
+   than the standard cards. Hover lifts the filter entirely so the
+   flip-to-back animation reads naturally. */
 .album-card-outer.album-card-dim {
-  opacity: 0.55;
-  transition: opacity 0.2s ease;
+  filter: brightness(0.42) sepia(0.6) saturate(1.35) hue-rotate(-8deg);
+  transition: filter 0.2s ease;
 }
 .album-card-outer.album-card-dim:hover,
 .album-card-outer.album-card-dim:focus-within,
 .album-card-outer.album-card-dim.is-active {
-  opacity: 1;
+  filter: none;
 }
 
 /* Album-grid reveal. Pure vertical translate — no scale, no overshoot

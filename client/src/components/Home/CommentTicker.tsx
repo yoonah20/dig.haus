@@ -14,7 +14,7 @@ function isFresh(createdAt: string): boolean {
 }
 
 // Seconds each item is visible during one scroll pass — higher = slower.
-const SECONDS_PER_ITEM = 7;
+const SECONDS_PER_ITEM = 4.5;
 
 // Upper bound on a ticker card's width. Cards size to content (body
 // wraps to fit), but we cap the maximum so a long 50자 평 wraps to 2–3

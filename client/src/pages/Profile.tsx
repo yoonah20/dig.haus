@@ -67,21 +67,17 @@ function CollectionGrid({
     formats?: Array<'Vinyl' | 'CD' | 'Cassette'>;
   }>;
   emptyMessage: string;
-  /** Tailwind classname for hover ring — lets callers differentiate
-   *  the 샀음 (amber) and 살거 (sky) grids at a glance. */
+  /** Tailwind classname for hover ring — each grid picks a different
+   *  accent so scanning back-to-back rows stays oriented. */
   accentRing: string;
 }) {
   return (
-    <section className="mb-10">
-      <h2 className="text-xl font-serif text-white mb-4 flex items-center gap-2">
-        <span aria-hidden>{emoji}</span>
-        {title}
-        <span className="ml-1 text-sm text-gray-500 font-sans">{items.length}</span>
-      </h2>
+    <section>
+      <SectionHeader emoji={emoji} title={title} count={items.length} />
       {loading ? (
         <div className="text-sm text-gray-500">불러오는 중…</div>
       ) : items.length > 0 ? (
-        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
           {items.map((a) => {
             const formats = a.formats ?? [];
             return (
@@ -115,6 +111,62 @@ function CollectionGrid({
         <div className="text-sm text-gray-500">{emptyMessage}</div>
       )}
     </section>
+  );
+}
+
+// Shared heading — "emoji 제목 <count>" — so every section on the
+// profile page reads the same way. Keeps the right margin tight so
+// numbers hug the label rather than floating.
+function SectionHeader({
+  emoji,
+  title,
+  count,
+}: {
+  emoji?: string;
+  title: string;
+  count?: number;
+}) {
+  return (
+    <h2 className="text-lg font-serif text-white mb-3 flex items-baseline gap-2">
+      {emoji && (
+        <span aria-hidden className="text-base">
+          {emoji}
+        </span>
+      )}
+      <span>{title}</span>
+      {typeof count === 'number' && (
+        <span className="text-sm text-gray-500 font-sans tabular-nums">{count}</span>
+      )}
+    </h2>
+  );
+}
+
+function StatPill({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: number;
+  accent?: 'brand' | 'blue' | 'red';
+}) {
+  const valueClass =
+    accent === 'brand'
+      ? 'text-[#e8a020]'
+      : accent === 'blue'
+        ? 'text-[#88a2bf]'
+        : accent === 'red'
+          ? 'text-[#c08888]'
+          : 'text-white';
+  return (
+    <div className="flex flex-col items-start px-3 py-2 bg-black/30 rounded-lg border border-white/5 min-w-[72px]">
+      <span className="text-[11px] uppercase tracking-wider text-gray-500">
+        {label}
+      </span>
+      <span className={`text-xl font-bold tabular-nums ${valueClass}`}>
+        {value.toLocaleString()}
+      </span>
+    </div>
   );
 }
 
@@ -353,23 +405,27 @@ export default function Profile() {
     }
   };
 
+  const upvotedAlbums = upvotes.data?.upvotes ?? [];
+  const myReviews = reviews.data?.reviews ?? [];
+  const myRequestList = myRequests.data?.requests ?? [];
+
   return (
-    <main className="max-w-[1280px] mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-white mb-8 font-serif">🧑‍🎤 내 프로필</h1>
+    <main className="max-w-[1280px] mx-auto px-4 py-8 space-y-10">
+      <h1 className="text-3xl font-bold text-white font-serif">🧑‍🎤 내 프로필</h1>
 
       {profile.isError && (
-        <div className="text-red-400 text-sm mb-4">프로필을 불러오지 못했습니다.</div>
+        <div className="text-red-400 text-sm">프로필을 불러오지 못했습니다.</div>
       )}
 
-      {/* 2-column layout: left = identity + account stuff
-                           right = "내가 남긴 기록"
-          Below md the grid collapses to a single column and sections
-          stack in reading order (identity first, records after). */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* ─── LEFT ─────────────────────────────────────────────── */}
-        <div className="space-y-8">
-          {me && (
-            <section className="bg-[#1a1a1a] rounded-2xl p-6 border border-white/5 space-y-6">
+      {/* ─── Hero: identity + stats in one full-width card ─────────
+          Avatar on the left, name/email/join + editable fields in
+          the middle, stat pills anchored to the right. Collapses to
+          a vertical stack below md so the stat row doesn't crowd
+          the form on phones. */}
+      {me && (
+        <section className="bg-[#1a1a1a] rounded-2xl p-6 border border-white/5">
+          <div className="flex flex-col lg:flex-row gap-6 lg:items-start">
+            <div className="flex-1 min-w-0 space-y-5">
               <AvatarEditor
                 avatarUrl={effectiveAvatar}
                 isCustom={isCustomAvatar}
@@ -379,7 +435,7 @@ export default function Profile() {
                 resetting={reset.isPending}
               />
               <div className="text-sm text-gray-400">
-                <span className="text-gray-300">{me.name}</span>
+                <span className="text-gray-200 font-medium">{me.name}</span>
                 <span className="text-gray-600 mx-2">·</span>
                 <span>{me.email}</span>
                 {me.createdAt && (
@@ -395,187 +451,35 @@ export default function Profile() {
                 saving={update.isPending}
                 onSave={handleSave}
               />
-              {stats && (
-                <div className="flex flex-wrap gap-4 text-sm text-gray-400 pt-2 border-t border-white/5">
-                  <span>
-                    50자 평{' '}
-                    <span className="text-gray-200 font-semibold">{stats.reviewCount}</span>
-                  </span>
-                  <span>
-                    굿굿 <span className="text-[#e8a020] font-semibold">{stats.upvoteCount}</span>
-                  </span>
-                  <span>
-                    별루{' '}
-                    <span className="text-gray-200 font-semibold">{stats.downvoteCount}</span>
-                  </span>
-                </div>
-              )}
-            </section>
-          )}
+            </div>
 
-          {/* My submitted albums. "리뷰 수집 대기" = admin hasn't run
-              the Claude review-crawl yet; "등록됨" = done. Both are
-              clickable — the album page works either way. */}
-          <section>
-            <h2 className="text-xl font-serif text-white mb-4">
-              내 등록 앨범
-              {myRequests.data && (
-                <span className="ml-2 text-sm text-gray-500 font-sans">
-                  {myRequests.data.requests.length}
-                </span>
-              )}
-            </h2>
-            {myRequests.isLoading ? (
-              <div className="text-sm text-gray-500">불러오는 중…</div>
-            ) : myRequests.data && myRequests.data.requests.length > 0 ? (
-              <ul className="space-y-2">
-                {myRequests.data.requests.map((r) => {
-                  const meta = REQUEST_STATUS_META[r.status];
-                  const body = (
-                    <div className="flex items-center gap-3 p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
-                      <div className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden">
-                        {r.coverArtUrl ? (
-                          <img
-                            src={r.coverArtUrl}
-                            alt=""
-                            aria-hidden
-                            loading="lazy"
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        ) : null}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-100 truncate">
-                          {r.title}
-                        </p>
-                        <p className="text-xs text-gray-500 truncate">
-                          {r.artist}
-                          {r.year && ` · ${r.year}`}
-                        </p>
-                      </div>
-                      <span
-                        className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium ${meta.className}`}
-                      >
-                        {meta.label}
-                      </span>
-                    </div>
-                  );
-                  return (
-                    <li key={r.id}>
-                      {/* Every row now links to the album page — the
-                          album exists from the moment of submission,
-                          even if the review crawl is still waiting on
-                          admin approval. */}
-                      <Link
-                        to={`/album/${r.mbid}`}
-                        className="block hover:brightness-110 transition"
-                      >
-                        {body}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <div className="text-sm text-gray-500">
-                아직 등록한 앨범이 없습니다. 상단 + 버튼으로 등록해보세요.
+            {stats && (
+              <div className="lg:w-56 shrink-0 lg:border-l lg:border-white/5 lg:pl-6 flex lg:flex-col flex-wrap gap-2">
+                <StatPill label="50자 평" value={stats.reviewCount} />
+                <StatPill label="굿굿" value={stats.upvoteCount} accent="blue" />
+                <StatPill label="별루" value={stats.downvoteCount} accent="red" />
               </div>
             )}
-          </section>
-        </div>
+          </div>
+        </section>
+      )}
 
-        {/* ─── RIGHT ────────────────────────────────────────────── */}
-        <div className="space-y-8">
-          {/* My 50자 평 */}
-          <section>
-        <h2 className="text-xl font-serif text-white mb-4">
-          내 50자 평
-          {reviews.data && (
-            <span className="ml-2 text-sm text-gray-500 font-sans">{reviews.data.reviews.length}</span>
-          )}
-        </h2>
-        {reviews.isLoading ? (
-          <div className="text-sm text-gray-500">불러오는 중…</div>
-        ) : reviews.data && reviews.data.reviews.length > 0 ? (
-          <ul className="space-y-3">
-            {reviews.data.reviews.map((r) => {
-              const ratingMeta = r.rating ? RATING_META[r.rating] : null;
-              return (
-                <li
-                  key={r.id}
-                  className="bg-[#1a1a1a] rounded-xl p-4 border border-white/5 flex gap-4 items-start"
-                >
-                  <Link
-                    to={`/album/${r.albumSlug}`}
-                    className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-[#252525]"
-                  >
-                    <CoverArt
-                      src={r.albumCoverUrl}
-                      fallbacks={r.albumCoverFallbacks}
-                      alt={r.albumTitle}
-                      className="w-full h-full object-cover"
-                    />
-                  </Link>
-                  <div className="flex-1 min-w-0">
-                    <Link
-                      to={`/album/${r.albumSlug}`}
-                      className="text-sm text-gray-300 hover:text-[#e8a020] transition-colors"
-                    >
-                      <span className="font-medium">{r.albumTitle}</span>
-                      <span className="text-gray-600 mx-1.5">·</span>
-                      <span className="text-gray-500">{r.albumArtist}</span>
-                    </Link>
-                    <div className="text-sm text-gray-100 mt-1 leading-relaxed break-words">
-                      {r.body}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
-                      {ratingMeta && (
-                        <span title={ratingMeta.label}>
-                          {ratingMeta.emoji} {ratingMeta.label}
-                        </span>
-                      )}
-                      {r.emoji && <span>{r.emoji}</span>}
-                      <span className="ml-auto tabular-nums">{r.updatedAt?.slice(0, 10)}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteReview(r.id, r.body)}
-                    disabled={del.isPending}
-                    className="shrink-0 text-gray-500 hover:text-red-400 text-sm px-2 py-1 cursor-pointer disabled:opacity-40"
-                    title="삭제"
-                    aria-label="삭제"
-                  >
-                    🗑️
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <div className="text-sm text-gray-500">아직 작성한 50자 평이 없습니다.</div>
-        )}
-      </section>
-
-      {/* Upvoted albums grid — 10/row desktop, 5/row mobile ──────── */}
-      <section className="mb-10">
-        <h2 className="text-xl font-serif text-white mb-4">
-          굿굿한 앨범들
-          {upvotes.data && (
-            <span className="ml-2 text-sm text-gray-500 font-sans">{upvotes.data.upvotes.length}</span>
-          )}
-        </h2>
+      {/* ─── Collections — the fun, browsable portfolio area.
+          Wider grids (8 cols desktop, 6 sm, 4 mobile) let covers
+          breathe instead of cramping into a 5-wide sidebar. Each
+          section gets a distinct accent ring so scanning
+          back-to-back rows stays oriented. */}
+      <section>
+        <SectionHeader emoji="👍" title="굿굿한 앨범들" count={upvotedAlbums.length} />
         {upvotes.isLoading ? (
           <div className="text-sm text-gray-500">불러오는 중…</div>
-        ) : upvotes.data && upvotes.data.upvotes.length > 0 ? (
-          <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-            {upvotes.data.upvotes.map((a) => (
+        ) : upvotedAlbums.length > 0 ? (
+          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
+            {upvotedAlbums.map((a) => (
               <Link
                 key={a.slug}
                 to={`/album/${a.slug}`}
-                className="aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-[#e8a020]/50 transition-all"
+                className="aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-[#88a2bf]/60 transition-all"
                 title={`${a.title} — ${a.artist}`}
               >
                 <CoverArt
@@ -590,30 +494,155 @@ export default function Profile() {
         ) : (
           <div className="text-sm text-gray-500">아직 굿굿한 앨범이 없습니다.</div>
         )}
-          </section>
+      </section>
 
-          <CollectionGrid
-            title="샀음"
-            emoji="💿"
-            loading={collection.isLoading}
-            items={collection.data?.items ?? []}
-            emptyMessage="아직 소장 표시한 앨범이 없습니다."
-            accentRing="hover:ring-[#e8a020]/50"
-          />
+      <CollectionGrid
+        title="샀음"
+        emoji="💿"
+        loading={collection.isLoading}
+        items={collection.data?.items ?? []}
+        emptyMessage="아직 소장 표시한 앨범이 없습니다."
+        accentRing="hover:ring-[#e8a020]/55"
+      />
 
-          <CollectionGrid
-            title="살거"
-            emoji="🎯"
-            loading={wantlist.isLoading}
-            items={wantlist.data?.items ?? []}
-            emptyMessage="아직 위시리스트에 추가한 앨범이 없습니다."
-            accentRing="hover:ring-sky-500/50"
-          />
-        </div>
+      <CollectionGrid
+        title="살거"
+        emoji="🎯"
+        loading={wantlist.isLoading}
+        items={wantlist.data?.items ?? []}
+        emptyMessage="아직 위시리스트에 추가한 앨범이 없습니다."
+        accentRing="hover:ring-[#8f7cb3]/60"
+      />
+
+      {/* ─── Activity: 50자 평 + registered albums side-by-side.
+          Reviews carry body text and so benefit from more width on
+          the left; the register list is narrower by design. Both
+          collapse to a single column on mobile. */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)] gap-8">
+        <section>
+          <SectionHeader emoji="💬" title="내 50자 평" count={myReviews.length} />
+          {reviews.isLoading ? (
+            <div className="text-sm text-gray-500">불러오는 중…</div>
+          ) : myReviews.length > 0 ? (
+            <ul className="space-y-3">
+              {myReviews.map((r) => {
+                const ratingMeta = r.rating ? RATING_META[r.rating] : null;
+                return (
+                  <li
+                    key={r.id}
+                    className="bg-[#1a1a1a] rounded-xl p-4 border border-white/5 flex gap-4 items-start"
+                  >
+                    <Link
+                      to={`/album/${r.albumSlug}`}
+                      className="shrink-0 w-14 h-14 rounded-md overflow-hidden bg-[#252525]"
+                    >
+                      <CoverArt
+                        src={r.albumCoverUrl}
+                        fallbacks={r.albumCoverFallbacks}
+                        alt={r.albumTitle}
+                        className="w-full h-full object-cover"
+                      />
+                    </Link>
+                    <div className="flex-1 min-w-0">
+                      <Link
+                        to={`/album/${r.albumSlug}`}
+                        className="text-sm text-gray-300 hover:text-[#e8a020] transition-colors"
+                      >
+                        <span className="font-medium">{r.albumTitle}</span>
+                        <span className="text-gray-600 mx-1.5">·</span>
+                        <span className="text-gray-500">{r.albumArtist}</span>
+                      </Link>
+                      <div className="text-sm text-gray-100 mt-1 leading-relaxed break-words">
+                        {r.body}
+                      </div>
+                      <div className="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
+                        {ratingMeta && (
+                          <span title={ratingMeta.label}>
+                            {ratingMeta.emoji} {ratingMeta.label}
+                          </span>
+                        )}
+                        {r.emoji && <span>{r.emoji}</span>}
+                        <span className="ml-auto tabular-nums">
+                          {r.updatedAt?.slice(0, 10)}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteReview(r.id, r.body)}
+                      disabled={del.isPending}
+                      className="shrink-0 text-gray-500 hover:text-red-400 text-sm px-2 py-1 cursor-pointer disabled:opacity-40"
+                      title="삭제"
+                      aria-label="삭제"
+                    >
+                      🗑️
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="text-sm text-gray-500">아직 작성한 50자 평이 없습니다.</div>
+          )}
+        </section>
+
+        <section>
+          <SectionHeader emoji="📥" title="내 등록 앨범" count={myRequestList.length} />
+          {myRequests.isLoading ? (
+            <div className="text-sm text-gray-500">불러오는 중…</div>
+          ) : myRequestList.length > 0 ? (
+            <ul className="space-y-2">
+              {myRequestList.map((r) => {
+                const meta = REQUEST_STATUS_META[r.status];
+                return (
+                  <li key={r.id}>
+                    <Link
+                      to={`/album/${r.mbid}`}
+                      className="block hover:brightness-110 transition"
+                    >
+                      <div className="flex items-center gap-3 p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
+                        <div className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden">
+                          {r.coverArtUrl ? (
+                            <img
+                              src={r.coverArtUrl}
+                              alt=""
+                              aria-hidden
+                              loading="lazy"
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                              }}
+                            />
+                          ) : null}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-100 truncate">
+                            {r.title}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {r.artist}
+                            {r.year && ` · ${r.year}`}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium ${meta.className}`}
+                        >
+                          {meta.label}
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <div className="text-sm text-gray-500">
+              아직 등록한 앨범이 없습니다. 상단 + 버튼으로 등록해보세요.
+            </div>
+          )}
+        </section>
       </div>
 
-      {/* Danger zone — account deletion ────────────────────────────── */}
-      <section className="mt-16 pt-6 border-t border-white/5 flex justify-end">
+      <section className="pt-6 border-t border-white/5 flex justify-end">
         <button
           type="button"
           onClick={handleDeleteAccount}
