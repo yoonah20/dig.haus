@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect } from 'react';
-import { useAlbumBase, useAlbumReviews, useAlbumSimilar } from '../hooks/useAlbum';
+import { useAlbumBase, useAlbumReviews, useAlbumSimilar, useAlbumNeighbors } from '../hooks/useAlbum';
+import { useHomeState } from '../contexts/HomeStateContext';
 import { useInView } from '../hooks/useInView';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import HeaderSection from '../components/AlbumDetail/HeaderSection';
@@ -25,6 +26,8 @@ export default function Album() {
   const navigate = useNavigate();
   const { data: base, isLoading: baseLoading, error: baseError } = useAlbumBase(slug!);
   const baseReady = !!base;
+  const { sort } = useHomeState();
+  const { data: neighbors } = useAlbumNeighbors(slug!, sort, baseReady);
   // Use slug for sub-endpoints (server resolves slug→mbid)
   const albumId = base?.album?.slug || slug!;
   const { data: reviewsData, isLoading: reviewsLoading } = useAlbumReviews(albumId, baseReady);
@@ -134,8 +137,50 @@ export default function Album() {
   }
 
   return (
-    <div className="flex-1">
-      <main className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-4 py-8 space-y-10">
+    <div className="flex-1 relative">
+      {/* Prev/Next album navigation arrows */}
+      {neighbors?.prev && (
+        <Link
+          to={`/album/${neighbors.prev.slug}`}
+          className="hidden lg:flex fixed left-2 xl:left-4 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-2 opacity-0 hover:opacity-100 transition-opacity duration-200 group/nav"
+          title={`${neighbors.prev.artist} — ${neighbors.prev.title}`}
+        >
+          <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-gray-400 group-hover/nav:text-[#e8a020] group-hover/nav:border-[#e8a020]/40 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+          </div>
+          {neighbors.prev.coverArtUrl && (
+            <img
+              src={neighbors.prev.coverArtUrl}
+              alt=""
+              className="w-12 h-12 rounded-md object-cover opacity-0 group-hover/nav:opacity-100 transition-opacity shadow-lg"
+            />
+          )}
+        </Link>
+      )}
+      {neighbors?.next && (
+        <Link
+          to={`/album/${neighbors.next.slug}`}
+          className="hidden lg:flex fixed right-2 xl:right-4 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-2 opacity-0 hover:opacity-100 transition-opacity duration-200 group/nav"
+          title={`${neighbors.next.artist} — ${neighbors.next.title}`}
+        >
+          <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-gray-400 group-hover/nav:text-[#e8a020] group-hover/nav:border-[#e8a020]/40 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            </svg>
+          </div>
+          {neighbors.next.coverArtUrl && (
+            <img
+              src={neighbors.next.coverArtUrl}
+              alt=""
+              className="w-12 h-12 rounded-md object-cover opacity-0 group-hover/nav:opacity-100 transition-opacity shadow-lg"
+            />
+          )}
+        </Link>
+      )}
+
+      <main className="max-w-4xl xl:max-w-5xl 2xl:max-w-[1080px] mx-auto px-4 py-8 space-y-10">
         {/* Stage 1: instant */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
         <BuySection buy={base.buy} albumId={albumId} />

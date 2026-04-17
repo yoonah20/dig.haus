@@ -117,3 +117,29 @@ export function useAlbumSimilar(id: string, baseReady: boolean) {
     staleTime: 1000 * 60 * 60,
   });
 }
+
+interface AlbumNeighbor {
+  slug: string;
+  title: string;
+  artist: string;
+  coverArtUrl: string | null;
+}
+
+interface NeighborsData {
+  prev: AlbumNeighbor | null;
+  next: AlbumNeighbor | null;
+}
+
+export function useAlbumNeighbors(id: string, sort: string, enabled: boolean) {
+  return useQuery<NeighborsData>({
+    queryKey: ['album-neighbors', id, sort],
+    queryFn: async () => {
+      const { data } = await axios.get('/api/albums/neighbors', {
+        params: { id, sort },
+      });
+      return data;
+    },
+    enabled: !!id && enabled,
+    staleTime: 1000 * 60 * 5,
+  });
+}

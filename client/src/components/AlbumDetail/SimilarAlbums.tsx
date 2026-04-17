@@ -314,8 +314,94 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
   );
 }
 
+function AddSlot({ albumId }: { albumId: string }) {
+  const [open, setOpen] = useState(false);
+  const [artist, setArtist] = useState('');
+  const [title, setTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleAdd = useCallback(async () => {
+    const a = artist.trim();
+    const t = title.trim();
+    if (!a || !t) {
+      alert('아티스트와 앨범명을 모두 입력해 주세요.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await axios.post(`/api/albums/${albumId}/similar`, { artist: a, title: t });
+      await queryClient.invalidateQueries({ queryKey: ['album-similar', albumId] });
+      setOpen(false);
+      setArtist('');
+      setTitle('');
+    } catch (err) {
+      console.error('Add similar album error:', err);
+      alert('추가에 실패했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  }, [albumId, artist, title, queryClient]);
+
+  if (open) {
+    return (
+      <div className="bg-[#1a1a1a] rounded-xl overflow-hidden border border-dashed border-[#e8a020]/40 p-3 flex flex-col gap-2">
+        <div className="text-xs text-gray-400">비슷한 앨범 수동 추가</div>
+        <input
+          type="text"
+          placeholder="아티스트"
+          value={artist}
+          onChange={(e) => setArtist(e.target.value)}
+          disabled={saving}
+          autoFocus
+          className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+        />
+        <input
+          type="text"
+          placeholder="앨범명"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          disabled={saving}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !saving) handleAdd(); }}
+          className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+        />
+        <div className="flex justify-end gap-2 mt-1">
+          <button
+            onClick={() => { setOpen(false); setArtist(''); setTitle(''); }}
+            disabled={saving}
+            className="px-2 py-0.5 text-xs text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
+          >
+            ✕
+          </button>
+          <button
+            onClick={handleAdd}
+            disabled={saving}
+            className="px-2 py-0.5 text-xs text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+          >
+            {saving ? '추가 중...' : '✓ 추가'}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setOpen(true)}
+      className="bg-transparent rounded-xl border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 flex flex-col items-center justify-center aspect-[3/4] transition-colors cursor-pointer group"
+    >
+      <span className="text-2xl text-gray-600 group-hover:text-[#e8a020] transition-colors">+</span>
+      <span className="text-xs text-gray-600 group-hover:text-gray-400 mt-1 transition-colors">추가</span>
+    </button>
+  );
+}
+
 export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbum[]; albumId: string }) {
-  if (albums.length === 0) return null;
+  const { user } = useAuth();
+  const isAdmin = !!user?.isAdmin;
+  const showAddSlot = isAdmin && albums.length < 5;
+
+  if (albums.length === 0 && !isAdmin) return null;
 
   return (
     <section>
@@ -327,6 +413,7 @@ export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbu
         {albums.map((album, idx) => (
           <AlbumCard key={album.mbid ?? idx} album={album} index={idx} albumId={albumId} />
         ))}
+        {showAddSlot && <AddSlot albumId={albumId} />}
       </div>
     </section>
   );

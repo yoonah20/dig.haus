@@ -21,7 +21,7 @@ import { searchBandcamp } from '../services/bandcamp.js';
 import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases, getDiscogsMasterMainRelease } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
 import { searchReviews, scrapeReviewFromUrl } from '../services/reviews.js';
-import { generateSimilarDescriptions, generatePronunciation, getClient as getAnthropicClient } from '../services/claude.js';
+import { generateSimilarDescriptions, generatePronunciation, getClient as getAnthropicClient, HAIKU, logClaudeUsage } from '../services/claude.js';
 import { hostCustomCover, CustomCoverError } from '../services/customCoverHost.js';
 import {
   getCachedAlbum,
@@ -646,6 +646,79 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('List albums error:', error);
     res.status(500).json({ error: 'Failed to list albums' });
+  }
+});
+
+// ─── GET /api/albums/neighbors — prev/next album given a sort order ──────
+//
+// Returns the immediately preceding and following album for the given
+// album ID + sort, so the album page can show browse arrows. For
+// random sort, returns a random album. price_asc/price_desc are
+// excluded (too expensive to compute inline).
+
+router.get('/neighbors', (req, res) => {
+  try {
+    const sortKey = (req.query.sort as string) || 'release_date_desc';
+    const albumId = req.query.id as string;
+    if (!albumId) return res.json({ prev: null, next: null });
+
+    // Resolve to internal row
+    const resolved = resolveAlbumId(albumId);
+    const mbid = resolved?.mbid || albumId;
+    const current = getCachedAlbum(mbid);
+    if (!current) return res.json({ prev: null, next: null });
+
+    const id = current.id;
+
+    // Random: just pick two random albums that aren't the current one
+    if (sortKey === 'random') {
+      const randoms = queryAll(
+        `SELECT slug, mbid, title, artist_name, cover_art_url, cover_art_fallbacks
+         FROM albums WHERE id != ? ORDER BY RANDOM() LIMIT 2`,
+        [id]
+      ) as any[];
+      const fmt = (r: any) => r ? {
+        slug: r.slug || r.mbid,
+        title: r.title,
+        artist: r.artist_name,
+        coverArtUrl: r.cover_art_url,
+      } : null;
+      return res.json({
+        prev: fmt(randoms[0] || null),
+        next: fmt(randoms[1] || null),
+      });
+    }
+
+    // Price sorts are too complex for a simple neighbor query
+    if (sortKey === 'price_asc' || sortKey === 'price_desc') {
+      return res.json({ prev: null, next: null });
+    }
+
+    const orderByClause = SORT_CLAUSES[sortKey] || SORT_CLAUSES.release_date_desc;
+
+    // Strategy: get the full sorted list of (id, slug, mbid, title, artist, cover)
+    // and find our position. For a DB of ~thousands this is fast enough.
+    const allRows = queryAll(
+      `${ALBUM_ROW_SELECT} ORDER BY ${orderByClause}`
+    ) as any[];
+
+    const idx = allRows.findIndex((r: any) => r.id === id);
+    if (idx === -1) return res.json({ prev: null, next: null });
+
+    const fmt = (r: any) => r ? {
+      slug: r.slug || r.mbid,
+      title: r.title,
+      artist: r.artist_name,
+      coverArtUrl: r.cover_art_url,
+    } : null;
+
+    res.json({
+      prev: idx > 0 ? fmt(allRows[idx - 1]) : null,
+      next: idx < allRows.length - 1 ? fmt(allRows[idx + 1]) : null,
+    });
+  } catch (error) {
+    console.error('Neighbors error:', error);
+    res.json({ prev: null, next: null });
   }
 });
 
@@ -1681,6 +1754,120 @@ router.delete('/:id/similar/:index', requireAdmin, (req, res) => {
   } catch (error) {
     console.error('Delete similar album error:', error);
     res.status(500).json({ error: 'Failed to delete similar album' });
+  }
+});
+
+// ─── POST /api/albums/:id/similar — admin manually add a similar album ──────
+//
+// Accepts { artist, title } and enriches with cover art, streaming links,
+// and a Claude-generated Korean reason. Appends to the JSON array.
+
+router.post('/:id/similar', adminClaudeLimiter, requireAdmin, async (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const cached = getCachedAlbum(mbid);
+  if (!cached) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  const baseArtist = cached.artist_name || '';
+  const baseTitle = cached.title || '';
+
+  const { artist, title } = req.body ?? {};
+  if (!artist || !title || typeof artist !== 'string' || typeof title !== 'string') {
+    return res.status(400).json({ error: 'artist and title are required' });
+  }
+
+  let list: any[] = [];
+  try {
+    list = cached.similar_albums_lastfm ? JSON.parse(cached.similar_albums_lastfm) : [];
+  } catch {
+    list = [];
+  }
+
+  if (list.length >= 10) {
+    return res.status(400).json({ error: 'Maximum 10 similar albums' });
+  }
+
+  try {
+    // Enrich: cover art via MusicBrainz
+    let enrichedMbid = '';
+    let enrichedImage = '';
+    try {
+      const mbResults = await searchAlbums(`${artist} ${title}`);
+      if (mbResults.length > 0) {
+        enrichedMbid = mbResults[0].mbid;
+        enrichedImage = mbResults[0].coverArtUrl;
+      }
+    } catch {}
+
+    // Streaming links + Discogs in parallel
+    const [spResult, ytResult, bcResult, dcMasterResult] = await Promise.allSettled([
+      searchTrack(artist, title),
+      searchVideo(artist, title),
+      searchBandcamp(artist, title),
+      searchMasterUrl(artist, title),
+    ]);
+    const spotifyUrl = spResult.status === 'fulfilled' ? spResult.value?.url || null : null;
+    const youtubeUrl = ytResult.status === 'fulfilled' ? ytResult.value || null : null;
+    const bandcampUrl = bcResult.status === 'fulfilled' ? bcResult.value?.url || null : null;
+    const masterUrl = dcMasterResult.status === 'fulfilled' ? dcMasterResult.value : null;
+
+    let releaseUrl: string | null = null;
+    if (!masterUrl) {
+      try {
+        const dcRelease = await searchRelease(artist, title);
+        releaseUrl = dcRelease?.url || null;
+      } catch {}
+    }
+    const discogsUrl = masterUrl || releaseUrl
+      || `https://www.discogs.com/search/?q=${encodeURIComponent(`${artist} ${title}`)}&type=master`;
+
+    // Claude: generate reason
+    let reason = '';
+    try {
+      const client = getAnthropicClient();
+      const message = await client.messages.create({
+        model: HAIKU,
+        max_tokens: 200,
+        messages: [{
+          role: 'user',
+          content: `"${baseTitle}" by ${baseArtist} 팬을 위한 비슷한 앨범 설명 1-2문장 한국어.\n앨범: "${title}" by ${artist}\nJSON only: {"reason":"한국어 설명"}`,
+        }],
+      });
+      logClaudeUsage('similar_manual_reason', message);
+      const textBlock = message.content.find((b) => b.type === 'text');
+      if (textBlock && textBlock.type === 'text') {
+        const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          reason = parsed.reason || '';
+        }
+      }
+    } catch (err) {
+      console.warn('[similar-manual] Claude reason generation failed:', (err as Error).message);
+    }
+
+    const entry = {
+      title: title.trim(),
+      artist: artist.trim(),
+      mbid: enrichedMbid,
+      imageUrl: enrichedImage,
+      reason,
+      discogsUrl,
+      spotifyUrl,
+      youtubeUrl,
+      bandcampUrl,
+    };
+
+    list.push(entry);
+    updateAlbumFields(mbid, { similar_albums_lastfm: JSON.stringify(list) });
+
+    res.json({ ok: true, similarAlbum: entry, index: list.length - 1 });
+  } catch (error) {
+    console.error('Add similar album error:', error);
+    res.status(500).json({ error: 'Failed to add similar album' });
   }
 });
 
