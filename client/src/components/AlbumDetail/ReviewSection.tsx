@@ -6,6 +6,7 @@ import type { Review } from '../../types';
 import { getScoreColor as scoreColor, getScoreBgColor as scoreBgColor } from '../../utils/score';
 import { useAuth } from '../../contexts/AuthContext';
 import { AiSummaryBadge } from './SimilarAlbums';
+import { useGenerateReviewSummary } from '../../hooks/useAlbum';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -273,6 +274,11 @@ interface ReviewSectionProps {
    *  the pending UX inside the review section instead of floating
    *  above it as a separate card. */
   pendingNotice?: React.ReactNode;
+  /** Album title + artist — used by the admin-only Google search
+   *  affordance in the section title. Both optional so the section
+   *  still renders if the parent hasn't threaded them through yet. */
+  albumTitle?: string;
+  albumArtist?: string;
 }
 
 export default function ReviewSection({
@@ -280,12 +286,15 @@ export default function ReviewSection({
   koreanSummary,
   averageScore,
   pendingNotice,
+  albumTitle,
+  albumArtist,
 }: ReviewSectionProps) {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
   const scoredCount = reviews.filter(r => r.score !== null).length;
+  const regenSummary = useGenerateReviewSummary(slug ?? '');
   const [expanded, setExpanded] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
@@ -346,6 +355,29 @@ export default function ReviewSection({
     setEditingSummary(true);
   };
 
+  // Regenerate 한국어 summary from whatever reviews are currently
+  // cached. Idempotent + cheap (~$0.01), no confirm — admin uses
+  // this often after editing/deleting individual reviews, so any
+  // extra click is just friction.
+  const handleRegenerateSummary = async () => {
+    if (regenSummary.isPending) return;
+    try {
+      await regenSummary.mutateAsync();
+    } catch (err: any) {
+      alert(
+        err?.response?.data?.error ||
+          '요약 재생성에 실패했습니다. 리뷰가 2개 이상 필요합니다.'
+      );
+    }
+  };
+
+  const googleSearchHref =
+    albumTitle && albumArtist
+      ? `https://www.google.com/search?q=${encodeURIComponent(
+          `${albumTitle} ${albumArtist} review`
+        )}`
+      : null;
+
   const cancelEditSummary = () => {
     if (savingSummary) return;
     setEditingSummary(false);
@@ -385,6 +417,34 @@ export default function ReviewSection({
       <h2 className="text-2xl font-bold text-white mb-6 font-serif flex items-baseline gap-2">
         <span>리뷰 모음집</span>
         <AiSummaryBadge />
+        {/* Admin-only shortcut — opens a Google search for the album
+            + artist + "review" in a new tab. Used for quickly
+            finding review URLs to paste back into + 리뷰 추가. */}
+        {isAdmin && googleSearchHref && (
+          <a
+            href={googleSearchHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`"${albumTitle} ${albumArtist} review" 구글 검색`}
+            aria-label="리뷰 URL 구글 검색"
+            className="inline-flex items-center justify-center w-6 h-6 text-gray-500 hover:text-[#e8a020] transition-colors align-middle translate-y-[-2px]"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="w-[14px] h-[14px]"
+              aria-hidden
+            >
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </a>
+        )}
       </h2>
 
       <div className="space-y-6">
@@ -439,14 +499,25 @@ export default function ReviewSection({
                 <p className="text-gray-300 leading-relaxed">
                   {koreanSummary || <span className="italic text-gray-600">요약 없음</span>}
                   {isAdmin && (
-                    <button
-                      onClick={startEditSummary}
-                      className="ml-2 text-xs text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer align-middle"
-                      title="요약 수정"
-                      aria-label="요약 수정"
-                    >
-                      ✏️
-                    </button>
+                    <>
+                      <button
+                        onClick={startEditSummary}
+                        className="ml-2 text-xs text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer align-middle"
+                        title="요약 수정"
+                        aria-label="요약 수정"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={handleRegenerateSummary}
+                        disabled={regenSummary.isPending}
+                        className="ml-1 text-xs text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer align-middle disabled:opacity-50 disabled:cursor-wait"
+                        title="요약 재생성 (캐시된 리뷰로 다시 Sonnet 호출, ~$0.01)"
+                        aria-label="요약 재생성"
+                      >
+                        {regenSummary.isPending ? '...' : '🔄'}
+                      </button>
+                    </>
                   )}
                 </p>
               )}

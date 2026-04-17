@@ -167,10 +167,10 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   // carries). Otherwise a cheap regular-status listing would mask
   // a soldout or pre-order entry on the same album.
   const hasPreorder = !!album.hasPreorderLink;
-  const hasSale = !!album.hasSaleLink;
-  const hasSoldout = !!album.hasSoldoutLink;
-  const hasAnyCoverSticker =
-    isNew || album.isHot || hasPreorder || hasSale || hasSoldout;
+  // hasSaleLink / hasSoldoutLink still come down from the server but
+  // don't render as cover stickers anymore — PriceTagStack already
+  // communicates those states on the price tag itself.
+  const hasAnyCoverSticker = isNew || album.isHot || hasPreorder;
 
   // Flip-side glow + card-face score both need at least 3 scored
   // reviews before we surface a number — one or two hot takes can
@@ -337,8 +337,11 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 {isNew && <CoverStickerBadge kind="new" />}
                 {album.isHot && <CoverStickerBadge kind="hot" />}
                 {hasPreorder && <CoverStickerBadge kind="preorder" />}
-                {hasSale && <CoverStickerBadge kind="sale" />}
-                {hasSoldout && <CoverStickerBadge kind="soldout" />}
+                {/* SALE / SOLD OUT stickers removed — the same signals
+                    live on the PriceTagStack corner (strike-through
+                    for soldout, yellow fill for sale) so carrying
+                    them as big chips on the cover too was redundant
+                    and noisy on the grid. */}
               </div>
             )}
             <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
@@ -502,16 +502,19 @@ export default function Admin() {
     if (!user || !user.isAdmin) navigate('/', { replace: true });
   }, [user, loading, navigate]);
 
-  // Snapshot the admin's previous "seen" timestamp into a ref so the
-  // feed-highlight logic uses the value AT mount (not the one we're
-  // about to write below). Mount also marks the current moment as
-  // seen — clears the red badge on the nav avatar.
-  const prevSeenAtRef = useRef<number>(0);
-  useEffect(() => {
-    if (!user?.isAdmin) return;
+  // Snapshot the admin's previous "seen" timestamp synchronously on
+  // first render via useState's lazy initialiser — a ref would set
+  // only after the first paint, so NEW highlights rendered with the
+  // initial fallback (0) and lit up every album. useState captures
+  // the value before anything renders, then the effect below writes
+  // the current moment back so the nav badge + next visit know the
+  // admin has seen this feed.
+  const [prevSeenAt] = useState<number>(() => {
     const prev = readPendingSeen();
-    prevSeenAtRef.current = prev ? parseServerTimestamp(prev).getTime() : 0;
-    markPendingSeen();
+    return prev ? parseServerTimestamp(prev).getTime() : 0;
+  });
+  useEffect(() => {
+    if (user?.isAdmin) markPendingSeen();
   }, [user?.isAdmin]);
 
   const { data, isLoading, isError } = useQuery<AdminStats>({
@@ -654,7 +657,7 @@ export default function Admin() {
                   data.recentAlbums.map((a) => {
                     const ts = parseServerTimestamp(a.createdAt).getTime();
                     const isNew =
-                      Number.isFinite(ts) && ts > prevSeenAtRef.current;
+                      Number.isFinite(ts) && ts > prevSeenAt;
                     return (
                       <Link
                         key={a.id}

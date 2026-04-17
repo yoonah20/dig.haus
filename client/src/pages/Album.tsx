@@ -172,6 +172,8 @@ export default function Album() {
             reviews={reviewsData.reviews}
             koreanSummary={reviewsData.koreanSummary}
             averageScore={reviewsData.averageScore}
+            albumTitle={album.title}
+            albumArtist={album.artist}
             pendingNotice={
               base.album.reviewsCrawledAt === null
                 ? isAdmin

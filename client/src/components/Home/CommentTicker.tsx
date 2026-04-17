@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState, type CSSProperties } from 'react';
 import CoverArt from '../CoverArt';
+import UserHoverCard from '../UserHoverCard';
 import { useUserReviewsFeed, type UserReviewFeedItem } from '../../hooks/useUserReviewsFeed';
 import { resolveApiUrl } from '../../utils/apiUrl';
 import { parseServerTimestamp } from '../../utils/relativeTime';
@@ -94,6 +95,42 @@ function Avatar({
 // chars still fit on one line without forcing weird 4-char wraps).
 const CJK_RE = /[\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]/;
 
+// Avatar + display-name pair shared by the anonymous branch (no
+// hover card) and the identified branch (wrapped in UserHoverCard).
+// Kept inline so the hover card doesn't need to inherit the column's
+// flex layout — it just contains this identity block as-is.
+function TickerIdentity({
+  userAvatar,
+  userName,
+  displayName,
+  isCjk,
+  isAnon,
+}: {
+  userAvatar: string | null;
+  userName: string | null;
+  displayName: string;
+  isCjk: boolean;
+  isAnon: boolean;
+}) {
+  return (
+    <>
+      <Avatar src={userAvatar} name={userName} size={52} />
+      <span
+        // CJK glyphs are ~em-wide so 44px caps each line at ~4 chars.
+        // Latin glyphs are about half that, so 88px fits 'fabric
+        // fabric' (13 chars) on a single line. The span overflows
+        // the 56px column into the gutter below the tail's vertical
+        // band — nothing collides.
+        className={`text-[11px] text-center leading-tight line-clamp-2 break-all ${
+          isCjk ? 'max-w-[44px]' : 'max-w-[88px]'
+        } ${isAnon ? 'italic text-gray-600' : 'text-gray-400'}`}
+      >
+        {displayName}
+      </span>
+    </>
+  );
+}
+
 export function TickerItem({
   item,
   fullWidth = false,
@@ -129,34 +166,32 @@ export function TickerItem({
       style={fullWidth ? undefined : { maxWidth: MAX_ITEM_WIDTH_PX }}
       aria-label={`${displayName}의 50자 평: ${item.body}. ${item.albumArtist ?? ''} — ${item.albumTitle} 로 이동`}
     >
-      {/* Left column — avatar + display name. pt-1 puts the avatar
-          centre at the same y as the bubble's tail (tail centre is
-          hard-coded at y≈30 in index.css, which matches a 52px avatar
-          with pt-1). Column width is locked to the avatar's footprint
-          (52 + 2px padding each side) so the avatar's right edge sits
-          flush against the gap, leaving the bubble tail tip flush
-          against the avatar. Names longer than ~5 Korean chars wrap to
-          2 lines before ellipsis. */}
+      {/* Left column — avatar + display name, wrapped in a hover
+          card so hovering/tapping either element opens the digger's
+          public profile popover. Anonymous comments (user deleted)
+          skip the hover card since there's nothing to show.
+          Column geometry unchanged: 56px column with pt-1 so the
+          avatar centre aligns with the bubble tail at y≈30. */}
       <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[56px]">
-        <Avatar src={item.userAvatar} name={item.userName} size={52} />
-        <span
-          // max-width is conditional: CJK glyphs are ~em-wide, so
-          // 44px caps each line at ~4 chars (파이어리/핑크페퍼). Latin
-          // glyphs at the same font size are ~half that, so 64px still
-          // fits 8–10 letters on a single line (keeps 'dethrock' intact
-          // instead of chopping the trailing 'k' to a new line).
-          // break-all on both so long CJK wraps at glyph boundaries and
-          // long Latin wraps mid-word rather than pushing into the
-          // bubble. The span happily overflows the 56px column by a
-          // few pixels — the overlap lands in the gutter between
-          // column and bubble (below the tail's vertical band) so
-          // nothing is hit.
-          className={`text-[11px] text-center leading-tight line-clamp-2 break-all ${
-            isCjk ? 'max-w-[44px]' : 'max-w-[64px]'
-          } ${isAnon ? 'italic text-gray-600' : 'text-gray-400'}`}
-        >
-          {displayName}
-        </span>
+        {!isAnon && item.userId != null ? (
+          <UserHoverCard userId={item.userId} className="flex-col gap-1.5">
+            <TickerIdentity
+              userAvatar={item.userAvatar}
+              userName={item.userName}
+              displayName={displayName}
+              isCjk={isCjk}
+              isAnon={false}
+            />
+          </UserHoverCard>
+        ) : (
+          <TickerIdentity
+            userAvatar={item.userAvatar}
+            userName={item.userName}
+            displayName={displayName}
+            isCjk={isCjk}
+            isAnon
+          />
+        )}
       </div>
 
       {/* Speech bubble — body on the left (flex-1), blurred cover
