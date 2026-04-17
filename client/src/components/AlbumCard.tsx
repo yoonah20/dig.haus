@@ -84,6 +84,7 @@ const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
 
 function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
   const palette = STICKER_PALETTE[kind];
+  const multiLine = palette.lines.length > 1;
   return (
     <span
       className="inline-flex flex-col items-center justify-center font-extrabold uppercase rounded-sm shadow-md"
@@ -91,10 +92,16 @@ function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
         background: palette.bg,
         color: palette.fg,
         fontFamily: "'Syne', 'Inter', sans-serif",
-        fontSize: '8.3px',
-        letterSpacing: '0.06em',
-        padding: '2.2px 5.4px',
-        lineHeight: 1.1,
+        // Multi-line stickers dial down font + letter-spacing so they
+        // read at roughly the same chip width as the single-word
+        // ones (NEW / HOT / SALE). Horizontal padding drops too;
+        // without it, "PRE / ORDER" was visibly wider than the rest
+        // of the stack.
+        fontSize: multiLine ? '7.2px' : '8.3px',
+        letterSpacing: multiLine ? '0.02em' : '0.06em',
+        padding: multiLine ? '2px 3px' : '2.2px 5.4px',
+        lineHeight: multiLine ? 1.05 : 1,
+        minWidth: multiLine ? '30px' : undefined,
       }}
       aria-label={palette.aria}
     >

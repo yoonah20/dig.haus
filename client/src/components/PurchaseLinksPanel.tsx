@@ -397,18 +397,25 @@ function SegButton({
   onClick,
   children,
   title,
+  grow,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
   title?: string;
+  /** When true, the button stretches to fill its flex parent. Used
+   *  for the format picker where Vinyl/CD/Cassette split the row
+   *  evenly. Off by default so the currency symbols + status pills
+   *  size to their content instead of eating equal slabs of the
+   *  row. */
+  grow?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
-      className={`px-2.5 text-xs font-semibold transition-colors cursor-pointer flex-1 flex items-center justify-center ${
+      className={`${grow ? 'flex-1 flex items-center justify-center' : ''} px-2.5 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
         active
           ? 'bg-[#e8a020] text-black'
           : 'text-gray-400 hover:text-white hover:bg-white/5'
@@ -527,16 +534,15 @@ function LinkForm({
               포맷
             </span>
             <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
-              {/* flex-1 + basis-0 makes the three cells share width
+              {/* grow + equal basis makes the three cells share width
                   evenly so "Cassette" doesn't stretch past "Vinyl" /
-                  "CD". min-w-0 lets the label shrink if needed. */}
+                  "CD". Currency + status rows leave grow off so
+                  those pills size to content. */}
               {FORMATS.map((f) => (
-                <div key={f} className="flex-1 basis-0 min-w-0 flex">
-                  <SegButton active={format === f} onClick={() => setFormat(f)}>
-                    <span className="mr-1">{FORMAT_EMOJI[f]}</span>
-                    {f}
-                  </SegButton>
-                </div>
+                <SegButton key={f} grow active={format === f} onClick={() => setFormat(f)}>
+                  <span className="mr-1">{FORMAT_EMOJI[f]}</span>
+                  {f}
+                </SegButton>
               ))}
             </div>
           </div>
