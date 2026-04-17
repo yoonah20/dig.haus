@@ -172,10 +172,11 @@ router.get('/album-requests/search', requireAuth, searchLimiter, async (req, res
 
 // ─── GET /api/album-requests ─────────────────────────────────────────
 //
-// Admin-only feed for the "리뷰 수집 대기" panel — lists every
-// user-submitted album whose review crawl hasn't run yet. Albums the
-// admin added directly (requested_by_user_id IS NULL) never appear
-// here since they were approved at the moment of registration.
+// Admin notification feed — powers the red count badge on the admin
+// avatar pill. Only user-submitted albums show up here. Admin-direct
+// registrations land pending too, but they don't need to ping the
+// admin who just registered them, so the `requested_by_user_id IS
+// NOT NULL` filter excludes those rows.
 router.get('/album-requests', requireAdmin, (_req, res) => {
   const rows = queryAll(
     `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.release_year,
@@ -184,7 +185,7 @@ router.get('/album-requests', requireAdmin, (_req, res) => {
             u.avatar_url AS user_avatar,
             u.id AS user_id
      FROM albums a
-     LEFT JOIN users u ON u.id = a.requested_by_user_id
+     JOIN users u ON u.id = a.requested_by_user_id
      WHERE a.reviews_crawled_at IS NULL
      ORDER BY a.created_at DESC`
   );

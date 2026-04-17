@@ -1,20 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from '../lib/axios';
-import { useExternalSearch, useRequestSearch } from '../hooks/useSearch';
+import { useRequestSearch } from '../hooks/useSearch';
 import { useSubmitAlbumRequest } from '../hooks/useAlbumRequests';
 import type { AlbumSearchResult } from '../types';
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  // 'register' (admin) and 'request' (logged-in non-admin) both now
-  // cache the album immediately on submit — the difference is that
-  // 'request' skips the Claude review warm-up until admin approves.
-  mode: 'register' | 'request';
 }
 
-export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
+// Unified album-registration modal. Admin and non-admin now take the
+// same path: external search (MusicBrainz + Discogs) → select a
+// candidate → POST /api/album-requests → redirect into the new album
+// page (pending state). Admin does not get automatic review
+// collection anymore; that's a separate explicit action on the album
+// page (🔍 리뷰 모아오기).
+export default function RegisterAlbumModal({ open, onClose }: Props) {
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
   // Non-null while one specific row is mid-submit; drives the
@@ -25,15 +26,7 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
   const navigate = useNavigate();
   const submit = useSubmitAlbumRequest();
 
-  // Admin → /api/search (admin-gated external). Logged-in user →
-  // /api/album-requests/search (auth-gated external + rate-limited).
-  // Only one fires at a time thanks to the `enabled` flag on the
-  // other hook dropping to false.
-  const isRequest = mode === 'request';
-  const adminSearch = useExternalSearch(query, open && !isRequest);
-  const userSearch = useRequestSearch(query, open && isRequest);
-  const data = isRequest ? userSearch.data : adminSearch.data;
-  const isLoading = isRequest ? userSearch.isLoading : adminSearch.isLoading;
+  const search = useRequestSearch(query, open);
 
   useEffect(() => {
     if (!open) return;
@@ -61,28 +54,9 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
 
   if (!open) return null;
 
-  const albums = data?.albums ?? [];
-  const title = isRequest ? '새 앨범 등록' : '앨범 등록';
-  const placeholder = isRequest
-    ? '검색어 넣기 (아티스트, 앨범) …'
-    : 'MusicBrainz / Discogs에서 앨범 검색...';
+  const albums = search.data?.albums ?? [];
 
-  async function handleRegister(album: AlbumSearchResult) {
-    if (pending) return;
-    setError(null);
-    setPending(album.mbid);
-    try {
-      await axios.get(`/api/albums/${encodeURIComponent(album.mbid)}`);
-      onClose();
-      navigate(`/album/${album.mbid}`);
-    } catch (e: any) {
-      console.error('Register album error:', e);
-      setError('앨범 등록에 실패했습니다. 다시 시도해주세요.');
-      setPending(null);
-    }
-  }
-
-  async function handleRequestSubmit(album: AlbumSearchResult) {
+  async function handleSubmit(album: AlbumSearchResult) {
     if (pending) return;
     setError(null);
     setPending(album.mbid);
@@ -108,19 +82,6 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
     }
   }
 
-  function onRowClick(album: AlbumSearchResult) {
-    if (pending) return;
-    // Both modes now register immediately on row click. The notes
-    // expander is gone — the new flow creates the album row directly
-    // and redirects the user into it, so notes-to-admin isn't where
-    // the conversation happens anymore (50자 평 is).
-    if (isRequest) {
-      handleRequestSubmit(album);
-    } else {
-      handleRegister(album);
-    }
-  }
-
   return (
     <div
       className="fixed inset-0 z-[60] flex items-start justify-center bg-black/70 backdrop-blur-sm pt-24 px-4"
@@ -131,7 +92,7 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-          <h2 className="text-lg font-semibold text-[#e8a020]">{title}</h2>
+          <h2 className="text-lg font-semibold text-[#e8a020]">새 앨범 등록</h2>
           <button
             onClick={() => !pending && onClose()}
             disabled={!!pending}
@@ -143,16 +104,14 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
         </div>
 
         <div className="p-5">
-          {isRequest && (
-            <div className="mb-5 space-y-1.5">
-              <p className="text-base text-gray-300 leading-relaxed">
-                dig.haus에 없는 앨범(정규작, EP, 라이브만~싱글, 컴필레이션은 제외)을 직접 등록해 보세요.
-              </p>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                커뮤니티 가이드에 맞지 않는 앨범은 관리자가 수정·삭제할 수 있어요.
-              </p>
-            </div>
-          )}
+          <div className="mb-5 space-y-1.5">
+            <p className="text-base text-gray-300 leading-relaxed">
+              dig.haus에 없는 앨범(정규작, EP, 라이브만~싱글, 컴필레이션은 제외)을 직접 등록해 보세요.
+            </p>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              커뮤니티 가이드에 맞지 않는 앨범은 관리자가 수정·삭제할 수 있어요.
+            </p>
+          </div>
           <div className="relative">
             <input
               ref={inputRef}
@@ -160,10 +119,10 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={!!pending}
-              placeholder={placeholder}
+              placeholder="검색어 넣기 (아티스트, 앨범) …"
               className="w-full bg-[#0f0f0f] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition disabled:opacity-60"
             />
-            {isLoading && query.length >= 2 && (
+            {search.isLoading && query.length >= 2 && (
               <div className="absolute right-4 top-1/2 -translate-y-1/2">
                 <div className="w-5 h-5 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
               </div>
@@ -177,15 +136,11 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
           {pending && (
             <div className="mt-6 flex items-center gap-3 text-sm text-gray-300">
               <div className="w-5 h-5 border-2 border-gray-600 border-t-[#e8a020] rounded-full animate-spin" />
-              <span>
-                {isRequest
-                  ? '앨범 등록 중...'
-                  : '앨범 등록 및 리뷰 수집 중...'}
-              </span>
+              <span>앨범 등록 중...</span>
             </div>
           )}
 
-          {!pending && query.length >= 2 && !isLoading && albums.length === 0 && (
+          {!pending && query.length >= 2 && !search.isLoading && albums.length === 0 && (
             <div className="mt-6 text-sm text-gray-500 text-center">
               검색 결과가 없습니다.
             </div>
@@ -198,7 +153,7 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
                 return (
                   <button
                     key={album.mbid}
-                    onClick={() => onRowClick(album)}
+                    onClick={() => handleSubmit(album)}
                     disabled={!!pending && !isSubmitting}
                     className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-lg transition-colors text-left disabled:opacity-40"
                   >

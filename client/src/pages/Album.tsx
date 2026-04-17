@@ -186,6 +186,15 @@ export default function Album() {
                             type="button"
                             onClick={async () => {
                               if (approveRequest.isPending) return;
+                              if (
+                                !confirm(
+                                  'AI 리뷰 검색을 실행할까요?\n\n' +
+                                    'Claude가 웹 검색으로 리뷰를 한 번에 5–15개 수집합니다. ' +
+                                    'API 호출 비용이 \u2248$0.05–$0.10 발생하고, 실패해도 부분 비용은 나갑니다.\n\n' +
+                                    '잘 알려진 앨범이 아니라면 직접 리뷰 URL을 모으는 편이 더 정확하고 싸요.'
+                                )
+                              )
+                                return;
                               try {
                                 await approveRequest.mutateAsync(albumId);
                               } catch (err: any) {

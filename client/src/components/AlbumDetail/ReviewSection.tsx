@@ -527,9 +527,10 @@ export default function ReviewSection({
               ) : (
                 <button
                   onClick={startAddReview}
-                  className="text-xs text-gray-500 hover:text-[#e8a020] transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[#e8a020] border border-[#e8a020]/50 hover:bg-[#e8a020]/10 rounded-md px-3 py-2 transition-colors cursor-pointer"
                 >
-                  + 리뷰 추가
+                  <span className="text-base leading-none" aria-hidden>+</span>
+                  리뷰 추가
                 </button>
               )}
             </div>

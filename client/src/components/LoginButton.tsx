@@ -2,18 +2,51 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAlbumRequests } from '../hooks/useAlbumRequests';
+import { parseServerTimestamp } from '../utils/relativeTime';
+import { ADMIN_SEEN_PENDING_KEY } from '../lib/adminSeen';
 import { resolveApiUrl } from '../utils/apiUrl';
 
 // Top-right nav affordance. Absorbs the admin pending-requests badge
 // (previously a separate bell) so the nav stays clean — count shows
 // as a small red circle on the user's avatar pill, and the dropdown
-// surfaces the same count next to "관리자 대시보드".
+// surfaces the same count next to "관리자 대시보드". The count is
+// the number of user-submitted pending albums whose createdAt is
+// newer than the admin's last Admin-page visit (localStorage). Visit
+// the admin page and the badge clears.
 export default function LoginButton() {
   const { user, loading, login, logout } = useAuth();
   const navigate = useNavigate();
   const isAdmin = !!user?.isAdmin;
   const requestsQuery = useAlbumRequests(isAdmin);
-  const pendingCount = requestsQuery.data?.requests.length ?? 0;
+  // Re-read the seen-at timestamp on each render cycle so the badge
+  // clears immediately after visiting the admin page (which writes
+  // to the same key). useSyncExternalStore-level reactivity isn't
+  // worth it for a value that changes once per navigation.
+  const [seenAt, setSeenAt] = useState<string | null>(null);
+  useEffect(() => {
+    setSeenAt(localStorage.getItem(ADMIN_SEEN_PENDING_KEY));
+    function onStorage(e: StorageEvent) {
+      if (e.key === ADMIN_SEEN_PENDING_KEY) {
+        setSeenAt(localStorage.getItem(ADMIN_SEEN_PENDING_KEY));
+      }
+    }
+    window.addEventListener('storage', onStorage);
+    // Custom event for same-tab updates (storage event doesn't fire
+    // in the tab that wrote the value).
+    function onLocalUpdate() {
+      setSeenAt(localStorage.getItem(ADMIN_SEEN_PENDING_KEY));
+    }
+    window.addEventListener('admin-pending-seen', onLocalUpdate);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('admin-pending-seen', onLocalUpdate);
+    };
+  }, []);
+  const seenTs = seenAt ? parseServerTimestamp(seenAt).getTime() : 0;
+  const pendingCount = (requestsQuery.data?.requests ?? []).filter((r) => {
+    const t = parseServerTimestamp(r.createdAt).getTime();
+    return Number.isFinite(t) && t > seenTs;
+  }).length;
   const [menuOpen, setMenuOpen] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
@@ -17,6 +17,7 @@ import {
   type ReportedLink,
 } from '../hooks/usePurchaseLinks';
 import { formatRelativeKo, parseServerTimestamp } from '../utils/relativeTime';
+import { markPendingSeen, readPendingSeen } from '../lib/adminSeen';
 
 interface IncompleteAlbumSample {
   id: number;
@@ -501,6 +502,18 @@ export default function Admin() {
     if (!user || !user.isAdmin) navigate('/', { replace: true });
   }, [user, loading, navigate]);
 
+  // Snapshot the admin's previous "seen" timestamp into a ref so the
+  // feed-highlight logic uses the value AT mount (not the one we're
+  // about to write below). Mount also marks the current moment as
+  // seen — clears the red badge on the nav avatar.
+  const prevSeenAtRef = useRef<number>(0);
+  useEffect(() => {
+    if (!user?.isAdmin) return;
+    const prev = readPendingSeen();
+    prevSeenAtRef.current = prev ? parseServerTimestamp(prev).getTime() : 0;
+    markPendingSeen();
+  }, [user?.isAdmin]);
+
   const { data, isLoading, isError } = useQuery<AdminStats>({
     queryKey: ['admin-stats'],
     queryFn: async () => {
@@ -638,30 +651,44 @@ export default function Admin() {
                 {data.recentAlbums.length === 0 ? (
                   <EmptyRow>최근 등록된 앨범이 없습니다.</EmptyRow>
                 ) : (
-                  data.recentAlbums.map((a) => (
-                    <Link
-                      key={a.id}
-                      to={`/album/${a.mbid}`}
-                      className="p-3 flex items-center gap-3 hover:bg-white/5"
-                    >
-                      <CoverArt
-                        src={a.coverArtUrl}
-                        fallbacks={a.coverArtFallbacks}
-                        alt={a.title}
-                        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-white font-medium truncate">
-                          {a.title}
+                  data.recentAlbums.map((a) => {
+                    const ts = parseServerTimestamp(a.createdAt).getTime();
+                    const isNew =
+                      Number.isFinite(ts) && ts > prevSeenAtRef.current;
+                    return (
+                      <Link
+                        key={a.id}
+                        to={`/album/${a.mbid}`}
+                        className={`p-3 flex items-center gap-3 transition-colors ${
+                          isNew
+                            ? 'bg-[#e8a020]/8 hover:bg-[#e8a020]/12 border-l-2 border-[#e8a020]/60 pl-[10px]'
+                            : 'hover:bg-white/5'
+                        }`}
+                      >
+                        <CoverArt
+                          src={a.coverArtUrl}
+                          fallbacks={a.coverArtFallbacks}
+                          alt={a.title}
+                          className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-white font-medium truncate">
+                            {a.title}
+                            {isNew && (
+                              <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-[#e8a020] align-middle">
+                                NEW
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 truncate">
+                            {a.artist}
+                            <span className="text-gray-600 mx-1.5">·</span>
+                            {formatRelativeKo(a.createdAt)}
+                          </div>
                         </div>
-                        <div className="text-xs text-gray-500 truncate">
-                          {a.artist}
-                          <span className="text-gray-600 mx-1.5">·</span>
-                          {formatRelativeKo(a.createdAt)}
-                        </div>
-                      </div>
-                    </Link>
-                  ))
+                      </Link>
+                    );
+                  })
                 )}
               </Panel>
             </div>

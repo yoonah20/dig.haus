@@ -10,7 +10,6 @@ import { useHomeState } from '../contexts/HomeStateContext';
 
 export default function TopNav() {
   const { user } = useAuth();
-  const isAdmin = !!user?.isAdmin;
   const [registerOpen, setRegisterOpen] = useState(false);
   const { open: searchOpen, initialQuery, openOverlay, closeOverlay } = useSearchOverlay();
   const navigate = useNavigate();
@@ -100,8 +99,8 @@ export default function TopNav() {
               <button
                 onClick={() => setRegisterOpen(true)}
                 className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
-                title={isAdmin ? '앨범 등록' : '앨범 등록 요청'}
-                aria-label={isAdmin ? '앨범 등록' : '앨범 등록 요청'}
+                title="앨범 등록"
+                aria-label="앨범 등록"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -160,7 +159,6 @@ export default function TopNav() {
       <RegisterAlbumModal
         open={registerOpen}
         onClose={() => setRegisterOpen(false)}
-        mode={isAdmin ? 'register' : 'request'}
       />
     </>
   );

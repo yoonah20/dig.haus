@@ -8,6 +8,7 @@ import CoverArt from '../CoverArt';
 import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSearchOverlay } from '../../contexts/SearchOverlayContext';
+import { useGenerateReviewSummary } from '../../hooks/useAlbum';
 import VoteButtons from '../VoteButtons';
 import OwnershipButtons from './OwnershipButtons';
 import CopyTitleButton from '../CopyTitleButton';
@@ -306,6 +307,27 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const { openOverlay } = useSearchOverlay();
 
   const albumId = album.slug || album.mbid;
+  const regenSummary = useGenerateReviewSummary(albumId);
+
+  const handleRegenerateSummary = useCallback(async () => {
+    if (regenSummary.isPending) return;
+    if (
+      !confirm(
+        '이미 등록된 리뷰들로 한국어 요약을 새로 만들까요?\n\n' +
+          'Claude Sonnet을 호출합니다 (약 $0.01). ' +
+          '기존 요약은 덮어씌워지며, 되돌릴 수 없습니다.'
+      )
+    )
+      return;
+    try {
+      await regenSummary.mutateAsync();
+    } catch (err: any) {
+      alert(
+        err?.response?.data?.error ||
+          '요약 재생성에 실패했습니다. 리뷰가 2개 이상 필요합니다.'
+      );
+    }
+  }, [regenSummary]);
 
   const handleRefreshDiscogs = useCallback(async () => {
     if (refreshingDiscogs) return;
@@ -604,6 +626,12 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 disabled={refreshingDiscogs}
               >
                 {refreshingDiscogs ? '갱신 중...' : '💰 시세 갱신'}
+              </AdminMenuItem>
+              <AdminMenuItem
+                onClick={() => { setAdminMenuOpen(false); void handleRegenerateSummary(); }}
+                disabled={regenSummary.isPending}
+              >
+                {regenSummary.isPending ? '재생성 중...' : '📝 요약 재생성'}
               </AdminMenuItem>
               <div className="my-1 border-t border-white/10" />
               <AdminMenuItem
