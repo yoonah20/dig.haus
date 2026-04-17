@@ -8,8 +8,8 @@ import HeaderSection from '../components/AlbumDetail/HeaderSection';
 import BuySection from '../components/AlbumDetail/BuySection';
 import UserReviewsSection from '../components/AlbumDetail/UserReviewsSection';
 import ReviewSection from '../components/AlbumDetail/ReviewSection';
-import Discography from '../components/AlbumDetail/Discography';
 import SimilarAlbums from '../components/AlbumDetail/SimilarAlbums';
+import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
 function SectionLoader({ text }: { text: string }) {
@@ -136,51 +136,13 @@ export default function Album() {
     );
   }
 
-  return (
-    <div className="flex-1 relative">
-      {/* Prev/Next album navigation arrows */}
-      {neighbors?.prev && (
-        <Link
-          to={`/album/${neighbors.prev.slug}`}
-          className="hidden lg:flex fixed left-2 xl:left-4 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-2 opacity-0 hover:opacity-100 transition-opacity duration-200 group/nav"
-          title={`${neighbors.prev.artist} — ${neighbors.prev.title}`}
-        >
-          <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-gray-400 group-hover/nav:text-[#e8a020] group-hover/nav:border-[#e8a020]/40 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-            </svg>
-          </div>
-          {neighbors.prev.coverArtUrl && (
-            <img
-              src={neighbors.prev.coverArtUrl}
-              alt=""
-              className="w-12 h-12 rounded-md object-cover opacity-0 group-hover/nav:opacity-100 transition-opacity shadow-lg"
-            />
-          )}
-        </Link>
-      )}
-      {neighbors?.next && (
-        <Link
-          to={`/album/${neighbors.next.slug}`}
-          className="hidden lg:flex fixed right-2 xl:right-4 top-1/2 -translate-y-1/2 z-30 flex-col items-center gap-2 opacity-0 hover:opacity-100 transition-opacity duration-200 group/nav"
-          title={`${neighbors.next.artist} — ${neighbors.next.title}`}
-        >
-          <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 flex items-center justify-center text-gray-400 group-hover/nav:text-[#e8a020] group-hover/nav:border-[#e8a020]/40 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-            </svg>
-          </div>
-          {neighbors.next.coverArtUrl && (
-            <img
-              src={neighbors.next.coverArtUrl}
-              alt=""
-              className="w-12 h-12 rounded-md object-cover opacity-0 group-hover/nav:opacity-100 transition-opacity shadow-lg"
-            />
-          )}
-        </Link>
-      )}
+  const hasPrev = !!neighbors?.prev;
+  const hasNext = !!neighbors?.next;
+  const showNav = hasPrev || hasNext;
 
-      <main className="max-w-4xl xl:max-w-5xl 2xl:max-w-[1080px] mx-auto px-4 py-8 space-y-10">
+  return (
+    <div className="flex-1 px-4">
+      <main className="max-w-[1120px] mx-auto py-8 space-y-10">
         {/* Stage 1: instant */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
         <BuySection buy={base.buy} albumId={albumId} />
@@ -206,13 +168,56 @@ export default function Album() {
           ) : null}
         </div>
 
-        {/* Stage 1: discography (fast) */}
-        {base.discography && base.discography.length > 0 && (
-          <Discography
-            items={base.discography}
-            currentMbid={album.mbid}
-            artistName={album.artist}
-          />
+        {/* Prev / Next album navigation */}
+        {showNav && (
+          <nav className="border-t border-white/5 pt-8 max-w-2xl mx-auto">
+            <div className={`grid gap-4 ${hasPrev && hasNext ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              {hasPrev && (
+                <Link
+                  to={`/album/${neighbors!.prev!.slug}`}
+                  className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${!hasNext ? 'col-span-full max-w-sm mx-auto' : ''}`}
+                >
+                  <span className="text-gray-600 group-hover:text-[#e8a020] transition-colors text-lg shrink-0">←</span>
+                  {neighbors!.prev!.coverArtUrl && (
+                    <CoverArt
+                      src={neighbors!.prev!.coverArtUrl}
+                      alt=""
+                      className="w-12 h-12 rounded-md object-cover shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-gray-600 mb-0.5">이전 앨범</div>
+                    <div className="text-sm text-white font-medium truncate group-hover:text-[#e8a020] transition-colors">
+                      {neighbors!.prev!.title}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">{neighbors!.prev!.artist}</div>
+                  </div>
+                </Link>
+              )}
+              {hasNext && (
+                <Link
+                  to={`/album/${neighbors!.next!.slug}`}
+                  className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${hasPrev ? 'justify-end text-right' : 'col-span-full max-w-sm mx-auto'}`}
+                >
+                  <div className="min-w-0">
+                    <div className="text-[11px] text-gray-600 mb-0.5">다음 앨범</div>
+                    <div className="text-sm text-white font-medium truncate group-hover:text-[#e8a020] transition-colors">
+                      {neighbors!.next!.title}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">{neighbors!.next!.artist}</div>
+                  </div>
+                  {neighbors!.next!.coverArtUrl && (
+                    <CoverArt
+                      src={neighbors!.next!.coverArtUrl}
+                      alt=""
+                      className="w-12 h-12 rounded-md object-cover shrink-0"
+                    />
+                  )}
+                  <span className="text-gray-600 group-hover:text-[#e8a020] transition-colors text-lg shrink-0">→</span>
+                </Link>
+              )}
+            </div>
+          </nav>
         )}
       </main>
     </div>

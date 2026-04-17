@@ -213,7 +213,7 @@ export default function Home() {
 
   return (
     <div className="flex-1 flex flex-col px-4 pt-12">
-      <section className="w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto">
+      <section className="w-full max-w-[1280px] mx-auto">
         {/* Top bar (count / page info / sort) was removed — sort lives
             in TopNav as an icon, count moved into the footer below.
             Grid is the first thing on the page. */}
@@ -222,7 +222,7 @@ export default function Home() {
         ) : albums.length === 0 ? (
           <div className="text-center py-20 text-sm text-gray-500">등록된 앨범이 없습니다.</div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
             {albums.map((album) => (
               <AlbumCard key={album.mbid} album={album} />
             ))}

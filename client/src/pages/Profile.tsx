@@ -273,7 +273,7 @@ export default function Profile() {
   };
 
   return (
-    <main className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto px-4 py-8">
+    <main className="max-w-[1280px] mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-white mb-8 font-serif">🧑‍🎤 내 프로필</h1>
 
       {profile.isError && (

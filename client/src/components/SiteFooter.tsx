@@ -31,7 +31,7 @@ export default function SiteFooter() {
   const albums = data?.albums ?? 0;
 
   return (
-    <footer className="w-full max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto mt-auto pt-10 pb-5 px-4 text-center text-gray-600 text-xs">
+    <footer className="w-full max-w-[1280px] mx-auto mt-auto pt-10 pb-5 px-4 text-center text-gray-600 text-xs">
       dig.haus &copy; 2026
       {users > 0 && (
         <>
