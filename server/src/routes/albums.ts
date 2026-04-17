@@ -618,6 +618,14 @@ router.get('/', async (req, res) => {
     // Batch-fetch all purchase links for the listed albums, then group + sort
     // by KRW-converted price to pick each album's top 3 for the cover stickers.
     const topLinksByAlbum = new Map<number, any[]>();
+    // Status flags for the cover-sticker stack (PRE-ORDER / SALE /
+    // SOLD OUT). Computed from *all* links, not the top-3 subset,
+    // so a cheap regular copy doesn't hide a soldout listing from
+    // the grid-level indicators.
+    const statusFlagsByAlbum = new Map<
+      number,
+      { preorder: boolean; sale: boolean; soldout: boolean }
+    >();
     if (albums.length > 0) {
       const placeholders = albums.map(() => '?').join(',');
       const linkRows = queryAll(
@@ -648,6 +656,16 @@ router.get('/', async (req, res) => {
         const bucket = topLinksByAlbum.get(link.albumId) || [];
         bucket.push(link);
         topLinksByAlbum.set(link.albumId, bucket);
+
+        if (link.status) {
+          const flags =
+            statusFlagsByAlbum.get(link.albumId) ||
+            { preorder: false, sale: false, soldout: false };
+          if (link.status === 'upcoming') flags.preorder = true;
+          else if (link.status === 'sale') flags.sale = true;
+          else if (link.status === 'soldout') flags.soldout = true;
+          statusFlagsByAlbum.set(link.albumId, flags);
+        }
       }
       for (const [aid, links] of topLinksByAlbum) {
         links.sort(
@@ -716,6 +734,13 @@ router.get('/', async (req, res) => {
         ownedCount: a.owned_count || 0,
         wantedCount: a.wanted_count || 0,
         isHot: hotAlbumIds.has(a.id),
+        // Cover-sticker status set — true if at least one purchase
+        // link for this album has that status (any format, any
+        // store). Drives the PRE-ORDER / SALE / SOLD OUT chips on
+        // the home grid.
+        hasPreorderLink: !!statusFlagsByAlbum.get(a.id)?.preorder,
+        hasSaleLink: !!statusFlagsByAlbum.get(a.id)?.sale,
+        hasSoldoutLink: !!statusFlagsByAlbum.get(a.id)?.soldout,
       };
     });
 

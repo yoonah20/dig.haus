@@ -51,6 +51,13 @@ export interface AlbumSearchResult {
   /** Server-computed: true when the album is in the site-wide top 10
    *  by 굿굿 count (with a ≥3 floor). Drives the red HOT! sticker. */
   isHot?: boolean;
+  /** Cover-sticker flags — true if at least one purchase link with
+   *  the matching status exists for the album (any format, any
+   *  store). Computed from the full link set server-side so a
+   *  cheap "available" copy can't mask a soldout listing. */
+  hasPreorderLink?: boolean;
+  hasSaleLink?: boolean;
+  hasSoldoutLink?: boolean;
 }
 
 export interface AuthUser {

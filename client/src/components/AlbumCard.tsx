@@ -56,19 +56,30 @@ function isRecentRelease(releaseDate: string | null | undefined): boolean {
   return diffDays <= NEW_BADGE_DAYS;
 }
 
-// Record-shop sticker: NEW = yellow (신보), HOT = red (인기). Both
-// share the same chip shape so a card showing both (appears below
-// NEW) reads as a stacked row of labels rather than two competing
-// elements. Sizing: ~9.5px font, padding scaled to match — 15%
-// larger than the previous ~8px to read at a glance on the grid.
-function CoverStickerBadge({ kind }: { kind: 'new' | 'hot' }) {
-  const palette =
-    kind === 'new'
-      ? { bg: '#f5c542', fg: '#000000', label: 'NEW!', aria: '최근 30일 이내 발매' }
-      : { bg: '#e84a3b', fg: '#ffffff', label: 'HOT!', aria: '굿굿 또는 별루 상위 10' };
+// Record-shop sticker family. All share the same chip shape so a
+// card carrying multiple (stacked top-down: NEW → HOT → PRE-ORDER
+// → SALE → SOLD OUT) reads as one column of labels rather than
+// five competing elements. NEW moved from yellow to sky so it
+// doesn't collide with SALE's yellow. Labels drop the trailing
+// '!'; the typography carries the energy.
+type CoverStickerKind = 'new' | 'hot' | 'preorder' | 'sale' | 'soldout';
+
+const STICKER_PALETTE: Record<
+  CoverStickerKind,
+  { bg: string; fg: string; label: string; aria: string }
+> = {
+  new:      { bg: '#5aa9e6', fg: '#0b1d2e', label: 'NEW',       aria: '최근 30일 이내 발매' },
+  hot:      { bg: '#e84a3b', fg: '#ffffff', label: 'HOT',       aria: '굿굿 또는 별루 상위 10' },
+  preorder: { bg: '#2fa46a', fg: '#07231a', label: 'PRE-ORDER', aria: '발매 예정 구매처 있음' },
+  sale:     { bg: '#f5c542', fg: '#3a2400', label: 'SALE',      aria: '세일 중인 구매처 있음' },
+  soldout:  { bg: '#f08a3c', fg: '#2a1300', label: 'SOLD OUT',  aria: '품절된 구매처 있음' },
+};
+
+function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
+  const palette = STICKER_PALETTE[kind];
   return (
     <span
-      className="font-extrabold uppercase rounded-sm shadow-md"
+      className="font-extrabold uppercase rounded-sm shadow-md whitespace-nowrap"
       style={{
         background: palette.bg,
         color: palette.fg,
@@ -90,6 +101,15 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const down = album.downvotes ?? 0;
   const priceTagLinks = album.priceTagLinks ?? [];
   const isNew = isRecentRelease(album.releaseDate);
+  // Status stickers use the server-computed flags (which look at
+  // *all* links, not just the top-3 cheapest that priceTagLinks
+  // carries). Otherwise a cheap regular-status listing would mask
+  // a soldout or pre-order entry on the same album.
+  const hasPreorder = !!album.hasPreorderLink;
+  const hasSale = !!album.hasSaleLink;
+  const hasSoldout = !!album.hasSoldoutLink;
+  const hasAnyCoverSticker =
+    isNew || album.isHot || hasPreorder || hasSale || hasSoldout;
 
   // Flip-side glow follows the review score — cyan > green > yellow > red.
   // If there aren't at least 3 scored reviews yet, leave the back plain dark
@@ -246,10 +266,13 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               alt={album.title}
               className="w-full h-full object-cover"
             />
-            {(isNew || album.isHot) && (
+            {hasAnyCoverSticker && (
               <div className="absolute top-2 left-2 flex flex-col items-start gap-1 select-none">
                 {isNew && <CoverStickerBadge kind="new" />}
                 {album.isHot && <CoverStickerBadge kind="hot" />}
+                {hasPreorder && <CoverStickerBadge kind="preorder" />}
+                {hasSale && <CoverStickerBadge kind="sale" />}
+                {hasSoldout && <CoverStickerBadge kind="soldout" />}
               </div>
             )}
             <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />

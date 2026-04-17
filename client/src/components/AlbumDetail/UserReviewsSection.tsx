@@ -15,12 +15,14 @@ const ROTATE_INTERVAL_MS = 6000;
 const REVIEWS_PER_PAGE = 3;
 
 // All-face emotion palette arranged as a gradient from most positive on
-// the left to meltdown on the right, with 쏘쏘 (neutral) in the middle.
-//   row 1 (positive → mild):  🥰 😂 😎 😊 😌 🙂
-//   row 2 (neutral → meltdown): 😐 🥲 🥹 😭 🤯 🫠
+// Feeling palette. Row 1 positive → neutral-mild, row 2 bored →
+// disgusted. 6 per row keeps the grid even on any width the strip
+// needs to fit.
+//   row 1 (positive → mild):   😇 😍 😚 😋 ☺️ 😐
+//   row 2 (flat → meltdown):   😴 😞 🤐 🫠 😡 🤮
 const EMOJI_PALETTE = [
-  '🥰', '😂', '😎', '😊', '😌', '🙂',
-  '😐', '🥲', '🥹', '😭', '🤯', '🫠',
+  '😇', '😍', '😚', '😋', '☺️', '😐',
+  '😴', '😞', '🤐', '🫠', '😡', '🤮',
 ];
 
 function countNonWhitespace(s: string): number {
