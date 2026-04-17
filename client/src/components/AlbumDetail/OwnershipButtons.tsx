@@ -10,11 +10,11 @@ interface Props {
   wantedCount: number;
 }
 
-// Flat 샀음/살거 split-pill. Matches VoteButtons' shape: one rounded
-// object with two halves. Amber = 샀음 (owned, brand accent), emerald
-// = 살거 (wanted). Format selection is intentionally absent; every
-// click operates against Vinyl, and clearing an active side removes
-// every legacy format the user has for that row.
+// Split-pill: 샀음 on the left (muted gold), 살거 on the right (muted
+// purple). Shares the same shape + gradient system as VoteButtons so
+// the four buttons on the album header read as one family. Format
+// picker is intentionally absent — clicks operate on Vinyl and clear
+// any legacy format rows when turning off.
 const DEFAULT_FORMAT: OwnershipFormat = 'Vinyl';
 
 export default function OwnershipButtons({
@@ -54,9 +54,23 @@ export default function OwnershipButtons({
     const label = row === 'owned' ? '샀음' : '살거';
     const emoji = row === 'owned' ? '💿' : '🎯';
     const count = row === 'owned' ? ownedCount : wantedCount;
-    const activeBg = row === 'owned' ? '#e8a020' : '#10b981';
-    const activeFg = row === 'owned' ? '#0f0f0f' : '#052e2b';
-    const idleFg = row === 'owned' ? '#e8a020' : '#34d399';
+    const palette = row === 'owned'
+      ? {
+          activeFrom: '#8a6a2a',
+          activeTo: '#6c5222',
+          activeText: '#fff3de',
+          idleFrom: '#3a2f18',
+          idleTo: '#2a2212',
+          idleText: '#c9a66a',
+        }
+      : {
+          activeFrom: '#6e5697',
+          activeTo: '#543f78',
+          activeText: '#f2ecfb',
+          idleFrom: '#2e2340',
+          idleTo: '#231a33',
+          idleText: '#a896c9',
+        };
 
     return (
       <button
@@ -66,15 +80,16 @@ export default function OwnershipButtons({
         disabled={mutate.isPending}
         onClick={() => handleClick(row)}
         style={{
-          background: active ? activeBg : 'transparent',
-          color: active ? activeFg : idleFg,
-          opacity: active ? 1 : 0.7,
-          padding: '6px 14px',
+          background: active
+            ? `linear-gradient(to bottom, ${palette.activeFrom}, ${palette.activeTo})`
+            : `linear-gradient(to bottom, ${palette.idleFrom}, ${palette.idleTo})`,
+          color: active ? palette.activeText : palette.idleText,
+          padding: '4px 10px',
           fontSize: '13px',
           fontWeight: 600,
-          transition: 'all 150ms ease',
+          transition: 'background 160ms ease, color 160ms ease',
         }}
-        className="flex-1 inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-wait disabled:opacity-60 hover:!opacity-100"
+        className="flex-1 inline-flex items-center justify-center gap-1 cursor-pointer disabled:cursor-wait disabled:opacity-60 hover:brightness-110"
       >
         <span style={{ fontSize: '13px', lineHeight: 1 }}>{emoji}</span>
         <span>{label}</span>
@@ -84,15 +99,9 @@ export default function OwnershipButtons({
   };
 
   return (
-    <div
-      className="inline-flex items-stretch rounded-full overflow-hidden border"
-      style={{
-        borderColor: 'rgba(255,255,255,0.1)',
-        background: 'rgba(255,255,255,0.03)',
-      }}
-    >
+    <div className="inline-flex items-stretch rounded-full overflow-hidden border border-white/10">
       {half('owned')}
-      <div className="w-px self-stretch bg-white/10" aria-hidden />
+      <div className="w-px self-stretch bg-black/40" aria-hidden />
       {half('wanted')}
     </div>
   );

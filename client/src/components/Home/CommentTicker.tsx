@@ -3,6 +3,15 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import CoverArt from '../CoverArt';
 import { useUserReviewsFeed, type UserReviewFeedItem } from '../../hooks/useUserReviewsFeed';
 import { resolveApiUrl } from '../../utils/apiUrl';
+import { parseServerTimestamp } from '../../utils/relativeTime';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function isFresh(createdAt: string): boolean {
+  const ts = parseServerTimestamp(createdAt).getTime();
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts < DAY_MS;
+}
 
 // Seconds each item is visible during one scroll pass — higher = slower.
 const SECONDS_PER_ITEM = 7;
@@ -104,6 +113,7 @@ export function TickerItem({
   const feelingEmoji = item.emoji;
   const hasBadges = !!(ratingEmoji || feelingEmoji);
   const reversed = orientation === 'right';
+  const fresh = isFresh(item.createdAt);
 
   return (
     <Link
@@ -152,9 +162,12 @@ export function TickerItem({
       {/* Speech bubble — body on the left (flex-1), blurred cover
           attached on the right inside the same bubble. When reversed,
           inner order flips too so the cover hugs the bubble edge
-          opposite the avatar. */}
+          opposite the avatar. `.bubble-fresh` kicks in for 50자 평
+          posted within the last 24h so the glow draws the eye. */}
       <div
-        className={`${reversed ? 'bubble-tail-right flex-row-reverse' : 'bubble-tail'} flex-1 min-w-0 flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 min-h-[64px] group-hover:border-[#e8a020]/50 transition-colors`}
+        className={`${reversed ? 'bubble-tail-right flex-row-reverse' : 'bubble-tail'} ${
+          fresh ? 'bubble-fresh' : ''
+        } flex-1 min-w-0 flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 min-h-[64px] group-hover:border-[#e8a020]/50 transition-colors`}
         style={BUBBLE_STYLE}
       >
         {/* Body with trailing rating + feeling emojis — the 50자 cap
