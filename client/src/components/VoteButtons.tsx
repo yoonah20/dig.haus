@@ -10,6 +10,9 @@ interface Props {
   userVote: 'up' | 'down' | null;
 }
 
+// Split-pill toggle: one control with a 굿굿 half (blue) and a 별루
+// half (red). The two sides are mutually exclusive anyway — a single
+// pill makes that wordless. Clicking the active half clears the vote.
 export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -74,59 +77,34 @@ export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: P
     }
   };
 
-  const button = (direction: 'up' | 'down', label: string, count: number) => {
+  const half = (direction: 'up' | 'down', label: string, count: number) => {
     const active = localVote === direction;
     const isUp = direction === 'up';
     const emoji = isUp ? '👍' : '👎';
-    const arrow = isUp ? '▲' : '▼';
-
-    let buttonStyle: React.CSSProperties;
-    if (active && isUp) {
-      buttonStyle = {
-        background: '#e8a020',
-        color: '#0f0f0f',
-        border: '1px solid transparent',
-      };
-    } else if (active && !isUp) {
-      buttonStyle = {
-        background: '#3a3a3a',
-        color: '#ffffff',
-        border: '1px solid transparent',
-      };
-    } else if (isUp) {
-      buttonStyle = {
-        background: 'transparent',
-        color: '#e8a020',
-        border: '1px solid #e8a020',
-        opacity: 0.5,
-      };
-    } else {
-      buttonStyle = {
-        background: 'transparent',
-        color: '#9a9a9a',
-        border: '1px solid #4a4a4a',
-        opacity: 0.5,
-      };
-    }
+    // Blue for 굿굿, red for 별루. The inactive side dims the same
+    // hue so the pair reads as one object rather than two orphan pills.
+    const activeBg = isUp ? '#3b82f6' : '#dc2626';
+    const activeFg = '#ffffff';
+    const idleFg = isUp ? '#60a5fa' : '#f87171';
 
     return (
-      <div className="relative">
+      <div className="relative flex-1">
         <button
           onClick={() => handleVote(direction)}
           disabled={busy}
           style={{
-            ...buttonStyle,
+            background: active ? activeBg : 'transparent',
+            color: active ? activeFg : idleFg,
+            opacity: active ? 1 : 0.7,
             padding: '6px 14px',
-            borderRadius: '6px',
             fontSize: '13px',
             fontWeight: 600,
             transition: 'all 150ms ease',
           }}
-          className="inline-flex items-center gap-1.5 cursor-pointer disabled:cursor-wait disabled:opacity-60 hover:!opacity-80"
+          className="w-full inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-wait disabled:opacity-60 hover:!opacity-100"
         >
           <span style={{ fontSize: '13px', lineHeight: 1 }}>{emoji}</span>
           <span>{label}</span>
-          <span style={{ fontSize: '13px', lineHeight: 1 }}>{arrow}</span>
           <span className="tabular-nums">{count.toLocaleString()}</span>
         </button>
         {tooltip === direction && (
@@ -139,9 +117,16 @@ export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: P
   };
 
   return (
-    <div className="flex items-center gap-3">
-      {button('up', '굿굿', localUp)}
-      {button('down', '별루', localDown)}
+    <div
+      className="inline-flex items-stretch rounded-full overflow-hidden border"
+      style={{
+        borderColor: 'rgba(255,255,255,0.1)',
+        background: 'rgba(255,255,255,0.03)',
+      }}
+    >
+      {half('up', '굿굿', localUp)}
+      <div className="w-px self-stretch bg-white/10" aria-hidden />
+      {half('down', '별루', localDown)}
     </div>
   );
 }
