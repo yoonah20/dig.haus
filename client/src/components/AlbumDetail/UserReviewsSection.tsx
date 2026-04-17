@@ -77,66 +77,96 @@ function SpeechBubble({
 }) {
   const ratingMeta = review.rating ? RATING_META[review.rating] : null;
   const hasBadges = !!(ratingMeta || review.emoji);
+  const displayName = review.userName || '익명';
+  const hasStats =
+    review.userId != null &&
+    (review.userUpvoteCount > 0 || review.userDownvoteCount > 0);
+
+  // Speaker trigger: avatar + (name stacked above 굿굿/별루 counts),
+  // grouped as one hover target so moving the mouse between the avatar,
+  // name, and counts doesn't open/close the popover. Deleted accounts
+  // skip the hover wrapper since there's no profile to link to.
+  const speakerInner = (
+    <>
+      <Avatar src={review.userAvatar} name={review.userName} size={36} />
+      <span className="flex flex-col min-w-0 leading-tight">
+        <span
+          className={`text-sm truncate ${
+            review.userId == null ? 'text-gray-500 italic' : 'text-gray-300'
+          }`}
+        >
+          {review.userId == null ? '탈퇴한 사용자' : displayName}
+        </span>
+        {hasStats && (
+          <span className="flex items-center gap-2 text-[11px] text-gray-500 tabular-nums mt-0.5">
+            <span>
+              <span aria-hidden>👍</span> {review.userUpvoteCount}
+            </span>
+            <span>
+              <span aria-hidden>👎</span> {review.userDownvoteCount}
+            </span>
+          </span>
+        )}
+      </span>
+    </>
+  );
+
   return (
     <div className="relative group h-full">
-      {/* Floating badges at the top-right: rating (굿굿/쏘쏘/별루) on the
-          left, feeling emoji on the right. Sit above the card's top edge. */}
-      {hasBadges && (
-        <div className="absolute -top-3 right-2 z-10 flex items-center gap-1.5 pointer-events-none select-none">
-          {ratingMeta && (
-            <span
-              className="text-lg leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
-              title={ratingMeta.label}
-              aria-label={ratingMeta.label}
-            >
-              {ratingMeta.emoji}
-            </span>
-          )}
-          {review.emoji && (
-            <span
-              className="text-xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]"
-              aria-hidden="true"
-            >
-              {review.emoji}
-            </span>
-          )}
-        </div>
-      )}
-
-      <div className="bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 h-[180px] flex flex-col min-w-0">
-        {/* body — expands to fill the card so the footer stays pinned.
-            line-clamp-4 keeps overly long bodies from overflowing the
-            fixed 180px; in practice 50자 평 is 2–3 lines so this is
-            only a safety net. */}
+      {/* Height is dynamic: the grid's items-stretch aligns cards in a
+          row, so sibling reviews (and the 180px editor when it's open)
+          pull shorter cards up to match. When the row is all-display
+          (no editor), short reviews stay compact instead of carrying
+          the old fixed 180px of dead whitespace. */}
+      <div className="bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 flex flex-col min-w-0 h-full">
+        {/* Body + emoji stamps. The rating/feeling emojis ride at the
+            end of the text (separated by a single space) rather than
+            floating as overhanging badges or sitting in the footer — so
+            they read as the natural punctuation of the comment. The
+            trailing span is whitespace-nowrap so the two emojis never
+            split across lines and never detach from the preceding space.
+            line-clamp-4 remains a safety net for runaway bodies. */}
         <p className="text-gray-100 text-[15px] leading-relaxed break-words flex-1 line-clamp-4">
           {review.body}
+          {hasBadges && (
+            <span className="whitespace-nowrap">
+              {' '}
+              {ratingMeta && (
+                <span
+                  className="leading-none"
+                  title={ratingMeta.label}
+                  aria-label={ratingMeta.label}
+                >
+                  {ratingMeta.emoji}
+                </span>
+              )}
+              {review.emoji && (
+                <span className="leading-none" aria-hidden="true">
+                  {review.emoji}
+                </span>
+              )}
+            </span>
+          )}
         </p>
 
-        {/* footer — avatar + name anchored to the bottom so cards in a row
-            visually align even with uneven body lengths. Edit/delete sit
-            inline at the right so they're never hidden behind the larger
-            avatar (the previous absolute-positioned overlay disappeared
-            when the avatar grew). */}
-        <div className="flex items-center gap-2.5 min-w-0 mt-3 pt-2.5 border-t border-white/5">
-          {/* userId is null when the author has deleted their account —
-              the review body stays but the profile is gone, so skip the
-              hover card and show an anonymised label. */}
+        {/* Footer row — avatar + (name / 굿굿+별루 counts) stacked on
+            the right, actions on the far right. gap-3 (not the old
+            gap-2.5) between avatar and name column because the gap
+            previously failed to propagate through UserHoverCard, making
+            the pair read cramped. */}
+        <div className="flex items-center gap-3 min-w-0 mt-3 pt-2.5 border-t border-white/5">
           {review.userId != null ? (
-            <UserHoverCard userId={review.userId}>
-              <Avatar src={review.userAvatar} name={review.userName} size={36} />
+            <UserHoverCard
+              userId={review.userId}
+              className="gap-3 flex-1 min-w-0"
+            >
+              {speakerInner}
             </UserHoverCard>
           ) : (
-            <Avatar src={null} name={null} size={36} />
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {speakerInner}
+            </div>
           )}
-          <span
-            className={`text-sm truncate flex-1 ${
-              review.userId == null ? 'text-gray-500 italic' : 'text-gray-300'
-            }`}
-          >
-            {review.userId == null
-              ? '탈퇴한 사용자'
-              : review.userName || '익명'}
-          </span>
           {(canOwnerEdit || canAdminDelete) && (
             <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
               {canOwnerEdit && (
@@ -170,7 +200,7 @@ function AddReviewCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/30 hover:bg-[#1d140a]/70 border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/80 rounded-2xl p-4 h-[180px] transition-all cursor-pointer w-full"
+      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/30 hover:bg-[#1d140a]/70 border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/80 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer w-full h-full"
     >
       <span className="text-3xl group-hover:scale-110 transition-transform" aria-hidden>✍️</span>
       <span className="text-sm font-medium text-[#e8a020] group-hover:text-[#f0b040]">
@@ -185,7 +215,7 @@ function LoginPromptCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/20 hover:bg-[#1d140a]/50 border border-dashed border-white/15 hover:border-[#e8a020]/40 rounded-2xl p-4 h-[180px] transition-all cursor-pointer text-center w-full"
+      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/20 hover:bg-[#1d140a]/50 border border-dashed border-white/15 hover:border-[#e8a020]/40 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer text-center w-full h-full"
     >
       <span
         className="text-2xl opacity-70 group-hover:opacity-100 transition-opacity"
@@ -331,7 +361,7 @@ function Editor({
                 stays as a sibling at the bottom, no mt-auto needed —
                 the wrapper's flex-1 eats the remaining space. */}
             <div className="flex-1 flex flex-col justify-center gap-2">
-              <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
+              <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
                 “이 앨범 어땠어요?”
               </div>
               <div className="grid grid-cols-3 gap-1.5">
@@ -373,7 +403,7 @@ function Editor({
 
         {step === 'text' && (
           <>
-            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
+            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
               “하고 싶은 말?”
             </div>
             <textarea
@@ -428,7 +458,7 @@ function Editor({
 
         {step === 'emoji' && (
           <>
-            <div className="font-serif italic text-base md:text-lg text-gray-100 leading-snug text-center">
+            <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
               “들었을 때 기분!”
             </div>
             <div className="grid grid-cols-6 gap-1.5">

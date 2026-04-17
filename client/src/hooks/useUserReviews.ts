@@ -11,6 +11,9 @@ export interface UserReview {
   userId: number | null;
   userName: string | null;
   userAvatar: string | null;
+  /** 굿굿 / 별루 tallies for the author across all albums. */
+  userUpvoteCount: number;
+  userDownvoteCount: number;
 }
 
 export function useUserReviews(albumId: string, enabled = true) {

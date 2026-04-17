@@ -74,6 +74,12 @@ interface Row {
   user_id: number | null;
   user_name: string | null;
   user_avatar: string | null;
+  // Up/down-vote tallies for the author across all albums. Rendered as
+  // "👍 N  👎 M" under the speaker's name — a lightweight profile
+  // signal so readers can tell a heavy voter from a one-time commenter.
+  // Percentages omitted here (the hover card carries those).
+  user_upvote_count: number | null;
+  user_downvote_count: number | null;
 }
 
 function serialize(row: Row) {
@@ -85,6 +91,8 @@ function serialize(row: Row) {
     userId: row.user_id,
     userName: row.user_name,
     userAvatar: row.user_avatar,
+    userUpvoteCount: row.user_upvote_count ?? 0,
+    userDownvoteCount: row.user_downvote_count ?? 0,
   };
 }
 
@@ -108,6 +116,10 @@ router.get('/user-reviews/feed', (req, res) => {
     `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
             COALESCE(u.display_name, u.name) AS user_name,
             COALESCE(u.custom_avatar_url, u.avatar_url) AS user_avatar,
+            (SELECT COUNT(*) FROM album_votes av
+             WHERE av.user_id = ur.user_id AND av.vote = 'up') AS user_upvote_count,
+            (SELECT COUNT(*) FROM album_votes av
+             WHERE av.user_id = ur.user_id AND av.vote = 'down') AS user_downvote_count,
             a.slug AS album_slug, a.mbid AS album_mbid,
             a.title AS album_title, a.artist_name AS album_artist,
             a.cover_art_url AS album_cover,
@@ -128,6 +140,8 @@ router.get('/user-reviews/feed', (req, res) => {
     user_id: number | null;
     user_name: string | null;
     user_avatar: string | null;
+    user_upvote_count: number | null;
+    user_downvote_count: number | null;
     album_slug: string | null;
     album_mbid: string | null;
     album_title: string;
@@ -146,6 +160,8 @@ router.get('/user-reviews/feed', (req, res) => {
       userId: r.user_id,
       userName: r.user_name,
       userAvatar: r.user_avatar,
+      userUpvoteCount: r.user_upvote_count ?? 0,
+      userDownvoteCount: r.user_downvote_count ?? 0,
       // Prefer the stable slug, fall back to mbid if slug backfill hasn't
       // reached this album yet.
       albumSlug: r.album_slug || r.album_mbid || '',
@@ -176,7 +192,11 @@ router.get('/albums/:id/user-reviews', (req, res) => {
   const rows = queryAll(
     `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
             COALESCE(u.display_name, u.name) AS user_name,
-            COALESCE(u.custom_avatar_url, u.avatar_url) AS user_avatar
+            COALESCE(u.custom_avatar_url, u.avatar_url) AS user_avatar,
+            (SELECT COUNT(*) FROM album_votes av
+             WHERE av.user_id = ur.user_id AND av.vote = 'up') AS user_upvote_count,
+            (SELECT COUNT(*) FROM album_votes av
+             WHERE av.user_id = ur.user_id AND av.vote = 'down') AS user_downvote_count
      FROM user_reviews ur
      LEFT JOIN users u ON u.id = ur.user_id
      WHERE ur.album_id = ?
@@ -253,7 +273,11 @@ router.post('/albums/:id/user-reviews', requireAuth, upsertLimiter, (req, res) =
     const row = queryGet(
       `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
               COALESCE(u.display_name, u.name) AS user_name,
-              COALESCE(u.custom_avatar_url, u.avatar_url) AS user_avatar
+              COALESCE(u.custom_avatar_url, u.avatar_url) AS user_avatar,
+              (SELECT COUNT(*) FROM album_votes av
+               WHERE av.user_id = ur.user_id AND av.vote = 'up') AS user_upvote_count,
+              (SELECT COUNT(*) FROM album_votes av
+               WHERE av.user_id = ur.user_id AND av.vote = 'down') AS user_downvote_count
        FROM user_reviews ur
        LEFT JOIN users u ON u.id = ur.user_id
        WHERE ur.album_id = ? AND ur.user_id = ?`,

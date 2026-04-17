@@ -17,9 +17,16 @@ function formatJoined(iso: string | null): string {
 export default function UserHoverCard({
   userId,
   children,
+  className = '',
 }: {
   userId: number;
   children: React.ReactNode;
+  /** Extra classes merged onto the root inline-flex wrapper — callers that
+   *  need the trigger to participate in a parent flex layout (e.g. avatar
+   *  + name + comment-count grouped into one hover target) can pass
+   *  `flex-1 min-w-0 gap-2.5` here without touching the component's
+   *  default inline-flex styling. */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement | null>(null);
@@ -80,14 +87,18 @@ export default function UserHoverCard({
   return (
     <span
       ref={rootRef}
-      className="relative inline-flex items-center"
+      className={`relative inline-flex items-center ${className}`}
       onMouseEnter={scheduleShow}
       onMouseLeave={scheduleHide}
       onFocus={scheduleShow}
       onBlur={scheduleHide}
     >
       <span
-        className="inline-flex items-center"
+        // Same className as the outer wrapper so caller-supplied utility
+        // classes (gap-X, flex-1, min-w-0) actually reach the element
+        // that directly wraps the trigger children — the outer only has
+        // one flex child, so gap-* there would be a no-op otherwise.
+        className={`inline-flex items-center ${className}`}
         onClick={(e) => {
           // Touch devices: tapping the avatar opens the card instead of
           // firing whatever click the parent intended.
@@ -137,7 +148,11 @@ export default function UserHoverCard({
                   user has no instagram handle. */}
               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-white truncate">
+                  {/* Slightly larger than the comment-card speaker
+                      (text-sm = 14px) so the popover reads as the
+                      authoritative profile label rather than a
+                      duplicate of the trigger. */}
+                  <div className="text-[15px] font-medium text-white truncate">
                     {data.user.name || '이름 없음'}
                   </div>
                   {data.user.createdAt && (

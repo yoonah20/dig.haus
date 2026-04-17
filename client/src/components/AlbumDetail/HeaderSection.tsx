@@ -761,9 +761,42 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             </h1>
             <div className="pt-2 md:pt-3 flex-shrink-0 flex items-center gap-1.5">
               <CopyTitleButton
-                text={`${album.title} ${album.artist} vinyl`}
-                label={`"${album.title} ${album.artist} vinyl" 복사`}
+                text={`${album.title} ${album.artist}`}
+                label={`"${album.title} ${album.artist}" 복사`}
               />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const q = encodeURIComponent(
+                    `${album.title} ${album.artist} vinyl`
+                  );
+                  window.open(
+                    `https://www.google.com/search?q=${q}`,
+                    '_blank',
+                    'noopener,noreferrer'
+                  );
+                }}
+                title="vinyl 검색"
+                aria-label={`"${album.title} ${album.artist} vinyl" 구글 검색`}
+                className="inline-flex items-center justify-center p-1 rounded text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-4 h-4"
+                  aria-hidden
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </button>
               {user?.isAdmin && (
                 <button
                   onClick={startEditAlbum}

@@ -14,6 +14,8 @@ export interface UserReviewFeedItem {
   userId: number | null;
   userName: string | null;
   userAvatar: string | null;
+  userUpvoteCount: number;
+  userDownvoteCount: number;
   albumSlug: string;
   albumTitle: string;
   albumArtist: string | null;
