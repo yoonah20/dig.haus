@@ -22,6 +22,9 @@ interface AlbumBase {
     /** NULL when the album is user-submitted and admin hasn't yet
      *  triggered the review-crawl pipeline. */
     reviewsCrawledAt: string | null;
+    ownedCount?: number;
+    wantedCount?: number;
+    userOwnership?: 'owned' | 'wanted' | null;
   };
   streaming: {
     spotify: string | null;

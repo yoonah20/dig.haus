@@ -12,6 +12,8 @@ export interface PriceTagLink {
   status: PurchaseLinkStatus | null;
 }
 
+export type OwnershipState = 'owned' | 'wanted' | null;
+
 export interface AlbumSearchResult {
   mbid: string;
   title: string;
@@ -32,6 +34,10 @@ export interface AlbumSearchResult {
    *  dims cards with null; detail page swaps a placeholder into the
    *  review section. */
   reviewsCrawledAt?: string | null;
+  /** How many users have this album in their 샀음 collection. */
+  ownedCount?: number;
+  /** How many users have this album on their 살거 wantlist. */
+  wantedCount?: number;
 }
 
 export interface AuthUser {
@@ -153,6 +159,9 @@ export interface AlbumDetail {
     upvotes?: number;
     downvotes?: number;
     userVote?: 'up' | 'down' | null;
+    ownedCount?: number;
+    wantedCount?: number;
+    userOwnership?: OwnershipState;
   };
   streaming: StreamingLinks;
   buy: BuyInfo;

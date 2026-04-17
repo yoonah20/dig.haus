@@ -229,6 +229,75 @@ router.get('/me/upvotes', requireAuth, (req, res) => {
   });
 });
 
+// ─── GET /api/me/collection — albums I own ────────────────────────────────
+//
+// Returns the caller's private collection, one row per album. Ordered
+// by most-recently added so the Profile page leads with fresh picks.
+router.get('/me/collection', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const rows = queryAll(
+    `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name,
+            a.cover_art_url, a.cover_art_fallbacks,
+            c.created_at AS added_at
+     FROM collections c
+     JOIN albums a ON a.id = c.album_id
+     WHERE c.user_id = ?
+     ORDER BY c.created_at DESC, c.id DESC`,
+    [me.id]
+  );
+  res.json({
+    items: rows.map((a: any) => ({
+      slug: a.slug || a.mbid,
+      title: a.title,
+      artist: a.artist_name,
+      coverArtUrl: a.cover_art_url,
+      coverArtFallbacks: a.cover_art_fallbacks
+        ? (() => {
+            try {
+              return JSON.parse(a.cover_art_fallbacks);
+            } catch {
+              return [];
+            }
+          })()
+        : [],
+      addedAt: a.added_at,
+    })),
+  });
+});
+
+// ─── GET /api/me/wantlist — albums I want to buy ──────────────────────────
+router.get('/me/wantlist', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const rows = queryAll(
+    `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name,
+            a.cover_art_url, a.cover_art_fallbacks,
+            w.created_at AS added_at
+     FROM wants w
+     JOIN albums a ON a.id = w.album_id
+     WHERE w.user_id = ?
+     ORDER BY w.created_at DESC, w.id DESC`,
+    [me.id]
+  );
+  res.json({
+    items: rows.map((a: any) => ({
+      slug: a.slug || a.mbid,
+      title: a.title,
+      artist: a.artist_name,
+      coverArtUrl: a.cover_art_url,
+      coverArtFallbacks: a.cover_art_fallbacks
+        ? (() => {
+            try {
+              return JSON.parse(a.cover_art_fallbacks);
+            } catch {
+              return [];
+            }
+          })()
+        : [],
+      addedAt: a.added_at,
+    })),
+  });
+});
+
 // ─── DELETE /api/me — hard-delete account ─────────────────────────────────
 //
 // Removes the user account but preserves their public contributions:
@@ -330,6 +399,15 @@ router.get('/users/:id/public', (req, res) => {
   const down = votes?.down || 0;
   const total = up + down;
 
+  // Collection-feature counts — how many albums this user owns /
+  // wants. Shown on the hover card so collectors can scan someone
+  // else's engagement without opening their profile.
+  const ownedCount =
+    queryGet(`SELECT COUNT(*) AS c FROM collections WHERE user_id = ?`, [id])
+      ?.c || 0;
+  const wantedCount =
+    queryGet(`SELECT COUNT(*) AS c FROM wants WHERE user_id = ?`, [id])?.c || 0;
+
   res.json({
     user: {
       id: row.id,
@@ -344,6 +422,8 @@ router.get('/users/:id/public', (req, res) => {
       downvoteCount: down,
       upvotePct: total > 0 ? Math.round((up / total) * 100) : null,
       downvotePct: total > 0 ? Math.round((down / total) * 100) : null,
+      ownedCount,
+      wantedCount,
     },
   });
 });

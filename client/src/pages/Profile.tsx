@@ -14,6 +14,7 @@ import {
   useDeleteMyAccount,
 } from '../hooks/useMe';
 import { useMyAlbumRequests } from '../hooks/useAlbumRequests';
+import { useMyCollection, useMyWantlist } from '../hooks/useOwnership';
 
 const REQUEST_STATUS_META: Record<
   'pending' | 'approved',
@@ -34,6 +35,66 @@ const RATING_META: Record<'up' | 'down' | 'soso', { emoji: string; label: string
   down: { emoji: '👎', label: '별루' },
   soso: { emoji: '🤷', label: '쏘쏘' },
 };
+
+// Shared grid layout for the 샀음 / 살거 sections. Mirrors the
+// existing 굿굿한 앨범들 grid (4/row mobile, 5/row desktop, square
+// cover tiles linking to the album page).
+function CollectionGrid({
+  title,
+  emoji,
+  loading,
+  items,
+  emptyMessage,
+  accentRing,
+}: {
+  title: string;
+  emoji: string;
+  loading: boolean;
+  items: Array<{
+    slug: string;
+    title: string;
+    artist: string;
+    coverArtUrl: string | null;
+    coverArtFallbacks?: string[];
+  }>;
+  emptyMessage: string;
+  /** Tailwind classname for hover ring — lets callers differentiate
+   *  the 샀음 (amber) and 살거 (sky) grids at a glance. */
+  accentRing: string;
+}) {
+  return (
+    <section className="mb-10">
+      <h2 className="text-xl font-serif text-white mb-4 flex items-center gap-2">
+        <span aria-hidden>{emoji}</span>
+        {title}
+        <span className="ml-1 text-sm text-gray-500 font-sans">{items.length}</span>
+      </h2>
+      {loading ? (
+        <div className="text-sm text-gray-500">불러오는 중…</div>
+      ) : items.length > 0 ? (
+        <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+          {items.map((a) => (
+            <Link
+              key={a.slug}
+              to={`/album/${a.slug}`}
+              className={`aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 transition-all ${accentRing}`}
+              title={`${a.title} — ${a.artist}`}
+            >
+              <CoverArt
+                src={a.coverArtUrl}
+                fallbacks={a.coverArtFallbacks}
+                alt={a.title}
+                className="w-full h-full object-cover"
+              />
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <div className="text-sm text-gray-500">{emptyMessage}</div>
+      )}
+    </section>
+  );
+}
 
 function formatJoined(iso: string | null): string {
   if (!iso) return '';
@@ -191,6 +252,8 @@ export default function Profile() {
   const reviews = useMyReviews();
   const upvotes = useMyUpvotes();
   const myRequests = useMyAlbumRequests();
+  const collection = useMyCollection();
+  const wantlist = useMyWantlist();
   const update = useUpdateMyProfile();
   const upload = useUploadMyAvatar();
   const reset = useResetMyAvatar();
@@ -506,6 +569,24 @@ export default function Profile() {
           <div className="text-sm text-gray-500">아직 굿굿한 앨범이 없습니다.</div>
         )}
           </section>
+
+          <CollectionGrid
+            title="샀음"
+            emoji="💿"
+            loading={collection.isLoading}
+            items={collection.data?.items ?? []}
+            emptyMessage="아직 소장 표시한 앨범이 없습니다."
+            accentRing="hover:ring-[#e8a020]/50"
+          />
+
+          <CollectionGrid
+            title="살거"
+            emoji="🎯"
+            loading={wantlist.isLoading}
+            items={wantlist.data?.items ?? []}
+            emptyMessage="아직 위시리스트에 추가한 앨범이 없습니다."
+            accentRing="hover:ring-sky-500/50"
+          />
         </div>
       </div>
 

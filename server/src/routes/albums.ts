@@ -551,7 +551,9 @@ const ALBUM_ROW_SELECT = `
           WHERE r.album_mbid = a.mbid
             AND COALESCE(r.manual_score, r.score) IS NOT NULL
             AND r.score_max > 0) AS review_count,
-         COALESCE((SELECT COUNT(*) FROM user_reviews WHERE album_id = a.id), 0) AS user_review_count
+         COALESCE((SELECT COUNT(*) FROM user_reviews WHERE album_id = a.id), 0) AS user_review_count,
+         COALESCE((SELECT COUNT(*) FROM collections WHERE album_id = a.id), 0) AS owned_count,
+         COALESCE((SELECT COUNT(*) FROM wants WHERE album_id = a.id), 0) AS wanted_count
   FROM albums a
 `;
 
@@ -697,6 +699,8 @@ router.get('/', async (req, res) => {
         priceTagLinks: topLinksByAlbum.get(a.id) || [],
         genres,
         reviewsCrawledAt: a.reviews_crawled_at,
+        ownedCount: a.owned_count || 0,
+        wantedCount: a.wanted_count || 0,
       };
     });
 
@@ -1467,12 +1471,17 @@ router.get('/:id', async (req, res) => {
       }
     }
 
-    // Vote counts + current user's vote
+    // Vote counts + current user's vote, plus collection/wantlist
+    // counts + the caller's ownership state so the album detail page
+    // can render toggle buttons and social counts in one round trip.
     const albumRow = queryGet(`SELECT id FROM albums WHERE mbid = ?`, [mbid]);
     const albumPk = albumRow?.id;
     let upvotes = 0;
     let downvotes = 0;
     let userVote: 'up' | 'down' | null = null;
+    let ownedCount = 0;
+    let wantedCount = 0;
+    let userOwnership: 'owned' | 'wanted' | null = null;
     if (albumPk) {
       const counts = queryGet(
         `SELECT
@@ -1483,6 +1492,15 @@ router.get('/:id', async (req, res) => {
       );
       upvotes = counts?.up || 0;
       downvotes = counts?.down || 0;
+      ownedCount =
+        (queryGet(
+          `SELECT COUNT(*) AS c FROM collections WHERE album_id = ?`,
+          [albumPk]
+        )?.c as number) || 0;
+      wantedCount =
+        (queryGet(`SELECT COUNT(*) AS c FROM wants WHERE album_id = ?`, [
+          albumPk,
+        ])?.c as number) || 0;
       const currentUser = req.user;
       if (currentUser) {
         const uv = queryGet(
@@ -1490,6 +1508,19 @@ router.get('/:id', async (req, res) => {
           [currentUser.id, albumPk]
         );
         userVote = uv?.vote || null;
+        const ownsIt = queryGet(
+          `SELECT 1 FROM collections WHERE user_id = ? AND album_id = ?`,
+          [currentUser.id, albumPk]
+        );
+        if (ownsIt) {
+          userOwnership = 'owned';
+        } else {
+          const wantsIt = queryGet(
+            `SELECT 1 FROM wants WHERE user_id = ? AND album_id = ?`,
+            [currentUser.id, albumPk]
+          );
+          if (wantsIt) userOwnership = 'wanted';
+        }
       }
     }
 
@@ -1503,7 +1534,15 @@ router.get('/:id', async (req, res) => {
     );
 
     res.json({
-      album: { ...result.album, upvotes, downvotes, userVote },
+      album: {
+        ...result.album,
+        upvotes,
+        downvotes,
+        userVote,
+        ownedCount,
+        wantedCount,
+        userOwnership,
+      },
       streaming: result.streaming,
       buy: { ...result.buy, formats: formatsWithKrw },
       discography: result.discography,

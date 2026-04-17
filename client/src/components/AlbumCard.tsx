@@ -281,6 +281,23 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                     )}
                   </div>
                 )}
+                {((album.ownedCount ?? 0) > 0 || (album.wantedCount ?? 0) > 0) && (
+                  <div
+                    className="flex items-center gap-2 tabular-nums text-gray-300"
+                    style={{ marginTop: '4px', fontSize: '12px' }}
+                  >
+                    {(album.ownedCount ?? 0) > 0 && (
+                      <span>
+                        <span aria-hidden>💿</span> {album.ownedCount}
+                      </span>
+                    )}
+                    {(album.wantedCount ?? 0) > 0 && (
+                      <span>
+                        <span aria-hidden>🎯</span> {album.wantedCount}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div style={{ flex: 1 }} />

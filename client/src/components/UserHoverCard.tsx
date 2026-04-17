@@ -216,6 +216,23 @@ export default function UserHoverCard({
                       )}
                     </span>
                   </div>
+                  {((data.stats.ownedCount ?? 0) > 0 ||
+                    (data.stats.wantedCount ?? 0) > 0) && (
+                    <div className="flex items-center gap-3">
+                      <span>
+                        <span aria-hidden>💿</span>{' '}
+                        <span className="text-gray-100 font-semibold">
+                          {data.stats.ownedCount ?? 0}
+                        </span>
+                      </span>
+                      <span>
+                        <span aria-hidden>🎯</span>{' '}
+                        <span className="text-gray-200 font-semibold">
+                          {data.stats.wantedCount ?? 0}
+                        </span>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

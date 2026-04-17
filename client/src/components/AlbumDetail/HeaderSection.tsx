@@ -9,6 +9,7 @@ import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSearchOverlay } from '../../contexts/SearchOverlayContext';
 import VoteButtons from '../VoteButtons';
+import OwnershipButtons from './OwnershipButtons';
 import CopyTitleButton from '../CopyTitleButton';
 
 function AdminMenuItem({
@@ -915,12 +916,18 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             )}
           </div>
 
-          <div className="mb-6">
+          <div className="mb-6 flex items-center gap-3 flex-wrap">
             <VoteButtons
               albumId={albumId}
               upvotes={album.upvotes ?? 0}
               downvotes={album.downvotes ?? 0}
               userVote={album.userVote ?? null}
+            />
+            <OwnershipButtons
+              albumId={albumId}
+              state={album.userOwnership ?? null}
+              ownedCount={album.ownedCount ?? 0}
+              wantedCount={album.wantedCount ?? 0}
             />
           </div>
 

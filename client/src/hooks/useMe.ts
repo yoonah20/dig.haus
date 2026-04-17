@@ -162,6 +162,8 @@ export interface UserPublic {
     downvoteCount: number;
     upvotePct: number | null;
     downvotePct: number | null;
+    ownedCount?: number;
+    wantedCount?: number;
   };
 }
 
