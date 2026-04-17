@@ -8,27 +8,19 @@ import type { AlbumSearchResult } from '../types';
 interface Props {
   open: boolean;
   onClose: () => void;
-  // 'register' (admin) directly caches the album + kicks off the Claude
-  // pipeline. 'request' (logged-in non-admin) writes a row to
-  // album_requests with no external-API cascade — admin decides later.
+  // 'register' (admin) and 'request' (logged-in non-admin) both now
+  // cache the album immediately on submit — the difference is that
+  // 'request' skips the Claude review warm-up until admin approves.
   mode: 'register' | 'request';
 }
-
-const NOTES_MAX = 280;
 
 export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
-  // While this is non-null, a single row is mid-submit. In register
-  // mode it's the mbid we're fetching; in request mode it's the mbid
-  // of the row whose "요청 보내기" button was clicked.
+  // Non-null while one specific row is mid-submit; drives the
+  // per-row disable + spinner.
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Request mode shows a notes input expanded below a selected row.
-  // `selected` tracks which row has the expander open.
-  const [selected, setSelected] = useState<AlbumSearchResult | null>(null);
-  const [notes, setNotes] = useState('');
-  const [justSubmitted, setJustSubmitted] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const submit = useSubmitAlbumRequest();
@@ -49,9 +41,6 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
     setQuery('');
     setPending(null);
     setError(null);
-    setSelected(null);
-    setNotes('');
-    setJustSubmitted(null);
     const t = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(t);
   }, [open]);
@@ -98,37 +87,35 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
     setError(null);
     setPending(album.mbid);
     try {
-      await submit.mutateAsync({
+      const result = await submit.mutateAsync({
         mbid: album.mbid,
         title: album.title,
         artist: album.artist,
         year: album.year,
         coverArtUrl: album.coverArtUrl,
-        notes: notes.trim() || null,
       });
-      setJustSubmitted(album.mbid);
-      setSelected(null);
-      setNotes('');
+      // Server creates the album row on submit — navigate straight
+      // into it so the user sees the result of their action. The slug
+      // comes back in the response; fall back to mbid if missing (old
+      // servers or cache misses).
+      const target = (result?.slug as string | undefined) || album.mbid;
+      onClose();
+      navigate(`/album/${target}`);
     } catch (e: any) {
       const apiMessage = e?.response?.data?.error;
       setError(apiMessage || '요청을 보내지 못했어요. 잠시 뒤에 다시 시도해주세요.');
-    } finally {
       setPending(null);
     }
   }
 
   function onRowClick(album: AlbumSearchResult) {
     if (pending) return;
+    // Both modes now register immediately on row click. The notes
+    // expander is gone — the new flow creates the album row directly
+    // and redirects the user into it, so notes-to-admin isn't where
+    // the conversation happens anymore (50자 평 is).
     if (isRequest) {
-      // Toggle the expander; clicking the same row again closes it.
-      if (selected?.mbid === album.mbid) {
-        setSelected(null);
-        setNotes('');
-      } else {
-        setSelected(album);
-        setNotes('');
-        setError(null);
-      }
+      handleRequestSubmit(album);
     } else {
       handleRegister(album);
     }
@@ -157,10 +144,16 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
 
         <div className="p-5">
           {isRequest && (
-            <p className="text-base text-gray-300 mb-5 leading-relaxed">
-              dig.haus 에 없는 앨범 등록 요청을 보낼 수 있어요. admin 이
-              검토한 뒤에 반영돼요.
-            </p>
+            <div className="mb-5 space-y-1.5">
+              <p className="text-base text-gray-300 leading-relaxed">
+                dig.haus 에 없는 앨범을 등록할 수 있어요. 등록 직후 바로
+                앨범 페이지로 이동합니다.
+              </p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                리뷰 수집은 관리자 확인 후 진행됩니다. 커뮤니티 가이드에
+                맞지 않는 앨범은 관리자가 수정·삭제할 수 있어요.
+              </p>
+            </div>
           )}
           <div className="relative">
             <input
@@ -183,10 +176,14 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
             <div className="mt-3 text-sm text-red-400">{error}</div>
           )}
 
-          {pending && !isRequest && (
+          {pending && (
             <div className="mt-6 flex items-center gap-3 text-sm text-gray-300">
               <div className="w-5 h-5 border-2 border-gray-600 border-t-[#e8a020] rounded-full animate-spin" />
-              <span>앨범 등록 및 리뷰 수집 중...</span>
+              <span>
+                {isRequest
+                  ? '앨범 등록 중...'
+                  : '앨범 등록 및 리뷰 수집 중...'}
+              </span>
             </div>
           )}
 
@@ -199,94 +196,46 @@ export default function RegisterAlbumModal({ open, onClose, mode }: Props) {
           {albums.length > 0 && (
             <div className="mt-4 max-h-[60vh] overflow-y-auto -mx-1">
               {albums.map((album) => {
-                const isSelected = selected?.mbid === album.mbid;
-                const wasSubmitted = justSubmitted === album.mbid;
+                const isSubmitting = pending === album.mbid;
                 return (
-                  <div key={album.mbid}>
-                    <button
-                      onClick={() => onRowClick(album)}
-                      disabled={!!pending && pending !== album.mbid}
-                      className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-lg transition-colors text-left disabled:opacity-40 ${
-                        isSelected || wasSubmitted ? 'bg-white/5' : ''
-                      }`}
-                    >
-                      <div className="w-10 h-10 flex-shrink-0 bg-[#252525] rounded-md overflow-hidden">
-                        {album.coverArtUrl ? (
-                          <img
-                            src={album.coverArtUrl}
-                            alt={album.title}
-                            loading="lazy"
-                            decoding="async"
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        ) : null}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-base font-semibold text-gray-100 truncate">
-                          {album.title}
-                        </p>
-                        <p className="text-sm text-gray-400 truncate">
-                          {album.artist}
-                          {album.year && (
-                            <span className="text-gray-500"> ({album.year})</span>
-                          )}
-                          {album.label && (
-                            <span className="text-gray-500"> · {album.label}</span>
-                          )}
-                        </p>
-                      </div>
-                      {wasSubmitted && (
-                        <span className="text-sm text-[#e8a020] shrink-0">요청 보냄 ✓</span>
-                      )}
-                    </button>
-
-                    {/* Request-mode expander — shows a short notes
-                        textarea under the selected row and a submit
-                        button. Keeps the flow inline instead of
-                        opening a second modal. */}
-                    {isRequest && isSelected && !wasSubmitted && (
-                      <div className="px-3 pb-4 pt-1">
-                        <textarea
-                          value={notes}
-                          onChange={(e) => {
-                            if (e.target.value.length > NOTES_MAX) return;
-                            setNotes(e.target.value);
+                  <button
+                    key={album.mbid}
+                    onClick={() => onRowClick(album)}
+                    disabled={!!pending && !isSubmitting}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-lg transition-colors text-left disabled:opacity-40"
+                  >
+                    <div className="w-10 h-10 flex-shrink-0 bg-[#252525] rounded-md overflow-hidden">
+                      {album.coverArtUrl ? (
+                        <img
+                          src={album.coverArtUrl}
+                          alt={album.title}
+                          loading="lazy"
+                          decoding="async"
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
                           }}
-                          placeholder="admin 에게 남길 한마디 (선택) — 왜 이 앨범을 원하는지 등"
-                          rows={2}
-                          disabled={!!pending}
-                          className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
                         />
-                        <div className="mt-2 flex items-center justify-end gap-2">
-                          <span className="text-xs text-gray-500 tabular-nums mr-auto">
-                            {notes.length}/{NOTES_MAX}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelected(null);
-                              setNotes('');
-                            }}
-                            disabled={!!pending}
-                            className="text-sm text-gray-400 hover:text-white px-2.5 py-1 disabled:opacity-40 cursor-pointer"
-                          >
-                            취소
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRequestSubmit(album)}
-                            disabled={!!pending}
-                            className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-3.5 py-1.5 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                          >
-                            {pending === album.mbid ? '보내는 중…' : '요청 보내기'}
-                          </button>
-                        </div>
-                      </div>
+                      ) : null}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-base font-semibold text-gray-100 truncate">
+                        {album.title}
+                      </p>
+                      <p className="text-sm text-gray-400 truncate">
+                        {album.artist}
+                        {album.year && (
+                          <span className="text-gray-500"> ({album.year})</span>
+                        )}
+                        {album.label && (
+                          <span className="text-gray-500"> · {album.label}</span>
+                        )}
+                      </p>
+                    </div>
+                    {isSubmitting && (
+                      <div className="shrink-0 w-4 h-4 border-2 border-gray-600 border-t-[#e8a020] rounded-full animate-spin" />
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>

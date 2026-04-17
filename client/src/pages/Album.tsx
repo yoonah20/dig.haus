@@ -148,8 +148,21 @@ export default function Album() {
         <BuySection buy={base.buy} albumId={albumId} />
         <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
 
-        {/* Stage 2: reviews (slow) */}
-        {reviewsLoading ? (
+        {/* Stage 2: reviews (slow) — when the album was user-submitted
+            and the review crawl hasn't run yet, swap in a placeholder
+            instead of loading the review section. Everything above
+            (cover, metadata, purchase links, 50자 평, voting) stays
+            fully functional in the meantime. */}
+        {base.album.reviewsCrawledAt === null ? (
+          <section className="rounded-2xl border border-white/5 bg-[#1a1a1a]/60 px-6 py-8 text-center space-y-2">
+            <div className="text-sm text-gray-400">
+              리뷰 수집은 관리자 확인 후 진행됩니다.
+            </div>
+            <div className="text-xs text-gray-600">
+              그동안 50자 평·굿굿/별루·구매처 등록은 자유롭게 남길 수 있어요.
+            </div>
+          </section>
+        ) : reviewsLoading ? (
           <SectionLoader text="리뷰를 수집하고 있습니다..." />
         ) : reviewsData ? (
           <ReviewSection
@@ -159,14 +172,18 @@ export default function Album() {
           />
         ) : null}
 
-        {/* Stage 2: similar albums (slow, lazy) — reserve height to avoid layout shift */}
-        <div ref={similarRef} className="min-h-[280px]">
-          {!similarVisible ? null : similarLoading ? (
-            <SectionLoader text="비슷한 앨범을 찾고 있습니다..." />
-          ) : similarData?.similarAlbums && similarData.similarAlbums.length > 0 ? (
-            <SimilarAlbums albums={similarData.similarAlbums} albumId={albumId} />
-          ) : null}
-        </div>
+        {/* Stage 2: similar albums (slow, lazy). Also gated by the
+            review-crawl marker — similar-album descriptions use Claude
+            too and belong on the same admin-approval fence. */}
+        {base.album.reviewsCrawledAt !== null && (
+          <div ref={similarRef} className="min-h-[280px]">
+            {!similarVisible ? null : similarLoading ? (
+              <SectionLoader text="비슷한 앨범을 찾고 있습니다..." />
+            ) : similarData?.similarAlbums && similarData.similarAlbums.length > 0 ? (
+              <SimilarAlbums albums={similarData.similarAlbums} albumId={albumId} />
+            ) : null}
+          </div>
+        )}
 
         {/* Prev / Next album navigation */}
         {showNav && (

@@ -16,20 +16,16 @@ import {
 import { useMyAlbumRequests } from '../hooks/useAlbumRequests';
 
 const REQUEST_STATUS_META: Record<
-  'pending' | 'approved' | 'discarded',
+  'pending' | 'approved',
   { label: string; className: string }
 > = {
   pending: {
-    label: '검토 중',
-    className: 'bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30',
+    label: '리뷰 수집 대기',
+    className: 'bg-white/5 text-gray-400 border border-white/10',
   },
   approved: {
     label: '등록됨',
     className: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
-  },
-  discarded: {
-    label: '반려됨',
-    className: 'bg-white/5 text-gray-400 border border-white/10',
   },
 };
 
@@ -332,10 +328,12 @@ export default function Profile() {
             </section>
           )}
 
-          {/* My album requests — admin-review status 확인용 ─────── */}
+          {/* My submitted albums. "리뷰 수집 대기" = admin hasn't run
+              the Claude review-crawl yet; "등록됨" = done. Both are
+              clickable — the album page works either way. */}
           <section>
             <h2 className="text-xl font-serif text-white mb-4">
-              내 등록 요청
+              내 등록 앨범
               {myRequests.data && (
                 <span className="ml-2 text-sm text-gray-500 font-sans">
                   {myRequests.data.requests.length}
@@ -382,23 +380,23 @@ export default function Profile() {
                   );
                   return (
                     <li key={r.id}>
-                      {r.status === 'approved' ? (
-                        <Link
-                          to={`/album/${r.mbid}`}
-                          className="block hover:brightness-110 transition"
-                        >
-                          {body}
-                        </Link>
-                      ) : (
-                        body
-                      )}
+                      {/* Every row now links to the album page — the
+                          album exists from the moment of submission,
+                          even if the review crawl is still waiting on
+                          admin approval. */}
+                      <Link
+                        to={`/album/${r.mbid}`}
+                        className="block hover:brightness-110 transition"
+                      >
+                        {body}
+                      </Link>
                     </li>
                   );
                 })}
               </ul>
             ) : (
               <div className="text-sm text-gray-500">
-                아직 등록 요청한 앨범이 없습니다. 상단 + 버튼으로 요청해보세요.
+                아직 등록한 앨범이 없습니다. 상단 + 버튼으로 등록해보세요.
               </div>
             )}
           </section>

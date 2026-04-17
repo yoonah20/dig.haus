@@ -162,10 +162,17 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     }
   }, []);
 
+  // User-submitted albums whose review crawl hasn't run yet get a
+  // subtle opacity dim — reads as "incomplete" without shouting
+  // "pending approval". Only explicit `null` dims; `undefined`
+  // (older client / pre-redeploy cache) stays bright to avoid a
+  // transient dimming of fully-indexed albums.
+  const shouldDim = album.reviewsCrawledAt === null;
+
   return (
     <Link
       to={`/album/${album.mbid}`}
-      className={`block album-card-outer relative${isActive ? ' is-active' : ''}`}
+      className={`block album-card-outer relative${isActive ? ' is-active' : ''}${shouldDim ? ' album-card-dim' : ''}`}
       onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}

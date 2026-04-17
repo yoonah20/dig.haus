@@ -8,7 +8,7 @@ import { resolveApiUrl } from '../utils/apiUrl';
 import {
   useAlbumRequests,
   useApproveAlbumRequest,
-  useDiscardAlbumRequest,
+  useDeletePendingAlbum,
   type AlbumRequest,
 } from '../hooks/useAlbumRequests';
 import {
@@ -165,48 +165,52 @@ function EmptyRow({ children }: { children: ReactNode }) {
   return <div className="p-4 text-sm text-gray-500">{children}</div>;
 }
 
-// Compact pending-request row for the admin dashboard. Replaces the
-// old full-card AlbumRequestCard (used when the feature hijacked the
-// homepage sort dropdown). Here we just need a scannable list entry
-// with the two action buttons inline.
+// Compact pending-review row for the admin dashboard. The album row
+// already exists in the DB — "승인" runs the deferred Claude review-
+// crawl (sets reviews_crawled_at and fires warm-up); "삭제" removes
+// the album entirely via the existing admin delete route and the FK
+// cascade wipes any user-contributed 50자 평 / purchase links with it.
 function RequestRow({ request }: { request: AlbumRequest }) {
   const approve = useApproveAlbumRequest();
-  const discard = useDiscardAlbumRequest();
-  const busy = approve.isPending || discard.isPending;
+  const del = useDeletePendingAlbum();
+  const busy = approve.isPending || del.isPending;
 
   const handleApprove = async () => {
     if (busy) return;
     if (
       !confirm(
-        `"${request.artist} — ${request.title}" 을(를) 등록할까요?\n\nClaude 파이프라인(리뷰/음차/유사작) 이 즉시 실행됩니다.`
+        `"${request.artist} — ${request.title}" 의 리뷰 수집을 시작할까요?\n\nClaude 파이프라인(리뷰/유사작)이 실행됩니다.`
       )
     )
       return;
     try {
       await approve.mutateAsync(request.mbid);
     } catch (err: any) {
-      alert(err?.response?.data?.error || '등록에 실패했습니다.');
+      alert(err?.response?.data?.error || '승인에 실패했습니다.');
     }
   };
 
-  const handleDiscard = async () => {
+  const handleDelete = async () => {
     if (busy) return;
-    if (!confirm(`"${request.artist} — ${request.title}" 요청을 무시할까요?`)) return;
+    if (
+      !confirm(
+        `"${request.artist} — ${request.title}" 앨범을 삭제할까요?\n이 앨범에 달린 50자 평·구매처 등록도 함께 사라집니다.`
+      )
+    )
+      return;
     try {
-      await discard.mutateAsync(request.mbid);
+      await del.mutateAsync(request.mbid);
     } catch (err: any) {
-      alert(err?.response?.data?.error || '무시 처리에 실패했습니다.');
+      alert(err?.response?.data?.error || '삭제에 실패했습니다.');
     }
   };
-
-  // First note (if any) to surface inline under the artist/title; the
-  // admin gets social context without us rendering a full stack.
-  const firstNote = request.requesters.find((r) => r.notes && r.notes.trim())?.notes ?? null;
-  const firstRequester = request.requesters[0];
 
   return (
     <div className="p-3 flex items-start gap-3">
-      <div className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden">
+      <Link
+        to={`/album/${request.mbid}`}
+        className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden"
+      >
         {request.coverArtUrl ? (
           <img
             src={request.coverArtUrl}
@@ -219,17 +223,22 @@ function RequestRow({ request }: { request: AlbumRequest }) {
             }}
           />
         ) : null}
-      </div>
+      </Link>
       <div className="flex-1 min-w-0">
-        <p className="text-base text-white font-medium truncate">{request.title}</p>
+        <Link
+          to={`/album/${request.mbid}`}
+          className="text-base text-white font-medium hover:text-[#e8a020] truncate block"
+        >
+          {request.title}
+        </Link>
         <p className="text-sm text-gray-400 truncate">
           {request.artist}
           {request.year && ` · ${request.year}`}
         </p>
         <p className="text-xs text-gray-500 truncate mt-0.5">
-          {firstRequester?.userName || '익명'}
-          {request.requestCount > 1 && ` 외 ${request.requestCount - 1}명`}
-          {firstNote && <> · “{firstNote}”</>}
+          {request.requester?.userName || '알 수 없음'}
+          <span className="text-gray-600 mx-1.5">·</span>
+          {formatRelativeKo(request.createdAt)}
         </p>
       </div>
       <div className="flex flex-col gap-1 shrink-0">
@@ -238,14 +247,14 @@ function RequestRow({ request }: { request: AlbumRequest }) {
           disabled={busy}
           className="text-xs font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
-          {approve.isPending ? '…' : '등록'}
+          {approve.isPending ? '…' : '승인'}
         </button>
         <button
-          onClick={handleDiscard}
+          onClick={handleDelete}
           disabled={busy}
-          className="text-xs text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          className="text-xs text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
-          {discard.isPending ? '…' : '무시'}
+          {del.isPending ? '…' : '삭제'}
         </button>
       </div>
     </div>
@@ -435,14 +444,14 @@ export default function Admin() {
             {/* ── Column 1: 등록요청 / API 사용량 / 미완 앨범 ────────── */}
             <div className="flex flex-col gap-4">
               <Panel
-                title="등록 요청 앨범"
+                title="리뷰 수집 대기"
                 icon="📥"
                 count={pendingRequests.length}
               >
                 {requestsQuery.isLoading ? (
                   <EmptyRow>불러오는 중…</EmptyRow>
                 ) : pendingRequests.length === 0 ? (
-                  <EmptyRow>대기 중인 요청이 없습니다.</EmptyRow>
+                  <EmptyRow>리뷰 수집을 기다리는 앨범이 없습니다.</EmptyRow>
                 ) : (
                   pendingRequests.map((req) => (
                     <RequestRow key={req.mbid} request={req} />

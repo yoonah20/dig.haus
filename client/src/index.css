@@ -149,6 +149,20 @@ body {
   border-right: 11px solid var(--tail-fill, rgba(255, 255, 255, 0.04));
 }
 
+/* User-submitted albums awaiting an admin review-crawl. The dim reads
+   as "incomplete" against neighbouring full-brightness cards — enough
+   of a visual hint without a corner badge. Hover restores full
+   opacity so the card's flip-to-back animation isn't obscured. */
+.album-card-outer.album-card-dim {
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+.album-card-outer.album-card-dim:hover,
+.album-card-outer.album-card-dim:focus-within,
+.album-card-outer.album-card-dim.is-active {
+  opacity: 1;
+}
+
 /* Album-grid reveal. Pure vertical translate — no scale, no overshoot
    — so the card reads as "dropped from above" rather than "popped
    into place". Starts 72px above the target; the ease-in timing

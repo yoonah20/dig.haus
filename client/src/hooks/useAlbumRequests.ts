@@ -1,16 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 
-// One admin-grid row. Multiple user rows collapse into one entry per
-// mbid server-side; request_count + requesters power the social-proof
-// stack of avatars on the card.
+// Admin dashboard row: one user-submitted album awaiting review crawl.
+// Now backed by the `albums` table directly (reviews_crawled_at IS
+// NULL), not the legacy `album_requests` table — so there's exactly
+// one requester per row, not a collapsed stack.
 export interface AlbumRequestRequester {
-  id: number;
-  userId: number | null;
+  userId: number;
   userName: string | null;
   userAvatar: string | null;
-  notes: string | null;
-  createdAt: string;
 }
 
 export interface AlbumRequest {
@@ -19,12 +17,13 @@ export interface AlbumRequest {
   artist: string;
   year: number | null;
   coverArtUrl: string | null;
-  firstRequestedAt: string;
-  requestCount: number;
-  requesters: AlbumRequestRequester[];
+  coverArtFallbacks?: string[];
+  createdAt: string;
+  requester: AlbumRequestRequester | null;
 }
 
-// Shown in Profile → "내 등록 요청". One row per request (not grouped).
+// Profile → "내 등록한 앨범". Status is derived from the album's
+// reviews_crawled_at server-side.
 export interface MyAlbumRequest {
   id: number;
   mbid: string;
@@ -32,7 +31,7 @@ export interface MyAlbumRequest {
   artist: string;
   year: number | null;
   coverArtUrl: string | null;
-  status: 'pending' | 'approved' | 'discarded';
+  status: 'pending' | 'approved';
   createdAt: string;
   decidedAt: string | null;
 }
@@ -41,9 +40,7 @@ export function useAlbumRequests(enabled: boolean) {
   return useQuery<{ requests: AlbumRequest[] }>({
     queryKey: ['album-requests', 'pending'],
     queryFn: async () => {
-      const { data } = await axios.get('/api/album-requests', {
-        params: { status: 'pending' },
-      });
+      const { data } = await axios.get('/api/album-requests');
       return data;
     },
     enabled,
@@ -83,29 +80,39 @@ export function useApproveAlbumRequest() {
       );
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, mbid) => {
       qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
-      // The approved album now exists — bust the homepage list so a
-      // sort switch back to the main grid shows it.
+      // Bust every cached album-list view so the newly-approved
+      // album un-dims on the home grid.
       qc.invalidateQueries({ queryKey: ['album-list'] });
       qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
       qc.invalidateQueries({ queryKey: ['me-album-requests'] });
+      // Album detail page picks up the new reviews_crawled_at stamp
+      // — the placeholder section swaps to the review loader on
+      // next render.
+      qc.invalidateQueries({ queryKey: ['album', mbid] });
     },
   });
 }
 
-export function useDiscardAlbumRequest() {
+// Admin action — deletes the user-submitted album entirely. Cascade
+// FKs wipe purchase_links, user_reviews, votes, reports, etc. Used
+// from the "리뷰 수집 대기" panel as the "삭제" button next to
+// "승인"; the explicit "reject" button is gone (same outcome, less
+// friction).
+export function useDeletePendingAlbum() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (mbid: string) => {
-      const { data } = await axios.post(
-        `/api/album-requests/${encodeURIComponent(mbid)}/discard`
-      );
-      return data;
+      await axios.delete(`/api/albums/${encodeURIComponent(mbid)}`);
+      return mbid;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
+      qc.invalidateQueries({ queryKey: ['album-list'] });
+      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
       qc.invalidateQueries({ queryKey: ['me-album-requests'] });
+      qc.invalidateQueries({ queryKey: ['admin-stats'] });
     },
   });
 }

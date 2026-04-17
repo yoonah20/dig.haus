@@ -28,6 +28,10 @@ export interface AlbumSearchResult {
   isVinylWall?: boolean;
   priceTagLinks?: PriceTagLink[];
   genres?: string[];
+  /** NULL until admin approves the review-search crawl. Home grid
+   *  dims cards with null; detail page swaps a placeholder into the
+   *  review section. */
+  reviewsCrawledAt?: string | null;
 }
 
 export interface AuthUser {

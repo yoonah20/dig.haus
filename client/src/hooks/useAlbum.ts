@@ -19,6 +19,9 @@ interface AlbumBase {
     upvotes?: number;
     downvotes?: number;
     userVote?: 'up' | 'down' | null;
+    /** NULL when the album is user-submitted and admin hasn't yet
+     *  triggered the review-crawl pipeline. */
+    reviewsCrawledAt: string | null;
   };
   streaming: {
     spotify: string | null;
