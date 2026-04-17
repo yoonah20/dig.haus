@@ -495,6 +495,32 @@ export function initializeDatabase(db: Database.Database): void {
     'status TEXT',
   ]);
 
+  // Admin digest email tracking — see jobs/requestNotifier.ts. NULL =
+  // request hasn't been rolled into an admin email yet; populated with
+  // the send timestamp once the 5-minute batch job emails it out.
+  migrateTable(db, 'album_requests', ['admin_notified_at TEXT']);
+
+  // One-time backfill for requests that existed BEFORE the notifier
+  // shipped — treat them as already-notified so the first post-deploy
+  // tick doesn't flood the admin inbox with a huge digest of historic
+  // requests. Idempotent via schema_migrations.
+  try {
+    const row = db
+      .prepare(`SELECT name FROM schema_migrations WHERE name = ?`)
+      .get('backfill-admin-notified-at-2026-04-17') as { name: string } | undefined;
+    if (!row) {
+      db.exec(
+        `UPDATE album_requests SET admin_notified_at = datetime('now') WHERE admin_notified_at IS NULL`
+      );
+      db.prepare(`INSERT INTO schema_migrations (name) VALUES (?)`).run(
+        'backfill-admin-notified-at-2026-04-17'
+      );
+      console.log('[migration] backfilled admin_notified_at on existing album_requests');
+    }
+  } catch (err) {
+    console.error('[migration] backfill admin_notified_at failed:', err);
+  }
+
   // Backfill: pre-existing sold-out rows lose no fidelity when we swap to the
   // `status` enum. Idempotent — admins who later edit the row can only do so
   // via `status`, so once it's set this WHERE clause no longer matches.

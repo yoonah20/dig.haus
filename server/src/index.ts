@@ -13,6 +13,7 @@ dotenv.config();
 import { initDb, closeDb, getDb } from './db/index.js';
 import { configurePassport } from './auth/passport.js';
 import { startRankScheduler } from './jobs/rankScheduler.js';
+import { startRequestNotifier } from './jobs/requestNotifier.js';
 import { warmExchangeRates } from './services/exchangeRates.js';
 import searchRouter from './routes/search.js';
 import albumsRouter from './routes/albums.js';
@@ -112,6 +113,7 @@ async function start() {
   app.use(sitemapRouter);
 
   startRankScheduler();
+  startRequestNotifier();
   warmExchangeRates();
 
   server = app.listen(PORT, () => {
