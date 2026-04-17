@@ -117,6 +117,33 @@ body {
   border-right: 11px solid var(--tail-fill, rgba(255, 255, 255, 0.04));
 }
 
+/* Mirrored variant — tail emerges from the right edge so the bubble can
+   sit next to an avatar placed on its right. Used in the mobile feed
+   ticker cards for an alternating-orientation rhythm. */
+.bubble-tail-right {
+  position: relative;
+}
+.bubble-tail-right::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20px;
+  transform: translateX(100%);
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
+  border-left: 12px solid var(--tail-border, rgba(255, 255, 255, 0.12));
+}
+.bubble-tail-right::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 21px;
+  transform: translateX(100%);
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 11px solid var(--tail-fill, rgba(255, 255, 255, 0.04));
+}
+
 /* Album card — hover / tap flips the card 180° on Y axis to reveal
    info on the back. Touch devices add `.is-active` via JS after the
    first tap; a second tap (anywhere on the card) navigates. */

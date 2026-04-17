@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { CSSProperties } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import CoverArt from '../CoverArt';
 import { useUserReviewsFeed, type UserReviewFeedItem } from '../../hooks/useUserReviewsFeed';
 import { resolveApiUrl } from '../../utils/apiUrl';
@@ -7,10 +7,11 @@ import { resolveApiUrl } from '../../utils/apiUrl';
 // Seconds each item is visible during one scroll pass — higher = slower.
 const SECONDS_PER_ITEM = 7;
 
-// Fixed width per ticker card so the CSS marquee math stays clean — the
-// track's total width is predictable and translateX(-50%) lands the
-// duplicate tail exactly where the head started.
-const ITEM_WIDTH_PX = 320;
+// Upper bound on a ticker card's width. Cards size to content (body
+// wraps to fit), but we cap the maximum so a long 50자 평 wraps to 2–3
+// lines rather than sprawling in a single very wide row. Mobile
+// (fullWidth) ignores this cap and uses the viewport width instead.
+const MAX_ITEM_WIDTH_PX = 370;
 const ITEM_GAP_PX = 16;
 
 const RATING_EMOJI: Record<'up' | 'down' | 'soso', string> = {
@@ -44,7 +45,16 @@ function Avatar({
   size: number;
 }) {
   const resolved = resolveApiUrl(src);
-  if (resolved) {
+  // Runtime fallback: if the <img> 404s (e.g. a custom avatar whose file
+  // was lost from the volume but whose URL still lives in the DB), swap
+  // to the initial-letter placeholder instead of showing the broken-image
+  // icon. Reset on src change so a successful re-upload can recover.
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    setFailed(false);
+  }, [resolved]);
+
+  if (resolved && !failed) {
     return (
       <img
         src={resolved}
@@ -53,6 +63,7 @@ function Avatar({
         className="rounded-full object-cover shrink-0 border border-white/10"
         style={{ width: size, height: size }}
         referrerPolicy="no-referrer"
+        onError={() => setFailed(true)}
       />
     );
   }
@@ -74,13 +85,25 @@ function Avatar({
 // chars still fit on one line without forcing weird 4-char wraps).
 const CJK_RE = /[\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]/;
 
-function TickerItem({ item }: { item: UserReviewFeedItem }) {
+export function TickerItem({
+  item,
+  fullWidth = false,
+  orientation = 'left',
+}: {
+  item: UserReviewFeedItem;
+  fullWidth?: boolean;
+  /** 'left' (default) = avatar on the left, tail points left.
+   *  'right' = mirrored: avatar on the right, tail points right.
+   *  Used in the mobile feed to alternate rows for visual rhythm. */
+  orientation?: 'left' | 'right';
+}) {
   const isAnon = item.userId == null;
   const displayName = isAnon ? '탈퇴한 사용자' : item.userName || '익명';
   const isCjk = CJK_RE.test(displayName);
   const ratingEmoji = item.rating ? RATING_EMOJI[item.rating] : null;
   const feelingEmoji = item.emoji;
   const hasBadges = !!(ratingEmoji || feelingEmoji);
+  const reversed = orientation === 'right';
 
   return (
     <Link
@@ -89,8 +112,11 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
       // browsers would render it as a tooltip revealing the album name,
       // which defeats the "저건 어떤 앨범일까?" mystery. Album identity
       // still lives in aria-label for screen readers.
-      className="group shrink-0 flex items-start gap-3"
-      style={{ width: ITEM_WIDTH_PX }}
+      // fullWidth mode (mobile feed) drops the fixed 320px width so the
+      // card stretches edge-to-edge; the scrolling marquee keeps its
+      // fixed width for seamless-loop math.
+      className={`group flex items-start gap-3 ${fullWidth ? '' : 'shrink-0'} ${reversed ? 'flex-row-reverse' : ''}`}
+      style={fullWidth ? undefined : { maxWidth: MAX_ITEM_WIDTH_PX }}
       aria-label={`${displayName}의 50자 평: ${item.body}. ${item.albumArtist ?? ''} — ${item.albumTitle} 로 이동`}
     >
       {/* Left column — avatar + display name. pt-1 puts the avatar
@@ -124,40 +150,29 @@ function TickerItem({ item }: { item: UserReviewFeedItem }) {
       </div>
 
       {/* Speech bubble — body on the left (flex-1), blurred cover
-          attached on the right inside the same bubble. Padding is
-          tighter now that the emoji badges sit above the bubble. */}
+          attached on the right inside the same bubble. When reversed,
+          inner order flips too so the cover hugs the bubble edge
+          opposite the avatar. */}
       <div
-        className="bubble-tail flex-1 min-w-0 flex items-center gap-3 rounded-2xl border px-3 py-2.5 min-h-[64px] group-hover:border-[#e8a020]/50 transition-colors"
+        className={`${reversed ? 'bubble-tail-right flex-row-reverse' : 'bubble-tail'} flex-1 min-w-0 flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 min-h-[64px] group-hover:border-[#e8a020]/50 transition-colors`}
         style={BUBBLE_STYLE}
       >
-        {/* Emoji badges — overlap the bubble's top-right edge, same
-            pattern as the 50자 평 cards on the album detail page so
-            the two surfaces feel like they're speaking the same
-            visual language. */}
-        {hasBadges && (
-          <div
-            // right-1 pulls the second badge almost flush with the
-            // card's top-right corner — the "peeking over the edge"
-            // look the user wanted vs. right-3 which sat well inside
-            // the padding.
-            className="absolute -top-3 right-1 z-10 flex items-center gap-1 pointer-events-none select-none"
-            aria-hidden
-          >
-            {ratingEmoji && (
-              <span className="text-lg leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]">
-                {ratingEmoji}
-              </span>
-            )}
-            {feelingEmoji && (
-              <span className="text-xl leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.55)]">
-                {feelingEmoji}
-              </span>
-            )}
-          </div>
-        )}
-
-        <p className="flex-1 min-w-0 text-gray-100 text-[13px] leading-snug line-clamp-3 break-words">
+        {/* Body with trailing rating + feeling emojis — the 50자 cap
+            combined with the card's max-width means the text wraps to
+            ≤3 lines naturally, so no line-clamp is needed and nothing
+            gets truncated. The emojis sit at the end of the text
+            (whitespace-nowrap keeps them glued to the final word and
+            to each other) so they read as punctuation rather than a
+            separate badge. */}
+        <p className="flex-1 min-w-0 text-gray-100 text-[13px] leading-snug break-words">
           {item.body}
+          {hasBadges && (
+            <span className="whitespace-nowrap" aria-hidden>
+              {' '}
+              {ratingEmoji && <span className="leading-none">{ratingEmoji}</span>}
+              {feelingEmoji && <span className="leading-none">{feelingEmoji}</span>}
+            </span>
+          )}
         </p>
         {/* Blurred cover — the mystery. Default blur shows shape and
             palette but no detail; hover lifts most of the blur so the
@@ -200,13 +215,12 @@ export default function CommentTicker() {
     // pagination nav. aria-label keeps it announced for SR users.
     // pt-8 to visually separate from the pagination; pb-2 keeps the
     // emoji overhang from touching the next section.
-    <section className="comment-ticker relative pt-12 pb-2" aria-label="최근 50자 평">
+    <section className="comment-ticker relative pt-12" aria-label="최근 50자 평">
       {/* Outer wrapper owns the fade masks so content slides in/out of
           the gutters gracefully instead of appearing/vanishing at a hard
-          edge. Padding top leaves room for emoji badges that overlap
-          the bubble's top edge. */}
+          edge. */}
       <div
-        className="relative overflow-hidden pt-3"
+        className="relative overflow-hidden"
         style={{
           maskImage:
             'linear-gradient(to right, transparent, black 48px, black calc(100% - 48px), transparent)',

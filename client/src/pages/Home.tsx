@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   useInfiniteQuery,
   useQuery,
@@ -7,9 +7,10 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
-import CommentTicker from '../components/Home/CommentTicker';
+import CommentTicker, { TickerItem } from '../components/Home/CommentTicker';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
+import { useUserReviewsFeed } from '../hooks/useUserReviewsFeed';
 import { useHomeState } from '../contexts/HomeStateContext';
 import type { AlbumSearchResult } from '../types';
 import { type SortValue } from '../lib/homeSort';
@@ -156,6 +157,24 @@ export default function Home() {
     ? mobileQuery.isLoading
     : desktopQuery.isLoading;
 
+  // Mobile-only: pull the same user-reviews feed the desktop ticker uses,
+  // so we can interleave one static card below each 10-album batch. The
+  // desktop ticker already fetches this on its own render — the shared
+  // react-query cache key means desktop keeps working without refetching.
+  const feedQuery = useUserReviewsFeed(isMobile && albums.length > 0);
+  // Shuffle once per feed payload so successive batches pull different
+  // comments without reshuffling on every re-render (and without
+  // reshuffling just because the user scrolled another page into view).
+  const shuffledFeed = useMemo(() => {
+    const src = feedQuery.data?.items ?? [];
+    const arr = [...src];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }, [feedQuery.data?.items]);
+
   // Mobile: bottom sentinel that pulls the next page in when it scrolls into
   // view. Observer is created exactly once (after the first batch mounts)
   // — `mobileQuery` is read through a ref so the callback always sees fresh
@@ -212,7 +231,7 @@ export default function Home() {
   const items = paginationItems(page, totalPages);
 
   return (
-    <div className="flex-1 flex flex-col px-4 pt-12">
+    <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
         {/* Top bar (count / page info / sort) was removed — sort lives
             in TopNav as an icon, count moved into the footer below.
@@ -221,6 +240,52 @@ export default function Home() {
           <div className="text-center py-20 text-sm text-gray-500">불러오는 중...</div>
         ) : albums.length === 0 ? (
           <div className="text-center py-20 text-sm text-gray-500">등록된 앨범이 없습니다.</div>
+        ) : isMobile ? (
+          // Mobile: render each infinite-scroll batch as its own grid, with
+          // a single static ticker card sandwiched between batches. The
+          // batch boundaries already match the user's reading rhythm
+          // (450ms pause + 10 new cards), so a comment slotted in here
+          // feels like a natural beat rather than a separate section.
+          <div className="flex flex-col gap-5">
+            {mobileQuery.data?.pages.map((p, i) => {
+              // Two cards per batch, alternating orientation so one
+              // leans left (avatar + tail on the left) and the next
+              // leans right. Pulls sequential items from the shuffled
+              // feed and wraps around if the feed is shorter than
+              // (pages × 2).
+              const pair =
+                shuffledFeed.length > 0
+                  ? [
+                      shuffledFeed[(i * 2) % shuffledFeed.length],
+                      shuffledFeed[(i * 2 + 1) % shuffledFeed.length],
+                    ]
+                  : [];
+              return (
+                <Fragment key={i}>
+                  <div className="grid grid-cols-2 gap-5">
+                    {p.albums.map((album) => (
+                      <AlbumCard key={album.mbid} album={album} />
+                    ))}
+                  </div>
+                  {pair.length > 0 && (
+                    // Emojis now live inline under each name (not
+                    // overhanging the bubble), so the wrapper no longer
+                    // needs pt-3 reserved headroom.
+                    <div className="flex flex-col gap-4">
+                      {pair.map((item, idx) => (
+                        <TickerItem
+                          key={`${i}-${item.id}`}
+                          item={item}
+                          fullWidth
+                          orientation={idx === 0 ? 'left' : 'right'}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </Fragment>
+              );
+            })}
+          </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
             {albums.map((album) => (
