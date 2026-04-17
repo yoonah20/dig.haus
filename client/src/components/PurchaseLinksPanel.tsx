@@ -491,23 +491,10 @@ function LinkForm({
           />
         </label>
 
-        {/* Format + price together on one row. Both are compact and
-            have obvious fixed widths so nothing wraps unexpectedly. */}
+        {/* Price first so the URL → price tab order matches how the
+            link is actually being described ("this costs $25"),
+            followed by the pickers that don't take keyboard input. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div>
-            <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
-              포맷
-            </span>
-            <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
-              {FORMATS.map((f) => (
-                <SegButton key={f} active={format === f} onClick={() => setFormat(f)}>
-                  <span className="mr-1">{FORMAT_EMOJI[f]}</span>
-                  {f}
-                </SegButton>
-              ))}
-            </div>
-          </div>
-
           <div>
             <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
               가격 (선택)
@@ -530,6 +517,20 @@ function LinkForm({
                   title={c}
                 >
                   {CURRENCY_SYMBOL[c]}
+                </SegButton>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
+              포맷
+            </span>
+            <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
+              {FORMATS.map((f) => (
+                <SegButton key={f} active={format === f} onClick={() => setFormat(f)}>
+                  <span className="mr-1">{FORMAT_EMOJI[f]}</span>
+                  {f}
                 </SegButton>
               ))}
             </div>

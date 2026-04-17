@@ -445,7 +445,7 @@ export default function Profile() {
           살거 / 등록) so the page feels like a profile dashboard
           rather than just a settings screen. */}
       {me && (
-        <section className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] gap-4">
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Identity / settings card */}
           <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-5 border border-white/5 space-y-4">
             <AvatarEditor

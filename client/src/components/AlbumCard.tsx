@@ -73,9 +73,9 @@ function CoverStickerBadge({ kind }: { kind: 'new' | 'hot' }) {
         background: palette.bg,
         color: palette.fg,
         fontFamily: "'Syne', 'Inter', sans-serif",
-        fontSize: '9.2px',
+        fontSize: '8.3px',
         letterSpacing: '0.06em',
-        padding: '2.5px 6px',
+        padding: '2.2px 5.4px',
         lineHeight: 1,
       }}
       aria-label={palette.aria}
