@@ -11,8 +11,20 @@ const WEEK = 7 * DAY;
 const MONTH = 30 * DAY;
 const YEAR = 365 * DAY;
 
+// SQLite's datetime('now') returns a bare "YYYY-MM-DD HH:MM:SS" string
+// in UTC — no timezone suffix. Browsers parse that as *local* time,
+// which made Korean users see "9시간 전" on albums they'd just
+// registered. Normalise by treating any bare datetime string as UTC.
+export function parseServerTimestamp(iso: string | Date): Date {
+  if (iso instanceof Date) return iso;
+  const hasTz = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso);
+  if (hasTz) return new Date(iso);
+  const normalised = iso.includes('T') ? iso : iso.replace(' ', 'T');
+  return new Date(`${normalised}Z`);
+}
+
 export function formatRelativeKo(iso: string | Date, now: Date = new Date()): string {
-  const then = typeof iso === 'string' ? new Date(iso) : iso;
+  const then = parseServerTimestamp(iso);
   if (isNaN(then.getTime())) return '';
   const diff = now.getTime() - then.getTime();
   if (diff < MINUTE) return '방금';

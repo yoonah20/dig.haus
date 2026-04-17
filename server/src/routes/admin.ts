@@ -206,10 +206,16 @@ router.get('/stats', (_req, res) => {
   // "something to click into", not a full inventory.
   const INCOMPLETE_LIMIT = 5;
 
+  // Exclude review-collection-pending albums (reviews_crawled_at IS NULL)
+  // from every bucket — those are already surfaced in "리뷰 수집 대기"
+  // and shouldn't double-count against the backlog here.
+  const PENDING_FILTER = 'a.reviews_crawled_at IS NOT NULL';
+
   const noReviews = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
      FROM albums a
-     WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)
+     WHERE ${PENDING_FILTER}
+       AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)
      ORDER BY a.created_at DESC
      LIMIT ?`,
     [INCOMPLETE_LIMIT]
@@ -218,7 +224,8 @@ router.get('/stats', (_req, res) => {
   const noSummary = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
      FROM albums a
-     WHERE (a.korean_summary IS NULL OR a.korean_summary = '')
+     WHERE ${PENDING_FILTER}
+       AND (a.korean_summary IS NULL OR a.korean_summary = '')
      ORDER BY a.created_at DESC
      LIMIT ?`,
     [INCOMPLETE_LIMIT]
@@ -227,7 +234,8 @@ router.get('/stats', (_req, res) => {
   const noCover = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
      FROM albums a
-     WHERE (a.cover_art_url IS NULL OR a.cover_art_url = '')
+     WHERE ${PENDING_FILTER}
+       AND (a.cover_art_url IS NULL OR a.cover_art_url = '')
      ORDER BY a.created_at DESC
      LIMIT ?`,
     [INCOMPLETE_LIMIT]
@@ -237,15 +245,18 @@ router.get('/stats', (_req, res) => {
   // knows how big the backlog is.
   const noReviewsCount = queryGet(
     `SELECT COUNT(*) AS n FROM albums a
-     WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)`
+     WHERE ${PENDING_FILTER}
+       AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)`
   )?.n || 0;
   const noSummaryCount = queryGet(
     `SELECT COUNT(*) AS n FROM albums a
-     WHERE (a.korean_summary IS NULL OR a.korean_summary = '')`
+     WHERE ${PENDING_FILTER}
+       AND (a.korean_summary IS NULL OR a.korean_summary = '')`
   )?.n || 0;
   const noCoverCount = queryGet(
     `SELECT COUNT(*) AS n FROM albums a
-     WHERE (a.cover_art_url IS NULL OR a.cover_art_url = '')`
+     WHERE ${PENDING_FILTER}
+       AND (a.cover_art_url IS NULL OR a.cover_art_url = '')`
   )?.n || 0;
 
   function mapIncomplete(rows: any[]) {

@@ -473,7 +473,7 @@ function LinkForm({
     <div className="space-y-1.5">
       <form
         onSubmit={handleSubmit}
-        className="bg-[#141414] rounded-lg p-2 flex flex-col gap-2"
+        className="bg-[#141414] rounded-lg p-2 flex flex-col gap-2 max-w-2xl"
       >
         {/* Row 1: URL, price + currency, format — the core identity of
             the listing. Kept together so even at narrower widths these
@@ -484,7 +484,7 @@ function LinkForm({
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://..."
-            className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-[2] min-w-[180px]"
+            className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-1 min-w-[180px]"
             required
           />
 
@@ -544,7 +544,7 @@ function LinkForm({
             value={note}
             onChange={(e) => setNote(e.target.value.slice(0, 200))}
             placeholder="black, 180g, red/blue split..."
-            className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 flex-1 min-w-[140px]"
+            className="bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60 w-44"
           />
 
           <button

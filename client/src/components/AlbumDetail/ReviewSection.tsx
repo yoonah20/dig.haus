@@ -64,7 +64,6 @@ function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleSave}
-          placeholder="0-100 또는 -"
           title="0-100 숫자 또는 - (점수 없음)"
           className="w-12 bg-gray-800 border border-gray-600 rounded-md text-xs text-white text-center px-1 py-0.5"
         />
