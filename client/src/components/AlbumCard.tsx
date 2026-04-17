@@ -72,19 +72,69 @@ interface StickerSpec {
   fg: string;
   lines: string[];
   aria: string;
+  /** Per-sticker typography tuning. Defaults target the single-word
+   *  stickers (NEW / HOT / SALE); multi-line ones override to match
+   *  the visual footprint. PRE-ORDER and SOLD OUT need different
+   *  numbers because "ORDER" is 5 chars but "SOLD" is only 4 —
+   *  sharing one multi-line config made SOLD OUT look cramped
+   *  and PRE-ORDER slightly oversized. */
+  fontSize?: string;
+  letterSpacing?: string;
+  padding?: string;
+  lineHeight?: number;
+  minWidth?: string;
 }
 
 const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
-  new:      { bg: '#5aa9e6', fg: '#0b1d2e', lines: ['NEW'],          aria: '최근 30일 이내 발매' },
-  hot:      { bg: '#e84a3b', fg: '#ffffff', lines: ['HOT'],          aria: '굿굿 또는 별루 상위 10' },
-  preorder: { bg: '#2fa46a', fg: '#07231a', lines: ['PRE', 'ORDER'], aria: '발매 예정 구매처 있음' },
-  sale:     { bg: '#f5c542', fg: '#3a2400', lines: ['SALE'],         aria: '세일 중인 구매처 있음' },
-  soldout:  { bg: '#f08a3c', fg: '#2a1300', lines: ['SOLD', 'OUT'],  aria: '품절된 구매처 있음' },
+  new: {
+    bg: '#5aa9e6',
+    fg: '#0b1d2e',
+    lines: ['NEW'],
+    aria: '최근 30일 이내 발매',
+  },
+  hot: {
+    bg: '#e84a3b',
+    fg: '#ffffff',
+    lines: ['HOT'],
+    aria: '굿굿 또는 별루 상위 10',
+  },
+  preorder: {
+    bg: '#2fa46a',
+    fg: '#07231a',
+    lines: ['PRE', 'ORDER'],
+    aria: '발매 예정 구매처 있음',
+    // "ORDER" is 5 chars — tighter letter-spacing + smaller font keeps
+    // the chip from overshooting the single-word ones.
+    fontSize: '6.8px',
+    letterSpacing: '0.01em',
+    padding: '2px 2.5px',
+    lineHeight: 1.05,
+    minWidth: '28px',
+  },
+  sale: {
+    bg: '#f5c542',
+    fg: '#3a2400',
+    lines: ['SALE'],
+    aria: '세일 중인 구매처 있음',
+  },
+  soldout: {
+    bg: '#f08a3c',
+    fg: '#2a1300',
+    lines: ['SOLD', 'OUT'],
+    aria: '품절된 구매처 있음',
+    // "SOLD" is shorter than "ORDER" so this chip was shrinking below
+    // its neighbours. Pull font + padding closer to the single-word
+    // defaults; min-width matches the visual target.
+    fontSize: '7.5px',
+    letterSpacing: '0.04em',
+    padding: '2.1px 4px',
+    lineHeight: 1.05,
+    minWidth: '34px',
+  },
 };
 
 function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
   const palette = STICKER_PALETTE[kind];
-  const multiLine = palette.lines.length > 1;
   return (
     <span
       className="inline-flex flex-col items-center justify-center font-extrabold uppercase rounded-sm shadow-md"
@@ -92,16 +142,11 @@ function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
         background: palette.bg,
         color: palette.fg,
         fontFamily: "'Syne', 'Inter', sans-serif",
-        // Multi-line stickers dial down font + letter-spacing so they
-        // read at roughly the same chip width as the single-word
-        // ones (NEW / HOT / SALE). Horizontal padding drops too;
-        // without it, "PRE / ORDER" was visibly wider than the rest
-        // of the stack.
-        fontSize: multiLine ? '7.2px' : '8.3px',
-        letterSpacing: multiLine ? '0.02em' : '0.06em',
-        padding: multiLine ? '2px 3px' : '2.2px 5.4px',
-        lineHeight: multiLine ? 1.05 : 1,
-        minWidth: multiLine ? '30px' : undefined,
+        fontSize: palette.fontSize ?? '8.3px',
+        letterSpacing: palette.letterSpacing ?? '0.06em',
+        padding: palette.padding ?? '2.2px 5.4px',
+        lineHeight: palette.lineHeight ?? 1,
+        minWidth: palette.minWidth,
       }}
       aria-label={palette.aria}
     >
