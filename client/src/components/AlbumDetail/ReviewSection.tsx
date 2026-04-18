@@ -652,6 +652,7 @@ export default function ReviewSection({
                     type="text"
                     value={manualSource}
                     onChange={(e) => setManualSource(e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
                     disabled={savingReview}
                     placeholder="AllMusic 등"
                     maxLength={100}
