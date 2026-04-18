@@ -565,165 +565,6 @@ export default function ReviewSection({
         )}
       </h2>
 
-      {/* Form panel anchored at the top of the section so it stays
-          in a predictable spot next to the + 리뷰 추가 empty-slot
-          card below. The add card lives inside the reviews grid as
-          the last cell (matching the "빈 슬롯에 카드 담기" metaphor
-          the project uses elsewhere), and the form sits here so it
-          doesn't shove the review cards around when opened. */}
-      {isAdmin && addingReview && (
-        <div className="mb-6 bg-[#1a1a1a] rounded-lg p-4 space-y-3 border border-white/10 max-w-xl relative">
-          {/* Close chip top-right, window-style. Mouse travel from
-              the textarea save to a corner × is short, and the
-              primary 저장 button sits directly under the input so
-              the paste → save path is one downward move. */}
-          <button
-            type="button"
-            onClick={cancelAddReview}
-            disabled={savingReview}
-            aria-label="닫기"
-            title="닫기 (Esc)"
-            className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            ✕
-          </button>
-
-          <div className="flex gap-1 border-b border-white/10 pr-8">
-            <button
-              type="button"
-              onClick={() => setAddMode('url')}
-              disabled={savingReview}
-              className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
-                addMode === 'url'
-                  ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              URL
-            </button>
-            <button
-              type="button"
-              onClick={() => setAddMode('manual')}
-              disabled={savingReview}
-              className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
-                addMode === 'manual'
-                  ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              수동 입력
-            </button>
-          </div>
-
-          {addMode === 'url' ? (
-            <>
-              <label className="block text-xs text-gray-400">
-                리뷰 URL <span className="text-gray-600">(여러 개는 한 줄에 하나씩)</span>
-              </label>
-              <textarea
-                value={addUrl}
-                onChange={(e) => setAddUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    e.preventDefault();
-                    cancelAddReview();
-                  }
-                }}
-                disabled={savingReview}
-                placeholder={'https://angrymetalguy.com/...\nhttps://pitchfork.com/...'}
-                autoFocus
-                rows={4}
-                className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 font-mono"
-              />
-              <button
-                onClick={saveAddReview}
-                disabled={savingReview || !addUrl.trim()}
-                className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer"
-              >
-                {savingReview
-                  ? batchProgress
-                    ? `페이지 분석 중... ${batchProgress.current}/${batchProgress.total}`
-                    : '페이지 분석 중...'
-                  : '저장'}
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    사이트 이름 <span className="text-red-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={manualSource}
-                    onChange={(e) => setManualSource(e.target.value)}
-                    onFocus={(e) => e.currentTarget.select()}
-                    disabled={savingReview}
-                    placeholder="AllMusic 등"
-                    maxLength={100}
-                    className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">
-                    점수 <span className="text-gray-600">(선택)</span>
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={manualScore}
-                    onChange={(e) => setManualScore(e.target.value)}
-                    disabled={savingReview}
-                    placeholder="0-100"
-                    maxLength={3}
-                    className="w-20 bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">
-                  본문 텍스트 <span className="text-red-400">*</span>{' '}
-                  <span className="text-gray-600">(복사한 원문, 최소 50자)</span>
-                </label>
-                <textarea
-                  value={manualBody}
-                  onChange={(e) => setManualBody(e.target.value)}
-                  disabled={savingReview}
-                  rows={8}
-                  placeholder="기사 본문을 붙여넣으세요..."
-                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                />
-              </div>
-              {/* 원문 URL below the body — admin skips it often, so
-                  pushing it under the primary paste target keeps the
-                  required fields (site name + body) at the top of
-                  the form where they read first. */}
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">
-                  원문 URL <span className="text-gray-600">(선택)</span>
-                </label>
-                <input
-                  type="url"
-                  value={manualUrl}
-                  onChange={(e) => setManualUrl(e.target.value)}
-                  disabled={savingReview}
-                  placeholder="https://..."
-                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                />
-              </div>
-              <button
-                onClick={saveManualReview}
-                disabled={savingReview || !manualSource.trim() || manualBody.trim().length < 50}
-                className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer"
-              >
-                {savingReview ? '본문 분석 중...' : '저장'}
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
       <div className="space-y-6">
         {pendingNotice}
 
@@ -817,7 +658,7 @@ export default function ReviewSection({
             </div>
           )}
 
-          {(sortedReviews.length > 0 || (isAdmin && !addingReview)) && (
+          {(sortedReviews.length > 0 || isAdmin) && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {visibleReviews.map((review) => (
                 <ReviewCard key={review.id} review={review} onScoreSaved={handleScoreSaved} onRetranslated={handleScoreSaved} onDeleted={handleDeleted} />
@@ -835,9 +676,11 @@ export default function ReviewSection({
 
               {/* + 리뷰 추가 as the last cell of the reviews grid —
                   same dashed-card style as the "+N 더 보기" slot so
-                  the visual language stays consistent. Click empties
-                  the cell and opens the form panel up at the top of
-                  the section (see addingReview branch near the h2). */}
+                  the visual language stays consistent. When clicked,
+                  the cell itself expands into the form panel below
+                  (col-span-full) so the input appears right at the
+                  click location instead of jumping to the top of
+                  the section. */}
               {isAdmin && !addingReview && (
                 <button
                   type="button"
@@ -847,6 +690,156 @@ export default function ReviewSection({
                   <span className="text-2xl leading-none font-bold" aria-hidden>+</span>
                   <span className="text-sm font-medium">리뷰 추가</span>
                 </button>
+              )}
+
+              {isAdmin && addingReview && (
+                <div className="col-span-full bg-[#1a1a1a] rounded-lg p-4 space-y-3 border border-white/10 max-w-xl relative">
+                  {/* Close chip top-right, window-style. Mouse travel
+                      from the textarea save to a corner × is short,
+                      and the primary 저장 button sits directly under
+                      the input so the paste → save path is one
+                      downward move. */}
+                  <button
+                    type="button"
+                    onClick={cancelAddReview}
+                    disabled={savingReview}
+                    aria-label="닫기"
+                    title="닫기 (Esc)"
+                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    ✕
+                  </button>
+
+                  <div className="flex gap-1 border-b border-white/10 pr-8">
+                    <button
+                      type="button"
+                      onClick={() => setAddMode('url')}
+                      disabled={savingReview}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
+                        addMode === 'url'
+                          ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
+                          : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAddMode('manual')}
+                      disabled={savingReview}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
+                        addMode === 'manual'
+                          ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
+                          : 'text-gray-500 hover:text-gray-300'
+                      }`}
+                    >
+                      수동 입력
+                    </button>
+                  </div>
+
+                  {addMode === 'url' ? (
+                    <>
+                      <label className="block text-xs text-gray-400">
+                        리뷰 URL <span className="text-gray-600">(여러 개는 한 줄에 하나씩)</span>
+                      </label>
+                      <textarea
+                        value={addUrl}
+                        onChange={(e) => setAddUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            e.preventDefault();
+                            cancelAddReview();
+                          }
+                        }}
+                        disabled={savingReview}
+                        placeholder={'https://angrymetalguy.com/...\nhttps://pitchfork.com/...'}
+                        autoFocus
+                        rows={4}
+                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 font-mono"
+                      />
+                      <button
+                        onClick={saveAddReview}
+                        disabled={savingReview || !addUrl.trim()}
+                        className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer"
+                      >
+                        {savingReview
+                          ? batchProgress
+                            ? `페이지 분석 중... ${batchProgress.current}/${batchProgress.total}`
+                            : '페이지 분석 중...'
+                          : '저장'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">
+                            사이트 이름 <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={manualSource}
+                            onChange={(e) => setManualSource(e.target.value)}
+                            onFocus={(e) => e.currentTarget.select()}
+                            disabled={savingReview}
+                            placeholder="AllMusic 등"
+                            maxLength={100}
+                            className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">
+                            점수 <span className="text-gray-600">(선택)</span>
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={manualScore}
+                            onChange={(e) => setManualScore(e.target.value)}
+                            disabled={savingReview}
+                            placeholder="0-100"
+                            maxLength={3}
+                            className="w-20 bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          본문 텍스트 <span className="text-red-400">*</span>{' '}
+                          <span className="text-gray-600">(복사한 원문, 최소 50자)</span>
+                        </label>
+                        <textarea
+                          value={manualBody}
+                          onChange={(e) => setManualBody(e.target.value)}
+                          disabled={savingReview}
+                          rows={8}
+                          placeholder="기사 본문을 붙여넣으세요..."
+                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          원문 URL <span className="text-gray-600">(선택)</span>
+                        </label>
+                        <input
+                          type="url"
+                          value={manualUrl}
+                          onChange={(e) => setManualUrl(e.target.value)}
+                          disabled={savingReview}
+                          placeholder="https://..."
+                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                        />
+                      </div>
+                      <button
+                        onClick={saveManualReview}
+                        disabled={savingReview || !manualSource.trim() || manualBody.trim().length < 50}
+                        className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer"
+                      >
+                        {savingReview ? '본문 분석 중...' : '저장'}
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           )}
