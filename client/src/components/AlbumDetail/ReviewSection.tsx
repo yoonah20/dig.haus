@@ -520,8 +520,14 @@ export default function ReviewSection({
     return b.score - a.score;
   });
 
-  const needsExpand = sortedReviews.length > INITIAL_COUNT;
-  const visibleReviews = expanded ? sortedReviews : sortedReviews.slice(0, INITIAL_COUNT);
+  // Admin sees every review up front — the "+N 더 보기" card
+  // otherwise ends up next to the + 리뷰 추가 slot and makes the
+  // grid feel crowded for whoever's doing the registration work.
+  // Visitors still see the truncation so the section doesn't scroll
+  // forever on heavily-reviewed albums.
+  const needsExpand = !isAdmin && sortedReviews.length > INITIAL_COUNT;
+  const visibleReviews =
+    isAdmin || expanded ? sortedReviews : sortedReviews.slice(0, INITIAL_COUNT);
   const hiddenCount = sortedReviews.length - INITIAL_COUNT;
 
   return (
