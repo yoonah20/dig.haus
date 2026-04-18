@@ -396,6 +396,66 @@ function AddPurchaseLinkCard({ onClick }: { onClick: () => void }) {
   );
 }
 
+// Paste-from-clipboard affordance for URL fields. Only accepts values
+// that look like a URL (http/https) so a stray non-URL on the clipboard
+// doesn't clobber the field. Shows a brief ✓ flash on success so the
+// user sees something happened; silently ignores unsupported browsers
+// (Firefox on older versions, Safari without user permission) — the
+// manual long-press paste still works there.
+function PasteUrlButton({ onPaste }: { onPaste: (url: string) => void }) {
+  const [flash, setFlash] = useState<'ok' | 'reject' | null>(null);
+  const handle = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const text = (await navigator.clipboard.readText()).trim();
+      if (!/^https?:\/\//i.test(text)) {
+        setFlash('reject');
+        setTimeout(() => setFlash(null), 1500);
+        return;
+      }
+      onPaste(text);
+      setFlash('ok');
+      setTimeout(() => setFlash(null), 1500);
+    } catch {
+      // Permission denied or clipboard API unavailable — noop. User
+      // can fall back to the OS-level paste menu.
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={handle}
+      title={
+        flash === 'ok'
+          ? '붙여넣음'
+          : flash === 'reject'
+            ? '클립보드에 URL이 없어요'
+            : '클립보드에서 붙여넣기'
+      }
+      aria-label="클립보드에서 URL 붙여넣기"
+      className={`absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-7 rounded-md transition-colors cursor-pointer ${
+        flash === 'ok'
+          ? 'text-[#e8a020]'
+          : flash === 'reject'
+            ? 'text-red-400'
+            : 'text-gray-500 hover:text-[#e8a020] hover:bg-white/5'
+      }`}
+    >
+      {flash === 'ok' ? (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+          <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 function SegButton({
   active,
   onClick,
@@ -487,19 +547,26 @@ function LinkForm({
         className="bg-[#141414] rounded-xl border border-white/10 p-4 max-w-xl space-y-3.5"
       >
         {/* URL — full width, labelled, because it's the one required
-            field and people paste long URLs into it. */}
+            field and people paste long URLs into it. In-field paste
+            affordance sits on the right so mobile users don't have to
+            long-press → Paste. Tap is a user gesture, which is what
+            navigator.clipboard.readText needs to succeed on iOS
+            Safari (a silent read on focus/mount would be blocked). */}
         <label className="block">
           <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
             구매처 URL
           </span>
-          <input
-            type="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://..."
-            className="w-full bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60"
-            required
-          />
+          <div className="relative">
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://..."
+              className="w-full bg-black/30 text-white text-sm rounded-md pl-3 pr-12 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60"
+              required
+            />
+            <PasteUrlButton onPaste={(pasted) => setUrl(pasted)} />
+          </div>
         </label>
 
         {/* Price first so the URL → price tab order matches how the
