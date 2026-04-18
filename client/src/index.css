@@ -183,27 +183,25 @@ body {
   }
 }
 
-/* User-submitted albums awaiting an admin review-crawl. We tint the
-   cover amber and darken it so it reads as "incomplete, pending" on
-   the grid without a corner badge. Filter stack: sepia pushes the hue
-   toward brown/amber, saturate deepens it, brightness pulls it darker
-   than the standard cards. Hover lifts the filter entirely so the
-   flip-to-back animation reads naturally. */
-.album-card-outer.album-card-dim {
-  filter: brightness(0.42) sepia(0.6) saturate(1.35) hue-rotate(-8deg);
-  transition: filter 0.2s ease;
-}
-.album-card-outer.album-card-dim:focus-within,
-.album-card-outer.album-card-dim.is-active {
-  filter: none;
-}
-/* Hover behaviour is gated behind a real-pointer media query so
-   mobile Safari's speculative :hover (fired on any touch, even
-   mid-scroll) can't un-dim the card. `is-active` / focus-within
-   above cover the legitimate paths. */
-@media (hover: hover) and (pointer: fine) {
-  .album-card-outer.album-card-dim:hover {
-    filter: none;
+/* Mobile iOS Safari auto-zooms when a text input has font-size < 16px;
+   the zoom sticks around after focus, leaving the user pinched in and
+   scrolling sideways to reach a Save button. Bumping every text-entry
+   control to 16px on the mobile breakpoint disables the zoom heuristic
+   without touching viewport scale (which would also kill accessibility
+   pinch-zoom). Selects and textareas share the same trigger, so they
+   get the same floor. */
+@media (max-width: 640px) {
+  input[type="text"],
+  input[type="url"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input:not([type]),
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
 

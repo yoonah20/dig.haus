@@ -5,6 +5,7 @@ import CoverArt from './CoverArt';
 import PriceTagStack from './PriceTagSticker';
 import { getScoreColor, getScoreGlowRgb } from '../utils/score';
 import { MIN_SCORED_FOR_AVG } from '../lib/reviewThresholds';
+import { useAuth } from '../contexts/AuthContext';
 
 // Cross-card active state for touch devices: only one card can show its
 // flipped back at a time. First tap flips; second tap on the active card
@@ -184,6 +185,8 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const ctaColor = glowRgb ? `rgb(${glowRgb})` : '#9a9a9a';
 
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = !!user?.isAdmin;
   const isHoverNoneRef = useRef(false);
   const touchStartRef = useRef<{ x: number; y: number; t: number } | null>(null);
 
@@ -294,17 +297,16 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     }
   }, []);
 
-  // User-submitted albums whose review crawl hasn't run yet get a
-  // subtle opacity dim — reads as "incomplete" without shouting
-  // "pending approval". Only explicit `null` dims; `undefined`
-  // (older client / pre-redeploy cache) stays bright to avoid a
-  // transient dimming of fully-indexed albums.
-  const shouldDim = album.reviewsCrawledAt === null;
+  // Cards with no review crawl yet used to render dim on the grid; the
+  // dim made them feel unfinished to regular users, so we drop the
+  // visual penalty and surface the state only to admins via a small
+  // top-right note badge below. Non-admins see a normal card.
+  const reviewsPending = album.reviewsCrawledAt === null;
 
   return (
     <Link
       to={`/album/${album.mbid}`}
-      className={`block album-card-outer relative${isActive ? ' is-active' : ''}${shouldDim ? ' album-card-dim' : ''}`}
+      className={`block album-card-outer relative${isActive ? ' is-active' : ''}`}
       onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -340,6 +342,20 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                     for soldout, yellow fill for sale) so carrying
                     them as big chips on the cover too was redundant
                     and noisy on the grid. */}
+              </div>
+            )}
+            {/* Admin-only pending-review mark. Replaces the old full-card
+                dim — normal users now see a clean card and the reminder
+                to go top up reviews lives only on the admin view. Sits
+                top-right so it never collides with the left-column
+                sticker stack. */}
+            {isAdmin && reviewsPending && (
+              <div
+                className="absolute top-2 right-2 w-5 h-5 rounded-full bg-black/60 backdrop-blur-sm border border-[#e8a020]/50 flex items-center justify-center text-[11px] leading-none select-none"
+                aria-label="리뷰 수집 대기"
+                title="리뷰 수집 대기 — 이 앨범 페이지에서 🔍 리뷰 모아오기 실행"
+              >
+                📝
               </div>
             )}
             <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />

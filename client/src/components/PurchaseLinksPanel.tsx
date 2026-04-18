@@ -25,7 +25,7 @@ const FORMAT_EMOJI: Record<Format, string> = {
 };
 
 const STATUSES: ReadonlyArray<{ value: PurchaseLinkStatus; label: string; emoji: string }> = [
-  { value: 'upcoming', label: '발매예정', emoji: '🔜' },
+  { value: 'upcoming', label: '발매 예정', emoji: '🔜' },
   { value: 'sale', label: '세일', emoji: '🏷️' },
   { value: 'soldout', label: '품절', emoji: '🚫' },
 ];
@@ -62,7 +62,7 @@ function formatKrw(price: number | null): string {
 }
 
 const STATUS_LABEL: Record<PurchaseLinkStatus, string> = {
-  upcoming: '발매예정',
+  upcoming: '발매 예정',
   sale: '세일',
   soldout: '품절',
 };
@@ -279,11 +279,15 @@ function LinkButton({
       </a>
 
       {/* Overlay — three pill buttons overhanging the card's top-right
-          corner, hover-revealed. Pulled out of the card body via
-          -top-3 so adding/removing these doesn't change the card's
-          layout height. */}
+          corner. Hover-revealed on desktop; always visible on touch
+          devices (no hover ≠ no access — tapping a card-sized hover
+          target to maybe see its edit button isn't a real interaction).
+          The `sm:` gating keeps the clean hover reveal on desktop and
+          just shows the buttons inline on mobile. Pulled out of the
+          card body via -top-3 so adding/removing these doesn't change
+          the card's layout height. */}
       {hasAnyOverlay && (
-        <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
           {canReport && (
             <OverlayButton
               onClick={(e) => {
@@ -557,9 +561,15 @@ function LinkForm({
               상태 (선택)
             </span>
             <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 divide-x divide-white/10">
+              {/* grow splits the three cells evenly — without it, "발매
+                  예정" is visually much larger than "세일" / "품절"
+                  and the emoji kerning on 🚫 made one cell in
+                  particular balloon on mobile. Equal basis keeps the
+                  pill group looking like one well-aligned control. */}
               {STATUSES.map((s) => (
                 <SegButton
                   key={s.value}
+                  grow
                   active={status === s.value}
                   onClick={() => setStatus(status === s.value ? null : s.value)}
                 >
