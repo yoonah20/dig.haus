@@ -641,12 +641,9 @@ export default function ReviewSection({
               "+ 리뷰 추가" button further down, so we gate by
               !isAdmin. */}
           {!pendingNotice && sortedReviews.length === 0 && !koreanSummary && !isAdmin && (
-            <div className="rounded-xl border border-white/5 bg-[#1a1a1a]/60 px-5 py-4 space-y-1">
+            <div className="rounded-xl border border-white/5 bg-[#1a1a1a]/60 px-5 py-4">
               <div className="text-sm text-gray-400">
-                아직 모인 리뷰가 없어요.
-              </div>
-              <div className="text-xs text-gray-600">
-                50자 평·굿굿/별루·구매처 등록은 자유롭게 남길 수 있어요.
+                아직 발견된 리뷰가 없어요. 다음에 찾아주세요!
               </div>
             </div>
           )}
