@@ -301,11 +301,24 @@ export default function ReviewSection({
   const [summaryDraft, setSummaryDraft] = useState('');
   const [savingSummary, setSavingSummary] = useState(false);
   const [addingReview, setAddingReview] = useState(false);
+  const [addMode, setAddMode] = useState<'url' | 'manual'>('url');
   const [addUrl, setAddUrl] = useState('');
   const [savingReview, setSavingReview] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Manual-entry fields (for sites that block crawling).
+  const [manualSource, setManualSource] = useState('');
+  const [manualUrl, setManualUrl] = useState('');
+  const [manualScore, setManualScore] = useState('');
+  const [manualBody, setManualBody] = useState('');
 
   const startAddReview = () => {
     setAddUrl('');
+    setManualSource('');
+    setManualUrl('');
+    setManualScore('');
+    setManualBody('');
+    setAddMode('url');
     setAddingReview(true);
   };
 
@@ -313,23 +326,120 @@ export default function ReviewSection({
     if (savingReview) return;
     setAddingReview(false);
     setAddUrl('');
+    setManualSource('');
+    setManualUrl('');
+    setManualScore('');
+    setManualBody('');
+    setBatchProgress(null);
   };
 
   const saveAddReview = async () => {
     if (!slug) return;
-    const trimmed = addUrl.trim();
-    if (!/^https?:\/\//i.test(trimmed)) {
-      alert('http:// 또는 https:// 로 시작하는 URL을 입력해주세요.');
+    // Split on any newline, trim, drop empties. Lets admin paste a
+    // list of URLs (one per line) or a single URL interchangeably.
+    const urls = addUrl
+      .split(/\r?\n/)
+      .map((u) => u.trim())
+      .filter((u) => u.length > 0);
+    if (urls.length === 0) {
+      alert('URL을 최소 한 개 입력해주세요.');
       return;
     }
+    const invalid = urls.find((u) => !/^https?:\/\//i.test(u));
+    if (invalid) {
+      alert(`http:// 또는 https:// 로 시작해야 합니다:\n${invalid}`);
+      return;
+    }
+
+    setSavingReview(true);
+    let added = 0;
+    let duplicate = 0;
+    const failures: Array<{ url: string; msg: string }> = [];
+    try {
+      for (let i = 0; i < urls.length; i++) {
+        setBatchProgress({ current: i + 1, total: urls.length });
+        try {
+          const resp = await axios.post(`/api/albums/${slug}/reviews/add-url`, { url: urls[i] });
+          if (resp.data?.duplicate) duplicate++;
+          else added++;
+        } catch (err: any) {
+          const msg = err?.response?.data?.error || '알 수 없는 오류';
+          failures.push({ url: urls[i], msg });
+        }
+      }
+      await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+
+      if (failures.length === 0 && urls.length === 1) {
+        // Single-URL success path stays quiet, matching the pre-batch UX.
+        setAddingReview(false);
+        setAddUrl('');
+      } else {
+        const summary = [
+          `추가: ${added}`,
+          duplicate > 0 ? `중복: ${duplicate}` : null,
+          failures.length > 0 ? `실패: ${failures.length}` : null,
+        ]
+          .filter(Boolean)
+          .join(' / ');
+        const detail = failures.length
+          ? '\n\n실패한 URL:\n' + failures.map((f) => `• ${f.url}\n  → ${f.msg}`).join('\n')
+          : '';
+        alert(summary + detail);
+        if (failures.length === 0) {
+          setAddingReview(false);
+          setAddUrl('');
+        }
+      }
+    } finally {
+      setSavingReview(false);
+      setBatchProgress(null);
+    }
+  };
+
+  const saveManualReview = async () => {
+    if (!slug) return;
+    const source = manualSource.trim();
+    const body = manualBody.trim();
+    if (!source) {
+      alert('사이트 이름을 입력해주세요.');
+      return;
+    }
+    if (body.length < 50) {
+      alert('본문 텍스트가 너무 짧습니다 (최소 50자).');
+      return;
+    }
+    const url = manualUrl.trim();
+    if (url && !/^https?:\/\//i.test(url)) {
+      alert('URL은 http:// 또는 https:// 로 시작해야 합니다.');
+      return;
+    }
+    let scoreNum: number | null = null;
+    const scoreStr = manualScore.trim();
+    if (scoreStr) {
+      const n = parseFloat(scoreStr);
+      if (isNaN(n) || n < 0 || n > 100) {
+        alert('점수는 0-100 사이의 숫자여야 합니다.');
+        return;
+      }
+      scoreNum = n;
+    }
+
     setSavingReview(true);
     try {
-      await axios.post(`/api/albums/${slug}/reviews/add-url`, { url: trimmed });
+      await axios.post(`/api/albums/${slug}/reviews/manual`, {
+        sourceName: source,
+        url: url || undefined,
+        score: scoreNum,
+        body,
+      });
       await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
       setAddingReview(false);
-      setAddUrl('');
+      setManualSource('');
+      setManualUrl('');
+      setManualScore('');
+      setManualBody('');
     } catch (err: any) {
-      console.error('Add review URL error:', err);
+      console.error('Manual review error:', err);
       const msg = err?.response?.data?.error || '리뷰 추가에 실패했습니다.';
       alert(msg);
     } finally {
@@ -555,48 +665,161 @@ export default function ReviewSection({
           {isAdmin && (
             <div>
               {addingReview ? (
-                <div className="bg-[#1a1a1a] rounded-lg p-4 space-y-2 border border-white/10">
-                  <label className="block text-xs text-gray-400">리뷰 URL</label>
-                  <input
-                    type="url"
-                    value={addUrl}
-                    onChange={(e) => setAddUrl(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !savingReview) {
-                        e.preventDefault();
-                        saveAddReview();
-                      }
-                      if (e.key === 'Escape') {
-                        e.preventDefault();
-                        cancelAddReview();
-                      }
-                    }}
-                    disabled={savingReview}
-                    placeholder="https://angrymetalguy.com/..."
-                    autoFocus
-                    className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                  />
-                  <div className="flex items-center justify-end gap-2">
-                    {savingReview && (
-                      <span className="text-xs text-gray-500 mr-auto animate-pulse">
-                        페이지 분석 중...
-                      </span>
-                    )}
+                <div className="bg-[#1a1a1a] rounded-lg p-4 space-y-3 border border-white/10">
+                  <div className="flex gap-1 border-b border-white/10">
                     <button
-                      onClick={cancelAddReview}
+                      type="button"
+                      onClick={() => setAddMode('url')}
                       disabled={savingReview}
-                      className="px-3 py-1 text-sm text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
+                      className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
+                        addMode === 'url'
+                          ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
+                          : 'text-gray-500 hover:text-gray-300'
+                      }`}
                     >
-                      취소
+                      URL
                     </button>
                     <button
-                      onClick={saveAddReview}
-                      disabled={savingReview || !addUrl.trim()}
-                      className="px-3 py-1 text-sm text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 transition-colors cursor-pointer"
+                      type="button"
+                      onClick={() => setAddMode('manual')}
+                      disabled={savingReview}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
+                        addMode === 'manual'
+                          ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
+                          : 'text-gray-500 hover:text-gray-300'
+                      }`}
                     >
-                      {savingReview ? '저장 중...' : '저장'}
+                      수동 입력
                     </button>
                   </div>
+
+                  {addMode === 'url' ? (
+                    <>
+                      <label className="block text-xs text-gray-400">
+                        리뷰 URL <span className="text-gray-600">(여러 개는 한 줄에 하나씩)</span>
+                      </label>
+                      <textarea
+                        value={addUrl}
+                        onChange={(e) => setAddUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            e.preventDefault();
+                            cancelAddReview();
+                          }
+                        }}
+                        disabled={savingReview}
+                        placeholder={'https://angrymetalguy.com/...\nhttps://pitchfork.com/...'}
+                        autoFocus
+                        rows={4}
+                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 font-mono"
+                      />
+                      <div className="flex items-center justify-end gap-2">
+                        {savingReview && (
+                          <span className="text-xs text-gray-500 mr-auto animate-pulse">
+                            {batchProgress
+                              ? `페이지 분석 중... ${batchProgress.current}/${batchProgress.total}`
+                              : '페이지 분석 중...'}
+                          </span>
+                        )}
+                        <button
+                          onClick={cancelAddReview}
+                          disabled={savingReview}
+                          className="px-3 py-1 text-sm text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={saveAddReview}
+                          disabled={savingReview || !addUrl.trim()}
+                          className="px-3 py-1 text-sm text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 transition-colors cursor-pointer"
+                        >
+                          {savingReview ? '저장 중...' : '저장'}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">
+                            사이트 이름 <span className="text-red-400">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={manualSource}
+                            onChange={(e) => setManualSource(e.target.value)}
+                            disabled={savingReview}
+                            placeholder="이즘, 웨이브 등"
+                            maxLength={100}
+                            className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-400 mb-1">
+                            점수 <span className="text-gray-600">(선택)</span>
+                          </label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={manualScore}
+                            onChange={(e) => setManualScore(e.target.value)}
+                            disabled={savingReview}
+                            placeholder="0-100"
+                            maxLength={3}
+                            className="w-20 bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          원문 URL <span className="text-gray-600">(선택)</span>
+                        </label>
+                        <input
+                          type="url"
+                          value={manualUrl}
+                          onChange={(e) => setManualUrl(e.target.value)}
+                          disabled={savingReview}
+                          placeholder="https://..."
+                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          본문 텍스트 <span className="text-red-400">*</span>{' '}
+                          <span className="text-gray-600">(복사한 원문, 최소 50자)</span>
+                        </label>
+                        <textarea
+                          value={manualBody}
+                          onChange={(e) => setManualBody(e.target.value)}
+                          disabled={savingReview}
+                          rows={8}
+                          placeholder="기사 본문을 붙여넣으세요..."
+                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                        />
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        {savingReview && (
+                          <span className="text-xs text-gray-500 mr-auto animate-pulse">
+                            본문 분석 중...
+                          </span>
+                        )}
+                        <button
+                          onClick={cancelAddReview}
+                          disabled={savingReview}
+                          className="px-3 py-1 text-sm text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
+                        >
+                          취소
+                        </button>
+                        <button
+                          onClick={saveManualReview}
+                          disabled={savingReview || !manualSource.trim() || manualBody.trim().length < 50}
+                          className="px-3 py-1 text-sm text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 transition-colors cursor-pointer"
+                        >
+                          {savingReview ? '저장 중...' : '저장'}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : (
                 <button

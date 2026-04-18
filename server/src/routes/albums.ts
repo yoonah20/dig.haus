@@ -20,7 +20,11 @@ import { searchVideo } from '../services/youtube.js';
 import { searchBandcamp } from '../services/bandcamp.js';
 import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases, getDiscogsMasterMainRelease } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
-import { searchReviews, scrapeReviewFromUrl } from '../services/reviews.js';
+import {
+  searchReviews,
+  scrapeReviewFromUrl,
+  extractFromPastedText,
+} from '../services/reviews.js';
 import { generateSimilarDescriptions, generatePronunciation, generateKoreanSummary, getClient as getAnthropicClient, HAIKU, logClaudeUsage } from '../services/claude.js';
 import { hostCustomCover, CustomCoverError } from '../services/customCoverHost.js';
 import {
@@ -1232,6 +1236,136 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
   }
 });
 
+// ─── POST /api/albums/:id/reviews/manual — admin paste-in review ─────────
+//
+// Companion to /reviews/add-url for sites that block scraping
+// (Korean webzines, paywalled publications). Admin supplies source
+// name + pasted body text + optional score/url; Claude generates
+// the excerpt and Korean summary from the pasted body.
+//
+// Admin-supplied score wins. If admin leaves it blank, we fall
+// back to whatever Claude spotted in the text — same cheap call
+// already runs for excerpt extraction, so detecting a score is
+// free.
+router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const albumRow = queryGet(
+    'SELECT title, artist_name FROM albums WHERE mbid = ?',
+    [mbid]
+  );
+  if (!albumRow) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  const body = req.body ?? {};
+  const sourceNameRaw = body.sourceName;
+  const bodyTextRaw = body.body;
+  const urlRaw = body.url;
+  const adminScoreRaw = body.score;
+  const adminScoreMaxRaw = body.scoreMax;
+
+  if (typeof sourceNameRaw !== 'string' || !sourceNameRaw.trim()) {
+    return res.status(400).json({ error: 'sourceName is required' });
+  }
+  if (typeof bodyTextRaw !== 'string' || bodyTextRaw.trim().length < 50) {
+    return res.status(400).json({ error: '본문 텍스트가 너무 짧습니다 (최소 50자).' });
+  }
+  const sourceName = sourceNameRaw.trim().slice(0, 100);
+  const bodyText = bodyTextRaw;
+
+  let fullReviewUrl = '';
+  if (typeof urlRaw === 'string' && urlRaw.trim()) {
+    const trimmedUrl = urlRaw.trim();
+    if (!/^https?:\/\//i.test(trimmedUrl)) {
+      return res.status(400).json({ error: 'URL must start with http:// or https://' });
+    }
+    if (trimmedUrl.length > 2000) {
+      return res.status(400).json({ error: 'URL too long' });
+    }
+    fullReviewUrl = trimmedUrl;
+  }
+
+  let adminScore: number | null = null;
+  if (adminScoreRaw !== undefined && adminScoreRaw !== null && adminScoreRaw !== '') {
+    const n = typeof adminScoreRaw === 'number' ? adminScoreRaw : parseFloat(String(adminScoreRaw));
+    if (isNaN(n) || n < 0 || n > 100) {
+      return res.status(400).json({ error: 'Score must be 0-100' });
+    }
+    adminScore = n;
+  }
+  let adminScoreMax = 100;
+  if (adminScoreMaxRaw !== undefined && adminScoreMaxRaw !== null && adminScoreMaxRaw !== '') {
+    const n = typeof adminScoreMaxRaw === 'number' ? adminScoreMaxRaw : parseFloat(String(adminScoreMaxRaw));
+    if (!isNaN(n) && n > 0 && n <= 100) {
+      adminScoreMax = n;
+    }
+  }
+
+  try {
+    const extracted = await extractFromPastedText(
+      bodyText,
+      albumRow.artist_name,
+      albumRow.title,
+      sourceName
+    );
+    if (!extracted) {
+      return res.status(422).json({ error: '본문에서 리뷰를 추출하지 못했습니다.' });
+    }
+
+    const finalScore = adminScore !== null ? adminScore : extracted.score;
+    const finalScoreMax = adminScore !== null ? adminScoreMax : extracted.scoreMax;
+
+    execute(
+      `INSERT INTO reviews (album_mbid, source_name, score, score_max, excerpt, excerpt_ko, full_review_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(album_mbid, source_name) DO UPDATE SET
+         score = excluded.score,
+         score_max = excluded.score_max,
+         excerpt = excluded.excerpt,
+         excerpt_ko = excluded.excerpt_ko,
+         full_review_url = excluded.full_review_url,
+         scraped_at = datetime('now')`,
+      [
+        mbid,
+        sourceName,
+        finalScore,
+        finalScoreMax,
+        extracted.excerpt,
+        extracted.excerptKo,
+        fullReviewUrl,
+      ]
+    );
+
+    const saved = queryGet(
+      `SELECT id, source_name, score, manual_score, score_max, excerpt, excerpt_ko, full_review_url
+       FROM reviews WHERE album_mbid = ? AND source_name = ?`,
+      [mbid, sourceName]
+    );
+    if (!saved) {
+      return res.status(500).json({ error: 'Failed to retrieve saved review' });
+    }
+
+    res.json({
+      ok: true,
+      review: {
+        id: saved.id,
+        source: saved.source_name,
+        score: saved.manual_score ?? saved.score,
+        scoreMax: saved.score_max,
+        excerpt: saved.excerpt,
+        excerptKo: saved.excerpt_ko || null,
+        url: saved.full_review_url,
+        isManualScore: saved.manual_score != null,
+      },
+    });
+  } catch (err) {
+    console.error('Manual review error:', err);
+    res.status(500).json({ error: 'Failed to add review' });
+  }
+});
+
 // ─── POST /api/albums/:id/reviews/generate-summary ─────────────────────
 //
 // Cheap alternative to the full Claude review pipeline. Takes whatever
@@ -1365,18 +1499,23 @@ router.post('/reviews/:reviewId/score', requireAdmin, async (req, res) => {
     return res.status(400).json({ error: 'Invalid review ID' });
   }
 
-  // null = explicitly "no score" (stored as NULL); 0 is a valid score.
-  let scoreValue: number | null;
-  if (score === null) {
-    scoreValue = null;
-  } else if (typeof score === 'number' && score >= 0 && score <= 100) {
-    scoreValue = score;
-  } else {
-    return res.status(400).json({ error: 'Score must be null or a number 0-100' });
-  }
-
+  // null = admin typed "-" to clear the score entirely. We null BOTH
+  // manual_score AND the original scraped score, because the API
+  // response uses `manual_score ?? score` — if we only cleared
+  // manual_score, the scraped value would bleed back through and
+  // the admin's "remove score" intent would silently fail.
+  // Destructive, but intentional: re-scoring is a single keystroke.
   try {
-    execute('UPDATE reviews SET manual_score = ? WHERE id = ?', [scoreValue, reviewId]);
+    if (score === null) {
+      execute(
+        'UPDATE reviews SET score = NULL, manual_score = NULL WHERE id = ?',
+        [reviewId]
+      );
+    } else if (typeof score === 'number' && score >= 0 && score <= 100) {
+      execute('UPDATE reviews SET manual_score = ? WHERE id = ?', [score, reviewId]);
+    } else {
+      return res.status(400).json({ error: 'Score must be null or a number 0-100' });
+    }
     res.json({ ok: true });
   } catch (error) {
     console.error('Manual score error:', error);

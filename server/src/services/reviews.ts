@@ -451,3 +451,88 @@ If this page is clearly NOT a review (shop listing, forum post, directory), retu
     return null;
   }
 }
+
+// Manual-entry counterpart to scrapeReviewFromUrl for sites that
+// block crawling (Korean webzines, paywalled publications). Admin
+// hand-pastes the article body; Claude only does the excerpt
+// extraction + Korean summarisation. Source name is given by admin,
+// so no domain/page heuristics needed. Claude still tries to spot
+// a numeric score in the body — if admin doesn't supply one, we
+// fall back to what Claude found.
+//
+// Same cost profile as scrapeReviewFromUrl (~$0.003/call) — single
+// Haiku pass on pre-stripped text.
+export async function extractFromPastedText(
+  body: string,
+  artist: string,
+  album: string,
+  sourceName: string
+): Promise<{
+  score: number | null;
+  scoreMax: number;
+  excerpt: string;
+  excerptKo: string;
+} | null> {
+  const trimmed = body.trim().slice(0, 20000);
+  if (trimmed.length < 50) {
+    console.warn('[reviews] pasted body too short');
+    return null;
+  }
+
+  try {
+    const client = getClient();
+    const response = await client.messages.create({
+      model: HAIKU,
+      max_tokens: 2000,
+      messages: [
+        {
+          role: 'user',
+          content: `Extract review info from this hand-pasted article text about "${album}" by ${artist}, published by ${sourceName}.
+
+ARTICLE TEXT:
+---
+${trimmed}
+---
+
+Return ONLY JSON, no prose:
+{
+  "score": 85,
+  "scoreMax": 100,
+  "excerpt": "One or two sentences quoted or paraphrased from the article body, original language.",
+  "excerptKo": "2-3 문장 한국어 요약. 매체명 언급 금지, 평론가 시점."
+}
+
+Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). If no explicit score in the text, set null.
+Excerpt: pick the most evaluative sentence(s) from the body.
+If the text is clearly NOT a review (shop listing, track list only, marketing copy), return {"error":"not a review"} instead.`,
+        },
+      ],
+    });
+    logClaudeUsage('manual_review', response);
+
+    const block = response.content.find((b) => b.type === 'text');
+    if (!block || block.type !== 'text') return null;
+
+    let jsonText = block.text.trim();
+    const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) jsonText = fenceMatch[1].trim();
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (parsed.error) {
+      console.warn('[reviews] Claude flagged pasted text as not a review:', parsed.error);
+      return null;
+    }
+
+    return {
+      score: typeof parsed.score === 'number' ? parsed.score : null,
+      scoreMax: typeof parsed.scoreMax === 'number' ? parsed.scoreMax : 100,
+      excerpt: typeof parsed.excerpt === 'string' ? parsed.excerpt : '',
+      excerptKo: typeof parsed.excerptKo === 'string' ? parsed.excerptKo : '',
+    };
+  } catch (err) {
+    console.error('[reviews] Claude manual-extract failed:', (err as Error).message);
+    return null;
+  }
+}
