@@ -11,7 +11,7 @@ dig.haus is a **digital record store**, not an algorithmic music feed. The core 
 - Covers + prices first, metadata after (the album-card flip captures this)
 - "Overheard" comments via the ticker — peripheral voices in the store
 - Serendipity over recommendation — we do NOT build spoon-feeding curation
-- Tagline: "No algorithms needed. Just digging." (positioning — states who the site is for). Previous method-based tagline "dig by cover, find by feel" was replaced at Phase 3 kickoff because it described the how without stating the who, and the site's differentiation is precisely the anti-algorithm stance.
+- Tagline: "No algorithms needed. Keep digging." (positioning — states who the site is for and echoes crate-digger community vernacular). Previous method-based tagline "dig by cover, find by feel" was replaced at Phase 3 kickoff because it described the how without stating the who, and the site's differentiation is precisely the anti-algorithm stance.
 
 **Target audience**: vinyl collectors + Korean-language listeners of international / niche music. The albums covered are deliberately maniacal; there is no mainstream-chart ambition.
 

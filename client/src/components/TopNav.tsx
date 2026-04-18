@@ -87,7 +87,7 @@ export default function TopNav() {
                 opacity: 0.9,
               }}
             >
-              No algorithms needed. Just digging.
+              No algorithms needed. Keep digging.
             </span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
