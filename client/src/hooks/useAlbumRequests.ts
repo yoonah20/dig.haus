@@ -34,6 +34,12 @@ export interface MyAlbumRequest {
   status: 'pending' | 'approved';
   createdAt: string;
   decidedAt: string | null;
+  /** Server flag — true iff no foreign engagement (admin review
+   *  crawl, others' votes / reviews / collections / purchase links)
+   *  has attached to the album since submission, so the requester
+   *  is allowed to retract it. Drives the 🗑️ button visibility
+   *  in the profile "내 등록 앨범" list. */
+  canDelete: boolean;
 }
 
 export function useAlbumRequests(enabled: boolean) {

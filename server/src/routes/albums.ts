@@ -36,7 +36,8 @@ import {
 } from '../utils/cache.js';
 import { execute, queryAll, queryGet, transaction } from '../db/index.js';
 import { generateSlug, resolveAlbumId } from '../utils/slug.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { requireAdmin, requireAuth } from '../middleware/auth.js';
+import type { AppUser } from '../auth/passport.js';
 import { convertToKrw, convertToUsd, getRates, convertToKrwSync, convertToUsdSync } from '../services/exchangeRates.js';
 import { searchAlbumsInDb } from '../utils/albumSearch.js';
 
@@ -1684,11 +1685,22 @@ router.post('/reviews/:reviewId/retranslate', adminClaudeLimiter, requireAdmin, 
 });
 
 // ─── DELETE /api/albums/:id — remove album and related data ─────────────
+//
+// Two authorization paths:
+//   1. Admin — can delete anything, always
+//   2. Requester retract — the user who originally submitted the
+//      album can pull it back ONLY while nothing foreign has
+//      engaged with it yet (no admin-scraped reviews, no votes,
+//      user_reviews, purchase_links, collections or wants from
+//      anyone other than themselves). Intent is "whoops, wrong
+//      album, let me undo" for a mis-submission, not a way to
+//      delete a row with community content on it.
 
-router.delete('/:id', requireAdmin, async (req, res) => {
+router.delete('/:id', requireAuth, async (req, res) => {
+  const user = req.user as AppUser;
   const idOrSlug = req.params.id as string;
   const row = queryGet(
-    `SELECT id, mbid FROM albums WHERE slug = ? OR mbid = ? LIMIT 1`,
+    `SELECT id, mbid, requested_by_user_id FROM albums WHERE slug = ? OR mbid = ? LIMIT 1`,
     [idOrSlug, idOrSlug]
   );
   if (!row) {
@@ -1697,6 +1709,39 @@ router.delete('/:id', requireAdmin, async (req, res) => {
 
   const albumPk: number = row.id;
   const albumMbid: string = row.mbid;
+
+  if (!user.is_admin) {
+    if (row.requested_by_user_id !== user.id) {
+      return res.status(403).json({ error: '본인이 등록한 앨범만 삭제할 수 있어요.' });
+    }
+    // Same foreign-engagement count as /me/album-requests uses for
+    // the canDelete flag. Server enforces it independently in case
+    // the client disregarded the flag or the state changed between
+    // the list fetch and the delete click.
+    const engagement = queryGet(
+      `SELECT
+         (SELECT COUNT(*) FROM reviews WHERE album_mbid = ?)
+         + (SELECT COUNT(*) FROM user_reviews WHERE album_id = ? AND user_id != ?)
+         + (SELECT COUNT(*) FROM album_votes WHERE album_id = ? AND user_id != ?)
+         + (SELECT COUNT(*) FROM purchase_links WHERE album_id = ? AND user_id != ?)
+         + (SELECT COUNT(*) FROM collections WHERE album_id = ? AND user_id != ?)
+         + (SELECT COUNT(*) FROM wants WHERE album_id = ? AND user_id != ?)
+         AS n`,
+      [
+        albumMbid,
+        albumPk, user.id,
+        albumPk, user.id,
+        albumPk, user.id,
+        albumPk, user.id,
+        albumPk, user.id,
+      ]
+    ) as { n: number };
+    if ((engagement?.n ?? 0) > 0) {
+      return res.status(409).json({
+        error: '리뷰·투표·구매처 등이 이미 등록된 앨범은 삭제할 수 없어요.',
+      });
+    }
+  }
 
   try {
     transaction(() => {

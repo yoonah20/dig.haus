@@ -336,13 +336,28 @@ router.post('/album-requests/:mbid/approve', requireAdmin, async (req, res) => {
 // deletion just removes the row.
 router.get('/me/album-requests', requireAuth, (req, res) => {
   const user = req.user as AppUser;
+  // canDelete is 1 iff nothing foreign has attached to the album
+  // since submission — the requester gets to retract a mis-upload
+  // while it's still pristine, but once anyone else has reviewed /
+  // voted / saved / added a purchase link, or admin has run the
+  // scrape pipeline (reviews row), the retraction path closes.
+  // User's own votes / reviews / etc. don't count — self-activity
+  // on your own submission shouldn't lock you out of deleting it.
   const rows = queryAll(
-    `SELECT id, mbid, slug, title, artist_name, release_year,
-            cover_art_url, created_at, reviews_crawled_at
-     FROM albums
-     WHERE requested_by_user_id = ?
-     ORDER BY created_at DESC, id DESC`,
-    [user.id]
+    `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.release_year,
+            a.cover_art_url, a.created_at, a.reviews_crawled_at,
+            (
+              (SELECT COUNT(*) FROM reviews WHERE album_mbid = a.mbid)
+              + (SELECT COUNT(*) FROM user_reviews WHERE album_id = a.id AND user_id != ?)
+              + (SELECT COUNT(*) FROM album_votes WHERE album_id = a.id AND user_id != ?)
+              + (SELECT COUNT(*) FROM purchase_links WHERE album_id = a.id AND user_id != ?)
+              + (SELECT COUNT(*) FROM collections WHERE album_id = a.id AND user_id != ?)
+              + (SELECT COUNT(*) FROM wants WHERE album_id = a.id AND user_id != ?)
+            ) AS foreign_engagement
+     FROM albums a
+     WHERE a.requested_by_user_id = ?
+     ORDER BY a.created_at DESC, a.id DESC`,
+    [user.id, user.id, user.id, user.id, user.id, user.id]
   );
   res.json({
     requests: rows.map((r: any) => ({
@@ -355,6 +370,7 @@ router.get('/me/album-requests', requireAuth, (req, res) => {
       status: r.reviews_crawled_at ? 'approved' : 'pending',
       createdAt: r.created_at,
       decidedAt: r.reviews_crawled_at,
+      canDelete: (r.foreign_engagement ?? 0) === 0,
     })),
   });
 });

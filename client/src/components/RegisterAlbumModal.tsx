@@ -155,7 +155,7 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
         <div className="p-5">
           <div className="mb-5 space-y-1.5">
             <p className="text-base text-gray-300 leading-relaxed">
-              dig.haus에 없는 앨범(정규작, EP, 라이브만~싱글, 컴필레이션은 제외)을 직접 등록해 보세요.
+              여기에 없는 앨범을 직접 등록해 보세요. 디지털 음원은 제외됩니다.
             </p>
             <p className="text-xs text-gray-500 leading-relaxed">
               커뮤니티 가이드에 맞지 않는 앨범은 관리자가 수정·삭제할 수 있어요.

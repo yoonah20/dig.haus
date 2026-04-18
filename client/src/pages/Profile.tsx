@@ -12,7 +12,10 @@ import {
   useDeleteMyReview,
   useDeleteMyAccount,
 } from '../hooks/useMe';
-import { useMyAlbumRequests } from '../hooks/useAlbumRequests';
+import {
+  useMyAlbumRequests,
+  useDeletePendingAlbum,
+} from '../hooks/useAlbumRequests';
 import { useMyCollection, useMyWantlist } from '../hooks/useOwnership';
 
 const REQUEST_STATUS_META: Record<
@@ -348,6 +351,7 @@ export default function Profile() {
   const profile = useMyProfile();
   const reviews = useMyReviews();
   const myRequests = useMyAlbumRequests();
+  const deleteMyAlbum = useDeletePendingAlbum();
   const collection = useMyCollection();
   const wantlist = useMyWantlist();
   const update = useUpdateMyProfile();
@@ -617,11 +621,11 @@ export default function Profile() {
                 const meta = REQUEST_STATUS_META[r.status];
                 return (
                   <li key={r.id}>
-                    <Link
-                      to={`/album/${r.mbid}`}
-                      className="block hover:brightness-110 transition"
-                    >
-                      <div className="flex items-center gap-3 p-3 bg-[#1a1a1a] rounded-xl border border-white/5">
+                    <div className="flex items-center gap-3 p-3 bg-[#1a1a1a] rounded-xl border border-white/5 hover:brightness-110 transition">
+                      <Link
+                        to={`/album/${r.mbid}`}
+                        className="flex items-center gap-3 flex-1 min-w-0"
+                      >
                         <div className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden">
                           {r.coverArtUrl ? (
                             <img
@@ -650,8 +654,43 @@ export default function Profile() {
                         >
                           {meta.label}
                         </span>
-                      </div>
-                    </Link>
+                      </Link>
+                      {/* Retract-own-submission shortcut, available
+                          only while server's canDelete flag is true
+                          (no foreign engagement yet). Hidden rather
+                          than disabled when unavailable — a grayed
+                          trash chip next to other people's content
+                          would read as "you can no longer remove
+                          this community's work", which is a louder
+                          message than the case deserves. */}
+                      {r.canDelete && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (deleteMyAlbum.isPending) return;
+                            if (
+                              !confirm(
+                                `"${r.artist} — ${r.title}" 앨범 등록을 취소할까요?\n되돌릴 수 없어요.`
+                              )
+                            )
+                              return;
+                            try {
+                              await deleteMyAlbum.mutateAsync(r.mbid);
+                            } catch (err: any) {
+                              alert(
+                                err?.response?.data?.error || '삭제에 실패했어요.'
+                              );
+                            }
+                          }}
+                          disabled={deleteMyAlbum.isPending}
+                          aria-label="등록 취소"
+                          title="등록 취소 (리뷰·투표 등이 없을 때만 가능)"
+                          className="shrink-0 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
                   </li>
                 );
               })}
