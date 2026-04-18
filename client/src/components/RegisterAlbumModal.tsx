@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from '../lib/axios';
 import { useRequestSearch } from '../hooks/useSearch';
 import { useSubmitAlbumRequest } from '../hooks/useAlbumRequests';
 import type { AlbumSearchResult } from '../types';
@@ -18,6 +19,9 @@ interface Props {
 export default function RegisterAlbumModal({ open, onClose }: Props) {
   const [input, setInput] = useState('');
   const [query, setQuery] = useState('');
+  const [urlInput, setUrlInput] = useState('');
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
   // Non-null while one specific row is mid-submit; drives the
   // per-row disable + spinner.
   const [pending, setPending] = useState<string | null>(null);
@@ -32,6 +36,9 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
     if (!open) return;
     setInput('');
     setQuery('');
+    setUrlInput('');
+    setExtractError(null);
+    setExtracting(false);
     setPending(null);
     setError(null);
     const t = setTimeout(() => inputRef.current?.focus(), 50);
@@ -55,6 +62,40 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
   if (!open) return null;
 
   const albums = search.data?.albums ?? [];
+
+  async function handleExtractUrl() {
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    if (!/^https?:\/\//i.test(trimmed)) {
+      setExtractError('http:// 또는 https:// 로 시작하는 URL을 입력해주세요.');
+      return;
+    }
+    setExtractError(null);
+    setExtracting(true);
+    try {
+      const { data } = await axios.post<{ artist: string; title: string }>(
+        '/api/album-requests/extract-from-url',
+        { url: trimmed }
+      );
+      // Feed the result back into the main search input — that path
+      // is what actually reconciles with MusicBrainz / Discogs and
+      // lets the user pick the right release. Skipping MB here
+      // would bypass the matching that catches wrong-edition /
+      // wrong-year cases.
+      const combined = `${data.artist} ${data.title}`.trim();
+      setInput(combined);
+      setQuery(combined);
+      setUrlInput('');
+      inputRef.current?.focus();
+    } catch (e: any) {
+      const msg =
+        e?.response?.data?.error ||
+        'URL에서 정보를 가져오지 못했어요. 아래 검색어를 직접 입력해 주세요.';
+      setExtractError(msg);
+    } finally {
+      setExtracting(false);
+    }
+  }
 
   async function handleSubmit(album: AlbumSearchResult) {
     if (pending) return;
@@ -126,6 +167,49 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
               <div className="absolute right-4 top-1/2 -translate-y-1/2">
                 <div className="w-5 h-5 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
               </div>
+            )}
+          </div>
+
+          {/* URL-based prefill. Keeps the text search as the primary
+              path (it's the one that reconciles with MusicBrainz /
+              Discogs and lets the user pick the right release); this
+              just drops artist + title into that box so you don't
+              have to retype a name you already have in a Discogs /
+              Bandcamp / Spotify / Apple Music tab. Server does the
+              parsing — see services/albumUrlExtract.ts. */}
+          <div className="mt-3">
+            <div className="text-[11px] uppercase tracking-wider text-gray-500 mb-1.5">
+              또는 상점·스트리밍 URL로 찾기
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={urlInput}
+                onChange={(e) => {
+                  setUrlInput(e.target.value);
+                  if (extractError) setExtractError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !extracting && urlInput.trim()) {
+                    e.preventDefault();
+                    void handleExtractUrl();
+                  }
+                }}
+                disabled={extracting || !!pending}
+                placeholder="https://www.discogs.com/release/… · bandcamp · spotify · apple music"
+                className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+              />
+              <button
+                type="button"
+                onClick={handleExtractUrl}
+                disabled={extracting || !urlInput.trim() || !!pending}
+                className="shrink-0 px-3 py-2 text-sm font-medium bg-[#e8a020] text-black rounded-lg hover:bg-[#f0b040] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {extracting ? '분석 중…' : '가져오기'}
+              </button>
+            </div>
+            {extractError && (
+              <div className="mt-2 text-xs text-red-400">{extractError}</div>
             )}
           </div>
 

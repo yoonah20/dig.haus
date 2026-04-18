@@ -8,6 +8,7 @@ import {
   getRollingDailyClaudeSpendUsd,
   ROLLING_24H_USD_CAP,
 } from '../services/claudeBudget.js';
+import { extractAlbumFromUrl } from '../services/albumUrlExtract.js';
 import type { AppUser } from '../auth/passport.js';
 
 // Max albums a non-admin can submit in one calendar day. Caps spam
@@ -173,6 +174,44 @@ router.get('/album-requests/search', requireAuth, searchLimiter, async (req, res
     res.json({ albums: [] });
   }
 });
+
+// ─── POST /api/album-requests/extract-from-url ────────────────────────
+//
+// Companion to the text-search box on the registration modal. Accepts a
+// store / streaming / music-site URL and returns {artist, title} so the
+// modal can pre-fill its search field and hand the user over to the
+// normal MusicBrainz lookup flow. No Claude involved — the service
+// tries Discogs's release/master API first (canonical), then falls
+// back to scraping OG tags (works for Bandcamp, Spotify, Apple Music,
+// most shops). If both layers fail we return 404 so the UI can tell
+// the user to type the name in manually.
+//
+// Rate-limited via the existing searchLimiter (30/min per user) — same
+// ballpark as text search and plenty of headroom for a user
+// iterating on URL paste. SSRF guards live inside extractAlbumFromUrl.
+router.post(
+  '/album-requests/extract-from-url',
+  requireAuth,
+  searchLimiter,
+  async (req, res) => {
+    const raw = typeof req.body?.url === 'string' ? req.body.url : '';
+    if (!raw.trim()) {
+      return res.status(400).json({ error: 'URL이 필요합니다.' });
+    }
+    try {
+      const result = await extractAlbumFromUrl(raw);
+      if (!result) {
+        return res.status(404).json({
+          error: '이 URL에서 아티스트·앨범 정보를 찾지 못했어요. 직접 입력해 주세요.',
+        });
+      }
+      res.json(result);
+    } catch (err) {
+      console.error('[album-requests/extract-from-url] failed:', err);
+      res.status(500).json({ error: 'URL 분석 중 오류가 발생했어요.' });
+    }
+  }
+);
 
 // ─── GET /api/album-requests ─────────────────────────────────────────
 //
