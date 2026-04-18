@@ -344,24 +344,19 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                     and noisy on the grid. */}
               </div>
             )}
-            {/* Admin-only pending-review mark. Replaces the old full-card
-                dim — normal users now see a clean card and the reminder
-                to go top up reviews lives only on the admin view. Sits
-                top-right so it never collides with the left-column
-                sticker stack. backface-visibility pinned explicitly
-                because backdrop-blur creates its own stacking context
-                and the browser would otherwise keep rendering this
-                badge through the card's Y-rotation onto the back
-                face. */}
+            {/* Admin-only pending-review mark. Bare emoji in the top-
+                right corner — the chip+backdrop-blur treatment we
+                started with both muted the emoji visually and broke
+                the flip-backface behaviour. The `album-front-decor`
+                class fades the badge out in sync with the first
+                half of the card flip so it doesn't bleed through
+                onto the back face (see index.css). */}
             {isAdmin && reviewsPending && (
               <div
-                className="absolute top-2 right-2 w-5 h-5 rounded-full bg-black/60 backdrop-blur-sm border border-[#e8a020]/50 flex items-center justify-center text-[11px] leading-none select-none"
+                className="album-front-decor absolute top-1 right-1.5 leading-none select-none"
                 aria-label="리뷰 수집 대기"
                 title="리뷰 수집 대기 — 이 앨범 페이지에서 🔍 리뷰 모아오기 실행"
-                style={{
-                  backfaceVisibility: 'hidden',
-                  WebkitBackfaceVisibility: 'hidden',
-                }}
+                style={{ fontSize: '15px' }}
               >
                 ⚠️
               </div>

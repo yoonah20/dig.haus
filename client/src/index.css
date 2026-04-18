@@ -315,6 +315,33 @@ body {
   }
 }
 
+/* Front-face decorations (price tag stickers, admin pending badge)
+   use CSS properties that create their own stacking context
+   (`filter: drop-shadow` for the notch-masked tags, ⚠️ emoji
+   rendered by the OS into its own layer). Inside the preserve-3d
+   parent, Safari + Chrome pull those children out of the 3D scene
+   and render them as 2D overlays that *ignore* the face's
+   backface-visibility — the decorations stay visible through the
+   whole Y180 flip even though everything else disappears.
+   The workaround is time-based: fade the decor to opacity 0 over
+   ~180ms, so by the time the card hits edge-on (250ms into the
+   500ms flip) the stickers are already gone. On reverse, they
+   fade back in while the front face is rotating toward the
+   viewer. Same hover-media-query gating as the flip itself so
+   mobile Safari doesn't half-fade them on touch-scroll. */
+.album-front-decor {
+  transition: opacity 0.18s ease-out;
+}
+.album-card-outer:focus-visible .album-front-decor,
+.album-card-outer.is-active .album-front-decor {
+  opacity: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .album-card-outer:hover .album-front-decor {
+    opacity: 0;
+  }
+}
+
 /* Keyboard focus ring (accessible) */
 *:focus-visible {
   outline: 2px solid #e8a020;
