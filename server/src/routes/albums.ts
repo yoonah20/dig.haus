@@ -42,13 +42,65 @@ import { searchAlbumsInDb } from '../utils/albumSearch.js';
 
 const router = Router();
 
-// Broad/useless tags to exclude
+// Broad/useless tags to exclude. Two families:
+//   1) Top-of-the-tree genre buckets that are too coarse to be
+//      interesting next to the subgenres that come in with them
+//   2) Personal / meta tags — Last.fm users tag albums with how they
+//      relate to them ("favorite", "seen live", "owned") rather than
+//      what they sound like. These pass every length/digit heuristic
+//      and need explicit removal. Nationality tags (japanese, korean,
+//      american, british, ...) survive because they're useful for
+//      dig.haus's niche-international audience.
 const EXCLUDED_TAGS = new Set([
+  // overly-broad genre buckets
   'rock', 'pop', 'electronic', 'music', 'hip hop', 'hip-hop',
   'r&b', 'classical', 'soundtrack', 'vocal', 'spoken word',
   'rock music', 'pop music', 'electronic music',
   'new release', 'new', 'release', 'album', 'single',
+
+  // personal / collection-management tags
+  'favorite', 'favorites', 'favourite', 'favourites',
+  'favorite album', 'favorite albums', 'favourite album', 'favourite albums',
+  'favorite songs', 'favourite songs', 'favorite song', 'favourite song',
+  'favorite artist', 'favourite artist', 'favorite artists', 'favourite artists',
+  'all time favorite', 'all time favorites', 'all-time favorite', 'all-time favorites',
+  'top', 'top albums', 'top album', 'best', 'best albums', 'best album',
+  'best ever', 'best of', 'the best',
+  'owned', 'own', 'own it', 'i own', 'albums i own',
+  'want', 'wanted', 'wantlist', 'wishlist', 'want to hear',
+  'heard', 'not heard', 'unheard', 'listened', 'to listen',
+  'to-listen', 'need to listen', "haven't listened",
+  'seen live', 'seenlive', 'seen-live',
+  'recommended', 'recommendation', 'recommendations',
+
+  // emotional / quality adjectives that get tagged like genres
+  'awesome', 'amazing', 'great', 'good', 'excellent',
+  'brilliant', 'cool', 'nice', 'beautiful', 'epic',
+  'masterpiece', 'masterpieces', 'classic', 'classics',
+  'overrated', 'underrated', 'under appreciated', 'underappreciated',
+  'love', 'loved', 'love it', 'lovely',
+
+  // format / source tags (belong on the physical row, not the genre list)
+  'vinyl', 'cd', 'cassette', 'tape', 'mp3', 'flac',
+  'lossless', 'hi-res', 'hires', '320', '320 kbps', '320kbps',
+  'spotify', 'apple music', 'itunes', 'youtube', 'bandcamp', 'soundcloud',
 ]);
+
+// Substring patterns for tag families too varied to enumerate fully
+// above — catch anything that looks like a collection/listening-state
+// annotation rather than a musical descriptor.
+const EXCLUDED_PATTERNS: RegExp[] = [
+  /\bfavou?rit/i,          // favorite, favourites, favoriting, ...
+  /^my\b/i,                 // my albums, my collection, my favorites
+  /\bto listen\b/i,
+  /\bnot heard\b/i,
+  /\blistened\b/i,
+  /\bwishlist\b/i,
+  /\bwant(ed| to| list)\b/i,
+  /\bseen live\b/i,
+  /\bmust hear\b/i,
+  /\bneed to\b/i,
+];
 
 // Known short genre names to keep (3 chars or less)
 const VALID_SHORT_GENRES = new Set([
@@ -74,6 +126,7 @@ function cleanGenres(raw: string[], artistName?: string): string[] {
     if (!lower) continue;
     if (seen.has(lower)) continue;
     if (EXCLUDED_TAGS.has(lower)) continue;
+    if (EXCLUDED_PATTERNS.some((re) => re.test(lower))) continue;
     // Filter artist name as tag
     if (artistLower && lower === artistLower) continue;
     // Filter anything with digits (years, dates like "4-25", "2026")
