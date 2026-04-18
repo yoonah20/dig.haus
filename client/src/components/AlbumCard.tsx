@@ -4,8 +4,7 @@ import type { AlbumSearchResult } from '../types';
 import CoverArt from './CoverArt';
 import PriceTagStack from './PriceTagSticker';
 import { getScoreColor, getScoreGlowRgb } from '../utils/score';
-
-const GLOW_MIN_REVIEWS = 3;
+import { MIN_SCORED_FOR_AVG } from '../lib/reviewThresholds';
 
 // Cross-card active state for touch devices: only one card can show its
 // flipped back at a time. First tap flips; second tap on the active card
@@ -172,14 +171,13 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   // communicates those states on the price tag itself.
   const hasAnyCoverSticker = isNew || album.isHot || hasPreorder;
 
-  // Flip-side glow + card-face score both need at least 3 scored
-  // reviews before we surface a number — one or two hot takes can
-  // skew the colour and the displayed grade in misleading ways.
-  // album.reviewCount counts *scored* reviews only (server SQL
-  // filters manual_score OR score IS NOT NULL), so it's the right
-  // denominator here.
+  // Flip-side glow + card-face score both need at least N scored
+  // reviews before we surface a number — see MIN_SCORED_FOR_AVG for
+  // the why. album.reviewCount counts *scored* reviews only (server
+  // SQL filters manual_score OR score IS NOT NULL), so it's the
+  // right denominator here.
   const scoredCount = album.reviewCount ?? 0;
-  const hasEnoughScores = scoredCount >= GLOW_MIN_REVIEWS;
+  const hasEnoughScores = scoredCount >= MIN_SCORED_FOR_AVG;
   const hasGlow = album.averageScore != null && hasEnoughScores;
   const showAvg = album.averageScore != null && hasEnoughScores;
   const glowRgb = hasGlow ? getScoreGlowRgb(album.averageScore!) : null;

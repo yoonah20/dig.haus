@@ -4,6 +4,10 @@ import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { getCachedAlbum } from '../utils/cache.js';
 import { searchExternalMerged } from '../utils/externalSearch.js';
+import {
+  getRollingDailyClaudeSpendUsd,
+  ROLLING_24H_USD_CAP,
+} from '../services/claudeBudget.js';
 import type { AppUser } from '../auth/passport.js';
 
 // Max albums a non-admin can submit in one calendar day. Caps spam
@@ -254,6 +258,17 @@ router.post('/album-requests/:mbid/approve', requireAdmin, async (req, res) => {
     return res.status(404).json({ error: '앨범을 찾을 수 없습니다.' });
   }
   const realMbid = (cached as any).mbid;
+
+  // Rolling-24h spend ceiling — the per-album pipeline cap in
+  // reviews.ts doesn't stop back-to-back approvals from summing to
+  // real money. Gate at the route level so a hot click doesn't
+  // start another ~$0.05 pipeline once the day's budget is exhausted.
+  const spend = getRollingDailyClaudeSpendUsd();
+  if (spend >= ROLLING_24H_USD_CAP) {
+    return res.status(429).json({
+      error: `지난 24시간 Claude 지출이 $${spend.toFixed(2)} (한도 $${ROLLING_24H_USD_CAP.toFixed(2)}) 에 도달했어요. 나중에 다시 시도해주세요.`,
+    });
+  }
 
   try {
     const { approveAlbumRequest } = await import('./albums.js');

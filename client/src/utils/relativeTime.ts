@@ -35,3 +35,19 @@ export function formatRelativeKo(iso: string | Date, now: Date = new Date()): st
   if (diff < YEAR) return `${Math.floor(diff / MONTH)}달 전`;
   return `${Math.floor(diff / YEAR)}년 전`;
 }
+
+// "MM-DD HH:MM" in the viewer's local timezone. Used in compact
+// forensic tables (admin Claude call log) where a full ISO timestamp
+// would clutter but a relative label ("3분 전") is too vague for
+// lining up adjacent calls. Safer than raw string-slicing the
+// server's UTC datetime, which misses the KST offset and silently
+// breaks if the format ever includes a space instead of 'T'.
+export function formatShortKstDateTime(iso: string | Date): string {
+  const d = parseServerTimestamp(iso);
+  if (isNaN(d.getTime())) return '';
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return `${mm}-${dd} ${hh}:${mi}`;
+}

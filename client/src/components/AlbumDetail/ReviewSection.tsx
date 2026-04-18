@@ -7,6 +7,7 @@ import { getScoreColor as scoreColor, getScoreBgColor as scoreBgColor } from '..
 import { useAuth } from '../../contexts/AuthContext';
 import { AiSummaryBadge } from './SimilarAlbums';
 import { useGenerateReviewSummary } from '../../hooks/useAlbum';
+import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -450,11 +451,11 @@ export default function ReviewSection({
       <div className="space-y-6">
         {pendingNotice}
 
-        {/* Average hidden when fewer than 3 scored reviews — with 1
-            or 2, the "average" is really just one opinion and the
-            big headline number misleads. Individual review scores
-            still show in their cards below. */}
-        {averageScore !== null && scoredCount >= 3 && (
+        {/* Average hidden when fewer than MIN_SCORED_FOR_AVG scored
+            reviews — with 1 or 2, the "average" is really just one
+            opinion and the big headline number misleads. Individual
+            review scores still show in their cards below. */}
+        {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
           <div className="flex items-baseline gap-2">
             <span className={`text-5xl font-bold ${scoreColor(averageScore)}`}>
               {Math.round(averageScore)}

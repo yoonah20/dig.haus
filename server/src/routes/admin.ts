@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
+import {
+  getRollingDailyClaudeSpendUsd,
+  ROLLING_24H_USD_CAP,
+} from '../services/claudeBudget.js';
 
 const router = Router();
 
@@ -216,6 +220,10 @@ router.get('/stats', (_req, res) => {
     .sort((a, b) => b.usd - a.usd);
 
   const monthLabel = new Date().toISOString().slice(0, 7); // YYYY-MM (UTC)
+  // Rolling-24h total — separate from the calendar-month figure above.
+  // Displayed in the dashboard as "24h 지출" and enforced as a hard cap
+  // on 🔍 리뷰 모아오기 at the request layer (see albumRequests.ts).
+  const rolling24hUsd = getRollingDailyClaudeSpendUsd();
   const claudeUsage = {
     month: {
       label: monthLabel,
@@ -224,6 +232,10 @@ router.get('/stats', (_req, res) => {
       webSearchCount: totalSearchCount,
       usd: Math.round(totalUsd * 100) / 100,
       byOperation: operationsBreakdown,
+    },
+    rolling24h: {
+      usd: Math.round(rolling24hUsd * 100) / 100,
+      capUsd: ROLLING_24H_USD_CAP,
     },
   };
 

@@ -205,12 +205,23 @@ export function stripSummaryPreamble(
     }
     break;
   }
-  return lines
-    .slice(start)
-    .join('\n')
+  const afterPreambleStrip = lines.slice(start).join('\n');
+  const final = afterPreambleStrip
     .replace(/\*\*/g, '')
     .replace(/^\s*[-*]\s+/gm, '')
     .trim();
+
+  // Log whenever the stripper actually did something — if Sonnet starts
+  // consistently emitting preambles or markdown despite the prompt, the
+  // logs will show the regression before a reader notices. Silent when
+  // the output was already clean (the common case).
+  const markdownCharsRemoved = afterPreambleStrip.length - final.length;
+  if (start > 0 || markdownCharsRemoved > 0) {
+    console.log(
+      `[summary] stripped ${start} preamble line(s), ${markdownCharsRemoved} markdown char(s) for "${artist} - ${albumTitle}"`
+    );
+  }
+  return final;
 }
 
 /**

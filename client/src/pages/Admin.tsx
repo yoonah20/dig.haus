@@ -16,7 +16,11 @@ import {
   useAdminDeletePurchaseLink,
   type ReportedLink,
 } from '../hooks/usePurchaseLinks';
-import { formatRelativeKo, parseServerTimestamp } from '../utils/relativeTime';
+import {
+  formatRelativeKo,
+  formatShortKstDateTime,
+  parseServerTimestamp,
+} from '../utils/relativeTime';
 import { markPendingSeen, readPendingSeen } from '../lib/adminSeen';
 
 interface IncompleteAlbumSample {
@@ -98,6 +102,10 @@ interface AdminStats {
         searches: number;
         usd: number;
       }>;
+    };
+    rolling24h: {
+      usd: number;
+      capUsd: number;
     };
   };
   incompleteAlbums: {
@@ -229,8 +237,10 @@ interface ClaudeUsageCall {
 // this so high" inspection.
 function ClaudeUsageCard({
   usage,
+  rolling24h,
 }: {
   usage: AdminStats['claudeUsage']['month'];
+  rolling24h: AdminStats['claudeUsage']['rolling24h'];
 }) {
   const qc = useQueryClient();
   const [showRecent, setShowRecent] = useState(false);
@@ -296,6 +306,34 @@ function ClaudeUsageCard({
           ${usage.usd.toFixed(2)}
         </span>
       </div>
+
+      {/* Rolling-24h spend. Gated server-side at capUsd — once crossed,
+          🔍 리뷰 모아오기 starts returning 429. Shown in orange only
+          when we're ≥80% of the cap so the panel stays calm under
+          normal operation. */}
+      {(() => {
+        const pct = rolling24h.capUsd > 0 ? rolling24h.usd / rolling24h.capUsd : 0;
+        const warning = pct >= 0.8;
+        return (
+          <div className="flex items-baseline gap-2 mb-3 -mt-1">
+            <span className="text-[10px] uppercase tracking-wider text-gray-500">
+              24h 지출
+            </span>
+            <span
+              className={`text-xs tabular-nums ${
+                warning ? 'text-orange-400 font-semibold' : 'text-gray-300'
+              }`}
+              title={
+                pct >= 1
+                  ? '24시간 한도 도달 — 🔍 리뷰 모아오기가 일시적으로 거부됩니다.'
+                  : undefined
+              }
+            >
+              ${rolling24h.usd.toFixed(2)} / ${rolling24h.capUsd.toFixed(2)}
+            </span>
+          </div>
+        );
+      })()}
 
       {empty ? (
         <div className="text-sm text-gray-500">이번 달 기록된 호출이 없습니다.</div>
@@ -372,7 +410,7 @@ function ClaudeUsageCard({
                     )}
                   </span>
                   <span className="text-gray-500 text-[10px] tabular-nums whitespace-nowrap">
-                    {c.createdAt.replace('T', ' ').slice(5, 16)}
+                    {formatShortKstDateTime(c.createdAt)}
                   </span>
                   <span className="tabular-nums text-[#e8a020] text-right w-14">
                     ${c.usd.toFixed(4)}
@@ -590,7 +628,10 @@ export default function Admin() {
               ]}
             />
             <div className="md:col-span-2">
-              <ClaudeUsageCard usage={data.claudeUsage.month} />
+              <ClaudeUsageCard
+                usage={data.claudeUsage.month}
+                rolling24h={data.claudeUsage.rolling24h}
+              />
             </div>
           </section>
 
