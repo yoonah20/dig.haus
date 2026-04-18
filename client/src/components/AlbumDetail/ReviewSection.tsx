@@ -385,10 +385,8 @@ export default function ReviewSection({
           ? '\n\n실패한 URL:\n' + failures.map((f) => `• ${f.url}\n  → ${f.msg}`).join('\n')
           : '';
         alert(summary + detail);
-        if (failures.length === 0) {
-          setAddingReview(false);
-          setAddUrl('');
-        }
+        setAddingReview(false);
+        setAddUrl('');
       }
     } finally {
       setSavingReview(false);
