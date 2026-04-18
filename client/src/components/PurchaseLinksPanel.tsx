@@ -434,7 +434,11 @@ function PasteUrlButton({ onPaste }: { onPaste: (url: string) => void }) {
             : '클립보드에서 붙여넣기'
       }
       aria-label="클립보드에서 URL 붙여넣기"
-      className={`absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-7 rounded-md transition-colors cursor-pointer ${
+      // Mobile-only: on desktop the extra affordance steals the Tab
+      // focus stop that should land on the currency picker, and
+      // cmd+V into the URL field is already a one-keystroke paste.
+      tabIndex={-1}
+      className={`sm:hidden absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-7 rounded-md transition-colors cursor-pointer ${
         flash === 'ok'
           ? 'text-[#e8a020]'
           : flash === 'reject'
@@ -547,11 +551,14 @@ function LinkForm({
         className="bg-[#141414] rounded-xl border border-white/10 p-4 max-w-xl space-y-3.5"
       >
         {/* URL — full width, labelled, because it's the one required
-            field and people paste long URLs into it. In-field paste
-            affordance sits on the right so mobile users don't have to
-            long-press → Paste. Tap is a user gesture, which is what
-            navigator.clipboard.readText needs to succeed on iOS
-            Safari (a silent read on focus/mount would be blocked). */}
+            field and people paste long URLs into it. The in-field
+            paste affordance is mobile-only (sm:hidden) — desktop
+            users already have cmd+V and the extra button got in the
+            way of tab-to-next-field (tab jumped to the button
+            instead of the currency picker). Tap is a user gesture,
+            which is what navigator.clipboard.readText needs to
+            succeed on iOS Safari (a silent read on focus/mount
+            would be blocked). */}
         <label className="block">
           <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
             구매처 URL
@@ -562,7 +569,7 @@ function LinkForm({
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://..."
-              className="w-full bg-black/30 text-white text-sm rounded-md pl-3 pr-12 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60"
+              className="w-full bg-black/30 text-white text-sm rounded-md pl-3 pr-12 sm:pr-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60"
               required
             />
             <PasteUrlButton onPaste={(pasted) => setUrl(pasted)} />

@@ -140,12 +140,20 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
         return (
           // The notch mask also clips box-shadows, so put the drop-shadow
           // on a parent filter — it follows the notched silhouette.
+          // `filter` creates a new stacking context which, inside the
+          // album-flip's preserve-3d parent, would be rendered on its
+          // own 2D layer and leak through during the Y180 rotation
+          // (visible from the card's back side). Pinning
+          // backface-visibility here keeps the sticker tied to the
+          // front face the same way the face container is.
           <div
             key={link.id}
             className="pointer-events-auto"
             style={{
               filter: 'drop-shadow(0 1px 1.5px rgba(0,0,0,0.35))',
               transform: `rotate(${rotation.toFixed(1)}deg)`,
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
             }}
           >
             <a

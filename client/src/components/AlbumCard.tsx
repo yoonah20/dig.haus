@@ -348,14 +348,22 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 dim — normal users now see a clean card and the reminder
                 to go top up reviews lives only on the admin view. Sits
                 top-right so it never collides with the left-column
-                sticker stack. */}
+                sticker stack. backface-visibility pinned explicitly
+                because backdrop-blur creates its own stacking context
+                and the browser would otherwise keep rendering this
+                badge through the card's Y-rotation onto the back
+                face. */}
             {isAdmin && reviewsPending && (
               <div
                 className="absolute top-2 right-2 w-5 h-5 rounded-full bg-black/60 backdrop-blur-sm border border-[#e8a020]/50 flex items-center justify-center text-[11px] leading-none select-none"
                 aria-label="리뷰 수집 대기"
                 title="리뷰 수집 대기 — 이 앨범 페이지에서 🔍 리뷰 모아오기 실행"
+                style={{
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                }}
               >
-                📝
+                ⚠️
               </div>
             )}
             <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
