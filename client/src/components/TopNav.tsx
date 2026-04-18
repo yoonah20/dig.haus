@@ -87,7 +87,7 @@ export default function TopNav() {
                 opacity: 0.9,
               }}
             >
-              dig by cover, find by feel
+              No algorithms needed. Just digging.
             </span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
