@@ -242,6 +242,7 @@ function AvatarEditor({
           ref={fileRef}
           type="file"
           accept="image/*"
+          aria-label="프로필 사진 업로드"
           className="hidden"
           onChange={(e) => {
             const f = e.target.files?.[0];

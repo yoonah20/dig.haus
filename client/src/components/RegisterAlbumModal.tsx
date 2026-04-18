@@ -171,7 +171,13 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
               placeholder="검색어 넣기 (아티스트, 앨범) …"
               className="w-full bg-[#0f0f0f] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition disabled:opacity-60"
             />
-            {search.isLoading && query.length >= 2 && (
+            {/* isFetching, not isLoading — React Query v5 flips
+                isLoading to false as soon as placeholderData (the
+                previous result) is available, so subsequent searches
+                would show no spinner at all. isFetching stays true
+                for the entire in-flight period regardless of whether
+                stale data is being shown. */}
+            {search.isFetching && query.length >= 2 && (
               <div className="absolute right-4 top-1/2 -translate-y-1/2">
                 <div className="w-5 h-5 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
               </div>
@@ -232,7 +238,7 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
             </div>
           )}
 
-          {!pending && query.length >= 2 && !search.isLoading && albums.length === 0 && (
+          {!pending && query.length >= 2 && !search.isFetching && albums.length === 0 && (
             <div className="mt-6 text-sm text-gray-500 text-center">
               검색 결과가 없습니다.
             </div>

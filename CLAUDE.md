@@ -126,6 +126,18 @@ Claude API spend was ~$3 for 10 albums before optimization; post-optimization ta
 
 ---
 
+## Phase 3 cleanup candidates (known debt at Phase 2 close)
+
+Known-but-deliberately-deferred items surfaced by the Phase 2 closeout audit. Each is functional today — don't fix just because you're in the area, but bundle into a Phase 3 cleanup pass if the file needs other work.
+
+- **Legacy `album_requests` table + `requestNotifier` cron job**: user submissions now land directly in `albums` with `requested_by_user_id`; nothing writes to `album_requests` anymore. The cron (`server/src/jobs/requestNotifier.ts`) queries it every 5 minutes and finds nothing. Defer DROP TABLE until Phase 3 schema pass so the migration is batched with mydig-related schema changes.
+- **Home-feed N+1 subqueries** (`GET /api/albums`, `ALBUM_ROW_SELECT` around `server/src/routes/albums.ts:598`): 7 correlated subqueries per row (votes SUM×2, reviews AVG/COUNT, user_reviews COUNT, collections, wants). Fine at current traffic. Collapse into a single JOIN+GROUP BY if the feed shows up in latency telemetry. Same pattern in `server/src/routes/userReviews.ts:118` feed.
+- **`generate-summary` missing per-call budget tracking** (`server/src/routes/albums.ts` — the `/:id/reviews/generate-summary` handler): admin-only, `adminClaudeLimiter` (20/min) caps the worst case at ~$0.40/min of Sonnet. Adequate for now; add an explicit budget check when other admin Claude paths gain tracking.
+- **No orphan sweep for `server/data/avatars/` and `custom-covers/`**: account/album deletion removes DB rows but leaves uploaded files on disk. Disk is cheap on Railway so this is accumulation, not a bug. A weekly cron that lists the dirs and deletes files not referenced by any row would close the loop.
+- **Approve-button concurrent-click race** (`approveAlbumRequest` in `server/src/routes/albums.ts`): two admins clicking 승인 on the same pending album in the same second can both fire the Claude review-search (~$0.05 per duplicate). Low-probability one-operator operation; skip a dedup lock unless a second admin joins the project.
+
+---
+
 ## File map (where things live)
 
 ### Client

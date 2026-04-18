@@ -555,7 +555,20 @@ export async function approveAlbumRequest(mbid: string): Promise<void> {
         `[approve] review warm-up failed for ${mbid} — rolling back stamp so admin can retry:`,
         (err as Error).message
       );
-      updateAlbumFields(mbid, { reviews_crawled_at: null });
+      // Rollback write is itself async-throwable (DB lock, disk
+      // full, etc.). If it fails we log rather than re-throw —
+      // re-throwing inside a .catch becomes an unhandled promise
+      // rejection that can crash the Node process. Worst case
+      // the album stays stamped as reviews_crawled_at=now with
+      // no cached reviews; admin can retry 🔍 리뷰 모아오기.
+      try {
+        updateAlbumFields(mbid, { reviews_crawled_at: null });
+      } catch (rollbackErr) {
+        console.error(
+          `[approve] rollback of reviews_crawled_at failed for ${mbid}:`,
+          (rollbackErr as Error).message
+        );
+      }
     });
   });
 }
