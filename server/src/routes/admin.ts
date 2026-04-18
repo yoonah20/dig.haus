@@ -1,10 +1,16 @@
 import { Router } from 'express';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 import {
   getRollingDailyClaudeSpendUsd,
   ROLLING_24H_USD_CAP,
 } from '../services/claudeBudget.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const router = Router();
 
@@ -395,6 +401,51 @@ router.get('/claude-usage/recent', (req, res) => {
         createdAt: r.created_at,
       };
     }),
+  });
+});
+
+// GET /api/admin/db-dump
+//
+// Streams a consistent SQLite snapshot of the live database so the
+// site operator can pull production state down to their local
+// environment (Phase 3 mydig work needs real digger data to shake
+// out width/layout edge cases). VACUUM INTO writes a
+// transactionally-safe copy to a tmp path first — streaming the
+// live file directly would risk inconsistency if a write landed
+// mid-stream. Tmp file is deleted after the stream closes.
+//
+// Admin-only via the router-level requireAdmin middleware (line 13).
+// Intended for the site operator; not surfaced in UI. Trigger by
+// visiting the URL directly in a browser logged in as admin — the
+// browser handles the session cookie so no curl auth dance needed.
+router.get('/db-dump', (_req, res) => {
+  const dbPath =
+    process.env.DB_PATH ||
+    path.join(__dirname, '..', '..', 'data', 'diggershaus.db');
+  const tmpPath = path.join(
+    os.tmpdir(),
+    `diggershaus-dump-${Date.now()}.db`
+  );
+
+  try {
+    // VACUUM INTO needs the target file not to pre-exist; tmp name
+    // uses Date.now() so consecutive calls don't collide.
+    execute(`VACUUM INTO ?`, [tmpPath]);
+  } catch (err) {
+    console.error('[db-dump] VACUUM INTO failed:', err);
+    return res.status(500).json({ error: 'failed to snapshot db' });
+  }
+
+  const filename = `diggershaus-${new Date().toISOString().slice(0, 10)}.db`;
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+  const stream = fs.createReadStream(tmpPath);
+  stream.pipe(res);
+  stream.on('close', () => fs.unlink(tmpPath, () => {}));
+  stream.on('error', (err) => {
+    console.error('[db-dump] stream error:', err);
+    fs.unlink(tmpPath, () => {});
   });
 });
 
