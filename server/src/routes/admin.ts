@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -404,48 +405,87 @@ router.get('/claude-usage/recent', (req, res) => {
   });
 });
 
-// GET /api/admin/db-dump
+// GET /api/admin/snapshot-dump
 //
-// Streams a consistent SQLite snapshot of the live database so the
-// site operator can pull production state down to their local
-// environment (Phase 3 mydig work needs real digger data to shake
-// out width/layout edge cases). VACUUM INTO writes a
-// transactionally-safe copy to a tmp path first — streaming the
-// live file directly would risk inconsistency if a write landed
-// mid-stream. Tmp file is deleted after the stream closes.
+// Streams a tar.gz bundle of the live production state so the site
+// operator can pull a complete snapshot down to their local
+// environment. Includes:
+//   - diggershaus.db       (VACUUM INTO copy — transactionally safe)
+//   - avatars/             (user-uploaded avatars)
+//   - custom-covers/       (user-uploaded album covers)
 //
-// Admin-only via the router-level requireAdmin middleware (line 13).
-// Intended for the site operator; not surfaced in UI. Trigger by
-// visiting the URL directly in a browser logged in as admin — the
-// browser handles the session cookie so no curl auth dance needed.
-router.get('/db-dump', (_req, res) => {
+// Excludes cover-cache/ — that's a passthrough cache of external
+// cover images and regenerates on demand locally.
+//
+// DB + assets must travel together: rows in the DB reference asset
+// filenames (users.avatar_url, albums.custom_cover_*) so a DB-only
+// dump leaves local avatars/covers broken. Phase 3 mydig layout
+// work needs real digger data with intact visuals to surface edge
+// cases.
+//
+// Archive layout mirrors server/data/ so the operator extracts with
+//   cd server/data && tar xzf ~/Downloads/diggershaus-YYYY-MM-DD.tar.gz
+// and is done.
+//
+// Admin-only via the router-level requireAdmin middleware (line 14).
+// Not surfaced in UI — visit the URL directly in a browser logged
+// in as admin; the session cookie handles auth.
+router.get('/snapshot-dump', (_req, res) => {
   const dbPath =
     process.env.DB_PATH ||
     path.join(__dirname, '..', '..', 'data', 'diggershaus.db');
-  const tmpPath = path.join(
-    os.tmpdir(),
-    `diggershaus-dump-${Date.now()}.db`
+  const dataDir = path.dirname(dbPath);
+  const tmpDir = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'diggershaus-snapshot-')
   );
+  const snapshotDb = path.join(tmpDir, 'diggershaus.db');
 
   try {
-    // VACUUM INTO needs the target file not to pre-exist; tmp name
-    // uses Date.now() so consecutive calls don't collide.
-    execute(`VACUUM INTO ?`, [tmpPath]);
+    execute(`VACUUM INTO ?`, [snapshotDb]);
   } catch (err) {
-    console.error('[db-dump] VACUUM INTO failed:', err);
+    console.error('[snapshot-dump] VACUUM INTO failed:', err);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
     return res.status(500).json({ error: 'failed to snapshot db' });
   }
 
-  const filename = `diggershaus-${new Date().toISOString().slice(0, 10)}.db`;
-  res.setHeader('Content-Type', 'application/octet-stream');
+  const filename = `diggershaus-${new Date().toISOString().slice(0, 10)}.tar.gz`;
+  res.setHeader('Content-Type', 'application/gzip');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-  const stream = fs.createReadStream(tmpPath);
-  stream.pipe(res);
-  stream.on('close', () => fs.unlink(tmpPath, () => {}));
-  stream.on('error', (err) => {
-    console.error('[db-dump] stream error:', err);
-    fs.unlink(tmpPath, () => {});
+  // `-C <dir> <entries>` switches cwd for the entries that follow.
+  // First -C pulls the vacuumed DB from tmpDir; second switches to
+  // the live data dir for the asset directories. Result: archive
+  // root contains diggershaus.db + avatars/ + custom-covers/.
+  const tar = spawn('tar', [
+    'czf',
+    '-',
+    '-C',
+    tmpDir,
+    'diggershaus.db',
+    '-C',
+    dataDir,
+    'avatars',
+    'custom-covers',
+  ]);
+
+  tar.stdout.pipe(res);
+  tar.stderr.on('data', (d) =>
+    console.error('[snapshot-dump] tar stderr:', d.toString())
+  );
+  tar.on('close', (code) => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    if (code !== 0) {
+      console.error('[snapshot-dump] tar exited with code', code);
+    }
+  });
+  tar.on('error', (err) => {
+    console.error('[snapshot-dump] tar spawn error:', err);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'failed to create archive' });
+    } else {
+      res.end();
+    }
   });
 });
 
