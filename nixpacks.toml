@@ -1,5 +1,12 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+# nodejs_20 in the current Nixpacks base resolved to v20.6.1, which is
+# below what several deps (cheerio >=20.18.1, undici >=20.18.1) require
+# and — more importantly — below the range for which better-sqlite3 12.x
+# ships prebuilt binaries. Without a prebuilt, the install falls back to
+# node-gyp rebuild which needs Python, and the Nixpacks base doesn't
+# include Python. Pinning to nodejs_22 (current LTS) gets us both a
+# supported engine and available prebuilt binaries; no Python needed.
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = ["cd server && npm install"]
