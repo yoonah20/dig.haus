@@ -1420,6 +1420,32 @@ router.post(
   }
 );
 
+// ─── POST /api/albums/:id/reviews/mark-none — admin "no reviews exist" ─
+//
+// Escape hatch for albums too obscure to have any review coverage
+// anywhere — the ⚠️ pending badge would otherwise stick around
+// forever. Stamps reviews_crawled_at so the grid un-dims and the
+// card stops showing the admin mark, without any Claude call or
+// korean_summary being generated. No rate limiter needed; this is
+// a single UPDATE with no external cost.
+//
+// Reversible by side effect: if admin later finds and adds a
+// review, the existing "리뷰 추가" flow leaves reviews_crawled_at
+// as-is, and the album just starts behaving like a normal
+// reviewed album. No explicit unset is exposed.
+router.post('/:id/reviews/mark-none', requireAdmin, (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const cached = getCachedAlbum(mbid);
+  if (!cached) return res.status(404).json({ error: 'Album not found' });
+
+  updateAlbumFields(mbid, {
+    reviews_crawled_at: new Date().toISOString(),
+  });
+  res.json({ ok: true, stamped: true });
+});
+
 // ─── PATCH /api/albums/:id/tags — admin replace genre tag list ──────────
 
 router.patch('/:id/tags', requireAdmin, (req, res) => {

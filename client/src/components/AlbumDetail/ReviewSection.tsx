@@ -633,6 +633,24 @@ export default function ReviewSection({
             </div>
           )}
 
+          {/* Non-admin empty state — album has been crawled (so the
+              pending notice is gone) but no reviews were ever found
+              or the admin marked it as having none via 🙅 리뷰 없음.
+              Without this the section would render as a silent gap
+              under the heading. Admin's own empty state is the
+              "+ 리뷰 추가" button further down, so we gate by
+              !isAdmin. */}
+          {!pendingNotice && sortedReviews.length === 0 && !koreanSummary && !isAdmin && (
+            <div className="rounded-xl border border-white/5 bg-[#1a1a1a]/60 px-5 py-4 space-y-1">
+              <div className="text-sm text-gray-400">
+                아직 모인 리뷰가 없어요.
+              </div>
+              <div className="text-xs text-gray-600">
+                50자 평·굿굿/별루·구매처 등록은 자유롭게 남길 수 있어요.
+              </div>
+            </div>
+          )}
+
           {sortedReviews.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {visibleReviews.map((review) => (

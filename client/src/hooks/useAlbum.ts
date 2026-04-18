@@ -176,3 +176,26 @@ export function useGenerateReviewSummary(id: string) {
     },
   });
 }
+
+// Admin escape hatch for albums too obscure to have any review
+// coverage anywhere. Stamps reviews_crawled_at without any Claude
+// call so the pending badge disappears from the home grid and the
+// detail page swaps to the "no reviews" empty state for visitors.
+export function useMarkNoReviews(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await axios.post(
+        `/api/albums/${encodeURIComponent(id)}/reviews/mark-none`
+      );
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['album', id] });
+      qc.invalidateQueries({ queryKey: ['album-reviews', id] });
+      qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
+      qc.invalidateQueries({ queryKey: ['album-list'] });
+      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+    },
+  });
+}

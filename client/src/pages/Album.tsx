@@ -7,7 +7,7 @@ import {
   useApproveAlbumRequest,
   useDeletePendingAlbum,
 } from '../hooks/useAlbumRequests';
-import { useGenerateReviewSummary } from '../hooks/useAlbum';
+import { useGenerateReviewSummary, useMarkNoReviews } from '../hooks/useAlbum';
 import { useInView } from '../hooks/useInView';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import HeaderSection from '../components/AlbumDetail/HeaderSection';
@@ -35,6 +35,7 @@ export default function Album() {
   const approveRequest = useApproveAlbumRequest();
   const deletePending = useDeletePendingAlbum();
   const generateSummary = useGenerateReviewSummary(slug!);
+  const markNoReviews = useMarkNoReviews(slug!);
   const { data: base, isLoading: baseLoading, error: baseError } = useAlbumBase(slug!);
   const baseReady = !!base;
   const { sort } = useHomeState();
@@ -206,7 +207,8 @@ export default function Album() {
                             disabled={
                               approveRequest.isPending ||
                               deletePending.isPending ||
-                              generateSummary.isPending
+                              generateSummary.isPending ||
+                              markNoReviews.isPending
                             }
                             className="text-xs font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             title="Claude 웹 검색으로 리뷰 일괄 수집 (~$0.10)"
@@ -230,12 +232,42 @@ export default function Album() {
                               approveRequest.isPending ||
                               deletePending.isPending ||
                               generateSummary.isPending ||
+                              markNoReviews.isPending ||
                               reviewsData.reviews.length < 2
                             }
                             className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/50 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             title="이미 등록된 리뷰만으로 한국어 요약 생성 (~$0.01). 리뷰가 2개 이상 있어야 가능."
                           >
                             {generateSummary.isPending ? '생성 중…' : '📝 요약 생성'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (markNoReviews.isPending) return;
+                              if (
+                                !confirm(
+                                  '이 앨범을 "리뷰 없음"으로 표시할까요?\n' +
+                                    '홈 그리드의 ⚠️ 뱃지가 사라지고, 방문자에게는 리뷰가 없다는 안내가 노출됩니다.\n' +
+                                    '나중에 리뷰를 추가하면 자동으로 정상 상태로 돌아갑니다.'
+                                )
+                              )
+                                return;
+                              try {
+                                await markNoReviews.mutateAsync();
+                              } catch (err: any) {
+                                alert(err?.response?.data?.error || '표시에 실패했습니다.');
+                              }
+                            }}
+                            disabled={
+                              approveRequest.isPending ||
+                              deletePending.isPending ||
+                              generateSummary.isPending ||
+                              markNoReviews.isPending
+                            }
+                            className="text-xs text-gray-400 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            title="Claude 호출 없이 크롤링 완료로만 표시 (비용 0)"
+                          >
+                            {markNoReviews.isPending ? '표시 중…' : '🙅 리뷰 없음'}
                           </button>
                           <button
                             type="button"
@@ -257,7 +289,8 @@ export default function Album() {
                             disabled={
                               approveRequest.isPending ||
                               deletePending.isPending ||
-                              generateSummary.isPending
+                              generateSummary.isPending ||
+                              markNoReviews.isPending
                             }
                             className="text-xs text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                           >

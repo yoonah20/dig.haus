@@ -5,6 +5,7 @@ dist/
 *.db-shm
 *.db-wal
 server/data/
+db-dump/
 
 # Seed DB ships with the repo so fresh boots / empty volumes have schema + data
 !server/seed/
