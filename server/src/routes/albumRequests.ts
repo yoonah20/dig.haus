@@ -216,10 +216,12 @@ router.post(
 // ─── GET /api/album-requests ─────────────────────────────────────────
 //
 // Admin notification feed — powers the red count badge on the admin
-// avatar pill. Only user-submitted albums show up here. Admin-direct
-// registrations land pending too, but they don't need to ping the
-// admin who just registered them, so the `requested_by_user_id IS
-// NOT NULL` filter excludes those rows.
+// avatar pill. Only *non-admin* user submissions surface here. Two
+// exclusions:
+//   • `requested_by_user_id IS NULL` — fully-direct admin registrations
+//     (e.g. seed inserts) never had a requester
+//   • `u.is_admin = 0` — admin using the regular register flow sets
+//     their own id as requester; we don't ping admin for their own work
 router.get('/album-requests', requireAdmin, (_req, res) => {
   const rows = queryAll(
     `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.release_year,
@@ -230,6 +232,7 @@ router.get('/album-requests', requireAdmin, (_req, res) => {
      FROM albums a
      JOIN users u ON u.id = a.requested_by_user_id
      WHERE a.reviews_crawled_at IS NULL
+       AND COALESCE(u.is_admin, 0) = 0
      ORDER BY a.created_at DESC`
   );
 

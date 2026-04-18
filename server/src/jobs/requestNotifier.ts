@@ -47,6 +47,7 @@ async function flushPendingRequests(): Promise<void> {
      LEFT JOIN users u ON u.id = ar.user_id
      WHERE ar.admin_notified_at IS NULL
        AND ar.status = 'pending'
+       AND COALESCE(u.is_admin, 0) = 0
      ORDER BY ar.created_at ASC`
   ) as PendingRequestRow[];
 
