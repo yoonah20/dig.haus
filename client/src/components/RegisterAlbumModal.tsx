@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useRequestSearch } from '../hooks/useSearch';
 import { useSubmitAlbumRequest } from '../hooks/useAlbumRequests';
@@ -28,6 +29,7 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const submit = useSubmitAlbumRequest();
 
   const search = useRequestSearch(query, open);
@@ -41,9 +43,15 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
     setExtracting(false);
     setPending(null);
     setError(null);
+    // Drop every cached request-search result so a prior session's
+    // "already registered" hits don't flash back through
+    // placeholderData when the modal reopens. staleTime: 5min + the
+    // placeholderData: (prev) => prev on useRequestSearch otherwise
+    // preserved those rows even after the user had moved on.
+    qc.removeQueries({ queryKey: ['album-request-search'] });
     const t = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(t);
-  }, [open]);
+  }, [open, qc]);
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(input.trim()), 300);

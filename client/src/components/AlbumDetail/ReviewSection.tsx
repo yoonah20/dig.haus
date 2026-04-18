@@ -523,7 +523,7 @@ export default function ReviewSection({
 
   return (
     <section>
-      <h2 className="text-2xl font-bold text-white mb-6 font-serif flex items-baseline gap-2">
+      <h2 className="text-2xl font-bold text-white mb-6 font-serif flex items-baseline gap-2 flex-wrap">
         <span>리뷰 모음집</span>
         <AiSummaryBadge />
         {/* Admin-only shortcut — opens a Google search for the album
@@ -554,7 +554,176 @@ export default function ReviewSection({
             </svg>
           </a>
         )}
+        {/* + 리뷰 추가 lives in the heading row (not at the bottom of
+            the section) so its position stays fixed as reviews
+            accumulate — admins doing the repetitive review-collection
+            work need muscle memory for this button, and a bottom-of-
+            grid anchor moves every time a card is added. */}
+        {isAdmin && !addingReview && (
+          <button
+            type="button"
+            onClick={startAddReview}
+            className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-[#e8a020] border border-[#e8a020]/50 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 transition-colors cursor-pointer translate-y-[-2px]"
+          >
+            <span className="text-base leading-none" aria-hidden>+</span>
+            리뷰 추가
+          </button>
+        )}
       </h2>
+
+      {/* Form panel renders right under the heading so the click
+          target (top-right + 리뷰 추가 button) and the drop zone
+          (this panel) sit next to each other. Putting it inside
+          space-y-6 further down would push the paste / save flow
+          below any existing review cards and break muscle memory
+          for the repetitive manual-registration workflow. */}
+      {isAdmin && addingReview && (
+        <div className="mb-6 bg-[#1a1a1a] rounded-lg p-4 space-y-3 border border-white/10 max-w-xl relative">
+          {/* Close chip top-right, window-style. Mouse travel from
+              the textarea save to a corner × is short, and the
+              primary 저장 button sits directly under the input so
+              the paste → save path is one downward move. */}
+          <button
+            type="button"
+            onClick={cancelAddReview}
+            disabled={savingReview}
+            aria-label="닫기"
+            title="닫기 (Esc)"
+            className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/5 rounded transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            ✕
+          </button>
+
+          <div className="flex gap-1 border-b border-white/10 pr-8">
+            <button
+              type="button"
+              onClick={() => setAddMode('url')}
+              disabled={savingReview}
+              className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
+                addMode === 'url'
+                  ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              URL
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddMode('manual')}
+              disabled={savingReview}
+              className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
+                addMode === 'manual'
+                  ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
+                  : 'text-gray-500 hover:text-gray-300'
+              }`}
+            >
+              수동 입력
+            </button>
+          </div>
+
+          {addMode === 'url' ? (
+            <>
+              <label className="block text-xs text-gray-400">
+                리뷰 URL <span className="text-gray-600">(여러 개는 한 줄에 하나씩)</span>
+              </label>
+              <textarea
+                value={addUrl}
+                onChange={(e) => setAddUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    cancelAddReview();
+                  }
+                }}
+                disabled={savingReview}
+                placeholder={'https://angrymetalguy.com/...\nhttps://pitchfork.com/...'}
+                autoFocus
+                rows={4}
+                className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 font-mono"
+              />
+              <button
+                onClick={saveAddReview}
+                disabled={savingReview || !addUrl.trim()}
+                className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer"
+              >
+                {savingReview
+                  ? batchProgress
+                    ? `페이지 분석 중... ${batchProgress.current}/${batchProgress.total}`
+                    : '페이지 분석 중...'
+                  : '저장'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">
+                    사이트 이름 <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualSource}
+                    onChange={(e) => setManualSource(e.target.value)}
+                    disabled={savingReview}
+                    placeholder="이즘, 웨이브 등"
+                    maxLength={100}
+                    className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">
+                    점수 <span className="text-gray-600">(선택)</span>
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={manualScore}
+                    onChange={(e) => setManualScore(e.target.value)}
+                    disabled={savingReview}
+                    placeholder="0-100"
+                    maxLength={3}
+                    className="w-20 bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">
+                  원문 URL <span className="text-gray-600">(선택)</span>
+                </label>
+                <input
+                  type="url"
+                  value={manualUrl}
+                  onChange={(e) => setManualUrl(e.target.value)}
+                  disabled={savingReview}
+                  placeholder="https://..."
+                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">
+                  본문 텍스트 <span className="text-red-400">*</span>{' '}
+                  <span className="text-gray-600">(복사한 원문, 최소 50자)</span>
+                </label>
+                <textarea
+                  value={manualBody}
+                  onChange={(e) => setManualBody(e.target.value)}
+                  disabled={savingReview}
+                  rows={8}
+                  placeholder="기사 본문을 붙여넣으세요..."
+                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                />
+              </div>
+              <button
+                onClick={saveManualReview}
+                disabled={savingReview || !manualSource.trim() || manualBody.trim().length < 50}
+                className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer"
+              >
+                {savingReview ? '본문 분석 중...' : '저장'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="space-y-6">
         {pendingNotice}
@@ -573,7 +742,7 @@ export default function ReviewSection({
           </div>
         )}
 
-        {(koreanSummary || isAdmin) && (
+        {koreanSummary && (
             <div className="bg-[#1a1a1a] rounded-xl p-5 border-l-4 border-[#e8a020]">
               {editingSummary ? (
                 <div className="space-y-2">
@@ -675,176 +844,6 @@ export default function ReviewSection({
             </button>
           )}
 
-          {isAdmin && (
-            <div>
-              {addingReview ? (
-                <div className="bg-[#1a1a1a] rounded-lg p-4 space-y-3 border border-white/10">
-                  <div className="flex gap-1 border-b border-white/10">
-                    <button
-                      type="button"
-                      onClick={() => setAddMode('url')}
-                      disabled={savingReview}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
-                        addMode === 'url'
-                          ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
-                          : 'text-gray-500 hover:text-gray-300'
-                      }`}
-                    >
-                      URL
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setAddMode('manual')}
-                      disabled={savingReview}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
-                        addMode === 'manual'
-                          ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
-                          : 'text-gray-500 hover:text-gray-300'
-                      }`}
-                    >
-                      수동 입력
-                    </button>
-                  </div>
-
-                  {addMode === 'url' ? (
-                    <>
-                      <label className="block text-xs text-gray-400">
-                        리뷰 URL <span className="text-gray-600">(여러 개는 한 줄에 하나씩)</span>
-                      </label>
-                      <textarea
-                        value={addUrl}
-                        onChange={(e) => setAddUrl(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Escape') {
-                            e.preventDefault();
-                            cancelAddReview();
-                          }
-                        }}
-                        disabled={savingReview}
-                        placeholder={'https://angrymetalguy.com/...\nhttps://pitchfork.com/...'}
-                        autoFocus
-                        rows={4}
-                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 font-mono"
-                      />
-                      <div className="flex items-center justify-end gap-2">
-                        {savingReview && (
-                          <span className="text-xs text-gray-500 mr-auto animate-pulse">
-                            {batchProgress
-                              ? `페이지 분석 중... ${batchProgress.current}/${batchProgress.total}`
-                              : '페이지 분석 중...'}
-                          </span>
-                        )}
-                        <button
-                          onClick={cancelAddReview}
-                          disabled={savingReview}
-                          className="px-3 py-1 text-sm text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
-                        >
-                          취소
-                        </button>
-                        <button
-                          onClick={saveAddReview}
-                          disabled={savingReview || !addUrl.trim()}
-                          className="px-3 py-1 text-sm text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 transition-colors cursor-pointer"
-                        >
-                          {savingReview ? '저장 중...' : '저장'}
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">
-                            사이트 이름 <span className="text-red-400">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={manualSource}
-                            onChange={(e) => setManualSource(e.target.value)}
-                            disabled={savingReview}
-                            placeholder="이즘, 웨이브 등"
-                            maxLength={100}
-                            className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-400 mb-1">
-                            점수 <span className="text-gray-600">(선택)</span>
-                          </label>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={manualScore}
-                            onChange={(e) => setManualScore(e.target.value)}
-                            disabled={savingReview}
-                            placeholder="0-100"
-                            maxLength={3}
-                            className="w-20 bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                          원문 URL <span className="text-gray-600">(선택)</span>
-                        </label>
-                        <input
-                          type="url"
-                          value={manualUrl}
-                          onChange={(e) => setManualUrl(e.target.value)}
-                          disabled={savingReview}
-                          placeholder="https://..."
-                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                          본문 텍스트 <span className="text-red-400">*</span>{' '}
-                          <span className="text-gray-600">(복사한 원문, 최소 50자)</span>
-                        </label>
-                        <textarea
-                          value={manualBody}
-                          onChange={(e) => setManualBody(e.target.value)}
-                          disabled={savingReview}
-                          rows={8}
-                          placeholder="기사 본문을 붙여넣으세요..."
-                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                        />
-                      </div>
-                      <div className="flex items-center justify-end gap-2">
-                        {savingReview && (
-                          <span className="text-xs text-gray-500 mr-auto animate-pulse">
-                            본문 분석 중...
-                          </span>
-                        )}
-                        <button
-                          onClick={cancelAddReview}
-                          disabled={savingReview}
-                          className="px-3 py-1 text-sm text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
-                        >
-                          취소
-                        </button>
-                        <button
-                          onClick={saveManualReview}
-                          disabled={savingReview || !manualSource.trim() || manualBody.trim().length < 50}
-                          className="px-3 py-1 text-sm text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 transition-colors cursor-pointer"
-                        >
-                          {savingReview ? '저장 중...' : '저장'}
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <button
-                  onClick={startAddReview}
-                  className="inline-flex items-center gap-1.5 text-sm font-medium text-[#e8a020] border border-[#e8a020]/50 hover:bg-[#e8a020]/10 rounded-md px-3 py-2 transition-colors cursor-pointer"
-                >
-                  <span className="text-base leading-none" aria-hidden>+</span>
-                  리뷰 추가
-                </button>
-              )}
-            </div>
-          )}
       </div>
     </section>
   );

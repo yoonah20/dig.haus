@@ -180,9 +180,9 @@ export default function Album() {
                 ? isAdmin
                   ? (
                       <div className="rounded-xl border border-[#e8a020]/25 bg-[#1a1a1a]/80 px-4 sm:px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
-                        <div className="text-xs text-gray-500 leading-relaxed">
-                          리뷰 수집 대기 — AI 검색을 돌리거나, 리뷰 링크를
-                          직접 모은 뒤 요약만 만들 수 있어요.
+                        <div className="text-sm text-gray-400 leading-relaxed">
+                          AI로 리뷰를 모으거나(고비용), 직접 리뷰를 모아서
+                          요약을 만들어 보세요.
                         </div>
                         <div className="flex items-center gap-2">
                           <button
@@ -210,7 +210,7 @@ export default function Album() {
                               generateSummary.isPending ||
                               markNoReviews.isPending
                             }
-                            className="text-xs font-medium text-black bg-[#e8a020] hover:bg-[#f0b040] rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            className="text-xs text-gray-400 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             title="Claude 웹 검색으로 리뷰 일괄 수집 (~$0.10)"
                           >
                             {approveRequest.isPending ? '검색 중…' : '🔍 리뷰 모아오기'}
