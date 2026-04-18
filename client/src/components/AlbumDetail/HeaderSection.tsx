@@ -11,6 +11,7 @@ import { useSearchOverlay } from '../../contexts/SearchOverlayContext';
 import VoteButtons from '../VoteButtons';
 import OwnershipButtons from './OwnershipButtons';
 import CopyTitleButton from '../CopyTitleButton';
+import ShareLinkButton from '../ShareLinkButton';
 
 function AdminMenuItem({
   onClick,
@@ -747,6 +748,9 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               <CopyTitleButton
                 text={`${album.title} ${album.artist}`}
                 label={`"${album.title} ${album.artist}" 복사`}
+              />
+              <ShareLinkButton
+                title={`${album.title} — ${album.artist}`}
               />
               <button
                 type="button"
