@@ -783,6 +783,7 @@ router.get('/', async (req, res) => {
         coverArtFallbacks: a.cover_art_fallbacks ? JSON.parse(a.cover_art_fallbacks) : [],
         averageScore: a.avg_score != null ? Math.round(a.avg_score) : null,
         reviewCount: a.review_count || 0,
+        userReviewCount: a.user_review_count || 0,
         upvotes: a.upvotes || 0,
         downvotes: a.downvotes || 0,
         priceTagLinks: topLinksByAlbum.get(a.id) || [],

@@ -307,14 +307,17 @@ export default function ReviewSection({
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Manual-entry fields (for sites that block crawling).
-  const [manualSource, setManualSource] = useState('');
+  // AllMusic is the default source because it's the one admin
+  // pastes from most often in practice; pre-filling it turns the
+  // three-required-fields flow into two in the common case.
+  const [manualSource, setManualSource] = useState('AllMusic');
   const [manualUrl, setManualUrl] = useState('');
   const [manualScore, setManualScore] = useState('');
   const [manualBody, setManualBody] = useState('');
 
   const startAddReview = () => {
     setAddUrl('');
-    setManualSource('');
+    setManualSource('AllMusic');
     setManualUrl('');
     setManualScore('');
     setManualBody('');
@@ -326,7 +329,7 @@ export default function ReviewSection({
     if (savingReview) return;
     setAddingReview(false);
     setAddUrl('');
-    setManualSource('');
+    setManualSource('AllMusic');
     setManualUrl('');
     setManualScore('');
     setManualBody('');
@@ -432,7 +435,7 @@ export default function ReviewSection({
       });
       await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
       setAddingReview(false);
-      setManualSource('');
+      setManualSource('AllMusic');
       setManualUrl('');
       setManualScore('');
       setManualBody('');
@@ -554,29 +557,14 @@ export default function ReviewSection({
             </svg>
           </a>
         )}
-        {/* + 리뷰 추가 lives in the heading row (not at the bottom of
-            the section) so its position stays fixed as reviews
-            accumulate — admins doing the repetitive review-collection
-            work need muscle memory for this button, and a bottom-of-
-            grid anchor moves every time a card is added. */}
-        {isAdmin && !addingReview && (
-          <button
-            type="button"
-            onClick={startAddReview}
-            className="ml-auto inline-flex items-center gap-1.5 text-sm font-medium text-[#e8a020] border border-[#e8a020]/50 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 transition-colors cursor-pointer translate-y-[-2px]"
-          >
-            <span className="text-base leading-none" aria-hidden>+</span>
-            리뷰 추가
-          </button>
-        )}
       </h2>
 
-      {/* Form panel renders right under the heading so the click
-          target (top-right + 리뷰 추가 button) and the drop zone
-          (this panel) sit next to each other. Putting it inside
-          space-y-6 further down would push the paste / save flow
-          below any existing review cards and break muscle memory
-          for the repetitive manual-registration workflow. */}
+      {/* Form panel anchored at the top of the section so it stays
+          in a predictable spot next to the + 리뷰 추가 empty-slot
+          card below. The add card lives inside the reviews grid as
+          the last cell (matching the "빈 슬롯에 카드 담기" metaphor
+          the project uses elsewhere), and the form sits here so it
+          doesn't shove the review cards around when opened. */}
       {isAdmin && addingReview && (
         <div className="mb-6 bg-[#1a1a1a] rounded-lg p-4 space-y-3 border border-white/10 max-w-xl relative">
           {/* Close chip top-right, window-style. Mouse travel from
@@ -665,7 +653,7 @@ export default function ReviewSection({
                     value={manualSource}
                     onChange={(e) => setManualSource(e.target.value)}
                     disabled={savingReview}
-                    placeholder="이즘, 웨이브 등"
+                    placeholder="AllMusic 등"
                     maxLength={100}
                     className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                   />
@@ -688,19 +676,6 @@ export default function ReviewSection({
               </div>
               <div>
                 <label className="block text-xs text-gray-400 mb-1">
-                  원문 URL <span className="text-gray-600">(선택)</span>
-                </label>
-                <input
-                  type="url"
-                  value={manualUrl}
-                  onChange={(e) => setManualUrl(e.target.value)}
-                  disabled={savingReview}
-                  placeholder="https://..."
-                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-400 mb-1">
                   본문 텍스트 <span className="text-red-400">*</span>{' '}
                   <span className="text-gray-600">(복사한 원문, 최소 50자)</span>
                 </label>
@@ -710,6 +685,23 @@ export default function ReviewSection({
                   disabled={savingReview}
                   rows={8}
                   placeholder="기사 본문을 붙여넣으세요..."
+                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                />
+              </div>
+              {/* 원문 URL below the body — admin skips it often, so
+                  pushing it under the primary paste target keeps the
+                  required fields (site name + body) at the top of
+                  the form where they read first. */}
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">
+                  원문 URL <span className="text-gray-600">(선택)</span>
+                </label>
+                <input
+                  type="url"
+                  value={manualUrl}
+                  onChange={(e) => setManualUrl(e.target.value)}
+                  disabled={savingReview}
+                  placeholder="https://..."
                   className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                 />
               </div>
@@ -802,22 +794,23 @@ export default function ReviewSection({
             </div>
           )}
 
-          {/* Non-admin empty state — album has been crawled (so the
-              pending notice is gone) but no reviews were ever found
-              or the admin marked it as having none via 🙅 리뷰 없음.
-              Without this the section would render as a silent gap
-              under the heading. Admin's own empty state is the
-              "+ 리뷰 추가" button further down, so we gate by
-              !isAdmin. */}
-          {!pendingNotice && sortedReviews.length === 0 && !koreanSummary && !isAdmin && (
-            <div className="rounded-xl border border-white/5 bg-[#1a1a1a]/60 px-5 py-4">
-              <div className="text-sm text-gray-400">
-                아직 발견된 리뷰가 없어요. 다음에 찾아주세요!
+          {/* Non-admin empty state — rendered as a single review-card
+              sized cell so the review section doesn't collapse into
+              an empty gap. Shown whenever there are no cached
+              reviews, regardless of crawl state; the guest path no
+              longer distinguishes between "pending crawl" and
+              "crawled but empty" because the distinction is an
+              admin-operational detail that doesn't help visitors.
+              Admin's own empty state is the "+ 리뷰 추가" slot below. */}
+          {sortedReviews.length === 0 && !koreanSummary && !isAdmin && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="flex items-center justify-center bg-[#151515] border border-white/5 rounded-lg p-4 min-h-[100px] text-sm text-gray-500">
+                등록된 리뷰가 없습니다
               </div>
             </div>
           )}
 
-          {sortedReviews.length > 0 && (
+          {(sortedReviews.length > 0 || (isAdmin && !addingReview)) && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {visibleReviews.map((review) => (
                 <ReviewCard key={review.id} review={review} onScoreSaved={handleScoreSaved} onRetranslated={handleScoreSaved} onDeleted={handleDeleted} />
@@ -830,6 +823,22 @@ export default function ReviewSection({
                 >
                   <span className="text-[#e8a020] text-2xl font-bold">+{hiddenCount}</span>
                   <span className="text-gray-400 text-sm">{hiddenCount}개 리뷰 더 보기</span>
+                </button>
+              )}
+
+              {/* + 리뷰 추가 as the last cell of the reviews grid —
+                  same dashed-card style as the "+N 더 보기" slot so
+                  the visual language stays consistent. Click empties
+                  the cell and opens the form panel up at the top of
+                  the section (see addingReview branch near the h2). */}
+              {isAdmin && !addingReview && (
+                <button
+                  type="button"
+                  onClick={startAddReview}
+                  className="flex flex-col items-center justify-center gap-1 bg-[#151515] hover:bg-[#1e1e1e] border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/70 text-[#e8a020] rounded-lg p-4 transition-all duration-200 cursor-pointer min-h-[100px]"
+                >
+                  <span className="text-2xl leading-none font-bold" aria-hidden>+</span>
+                  <span className="text-sm font-medium">리뷰 추가</span>
                 </button>
               )}
             </div>

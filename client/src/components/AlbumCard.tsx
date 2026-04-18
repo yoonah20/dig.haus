@@ -160,6 +160,7 @@ function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
 export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
+  const userReviewCount = album.userReviewCount ?? 0;
   const priceTagLinks = album.priceTagLinks ?? [];
   const isNew = isRecentRelease(album.releaseDate);
   // Status stickers use the server-computed flags (which look at
@@ -426,7 +427,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                   {album.artist}
                   {album.year && <> · {album.year}</>}
                 </p>
-                {(showAvg || up > 0 || down > 0) && (
+                {(showAvg || up > 0 || down > 0 || userReviewCount > 0) && (
                   <div
                     className="flex items-center gap-2 tabular-nums"
                     style={{ marginTop: '6px', fontSize: '12px' }}
@@ -441,6 +442,11 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                         <span style={{ color: '#88a2bf' }}>▲{up}</span>
                         <span style={{ color: '#c08888' }}>▼{down}</span>
                       </>
+                    )}
+                    {userReviewCount > 0 && (
+                      <span className="text-gray-300">
+                        <span aria-hidden>💬</span> {userReviewCount}
+                      </span>
                     )}
                   </div>
                 )}

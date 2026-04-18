@@ -48,6 +48,9 @@ export interface AlbumSearchResult {
   ownedCount?: number;
   /** How many users have this album on their 살거 wantlist. */
   wantedCount?: number;
+  /** How many 50자 평 entries exist for this album. Surfaces on the
+   *  card flip-back stat row next to 굿굿/별루. */
+  userReviewCount?: number;
   /** Server-computed: true when the album is in the site-wide top 10
    *  by 굿굿 count (with a ≥3 floor). Drives the red HOT! sticker. */
   isHot?: boolean;

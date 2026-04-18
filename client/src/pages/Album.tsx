@@ -299,16 +299,7 @@ export default function Album() {
                         </div>
                       </div>
                     )
-                  : (
-                      <div className="rounded-xl border border-white/5 bg-[#1a1a1a]/60 px-5 py-4 space-y-1">
-                        <div className="text-sm text-gray-400">
-                          리뷰 수집은 관리자 확인 후 진행됩니다.
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          그동안 50자 평·굿굿/별루·구매처 등록은 자유롭게 남길 수 있어요.
-                        </div>
-                      </div>
-                    )
+                  : null
                 : null
             }
           />
