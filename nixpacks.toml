@@ -1,12 +1,18 @@
 [phases.setup]
-# nodejs_20 in the current Nixpacks base resolved to v20.6.1, which is
-# below what several deps (cheerio >=20.18.1, undici >=20.18.1) require
-# and — more importantly — below the range for which better-sqlite3 12.x
-# ships prebuilt binaries. Without a prebuilt, the install falls back to
-# node-gyp rebuild which needs Python, and the Nixpacks base doesn't
-# include Python. Pinning to nodejs_22 (current LTS) gets us both a
-# supported engine and available prebuilt binaries; no Python needed.
-nixPkgs = ["nodejs_22"]
+# nodejs_22 is not available in the pinned Nixpkgs snapshot Nixpacks
+# uses (build fails with "undefined variable 'nodejs_22'"), so we stay
+# on nodejs_20 (which that snapshot resolves to v20.6.1). The engine
+# warnings from cheerio / undici requiring >=20.18.1 are warnings, not
+# errors — npm proceeds.
+#
+# The real issue was that at v20.6.1 better-sqlite3 12.x has no
+# matching prebuilt binary, so npm falls back to node-gyp rebuild, and
+# the Nixpacks base image has neither Python nor a full toolchain for
+# the native addon to compile. Adding python3 + gcc + gnumake makes
+# the compile path work — build takes ~30s longer but it stops
+# depending on prebuilt-binary availability entirely, so future
+# better-sqlite3 or Node snapshot shifts won't re-break deploys.
+nixPkgs = ["nodejs_20", "python3", "gcc", "gnumake"]
 
 [phases.install]
 cmds = ["cd server && npm install"]
