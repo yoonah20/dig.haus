@@ -188,36 +188,6 @@ export default function Album() {
                           <button
                             type="button"
                             onClick={async () => {
-                              if (approveRequest.isPending) return;
-                              if (
-                                !confirm(
-                                  'AI 리뷰 검색을 실행할까요?\n\n' +
-                                    'Claude가 웹 검색으로 리뷰를 한 번에 5–15개 수집합니다. ' +
-                                    'API 호출 비용이 \u2248$0.05–$0.10 발생하고, 실패해도 부분 비용은 나갑니다.\n\n' +
-                                    '잘 알려진 앨범이 아니라면 직접 리뷰 URL을 모으는 편이 더 정확하고 싸요.'
-                                )
-                              )
-                                return;
-                              try {
-                                await approveRequest.mutateAsync(albumId);
-                              } catch (err: any) {
-                                alert(err?.response?.data?.error || '리뷰 수집에 실패했습니다.');
-                              }
-                            }}
-                            disabled={
-                              approveRequest.isPending ||
-                              deletePending.isPending ||
-                              generateSummary.isPending ||
-                              markNoReviews.isPending
-                            }
-                            className="text-xs text-gray-400 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                            title="Claude 웹 검색으로 리뷰 일괄 수집 (~$0.10)"
-                          >
-                            {approveRequest.isPending ? '검색 중…' : '🔍 리뷰 모아오기'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
                               if (generateSummary.isPending) return;
                               try {
                                 await generateSummary.mutateAsync();
@@ -244,14 +214,6 @@ export default function Album() {
                             type="button"
                             onClick={async () => {
                               if (markNoReviews.isPending) return;
-                              if (
-                                !confirm(
-                                  '이 앨범을 "리뷰 없음"으로 표시할까요?\n' +
-                                    '홈 그리드의 ⚠️ 뱃지가 사라지고, 방문자에게는 리뷰가 없다는 안내가 노출됩니다.\n' +
-                                    '나중에 리뷰를 추가하면 자동으로 정상 상태로 돌아갑니다.'
-                                )
-                              )
-                                return;
                               try {
                                 await markNoReviews.mutateAsync();
                               } catch (err: any) {
@@ -268,6 +230,36 @@ export default function Album() {
                             title="Claude 호출 없이 크롤링 완료로만 표시 (비용 0)"
                           >
                             {markNoReviews.isPending ? '표시 중…' : '🙅 리뷰 없음'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (approveRequest.isPending) return;
+                              if (
+                                !confirm(
+                                  'AI 리뷰 검색을 실행할까요?\n\n' +
+                                    'Claude가 웹 검색으로 리뷰를 한 번에 5–15개 수집합니다. ' +
+                                    'API 호출 비용이 \u2248$0.05–$0.10 발생하고, 실패해도 부분 비용은 나갑니다.\n\n' +
+                                    '잘 알려진 앨범이 아니라면 직접 리뷰 URL을 모으는 편이 더 정확하고 싸요.'
+                                )
+                              )
+                                return;
+                              try {
+                                await approveRequest.mutateAsync(albumId);
+                              } catch (err: any) {
+                                alert(err?.response?.data?.error || '리뷰 수집에 실패했습니다.');
+                              }
+                            }}
+                            disabled={
+                              approveRequest.isPending ||
+                              deletePending.isPending ||
+                              generateSummary.isPending ||
+                              markNoReviews.isPending
+                            }
+                            className="text-xs text-gray-400 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            title="Claude 웹 검색으로 리뷰 일괄 수집 (~$0.10)"
+                          >
+                            {approveRequest.isPending ? '검색 중…' : '🔍 리뷰 모아오기'}
                           </button>
                           <button
                             type="button"

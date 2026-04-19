@@ -17,6 +17,18 @@ export interface ReviewResult {
   fullReviewUrl: string;
 }
 
+// All three extraction paths (web search, URL scrape, paste-in) tell
+// Claude to convert whatever native scale the source uses to /100.
+// But the model occasionally returns something nonsensical — most
+// recently a 250/100 after getting confused by a review that mixed
+// a star image rating with a dense numeric aside. We clamp on the
+// way in so a hallucinated score can never leak into storage or the
+// colour-tier math on the client.
+function clampScore(raw: unknown): number | null {
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return null;
+  return Math.max(0, Math.min(100, Math.round(raw)));
+}
+
 interface ReviewSearchResult {
   reviews: ReviewResult[];
   koreanSummary: string | null;
@@ -275,7 +287,7 @@ Max 15 reviews. Deduplicate by source.` }],
       seenSources.add(keyLower);
       reviews.push({
         sourceName: r.sourceName,
-        score: typeof r.score === 'number' ? r.score : null,
+        score: clampScore(r.score),
         scoreMax: 100,
         excerpt: r.excerpt || '',
         excerptKo: r.excerptKo || '',
@@ -333,6 +345,76 @@ Max 15 reviews. Deduplicate by source.` }],
 
 // ─── Admin: scrape a single review from an arbitrary URL ─────────────────
 
+// Detect visual star ratings from RAW html (must run before stripHtml,
+// which throws away the <i> icon tags that carry the rating). Handles
+// two generic markup families:
+//
+//   - FontAwesome: <i class="fas fa-star">, <i class="fas fa-star-half">
+//     / <i class="fas fa-star-half-alt">, <i class="far fa-star"> (outline
+//     = empty slot). Metal Academy, Angry Metal Guy, many indie review
+//     blogs use this.
+//   - Unicode text: ★ / ☆ / ⯪ rendered as plain characters inline.
+//
+// Detection is scoped to elements whose `class` attribute contains
+// "rating" / "stars" / "score" — this prevents site-wide decorations
+// (nav bars love fa-star for "menu" icons) from polluting the count.
+// We don't try to track tag nesting; instead we scan a bounded window
+// after each class-attr hit and count icons inside it.
+//
+// Returns a /100 score, or null if the count isn't in the trustworthy
+// 3–10 range (filters both nav false-positives and exotic scales we
+// can't map confidently).
+function detectStarRating(html: string): number | null {
+  const containerRe = /class\s*=\s*"[^"]*(?:rating|stars|score)[^"]*"/gi;
+  const ICON_RE = /<i\b[^>]*class\s*=\s*"([^"]*)"[^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = containerRe.exec(html)) !== null) {
+    const window = html.slice(m.index, m.index + 2000);
+    let full = 0,
+      half = 0,
+      empty = 0;
+    let icon: RegExpExecArray | null;
+    // Reset lastIndex — ICON_RE is global and reused across loop iterations.
+    ICON_RE.lastIndex = 0;
+    while ((icon = ICON_RE.exec(window)) !== null) {
+      const classes = icon[1];
+      if (!/\bfa-star/.test(classes)) continue;
+      const isHalf = /\bfa-star-half/.test(classes);
+      // `far` (FontAwesome "regular" style) = outline-only = empty slot.
+      // `fas` (solid) = filled. Anything else (fa-star with no style
+      // prefix, or newer fa-solid / fa-regular forms) falls through to
+      // "full" — safer default than dropping the icon silently.
+      const isOutline = /\bfa-regular\b|\bfar\b/.test(classes);
+      if (isHalf) half++;
+      else if (isOutline) empty++;
+      else full++;
+    }
+
+    // Fallback to Unicode stars in the same window if no FA icons found.
+    // We strip inline tags first so char-count isn't confused by tag names.
+    if (full + half + empty === 0) {
+      const bare = window.replace(/<[^>]+>/g, ' ');
+      full = (bare.match(/★/g) || []).length;
+      half = (bare.match(/[⯪⯫⯬]/g) || []).length;
+      empty = (bare.match(/☆/g) || []).length;
+    }
+
+    const total = full + half + empty;
+    if (total < 3 || total > 10) continue;
+
+    // If empty slots are rendered alongside filled ones, the total IS the
+    // scale (5/5 or 10/10 system, fully drawn). If not, fall back to the
+    // convention that any total ≤ 5 means a 5-star system with the empty
+    // slots simply omitted from the DOM (e.g. metal.academy renders 3.5/5
+    // as 3 full + 1 half and stops). Totals 6-10 without empties map to
+    // a 10-star system.
+    const scale = empty > 0 ? total : total <= 5 ? 5 : 10;
+    const filled = full + half * 0.5;
+    return Math.max(0, Math.min(100, Math.round((filled / scale) * 100)));
+  }
+  return null;
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -372,6 +454,15 @@ export async function scrapeReviewFromUrl(
   } catch (err) {
     console.error('[reviews] URL fetch failed:', (err as Error).message);
     return null;
+  }
+
+  // Pull star-rating data from the raw HTML before we strip tags — the
+  // <i> icons that carry it don't survive stripHtml. If detected, this
+  // score overrides whatever Claude extracts (Claude only sees the
+  // stripped text, so it never had the info in the first place).
+  const starScore = detectStarRating(html);
+  if (starScore !== null) {
+    console.log(`[reviews] detected star rating ${starScore}/100 for ${url}`);
   }
 
   const pageText = stripHtml(html).slice(0, 20000);
@@ -440,8 +531,8 @@ If this page is clearly NOT a review (shop listing, forum post, directory), retu
         (typeof parsed.sourceName === 'string' && parsed.sourceName.trim()) ||
         hostname ||
         'Unknown',
-      score: typeof parsed.score === 'number' ? parsed.score : null,
-      scoreMax: typeof parsed.scoreMax === 'number' ? parsed.scoreMax : 100,
+      score: starScore ?? clampScore(parsed.score),
+      scoreMax: 100,
       excerpt: typeof parsed.excerpt === 'string' ? parsed.excerpt : '',
       excerptKo: typeof parsed.excerptKo === 'string' ? parsed.excerptKo : '',
       fullReviewUrl: url,
@@ -526,8 +617,8 @@ If the text is clearly NOT a review (shop listing, track list only, marketing co
     }
 
     return {
-      score: typeof parsed.score === 'number' ? parsed.score : null,
-      scoreMax: typeof parsed.scoreMax === 'number' ? parsed.scoreMax : 100,
+      score: clampScore(parsed.score),
+      scoreMax: 100,
       excerpt: typeof parsed.excerpt === 'string' ? parsed.excerpt : '',
       excerptKo: typeof parsed.excerptKo === 'string' ? parsed.excerptKo : '',
     };

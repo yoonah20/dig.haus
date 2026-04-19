@@ -755,6 +755,60 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // Normalise legacy reviews rows to the /100 storage contract. Two
+  // classes of bad data accumulated before we clamped at ingestion:
+  //   (a) score_max != 100 from the pre-clamp URL/manual ingestion
+  //       path, which let Claude's returned scoreMax pass through. The
+  //       score itself is on the native scale (e.g. 8 with score_max
+  //       10), so we rescale to /100 before capping.
+  //   (b) score > 100 from Claude hallucinations (most recently a
+  //       250/100 on a star-rating page we couldn't parse). After
+  //       rescaling, anything still above 100 gets capped.
+  // Order matters: rescale first (so a genuine 8/10 becomes 80, not
+  // capped to 100), then cap. score_max is finally forced to 100 so
+  // the home-feed average SQL can assume a fixed denominator.
+  runOnce(db, 'clamp-review-scores-2026-04-19', () => {
+    const rescale = db
+      .prepare(
+        `UPDATE reviews
+         SET score = ROUND(CAST(score AS REAL) / score_max * 100),
+             manual_score = CASE
+               WHEN manual_score IS NOT NULL
+               THEN ROUND(CAST(manual_score AS REAL) / score_max * 100)
+               ELSE NULL
+             END
+         WHERE score_max IS NOT NULL AND score_max > 0 AND score_max != 100`
+      )
+      .run();
+    const capScore = db
+      .prepare(`UPDATE reviews SET score = 100 WHERE score IS NOT NULL AND score > 100`)
+      .run();
+    const capManual = db
+      .prepare(`UPDATE reviews SET manual_score = 100 WHERE manual_score IS NOT NULL AND manual_score > 100`)
+      .run();
+    const floorScore = db
+      .prepare(`UPDATE reviews SET score = 0 WHERE score IS NOT NULL AND score < 0`)
+      .run();
+    const floorManual = db
+      .prepare(`UPDATE reviews SET manual_score = 0 WHERE manual_score IS NOT NULL AND manual_score < 0`)
+      .run();
+    const fixMax = db
+      .prepare(`UPDATE reviews SET score_max = 100 WHERE score_max IS NULL OR score_max != 100`)
+      .run();
+    if (
+      rescale.changes ||
+      capScore.changes ||
+      capManual.changes ||
+      floorScore.changes ||
+      floorManual.changes ||
+      fixMax.changes
+    ) {
+      console.log(
+        `[migration] clamp-review-scores: rescale=${rescale.changes}, cap>${capScore.changes}/${capManual.changes}, floor<${floorScore.changes}/${floorManual.changes}, max=${fixMax.changes}`
+      );
+    }
+  });
+
   // One-off reset of stray votes on two specific albums. Runs once per DB
   // (tracked in schema_migrations). Clears album_votes and the mirrored
   // user_reviews.rating for each target; leaves review bodies intact.

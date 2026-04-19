@@ -1332,7 +1332,6 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
   const bodyTextRaw = body.body;
   const urlRaw = body.url;
   const adminScoreRaw = body.score;
-  const adminScoreMaxRaw = body.scoreMax;
 
   if (typeof sourceNameRaw !== 'string' || !sourceNameRaw.trim()) {
     return res.status(400).json({ error: 'sourceName is required' });
@@ -1363,14 +1362,6 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
     }
     adminScore = n;
   }
-  let adminScoreMax = 100;
-  if (adminScoreMaxRaw !== undefined && adminScoreMaxRaw !== null && adminScoreMaxRaw !== '') {
-    const n = typeof adminScoreMaxRaw === 'number' ? adminScoreMaxRaw : parseFloat(String(adminScoreMaxRaw));
-    if (!isNaN(n) && n > 0 && n <= 100) {
-      adminScoreMax = n;
-    }
-  }
-
   try {
     const extracted = await extractFromPastedText(
       bodyText,
@@ -1383,11 +1374,10 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
     }
 
     const finalScore = adminScore !== null ? adminScore : extracted.score;
-    const finalScoreMax = adminScore !== null ? adminScoreMax : extracted.scoreMax;
 
     execute(
       `INSERT INTO reviews (album_mbid, source_name, score, score_max, excerpt, excerpt_ko, full_review_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, 100, ?, ?, ?)
        ON CONFLICT(album_mbid, source_name) DO UPDATE SET
          score = excluded.score,
          score_max = excluded.score_max,
@@ -1399,7 +1389,6 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
         mbid,
         sourceName,
         finalScore,
-        finalScoreMax,
         extracted.excerpt,
         extracted.excerptKo,
         fullReviewUrl,

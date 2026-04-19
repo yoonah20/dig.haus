@@ -108,7 +108,7 @@ function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }
   );
 }
 
-function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted }: { review: Review; onScoreSaved: () => void; onRetranslated: () => void; onDeleted: () => void }) {
+function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded }: { review: Review; onScoreSaved: () => void; onRetranslated: () => void; onDeleted: () => void; justAdded?: boolean }) {
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
   const [retranslating, setRetranslating] = useState(false);
@@ -185,7 +185,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted }: { revie
     : {};
 
   return (
-    <Wrapper {...wrapperProps} className={`relative block bg-[#1a1a1a] rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-[#252525] cursor-pointer'}`}>
+    <Wrapper {...wrapperProps} className={`relative block bg-[#1a1a1a] rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-[#252525] cursor-pointer'} ${justAdded ? 'ring-2 ring-[#e8a020]/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
       {isAdmin && !editing && (
         <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-60 hover:!opacity-100 transition-opacity">
           <button
@@ -305,6 +305,11 @@ export default function ReviewSection({
   const [addUrl, setAddUrl] = useState('');
   const [savingReview, setSavingReview] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  // Ring-glow marker for reviews added during this session — helps
+  // admin spot a freshly-ingested card (especially when Claude
+  // misscored it) before the grid reshuffles on the next sort. State
+  // is in-memory only; a page refresh clears it, which is fine.
+  const [justAddedIds, setJustAddedIds] = useState<Set<number>>(new Set());
 
   // Manual-entry fields (for sites that block crawling).
   // AllMusic is the default source because it's the one admin
@@ -358,17 +363,28 @@ export default function ReviewSection({
     let added = 0;
     let duplicate = 0;
     const failures: Array<{ url: string; msg: string }> = [];
+    const newIds: number[] = [];
     try {
       for (let i = 0; i < urls.length; i++) {
         setBatchProgress({ current: i + 1, total: urls.length });
         try {
           const resp = await axios.post(`/api/albums/${slug}/reviews/add-url`, { url: urls[i] });
           if (resp.data?.duplicate) duplicate++;
-          else added++;
+          else {
+            added++;
+            if (typeof resp.data?.review?.id === 'number') newIds.push(resp.data.review.id);
+          }
         } catch (err: any) {
           const msg = err?.response?.data?.error || '알 수 없는 오류';
           failures.push({ url: urls[i], msg });
         }
+      }
+      if (newIds.length > 0) {
+        setJustAddedIds((prev) => {
+          const next = new Set(prev);
+          newIds.forEach((id) => next.add(id));
+          return next;
+        });
       }
       await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
 
@@ -427,12 +443,16 @@ export default function ReviewSection({
 
     setSavingReview(true);
     try {
-      await axios.post(`/api/albums/${slug}/reviews/manual`, {
+      const resp = await axios.post(`/api/albums/${slug}/reviews/manual`, {
         sourceName: source,
         url: url || undefined,
         score: scoreNum,
         body,
       });
+      if (typeof resp.data?.review?.id === 'number') {
+        const newId = resp.data.review.id as number;
+        setJustAddedIds((prev) => new Set(prev).add(newId));
+      }
       await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
       setAddingReview(false);
       setManualSource('AllMusic');
@@ -661,7 +681,7 @@ export default function ReviewSection({
           {(sortedReviews.length > 0 || isAdmin) && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {visibleReviews.map((review) => (
-                <ReviewCard key={review.id} review={review} onScoreSaved={handleScoreSaved} onRetranslated={handleScoreSaved} onDeleted={handleDeleted} />
+                <ReviewCard key={review.id} review={review} onScoreSaved={handleScoreSaved} onRetranslated={handleScoreSaved} onDeleted={handleDeleted} justAdded={justAddedIds.has(review.id)} />
               ))}
 
               {needsExpand && !expanded && (
