@@ -117,6 +117,12 @@ export const EXCLUDED_URL_DOMAINS = [
   'yesasia.com',
   'cdjapan.co.jp',
   'barnesandnoble.com',
+  // Encyclopaedia Metallum — user-submitted review aggregator. Multiple
+  // user reviews per album confuse the "one editorial take per source"
+  // model we're building around. Admin can still hand-pick a specific
+  // reviewer's take via the manual paste-in tab when a notable reviewer's
+  // opinion is worth preserving.
+  'metal-archives.com',
 ];
 
 // ─── Admin: scrape a single review from an arbitrary URL ─────────────────
@@ -313,6 +319,29 @@ async function fetchJinaReader(url: string): Promise<string | null> {
   }
 }
 
+// Jina returns 200 for several "we couldn't really get the content"
+// scenarios: Cloudflare / bot-wall HTML dumped verbatim, Jina's own
+// rate-limit error (`SecurityCompromiseError: Anonymous access to
+// domain X blocked ...`), and "Target URL returned error 403"
+// warnings. All of those pass the downstream length check and get
+// fed to Claude, which then correctly tags them "not a review" —
+// our scrape_failures log showed 6-of-7 false-positive rejections
+// caused by exactly this. Sniff the patterns ourselves and treat as
+// a real upstream failure instead.
+function isJinaErrorPayload(text: string | null): boolean {
+  if (!text) return false;
+  const head = text.slice(0, 1500);
+  return (
+    /SecurityCompromiseError/i.test(head) ||
+    /DDoS attack suspected/i.test(head) ||
+    /Warning:\s*Target URL returned error/i.test(head) ||
+    /This page maybe requiring CAPTCHA/i.test(head) ||
+    /Performing security verification/i.test(head) ||
+    /just a moment\.\.\./i.test(head) ||
+    /cf-browser-verification|cf-chl-/i.test(head)
+  );
+}
+
 async function fetchRawHtml(
   url: string
 ): Promise<
@@ -353,12 +382,21 @@ export async function scrapeReviewFromUrl(
   // that need the original markup) and Jina Reader (for Claude's text
   // input — fewer tokens, JS-rendered content resolved, some bot walls
   // bypassed). Either can fail independently — we combine what succeeds.
-  const [rawResult, jinaText] = await Promise.all([
+  const [rawResult, jinaRaw] = await Promise.all([
     fetchRawHtml(url),
     fetchJinaReader(url),
   ]);
 
   const html = rawResult.ok ? rawResult.html : '';
+
+  // Reject Jina output that's actually a Cloudflare challenge / DDoS
+  // protection notice / Jina's own rate-limit error. These all
+  // pass the "body length > 100" check but are meaningless text
+  // that used to get sent to Claude and come back "not a review".
+  const jinaText = isJinaErrorPayload(jinaRaw) ? null : jinaRaw;
+  if (jinaRaw && !jinaText) {
+    console.log(`[jina] error-payload detected for ${url} — discarded`);
+  }
   const jinaAvailable = jinaText !== null && jinaText.length > 100;
 
   // Hard-fail only if BOTH paths failed. If one worked we can still
@@ -439,13 +477,13 @@ Return ONLY JSON, no prose:
   "excerptKo": "2-3 문장 한국어 요약. 매체명 언급 금지, 평론가 시점."
 }
 
-Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). A descriptive-only review with no explicit number is perfectly valid — set score to null in that case, do NOT treat "no score" as reason to refuse.
+Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). A descriptive-only review with no explicit number is perfectly valid — set score to null in that case.
 
 Language: the review may be in English, Dutch, German, French, Spanish, Italian, Portuguese, Swedish, Korean, Japanese, or any other language. Non-English reviews are valid. Extract the excerpt in the review's original language; still produce a Korean excerptKo regardless of the source language.
 
-Excerpt: pick the most evaluative sentence(s) from the review body; skip headlines, bylines, tracklists, and ads.
+Excerpt: pick whatever prose about the album you can find. Evaluative sentences first, but if the page only has descriptive prose (release context, band history, track-by-track discussion) include that instead. Skip pure navigation text, ads, and tracklists-only pages. "[Read more...]" preview links or aggregator-style listings with a short paragraph still count — extract what's there.
 
-Refuse ONLY when the page has no actual review content at all — shop listings, forum posts, band-page directories, homepages, tag pages. In that case return {"error":"not a review"}. If ANY prose that evaluates the album is present, return the normal JSON.`,
+Be AGGRESSIVE about extracting. The cost of returning a weak excerpt + null score is low (admin can delete the row if useless). The cost of refusing ("not a review") when there was extractable content is much higher — it means we lose real coverage. Only return {"error":"not a review"} when the page text is truly unrelated: 404 pages, completely unrelated albums, pure navigation with zero descriptive prose about THIS album. When in ANY doubt, extract.`,
         },
       ],
     });

@@ -351,18 +351,20 @@ export async function selectEditorialReviewUrls(
       messages: [
         {
           role: 'user',
-          content: `"${album}" by ${artist} 의 editorial 음악 리뷰 URL을 골라주세요.
+          content: `"${album}" by ${artist} 에 대한 editorial 음악 리뷰 URL 후보를 골라주세요.
 
 후보:
 ${list}
 
-⚠️ 가장 중요한 조건: URL이나 제목/요약에 **정확히 "${album}"** 앨범이 언급돼야 함. 같은 아티스트의 다른 앨범 리뷰는 **절대 포함 금지**. 제목에 "Dodsrit – Other Album Review" 같이 다른 앨범명이 보이면 거부. 확실하지 않으면 제외하는 쪽으로 판단.
+기본 원칙: **recall 우선, precision은 admin이 저장 전 수동 확인**. 애매하면 포함하세요 — 최종 editorial 판단은 admin이 함.
 
-INCLUDE: 전문 음악 매체, 잡지, 음악 블로그의 리뷰 기사. (Pitchfork, AllMusic, Angry Metal Guy, Sputnikmusic, Treble, Paste, The Quietus, Stereogum, Consequence, Loud & Quiet, Exclaim, MetalSucks, Decibel, Kerrang, Metal Hammer, Louder Sound, Revolver, Invisible Oranges, Heavy Blog is Heavy, Dead Rhetoric 등, 그리고 네임드 아니어도 writer byline + 평가적 내용 있으면 editorial). 다국어 사이트(네덜란드어, 독일어, 프랑스어, 스웨덴어 등)도 editorial이면 포함.
+앨범 매칭: 제목/요약에 이 앨범 "${album}"이 언급된 것처럼 보이면 포함. 제목에 **다른 앨범명이 명시적으로 보이는 경우만** 거부 (예: "Dodsrit – Spirit Crusher Review"에서 "Spirit Crusher"가 찾는 앨범 아니면 거부). 아티스트 페이지/디스코그래피 페이지(앨범 특정 안 된)도 리뷰일 수 있으니 일단 포함.
 
-EXCLUDE: 쇼핑몰/마켓플레이스 (Amazon, Discogs, Bandcamp store, HMV, Tower Records), 스트리밍 (Spotify, Apple Music), aggregator (Metacritic, albumoftheyear, rateyourmusic), 포럼/Reddit/팬 커뮤니티, 유저 평점 페이지, 아티스트 공식 사이트/Wikipedia, 뉴스 공지/발매 노트/인터뷰 (리뷰 아님), 트랙리스트만 있는 페이지, 태그/카테고리 페이지, 다른 앨범 리뷰.
+포함: 전문 음악 매체, 음악 블로그, 잡지, 개인 리뷰 사이트 — writer byline 없어도 평가적 문장이 있으면 포함. 다국어 (네덜란드어/독일어/프랑스어/스페인어/이탈리아어/스웨덴어/일본어/한국어 등) 전부 포함. Interview 기사도 리뷰적 발언 포함하면 OK.
 
-최대한 많이 고르되 (최대 10개), 앨범 일치 확신이 없으면 제외. Return ONLY a JSON array of the chosen URLs (원문 그대로). 적절한 후보가 없으면 [].`,
+제외: 쇼핑몰 (Amazon, Discogs store, Bandcamp store, HMV, Tower Records), 스트리밍 플랫폼 (Spotify, Apple Music), score aggregator (Metacritic, albumoftheyear, rateyourmusic, metal-archives), 포럼/Reddit, 아티스트 공식 홈페이지, Wikipedia, 단순 뉴스 공지나 발매 announcement (평가 없음), 트랙리스트만 있는 페이지.
+
+최대 10개까지. 명확한 제외 사유가 없으면 포함. Return ONLY a JSON array of the chosen URLs (원문 그대로).`,
         },
       ],
     });
