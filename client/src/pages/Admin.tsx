@@ -1192,20 +1192,20 @@ function TrackedLabelsPanel() {
       const result = await add.mutateAsync({ name: trimmed });
       setName('');
       // Surface the initial poll result so admin sees whether Spotify
-      // actually returned anything — without this the feed just
-      // silently stays empty for name mismatches and admin has no
-      // clue which part of the pipeline failed.
+      // actually returned anything. After the filter unification
+      // (singles dropped + 30-day window inside searchAlbumsByLabel),
+      // `found` and `inserted` are always equal on a first add, so we
+      // just need two branches.
       if (result.initialPoll) {
-        const { found, inserted } = result.initialPoll;
+        const { inserted } = result.initialPoll;
         if (inserted > 0) {
-          alert(`피드에 ${inserted}개 신보 추가됨 (전체 ${found}개 중).`);
-        } else if (found > 0) {
-          alert(
-            `Spotify가 ${found}개 반환했지만 필터 통과 못함 (싱글만 있거나 날짜가 너무 오래됨).`
-          );
+          alert(`피드에 ${inserted}개 신보 추가됨 (30일 이내, 앨범 타입만).`);
         } else {
           alert(
-            'Spotify에서 이 레이블의 최근 발매작을 찾지 못했어요.\n레이블 이름 변형 (예: "Records" 유무)을 시도해보세요.'
+            '최근 30일 내 발매된 앨범이 없어요.\n' +
+              '- 레이블 이름 변형 ("Records" 유무) 시도\n' +
+              '- 최근엔 싱글만 있는 레이블일 수도\n' +
+              '- 추적은 시작됐으니 새 발매 나오면 자동 인덱싱됨'
           );
         }
       }

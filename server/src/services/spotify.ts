@@ -138,19 +138,31 @@ export async function searchAlbumsByLabel(
       results = await runLabelQuery(token, `label:"${labelName}"`, limit);
     }
 
-    // In 'recent' mode apply the 365-day date window server-side so
-    // preview + poll + manual refresh all see the same set. Future
-    // release_date values (pre-release albums) always pass.
-    if (mode === 'recent') {
-      const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
-      results = results.filter((a) => {
-        if (!a.releaseDate) return false;
-        const parsed = Date.parse(a.releaseDate);
-        if (!Number.isFinite(parsed)) return false;
-        if (parsed > Date.now()) return true;
-        return parsed >= cutoff;
-      });
-    }
+    const beforeFilter = results.length;
+
+    // Always drop singles. Major labels release a LOT of them (pre-
+    // release teasers, feature tracks) and they flood the feed
+    // without meaningfully expanding album coverage. Compilations
+    // stay — they're often legit retrospective releases from
+    // heritage labels.
+    results = results.filter((a) => a.albumType !== 'single');
+
+    // Date window applies in both modes now — preview + poll + cron
+    // all see the same set. 30 days matches the "최근 신보"
+    // intuition; future release_date values (pre-release) always
+    // pass so upcoming albums are still surfaced.
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    results = results.filter((a) => {
+      if (!a.releaseDate) return false;
+      const parsed = Date.parse(a.releaseDate);
+      if (!Number.isFinite(parsed)) return false;
+      if (parsed > Date.now()) return true;
+      return parsed >= cutoff;
+    });
+
+    console.log(
+      `[spotify] "${labelName}" ${mode}: ${beforeFilter} raw → ${results.length} after single+30d filter`
+    );
 
     return results;
   } catch (err) {
