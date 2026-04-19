@@ -39,7 +39,7 @@ import publicStatsRouter from './routes/stats.js';
 let server: Server;
 
 async function start() {
-  const PORT = process.env.PORT || 3001;
+  const PORT = Number(process.env.PORT) || 3001;
 
   // Kill any orphaned process on our port before starting
   try {

@@ -53,6 +53,8 @@ function effectiveUser(row: any) {
     displayName: row.display_name,
     customAvatarUrl: row.custom_avatar_url,
     instagramHandle: row.instagram_handle,
+    mydigUsername: row.username ?? null,
+    mydigPublic: row.mydig_public === null ? true : row.mydig_public === 1,
     isAdmin: !!row.is_admin,
     createdAt: row.created_at,
   };
@@ -121,6 +123,59 @@ router.patch('/me/profile', requireAuth, (req, res) => {
 
   const row = queryGet(`SELECT * FROM users WHERE id = ?`, [me.id]);
   res.json({ user: effectiveUser(row) });
+});
+
+// ─── PATCH /api/me/username — set or change the mydig URL slug ────────────
+//
+// Used by the mydig onboarding modal on first /my/* visit when the
+// user hasn't claimed a username yet, and by the profile page for
+// later changes. Validation mirrors the CLAUDE.md spec: lowercase
+// a-z0-9 with _ and -, 3-20 chars, not-already-taken. The partial
+// unique index on LOWER(username) added in the 3a schema enforces
+// case-insensitive uniqueness at the DB level — we check up front
+// here for a friendlier error.
+const USERNAME_RE = /^[a-z0-9](?:[a-z0-9_-]{1,18}[a-z0-9])?$/;
+const RESERVED_USERNAMES = new Set([
+  'admin', 'api', 'about', 'help', 'login', 'logout', 'signup', 'signin',
+  'auth', 'settings', 'profile', 'me', 'my', 'we', 'us', 'they',
+  'home', 'explore', 'search', 'albums', 'album', 'artist', 'artists',
+  'dig', 'digger', 'diggers', 'dighaus', 'staff', 'support',
+  'terms', 'privacy', 'legal', 'contact', 'feedback',
+]);
+
+router.patch('/me/username', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const raw = (req.body ?? {}).username;
+  if (typeof raw !== 'string') {
+    return res.status(400).json({ error: 'username 이 필요합니다.' });
+  }
+  const username = raw.trim().toLowerCase();
+  if (!USERNAME_RE.test(username)) {
+    return res.status(400).json({
+      error: '영문 소문자/숫자로 3-20자, 하이픈/밑줄만 허용돼요. (시작과 끝은 영숫자)',
+    });
+  }
+  if (RESERVED_USERNAMES.has(username)) {
+    return res.status(409).json({ error: '이 이름은 예약돼 있어서 사용할 수 없어요.' });
+  }
+
+  // Uniqueness check — excluding the current user so they can
+  // rename to their own existing value (no-op save) without collision.
+  const conflict = queryGet(
+    `SELECT id FROM users WHERE LOWER(username) = ? AND id != ?`,
+    [username, me.id]
+  );
+  if (conflict) {
+    return res.status(409).json({ error: '이미 사용 중인 이름이에요.' });
+  }
+
+  try {
+    execute(`UPDATE users SET username = ? WHERE id = ?`, [username, me.id]);
+    res.json({ ok: true, username });
+  } catch (err) {
+    console.error('[me/username] update failed:', err);
+    res.status(500).json({ error: '저장에 실패했어요.' });
+  }
 });
 
 // ─── POST /api/me/avatar — upload (multipart) ─────────────────────────────

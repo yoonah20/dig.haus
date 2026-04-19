@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LoginButton from './LoginButton';
 import RegisterAlbumModal from './RegisterAlbumModal';
+import UsernameModal from './UsernameModal';
 import SearchBar from './SearchBar';
 import SortMenu from './Home/SortMenu';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,6 +12,7 @@ import { useHomeState } from '../contexts/HomeStateContext';
 export default function TopNav() {
   const { user } = useAuth();
   const [registerOpen, setRegisterOpen] = useState(false);
+  const [usernameModalOpen, setUsernameModalOpen] = useState(false);
   const { open: searchOpen, initialQuery, openOverlay, closeOverlay } = useSearchOverlay();
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -139,6 +141,21 @@ export default function TopNav() {
                 reads as one group; login pill (with any admin
                 pending-badge) anchors the right edge. */}
             {isHome && <SortMenu />}
+            {user && (
+              <button
+                onClick={() => {
+                  if (user.mydigUsername) {
+                    navigate(`/my/${user.mydigUsername}`);
+                  } else {
+                    setUsernameModalOpen(true);
+                  }
+                }}
+                className="hidden sm:inline-flex items-center text-xs font-medium text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-full px-3 py-1 transition-colors cursor-pointer"
+                title={user.mydigUsername ? `내 가게 — @${user.mydigUsername}` : '사용자명 설정 후 내 가게 열기'}
+              >
+                내 가게
+              </button>
+            )}
             <LoginButton />
           </div>
         </div>
@@ -159,6 +176,15 @@ export default function TopNav() {
       <RegisterAlbumModal
         open={registerOpen}
         onClose={() => setRegisterOpen(false)}
+      />
+      <UsernameModal
+        open={usernameModalOpen}
+        onClose={() => setUsernameModalOpen(false)}
+        initialValue={user?.mydigUsername ?? undefined}
+        onSaved={(username) => {
+          setUsernameModalOpen(false);
+          navigate(`/my/${username}`);
+        }}
       />
     </>
   );

@@ -14,6 +14,10 @@ export interface AppUser {
   display_name: string | null;
   custom_avatar_url: string | null;
   instagram_handle: string | null;
+  // Phase 3 mydig. `username` is the URL slug (3-20 lowercase chars) —
+  // NULL until the user claims one via the onboarding modal.
+  username: string | null;
+  mydig_public: number | null;
   created_at: string | null;
 }
 

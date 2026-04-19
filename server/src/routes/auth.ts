@@ -44,6 +44,8 @@ router.get('/me', (req, res) => {
       displayName: user.display_name,
       customAvatarUrl: user.custom_avatar_url,
       instagramHandle: user.instagram_handle,
+      mydigUsername: user.username ?? null,
+      mydigPublic: user.mydig_public === null ? true : user.mydig_public === 1,
       isAdmin: !!user.is_admin,
     },
   });
