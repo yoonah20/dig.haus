@@ -258,23 +258,13 @@ function detectStarRating(html: string): number | null {
 }
 
 // Maps common English / Korean / Romance-language review labels
-// (Score, Rating, Verdict, Overall, Grade, 점수, 평점, Note, ...) to
-// a single unified regex prefix. Every detector below that expects
-// a label uses this, so adding a new label value is a one-liner.
+// (Score, Rating, Verdict, Overall, 점수, 평점, Note, ...) to a single
+// unified regex prefix. Every detector below that expects a label
+// uses this, so adding a new label value is a one-liner. "Album
+// Rating" gets its own bare-number detector below (Sputnikmusic
+// style — N.N with no denominator, implicit /5).
 const SCORE_LABEL_PATTERN =
-  '(?:Score|Scoring|Rating|Verdict|Overall(?:\\s+score)?|Bottom\\s*line|Final(?:\\s+score)?|Grade|Mark|Note|Nota|Cijfer|Punkte|Punktzahl|평점|점수|총평|최종\\s*점수|評価|点数|評点)';
-
-// Letter grade → /100 mapping. Scale is the one conventional music
-// critique uses (A+ near-100, F around 40); Pitchfork and similar
-// numeric sites don't use letters, but smaller blogs + Jazz / 클래식
-// reviewers sometimes do.
-const LETTER_GRADES: Record<string, number> = {
-  'A+': 97, 'A': 93, 'A-': 90,
-  'B+': 87, 'B': 83, 'B-': 80,
-  'C+': 77, 'C': 73, 'C-': 70,
-  'D+': 67, 'D': 63, 'D-': 60,
-  'F': 40,
-};
+  '(?:Score|Scoring|Rating|Verdict|Overall(?:\\s+score)?|Bottom\\s*line|Final(?:\\s+score)?|Mark|Note|Nota|Cijfer|Punkte|Punktzahl|평점|점수|총평|최종\\s*점수|評価|点数|評点)';
 
 // Label-anchored numeric score detection. Runs on stripped text of
 // the raw HTML so we see human-readable labels (e.g. "Score: 90/100"
@@ -334,30 +324,37 @@ function detectExplicitNumericScore(html: string): number | null {
     }
   }
 
-  // (4) Letter grades — "Grade: A-" / "Overall: B+" / "최종 점수: A".
-  // Explicit longest-first alternation (A+, A-, A, B+, ...) so the
-  // regex engine prefers "A-" over bare "A" instead of stopping at
-  // the first match. `-` isn't a word char so `\b` alone couldn't
-  // anchor this right.
-  const letter = text.match(
-    new RegExp(
-      `${LABEL_PREFIX}${SCORE_LABEL_PATTERN}\\s*[:：]?\\s*(A\\+|A-|A|B\\+|B-|B|C\\+|C-|C|D\\+|D-|D|F)(?![\\w+-])`
-    )
+  // (4) "Album Rating: 4.0" — Sputnikmusic and similar sites list the
+  // reviewer rating without a visible denominator. Convention is /5
+  // (0.0 to 5.0 scale), and taking the FIRST match grabs the
+  // reviewer's number before any user-comment ratings that follow
+  // with the same label. Values over 5 fall through to the next
+  // detector — might be /10 data with a different label.
+  const albumRating = text.match(
+    /(?:^|[\s.,;()\[\]])Album\s+Rating\s*[:：]\s*(\d(?:\.\d{1,2})?)\b/i
   );
-  if (letter) {
-    const mapped = LETTER_GRADES[letter[1].toUpperCase()];
-    if (typeof mapped === 'number') return mapped;
+  if (albumRating) {
+    const score = parseFloat(albumRating[1]);
+    if (score >= 0 && score <= 5) {
+      return Math.max(0, Math.min(100, Math.round((score / 5) * 100)));
+    }
   }
 
-  // (5) End-of-document bare "N/M" or "N.M/10" — reviews often place
-  // the score as a sign-off in the last 500 chars without a label.
-  // Restricted to tail-of-text + recognised scales so earlier
-  // body-prose fractions don't accidentally win.
-  const tail = text.slice(-500);
-  const bareTail = tail.match(/(?:^|[\s(])(\d{1,3}(?:[.,]\d{1,2})?)\s*\/\s*(5|10|20|100)\b/);
-  if (bareTail) {
-    const score = parseFloat(bareTail[1].replace(',', '.'));
-    const scale = parseInt(bareTail[2], 10);
+  // (5) Bare "N/M" or "N.M/10" without a label — reviews sign off
+  // with a score but no "Score:" prefix ("3.5/5 Flaming Toilets Ov
+  // Hell", "4.0/5 stars"). We scan the whole stripped text and
+  // pick the LAST recognised fraction-with-editorial-scale match:
+  // body-prose "4 out of 10 songs are great" style mentions come
+  // before the final sign-off, and the last occurrence is almost
+  // always the critic's number. Scale whitelist (5/10/20/100)
+  // filters obvious non-score fractions like "4/4 time signature".
+  const bareRe = /(?:^|[\s(])(\d{1,2}(?:[.,]\d{1,2})?)\s*\/\s*(5|10|20|100)(?=\s|[.,)]|$)/g;
+  let lastMatch: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = bareRe.exec(text)) !== null) lastMatch = m;
+  if (lastMatch) {
+    const score = parseFloat(lastMatch[1].replace(',', '.'));
+    const scale = parseInt(lastMatch[2], 10);
     if (score >= 0 && score <= scale) {
       return Math.max(0, Math.min(100, Math.round((score / scale) * 100)));
     }
@@ -606,9 +603,10 @@ Score: find the review's explicit rating and convert to a /100 integer. Follow t
    - 3/5 → 60
    - 85/100 → 85
 3. Percentages like "Rating: 85%" → 85 (already /100).
-4. Letter grades: A+ → 97, A → 93, A- → 90, B+ → 87, B → 83, B- → 80, C+ → 77, C → 73, C- → 70, D → 63, F → 40.
+4. "Album Rating: 4.0" (Sputnikmusic style, no visible denominator) → treat as /5. So 4.0 → 80, 3.5 → 70, 5.0 → 100.
 5. If you see numbers in the text that are NOT the album's rating — track lengths, release years, "5 of 10 songs are great" style prose, "4 stars" about a different album — do NOT use them. score = null is correct.
-6. If unsure, prefer null over a guess. A null score is fine; a wrong score is worse.
+6. Letter grades (A+, B-, etc.) are hard to convert reliably — if you see one and no numeric score, return null and let admin fill in manually.
+7. If unsure, prefer null over a guess. A null score is fine; a wrong score is worse.
 
 Language: the review may be in English, Dutch, German, French, Spanish, Italian, Portuguese, Swedish, Korean, Japanese, or any other language. Non-English reviews are valid. Extract the excerpt in the review's original language; still produce a Korean excerptKo regardless of the source language.
 
