@@ -12,6 +12,11 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    // WSL2: Vite's default 127.0.0.1 bind blocks requests from the
+    // Windows-host browser through WSL's localhost forwarder. host:
+    // true binds to all interfaces (IPv4 0.0.0.0) so the Windows
+    // side can hit it. Same trick as the server's 0.0.0.0 bind.
+    host: true,
     proxy: {
       "/api": {
         target: "http://localhost:3001",
