@@ -942,9 +942,28 @@ export default function ReviewSection({
                         <input
                           type="url"
                           value={manualUrl}
-                          onChange={(e) => setManualUrl(e.target.value)}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            setManualUrl(next);
+                            // Auto-fill the source field from URL hostname.
+                            // Only rewrites manualSource when it's still the
+                            // default (empty or carrying the most-recent
+                            // history entry as a placeholder) so admin's
+                            // manual edits aren't clobbered mid-type.
+                            const host = parseHostname(next);
+                            if (!host) return;
+                            const derived =
+                              sourceHistory[host] || guessSourceFromHostname(host);
+                            if (!derived) return;
+                            const defaults = new Set(
+                              ['AllMusic', '', defaultManualSource()].filter(Boolean)
+                            );
+                            if (defaults.has(manualSource.trim())) {
+                              setManualSource(derived);
+                            }
+                          }}
                           disabled={savingReview}
-                          placeholder="https://..."
+                          placeholder="https://... (사이트명은 URL로 자동 입력됨)"
                           className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                         />
                       </div>

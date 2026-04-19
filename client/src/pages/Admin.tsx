@@ -314,6 +314,15 @@ function ClaudeUsageCard({
           >
             {showRecent ? '상세 접기' : '상세'}
           </button>
+          <Link
+            to="/admin/api-console"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-gray-500 hover:text-[#e8a020] underline-offset-2 hover:underline cursor-pointer"
+            title="별도 탭에서 자동 갱신되는 실시간 콘솔"
+          >
+            🖥 콘솔
+          </Link>
           <button
             type="button"
             onClick={handleReset}

@@ -411,6 +411,121 @@ router.get('/claude-usage/recent', (req, res) => {
   });
 });
 
+// GET /api/admin/api-console — console-view data for the dedicated
+// admin monitoring page. Returns four time-window totals + per-
+// operation + per-model breakdowns + the recent calls tail, all in
+// one response so the client can poll a single endpoint on a short
+// interval (15s) without fanning out to multiple round-trips.
+router.get('/api-console', (_req, res) => {
+  const windows: Array<{ label: string; interval: string }> = [
+    { label: '1h', interval: '-1 hour' },
+    { label: '24h', interval: '-1 day' },
+    { label: '7d', interval: '-7 days' },
+    { label: '30d', interval: '-30 days' },
+  ];
+
+  function sumRowsUsd(rows: any[]) {
+    let usd = 0;
+    for (const r of rows) {
+      const prices = pricingFor(r.model);
+      usd += (r.in_tok / 1_000_000) * prices.input;
+      usd += (r.out_tok / 1_000_000) * prices.output;
+      usd += (r.search_n / 1000) * WEB_SEARCH_PER_1000;
+    }
+    return Math.round(usd * 10000) / 10000;
+  }
+
+  const totals = windows.map((w) => {
+    const rows = queryAll(
+      `SELECT model,
+              SUM(input_tokens) AS in_tok,
+              SUM(output_tokens) AS out_tok,
+              SUM(web_search_count) AS search_n,
+              COUNT(*) AS call_n
+       FROM claude_usage_log
+       WHERE created_at >= datetime('now', ?)
+       GROUP BY model`,
+      [w.interval]
+    ) as Array<{ model: string; in_tok: number; out_tok: number; search_n: number; call_n: number }>;
+    return {
+      label: w.label,
+      usd: sumRowsUsd(rows),
+      calls: rows.reduce((a, r) => a + r.call_n, 0),
+    };
+  });
+
+  // Last-30-days breakdown by operation, sorted by cost desc.
+  const byOperation = queryAll(
+    `SELECT operation, model,
+            SUM(input_tokens) AS in_tok,
+            SUM(output_tokens) AS out_tok,
+            SUM(web_search_count) AS search_n,
+            COUNT(*) AS call_n
+     FROM claude_usage_log
+     WHERE created_at >= datetime('now', '-30 days')
+     GROUP BY operation, model`
+  ) as Array<{ operation: string; model: string; in_tok: number; out_tok: number; search_n: number; call_n: number }>;
+
+  // Aggregate operations into one row per operation (collapse models),
+  // so the UI shows "scrape_review — $2.34 (500 calls)" regardless of
+  // whether it's Haiku or DeepSeek. Expose the provider mix on the
+  // side for context.
+  const opMap = new Map<string, { calls: number; usd: number; providers: Record<string, number> }>();
+  for (const r of byOperation) {
+    const prices = pricingFor(r.model);
+    const rowUsd =
+      (r.in_tok / 1_000_000) * prices.input +
+      (r.out_tok / 1_000_000) * prices.output +
+      (r.search_n / 1000) * WEB_SEARCH_PER_1000;
+    const entry = opMap.get(r.operation) || { calls: 0, usd: 0, providers: {} };
+    entry.calls += r.call_n;
+    entry.usd += rowUsd;
+    entry.providers[r.model] = (entry.providers[r.model] || 0) + r.call_n;
+    opMap.set(r.operation, entry);
+  }
+  const operations = Array.from(opMap.entries())
+    .map(([operation, v]) => ({
+      operation,
+      calls: v.calls,
+      usd: Math.round(v.usd * 10000) / 10000,
+      providers: v.providers,
+    }))
+    .sort((a, b) => b.usd - a.usd);
+
+  // Live tail — last 30 calls, same shape as /claude-usage/recent
+  // but smaller limit since the console polls this frequently.
+  const recentRows = queryAll(
+    `SELECT id, operation, model, input_tokens, output_tokens,
+            web_search_count, created_at
+     FROM claude_usage_log
+     ORDER BY id DESC
+     LIMIT 30`
+  ) as Array<{
+    id: number; operation: string; model: string;
+    input_tokens: number; output_tokens: number;
+    web_search_count: number; created_at: string;
+  }>;
+  const recent = recentRows.map((r) => {
+    const prices = pricingFor(r.model);
+    const usd =
+      (r.input_tokens / 1_000_000) * prices.input +
+      (r.output_tokens / 1_000_000) * prices.output +
+      (r.web_search_count / 1000) * WEB_SEARCH_PER_1000;
+    return {
+      id: r.id,
+      operation: r.operation,
+      model: r.model,
+      inputTokens: r.input_tokens,
+      outputTokens: r.output_tokens,
+      webSearchCount: r.web_search_count,
+      usd: Math.round(usd * 10000) / 10000,
+      createdAt: r.created_at,
+    };
+  });
+
+  res.json({ totals, operations, recent });
+});
+
 // GET /api/admin/snapshot-dump
 //
 // Streams a tar.gz bundle of the live production state so the site
