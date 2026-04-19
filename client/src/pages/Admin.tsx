@@ -646,6 +646,16 @@ export default function Admin() {
             </div>
           </section>
 
+          {/* Label-tracking panels — sit high in the page because the
+              feed drives daily album registration decisions and the
+              admin checks it first, alongside API-usage. Cron at
+              03:00 KST populates it overnight; pending_count badges
+              + list of unpicked items pull the eye here. */}
+          <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <TrackedLabelsPanel />
+            <LabelFeedPanel />
+          </section>
+
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <Panel
               title="신고된 구매처"
@@ -910,15 +920,6 @@ export default function Admin() {
               (or giving up on) a site. */}
           <section className="mt-4">
             <ScrapeFailuresPanel />
-          </section>
-
-          {/* Label-tracking panels: subscribe to Spotify labels so new
-              releases surface in a feed, then admin hand-picks which
-              to register into the main catalogue. Feed is separate
-              from auto-registration to keep curation human. */}
-          <section className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <TrackedLabelsPanel />
-            <LabelFeedPanel />
           </section>
         </>
       )}
