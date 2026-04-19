@@ -14,6 +14,7 @@ import { initDb, closeDb, getDb } from './db/index.js';
 import { configurePassport } from './auth/passport.js';
 import { startRankScheduler } from './jobs/rankScheduler.js';
 import { startRequestNotifier } from './jobs/requestNotifier.js';
+import { startLabelFeedPoller } from './jobs/labelFeedPoller.js';
 import { warmExchangeRates } from './services/exchangeRates.js';
 import searchRouter from './routes/search.js';
 import albumsRouter from './routes/albums.js';
@@ -22,6 +23,7 @@ import authRouter from './routes/auth.js';
 import votesRouter from './routes/votes.js';
 import purchaseLinksRouter from './routes/purchaseLinks.js';
 import adminRouter from './routes/admin.js';
+import labelFeedRouter from './routes/labelFeed.js';
 import reviewsRouter from './routes/reviews.js';
 import coverRouter from './routes/cover.js';
 import customCoversRouter from './routes/customCovers.js';
@@ -109,6 +111,7 @@ async function start() {
   app.use('/api/albums', albumsRouter);
   app.use('/api/labels', labelsRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/admin', labelFeedRouter);
   app.use('/api/reviews', reviewsRouter);
   app.use('/api/cover', coverRouter);
   app.use('/api/custom-covers', customCoversRouter);
@@ -116,6 +119,7 @@ async function start() {
 
   startRankScheduler();
   startRequestNotifier();
+  startLabelFeedPoller();
   warmExchangeRates();
 
   server = app.listen(PORT, () => {

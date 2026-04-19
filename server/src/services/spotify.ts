@@ -40,6 +40,77 @@ async function getToken(): Promise<string | null> {
   }
 }
 
+export interface SpotifyLabelAlbum {
+  spotifyAlbumId: string;
+  artistName: string;
+  albumName: string;
+  releaseDate: string; // YYYY-MM-DD or YYYY-MM or YYYY per Spotify's release_date_precision
+  coverArtUrl: string | null;
+  spotifyUrl: string | null;
+  albumType: string; // 'album' | 'single' | 'compilation'
+  totalTracks: number;
+}
+
+/**
+ * Search Spotify for recent albums released on a specific label. Uses the
+ * `label:"X" tag:new` combo which Spotify's search docs expose for
+ * discovering newly-released content (~last 2 weeks). Returns whatever
+ * Spotify gives us unfiltered — caller applies further filtering
+ * (album_type, dedup, etc.).
+ *
+ * limit caps at 50 per Spotify's search API; the label-feed poller keeps
+ * it at 50 so infrequent albums on small labels still get picked up.
+ */
+export async function searchAlbumsByLabel(
+  labelName: string,
+  limit = 50
+): Promise<SpotifyLabelAlbum[]> {
+  try {
+    const token = await getToken();
+    if (!token) return [];
+
+    const res = await axios.get(`${SPOTIFY_API_BASE}/search`, {
+      headers: { Authorization: `Bearer ${token}` },
+      httpsAgent,
+      params: {
+        // `label:"X"` expects exact-ish match; `tag:new` scopes to
+        // Spotify's "new releases" window (~14 days). Both combine via
+        // a single q param.
+        q: `label:"${labelName}" tag:new`,
+        type: 'album',
+        limit: String(Math.min(limit, 50)),
+      },
+    });
+
+    const items = res.data?.albums?.items || [];
+    return items.map((item: any): SpotifyLabelAlbum => {
+      const images = item.images || [];
+      const coverArtUrl =
+        images.find((i: any) => i.width === 640)?.url ||
+        images.find((i: any) => i.width === 300)?.url ||
+        images[0]?.url ||
+        null;
+      const artistName =
+        Array.isArray(item.artists) && item.artists.length > 0
+          ? item.artists.map((a: any) => a.name).filter(Boolean).join(', ')
+          : '';
+      return {
+        spotifyAlbumId: String(item.id || ''),
+        artistName,
+        albumName: String(item.name || ''),
+        releaseDate: String(item.release_date || ''),
+        coverArtUrl,
+        spotifyUrl: item.external_urls?.spotify || null,
+        albumType: String(item.album_type || ''),
+        totalTracks: Number(item.total_tracks) || 0,
+      };
+    }).filter((a: SpotifyLabelAlbum) => a.spotifyAlbumId && a.artistName && a.albumName);
+  } catch (err) {
+    console.warn(`[spotify] searchAlbumsByLabel failed for "${labelName}":`, (err as Error).message);
+    return [];
+  }
+}
+
 export async function searchTrack(
   artist: string,
   album: string

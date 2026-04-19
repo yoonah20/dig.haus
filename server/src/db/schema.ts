@@ -596,6 +596,52 @@ export function initializeDatabase(db: Database.Database): void {
     'status TEXT',
   ]);
 
+  // Phase 3a label-tracking feed. Admin subscribes to specific Spotify
+  // label names; a daily cron polls `label:"X" tag:new` and fills
+  // label_feed_items with whatever albums Spotify's ~14-day "new"
+  // window surfaces. Admin then hand-picks which items to promote
+  // into the main `albums` table via the feed UI — intentionally
+  // NOT automatic, since Spotify's label field is noisy enough that
+  // we don't want to pollute the public catalog without human review.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tracked_labels (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      spotify_label_name TEXT NOT NULL UNIQUE,
+      display_name TEXT,
+      is_active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_polled_at TEXT
+    )
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS label_feed_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tracked_label_id INTEGER NOT NULL REFERENCES tracked_labels(id) ON DELETE CASCADE,
+      spotify_album_id TEXT NOT NULL,
+      artist_name TEXT NOT NULL,
+      album_name TEXT NOT NULL,
+      release_date TEXT,
+      cover_art_url TEXT,
+      spotify_url TEXT,
+      album_type TEXT,
+      total_tracks INTEGER,
+      first_seen_at TEXT DEFAULT (datetime('now')),
+      dismissed_at TEXT,
+      registered_mbid TEXT,
+      UNIQUE(tracked_label_id, spotify_album_id)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_label_feed_active
+     ON label_feed_items(dismissed_at, registered_mbid)
+     WHERE dismissed_at IS NULL AND registered_mbid IS NULL`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_label_feed_release_date
+     ON label_feed_items(release_date DESC)`
+  );
+
   // Admin digest email tracking — see jobs/requestNotifier.ts. NULL =
   // request hasn't been rolled into an admin email yet; populated with
   // the send timestamp once the 5-minute batch job emails it out.

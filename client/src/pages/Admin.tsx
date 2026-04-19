@@ -22,6 +22,17 @@ import {
   parseServerTimestamp,
 } from '../utils/relativeTime';
 import { markPendingSeen, readPendingSeen } from '../lib/adminSeen';
+import {
+  useTrackedLabels,
+  useLabelFeed,
+  usePreviewLabel,
+  useAddTrackedLabel,
+  useToggleTrackedLabel,
+  useDeleteTrackedLabel,
+  usePollTrackedLabel,
+  useDismissLabelFeedItem,
+  useRegisterLabelFeedItem,
+} from '../hooks/useLabelFeed';
 
 interface IncompleteAlbumSample {
   id: number;
@@ -900,6 +911,15 @@ export default function Admin() {
           <section className="mt-4">
             <ScrapeFailuresPanel />
           </section>
+
+          {/* Label-tracking panels: subscribe to Spotify labels so new
+              releases surface in a feed, then admin hand-picks which
+              to register into the main catalogue. Feed is separate
+              from auto-registration to keep curation human. */}
+          <section className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <TrackedLabelsPanel />
+            <LabelFeedPanel />
+          </section>
         </>
       )}
     </main>
@@ -1128,5 +1148,238 @@ function IncompleteSubsection({
         </ul>
       )}
     </div>
+  );
+}
+
+// Admin subscribes to Spotify label names. A daily cron polls
+// `label:"X" tag:new` and fills the feed below.
+function TrackedLabelsPanel() {
+  const list = useTrackedLabels(true);
+  const preview = usePreviewLabel();
+  const add = useAddTrackedLabel();
+  const toggle = useToggleTrackedLabel();
+  const del = useDeleteTrackedLabel();
+  const poll = usePollTrackedLabel();
+  const [name, setName] = useState('');
+
+  const handleAdd = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    try {
+      const p = await preview.mutateAsync(trimmed);
+      if (p.count === 0) {
+        if (
+          !confirm(
+            `"${trimmed}" 라벨 검색 결과가 0건입니다 (최근 2주). 그래도 추가할까요?\n(오타일 수 있음)`
+          )
+        ) {
+          return;
+        }
+      } else {
+        const sample = p.samples
+          .map((s) => `• ${s.artist} — ${s.title} (${s.releaseDate})`)
+          .join('\n');
+        if (!confirm(`최근 2주 신보 ${p.count}건:\n\n${sample}\n\n추가할까요?`)) {
+          return;
+        }
+      }
+      const result = await add.mutateAsync({ name: trimmed });
+      setName('');
+      if (result.initialPoll) {
+        console.log(
+          `[label-feed] initial poll: ${result.initialPoll.inserted}/${result.initialPoll.found}`
+        );
+      }
+    } catch (err: any) {
+      alert(err?.response?.data?.error || '추가 실패');
+    }
+  };
+
+  const labels = list.data?.labels ?? [];
+
+  return (
+    <Panel title="추적 중인 레이블" icon="📡" count={labels.length}>
+      <div className="p-3 flex items-center gap-2 border-b border-white/5">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleAdd();
+          }}
+          placeholder="Spotify 레이블명 (예: Profound Lore Records)"
+          disabled={add.isPending || preview.isPending}
+          className="flex-1 bg-[#0f0f0f] border border-white/10 rounded-md px-2.5 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+          maxLength={120}
+        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!name.trim() || add.isPending || preview.isPending}
+          className="px-3 py-1.5 text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020]/10 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+        >
+          {preview.isPending ? '미리보기…' : add.isPending ? '추가 중…' : '추가'}
+        </button>
+      </div>
+      {list.isLoading ? (
+        <EmptyRow>로딩 중...</EmptyRow>
+      ) : labels.length === 0 ? (
+        <EmptyRow>추적 중인 레이블이 없습니다.</EmptyRow>
+      ) : (
+        labels.map((l) => (
+          <div key={l.id} className="p-3 flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`text-sm font-medium truncate ${
+                    l.is_active ? 'text-white' : 'text-gray-500 line-through'
+                  }`}
+                >
+                  {l.spotify_label_name}
+                </span>
+                {l.pending_count > 0 && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#e8a020] bg-[#e8a020]/10 px-1.5 py-0.5 rounded">
+                    +{l.pending_count}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-gray-600 mt-0.5">
+                마지막 폴링:{' '}
+                {l.last_polled_at
+                  ? formatRelativeKo(l.last_polled_at)
+                  : '아직 없음'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (poll.isPending) return;
+                poll.mutate(l.id);
+              }}
+              disabled={poll.isPending}
+              className="text-xs text-gray-500 hover:text-[#e8a020] disabled:opacity-40 px-1 py-0.5 cursor-pointer"
+              title="지금 폴링"
+              aria-label="지금 폴링"
+            >
+              🔄
+            </button>
+            <button
+              type="button"
+              onClick={() => toggle.mutate({ id: l.id, isActive: !l.is_active })}
+              className="text-xs text-gray-500 hover:text-white px-1 py-0.5 cursor-pointer"
+              title={l.is_active ? '비활성' : '활성'}
+              aria-label={l.is_active ? '비활성화' : '활성화'}
+            >
+              {l.is_active ? '⏸️' : '▶️'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!confirm(`"${l.spotify_label_name}" 추적을 삭제할까요?\n피드 항목도 함께 삭제됩니다.`)) {
+                  return;
+                }
+                del.mutate(l.id);
+              }}
+              className="text-xs text-gray-500 hover:text-red-400 px-1 py-0.5 cursor-pointer"
+              title="삭제"
+              aria-label="삭제"
+            >
+              🗑️
+            </button>
+          </div>
+        ))
+      )}
+    </Panel>
+  );
+}
+
+// The feed — items from tracked labels that admin hasn't picked or
+// dismissed yet. "➕ 등록" triggers server-side MB match + synthetic
+// fallback; "🗑️ 무시" stamps dismissed_at so the row vanishes.
+function LabelFeedPanel() {
+  const feed = useLabelFeed(true);
+  const register = useRegisterLabelFeedItem();
+  const dismiss = useDismissLabelFeedItem();
+
+  const items = feed.data?.items ?? [];
+
+  return (
+    <Panel title="레이블 피드 (최근 신보)" icon="📦" count={items.length}>
+      {feed.isLoading ? (
+        <EmptyRow>로딩 중...</EmptyRow>
+      ) : items.length === 0 ? (
+        <EmptyRow>새 항목 없음. 레이블을 추가해보세요.</EmptyRow>
+      ) : (
+        items.map((item) => (
+          <div key={item.id} className="p-3 flex items-center gap-3">
+            <CoverArt
+              src={item.cover_art_url}
+              alt={item.album_name}
+              className="w-12 h-12 rounded-md object-cover flex-shrink-0"
+            />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-white font-medium truncate">
+                {item.album_name}
+              </div>
+              <div className="text-xs text-gray-500 truncate">
+                {item.artist_name}
+                <span className="text-gray-600 mx-1.5">·</span>
+                {item.release_date || '—'}
+                <span className="text-gray-600 mx-1.5">·</span>
+                <span className="text-[#e8a020]/70">
+                  {item.display_name || item.spotify_label_name}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {item.spotify_url && (
+                <a
+                  href={item.spotify_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-gray-500 hover:text-[#1DB954] px-1 py-0.5"
+                  title="Spotify에서 보기"
+                  aria-label="Spotify에서 보기"
+                >
+                  ↗
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={async () => {
+                  if (register.isPending) return;
+                  try {
+                    const result = await register.mutateAsync(item.id);
+                    console.log(
+                      `[label-feed] registered ${item.album_name} (${result.matched})`
+                    );
+                  } catch (err: any) {
+                    alert(err?.response?.data?.error || '등록 실패');
+                  }
+                }}
+                disabled={register.isPending || dismiss.isPending}
+                className="text-xs text-[#e8a020] hover:text-black hover:bg-[#e8a020] border border-[#e8a020]/60 rounded px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                title="메인 DB에 등록 (MB 매칭 자동 시도, 없으면 sp-* 임시 mbid)"
+              >
+                ➕ 등록
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (dismiss.isPending) return;
+                  dismiss.mutate(item.id);
+                }}
+                disabled={register.isPending || dismiss.isPending}
+                className="text-xs text-gray-500 hover:text-red-400 px-1 py-0.5 disabled:opacity-40 cursor-pointer"
+                title="무시"
+                aria-label="무시"
+              >
+                🗑️
+              </button>
+            </div>
+          </div>
+        ))
+      )}
+    </Panel>
   );
 }
