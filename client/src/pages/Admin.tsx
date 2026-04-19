@@ -650,15 +650,19 @@ export default function Admin() {
             </div>
           </section>
 
-          {/* Label-tracking panels — sit high in the page because the
-              feed drives daily album registration decisions and the
-              admin checks it first, alongside API-usage. Cron at
-              03:00 KST populates it overnight; pending_count badges
-              + list of unpicked items pull the eye here. */}
+          {/* Label-tracking panels hidden in the UI while the feature
+              is on ice — backend (tables, cron, routes, hooks) stays
+              live so we can flip the section back on without a
+              redeploy. Unhide by restoring the <TrackedLabelsPanel />
+              + <LabelFeedPanel /> block below. The two panel
+              components + the useLabelFeed hooks are still in this
+              file / tree, just not rendered. */}
+          {/*
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <TrackedLabelsPanel />
             <LabelFeedPanel />
           </section>
+          */}
 
           <section className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
             <Panel
