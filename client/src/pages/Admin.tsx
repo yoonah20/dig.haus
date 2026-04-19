@@ -1191,10 +1191,23 @@ function TrackedLabelsPanel() {
       }
       const result = await add.mutateAsync({ name: trimmed });
       setName('');
+      // Surface the initial poll result so admin sees whether Spotify
+      // actually returned anything — without this the feed just
+      // silently stays empty for name mismatches and admin has no
+      // clue which part of the pipeline failed.
       if (result.initialPoll) {
-        console.log(
-          `[label-feed] initial poll: ${result.initialPoll.inserted}/${result.initialPoll.found}`
-        );
+        const { found, inserted } = result.initialPoll;
+        if (inserted > 0) {
+          alert(`피드에 ${inserted}개 신보 추가됨 (전체 ${found}개 중).`);
+        } else if (found > 0) {
+          alert(
+            `Spotify가 ${found}개 반환했지만 필터 통과 못함 (싱글만 있거나 날짜가 너무 오래됨).`
+          );
+        } else {
+          alert(
+            'Spotify에서 이 레이블의 최근 발매작을 찾지 못했어요.\n레이블 이름 변형 (예: "Records" 유무)을 시도해보세요.'
+          );
+        }
       }
     } catch (err: any) {
       alert(err?.response?.data?.error || '추가 실패');

@@ -44,7 +44,11 @@ router.post('/tracked-labels/preview', async (req, res) => {
   if (name.length > 120) return res.status(400).json({ error: 'name 너무 김' });
 
   try {
-    const albums = await searchAlbumsByLabel(name, 10);
+    // Preview uses 'recent' mode — matches what the initial poll
+    // will ingest after admin confirms. Using 'new' (14-day) here
+    // gave false zeros for labels active in the last 2-12 months
+    // but quiet in the last 2 weeks.
+    const albums = await searchAlbumsByLabel(name, 10, 'recent');
     res.json({
       count: albums.length,
       samples: albums.slice(0, 5).map((a) => ({

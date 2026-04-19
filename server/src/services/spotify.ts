@@ -69,6 +69,41 @@ export type LabelSearchMode = 'new' | 'recent';
  *
  * limit caps at 50 per Spotify's search API.
  */
+async function runLabelQuery(
+  token: string,
+  q: string,
+  limit: number
+): Promise<SpotifyLabelAlbum[]> {
+  const res = await axios.get(`${SPOTIFY_API_BASE}/search`, {
+    headers: { Authorization: `Bearer ${token}` },
+    httpsAgent,
+    params: { q, type: 'album', limit: String(Math.min(limit, 50)) },
+  });
+  const items = res.data?.albums?.items || [];
+  return items.map((item: any): SpotifyLabelAlbum => {
+    const images = item.images || [];
+    const coverArtUrl =
+      images.find((i: any) => i.width === 640)?.url ||
+      images.find((i: any) => i.width === 300)?.url ||
+      images[0]?.url ||
+      null;
+    const artistName =
+      Array.isArray(item.artists) && item.artists.length > 0
+        ? item.artists.map((a: any) => a.name).filter(Boolean).join(', ')
+        : '';
+    return {
+      spotifyAlbumId: String(item.id || ''),
+      artistName,
+      albumName: String(item.name || ''),
+      releaseDate: String(item.release_date || ''),
+      coverArtUrl,
+      spotifyUrl: item.external_urls?.spotify || null,
+      albumType: String(item.album_type || ''),
+      totalTracks: Number(item.total_tracks) || 0,
+    };
+  }).filter((a: SpotifyLabelAlbum) => a.spotifyAlbumId && a.artistName && a.albumName);
+}
+
 export async function searchAlbumsByLabel(
   labelName: string,
   limit = 50,
@@ -78,47 +113,33 @@ export async function searchAlbumsByLabel(
     const token = await getToken();
     if (!token) return [];
 
-    let query: string;
+    // Primary query — tightest scope for each mode. tag:new on the
+    // daily cron, year-range for manual/initial refresh.
+    let primaryQuery: string;
     if (mode === 'recent') {
       const thisYear = new Date().getUTCFullYear();
-      query = `label:"${labelName}" year:${thisYear - 1}-${thisYear}`;
+      primaryQuery = `label:"${labelName}" year:${thisYear - 1}-${thisYear}`;
     } else {
-      query = `label:"${labelName}" tag:new`;
+      primaryQuery = `label:"${labelName}" tag:new`;
     }
 
-    const res = await axios.get(`${SPOTIFY_API_BASE}/search`, {
-      headers: { Authorization: `Bearer ${token}` },
-      httpsAgent,
-      params: {
-        q: query,
-        type: 'album',
-        limit: String(Math.min(limit, 50)),
-      },
-    });
+    const primary = await runLabelQuery(token, primaryQuery, limit);
+    if (primary.length > 0) return primary;
 
-    const items = res.data?.albums?.items || [];
-    return items.map((item: any): SpotifyLabelAlbum => {
-      const images = item.images || [];
-      const coverArtUrl =
-        images.find((i: any) => i.width === 640)?.url ||
-        images.find((i: any) => i.width === 300)?.url ||
-        images[0]?.url ||
-        null;
-      const artistName =
-        Array.isArray(item.artists) && item.artists.length > 0
-          ? item.artists.map((a: any) => a.name).filter(Boolean).join(', ')
-          : '';
-      return {
-        spotifyAlbumId: String(item.id || ''),
-        artistName,
-        albumName: String(item.name || ''),
-        releaseDate: String(item.release_date || ''),
-        coverArtUrl,
-        spotifyUrl: item.external_urls?.spotify || null,
-        albumType: String(item.album_type || ''),
-        totalTracks: Number(item.total_tracks) || 0,
-      };
-    }).filter((a: SpotifyLabelAlbum) => a.spotifyAlbumId && a.artistName && a.albumName);
+    // Fallback — drop the scope filter (year/tag:new) and just ask
+    // Spotify for everything on this label. Catches cases where the
+    // label is real but the release_date_precision on the filter
+    // doesn't align with Spotify's internal index (we've seen
+    // year:2025-2026 return 0 even when the label has recent
+    // releases — Spotify's year filter is fussy). Caller still
+    // applies a downstream date filter in recent mode so we don't
+    // flood the feed with decade-old catalogue.
+    const fallbackQuery = `label:"${labelName}"`;
+    console.log(
+      `[spotify] ${mode} primary returned 0 for "${labelName}" — retrying without scope filter`
+    );
+    const fallback = await runLabelQuery(token, fallbackQuery, limit);
+    return fallback;
   } catch (err) {
     console.warn(`[spotify] searchAlbumsByLabel failed for "${labelName}":`, (err as Error).message);
     return [];

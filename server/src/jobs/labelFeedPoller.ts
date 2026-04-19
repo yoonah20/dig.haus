@@ -16,10 +16,11 @@ import { searchAlbumsByLabel, type LabelSearchMode } from '../services/spotify.j
 export const LABEL_FEED_STALE_DAYS = 30;
 
 // How far back we look when mode='recent' — filters Spotify's 2-year
-// year-range search down to a useful window for the feed. 120 days
-// handles labels that go quiet for a quarter; future release_date
+// year-range search down to a useful window for the feed. 365 days
+// covers labels that release infrequently (once or twice a year is
+// common for indie / boutique metal labels); future release_date
 // values (pre-release albums) always pass.
-const RECENT_WINDOW_DAYS = 120;
+const RECENT_WINDOW_DAYS = 365;
 
 interface TrackedLabelRow {
   id: number;
