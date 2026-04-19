@@ -10,6 +10,7 @@ const Home = lazy(() => import('./pages/Home'));
 const Album = lazy(() => import('./pages/Album'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Profile = lazy(() => import('./pages/Profile'));
+const MyDig = lazy(() => import('./pages/MyDig'));
 
 function RouteFallback() {
   return (
@@ -71,6 +72,7 @@ export default function App() {
                 <Route path="/album/:slug" element={<Album />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/my/:username" element={<MyDig />} />
               </Routes>
             </Suspense>
             <SiteFooter />

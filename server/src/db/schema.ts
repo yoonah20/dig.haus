@@ -586,7 +586,24 @@ export function initializeDatabase(db: Database.Database): void {
     'display_name TEXT',
     'custom_avatar_url TEXT',
     'instagram_handle TEXT',
+    // Phase 3 mydig. `username` is the URL slug (lowercase a-z0-9_-,
+    // 3-20 chars) — no UNIQUE in migrateTable (it's ALTER TABLE which
+    // doesn't add constraints), so a partial unique index is added
+    // separately below. `mydig_public` is the per-user privacy
+    // master toggle; NULL/1 = public, 0 = private (renders under-
+    // construction placeholder for non-owners).
+    'username TEXT',
+    'mydig_public INTEGER DEFAULT 1',
   ]);
+
+  // Partial unique index — enforces uniqueness only on rows that have
+  // actually claimed a username. Users who haven't onboarded yet keep
+  // `username` NULL without colliding.
+  db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_unique
+     ON users(LOWER(username))
+     WHERE username IS NOT NULL`
+  );
 
   migrateTable(db, 'purchase_links', [
     'store_favicon_url TEXT',
@@ -829,6 +846,142 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_album_votes_created_at ON album_votes(created_at DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_links_album_id ON purchase_links(album_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_albums_rank_score ON albums(rank_score DESC)');
+
+  // ─── Phase 3 mydig tables ──────────────────────────────────────────────
+  //
+  // See CLAUDE.md "Phase 3 plan" for the layout & interaction model.
+  // Summary: Vinyl Wall (22-slot fixed), Shelf (6 genre-scoped bins),
+  // Crate (0-N user-defined playlist stacks, 0-5 front-page visible).
+  // Duplicates across layers are intentional — no UNIQUE(user, album),
+  // only UNIQUE(container, position). Shelf bins are typed via an
+  // admin-curated `genres` taxonomy so they stay distinct from Crate
+  // (freeform labels).
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS genres (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT NOT NULL UNIQUE,
+      name_ko TEXT NOT NULL,
+      name_en TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_genres_position_active
+     ON genres(is_active, position)`
+  );
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS vinyl_wall_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL CHECK (position >= 0 AND position < 22),
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, position)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vinyl_wall_items_user_position
+     ON vinyl_wall_items(user_id, position)`
+  );
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shelf_slots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL CHECK (position >= 0 AND position < 6),
+      genre_id INTEGER REFERENCES genres(id) ON DELETE SET NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, position)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_shelf_slots_user_position
+     ON shelf_slots(user_id, position)`
+  );
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS shelf_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slot_id INTEGER NOT NULL REFERENCES shelf_slots(id) ON DELETE CASCADE,
+      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(slot_id, position)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_shelf_items_slot_position
+     ON shelf_items(slot_id, position)`
+  );
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crate_boxes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, position)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_crate_boxes_user_position
+     ON crate_boxes(user_id, position)`
+  );
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crate_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      crate_id INTEGER NOT NULL REFERENCES crate_boxes(id) ON DELETE CASCADE,
+      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(crate_id, position)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_crate_items_crate_position
+     ON crate_items(crate_id, position)`
+  );
+
+  // One-time seed of the genre taxonomy (admin can edit/extend via
+  // /admin later). Order of INSERTs drives initial UI ordering; admin
+  // can reorder via position later. Idempotent via INSERT OR IGNORE
+  // on the slug UNIQUE constraint.
+  runOnce(db, 'seed-genres-initial-2026-04-20', () => {
+    const seed: Array<[string, string, string]> = [
+      ['death-metal', '데스 메탈', 'Death Metal'],
+      ['black-metal', '블랙 메탈', 'Black Metal'],
+      ['thrash', '스래시', 'Thrash'],
+      ['doom-stoner', '둠 & 스토너', 'Doom & Stoner'],
+      ['grind-power', '그라인드코어 & 파워바이올런스', 'Grindcore & Powerviolence'],
+      ['hardcore-crust', '하드코어 & 크러스트', 'Hardcore & Crust'],
+      ['post-metal-sludge', '포스트메탈 & 슬러지', 'Post-Metal & Sludge'],
+      ['progressive', '프로그레시브', 'Progressive'],
+      ['trad-heavy', '전통 헤비메탈', 'Traditional Heavy Metal'],
+      ['punk-post-punk', '펑크 & 포스트펑크', 'Punk & Post-Punk'],
+      ['shoegaze-dreampop', '슈게이즈 & 드림팝', 'Shoegaze & Dreampop'],
+      ['indie-rock', '인디 록', 'Indie Rock'],
+      ['ambient-drone', '앰비언트 & 드론', 'Ambient & Drone'],
+      ['jazz', '재즈', 'Jazz'],
+      ['hip-hop', '힙합', 'Hip-Hop'],
+      ['electronic', '일렉트로닉', 'Electronic'],
+    ];
+    const stmt = db.prepare(
+      `INSERT OR IGNORE INTO genres (slug, name_ko, name_en, position)
+       VALUES (?, ?, ?, ?)`
+    );
+    seed.forEach(([slug, nameKo, nameEn], idx) => {
+      stmt.run(slug, nameKo, nameEn, idx);
+    });
+    console.log(`[migration] seeded ${seed.length} initial genres`);
+  });
 
   // Purge any Metacritic rows that were ingested before we added it to the
   // exclusion list. Metacritic is an aggregator (re-publishes other sites'
