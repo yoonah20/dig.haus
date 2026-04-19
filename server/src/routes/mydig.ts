@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { queryGet, queryAll } from '../db/index.js';
+import { queryGet, queryAll, execute, getDb } from '../db/index.js';
+import { requireAuth } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
 
 const router = Router();
@@ -214,6 +215,174 @@ router.get('/mydig/:username', (req, res) => {
       })),
     })),
   });
+});
+
+// ─── PUT /api/mydig/vinyl-wall/items — bulk-replace wall placement ──────
+//
+// Single-shot save: client sends the full 22-slot state (array of
+// { position, albumId } objects; missing positions are empty slots
+// that get deleted), server wipes + reinserts in a transaction. This
+// keeps edit-mode undo / reorder trivial on the client (mutate an
+// in-memory array, submit when done) and makes the server API tiny.
+// Duplicates (same album_id in multiple positions) are allowed per
+// the Phase 3 principles — UNIQUE is only on (user_id, position).
+router.put('/mydig/vinyl-wall/items', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const body = (req.body ?? {}) as { items?: unknown };
+  if (!Array.isArray(body.items)) {
+    return res.status(400).json({ error: 'items array 필요' });
+  }
+
+  // Validate shape + constraints before touching the DB.
+  const normalised: Array<{ position: number; albumId: number }> = [];
+  const seenPositions = new Set<number>();
+  for (const raw of body.items) {
+    if (!raw || typeof raw !== 'object') continue;
+    const position = (raw as any).position;
+    const albumId = (raw as any).albumId;
+    if (!Number.isInteger(position) || position < 0 || position >= 22) {
+      return res.status(400).json({ error: `position은 0-21 정수여야 해요 (${position})` });
+    }
+    if (!Number.isInteger(albumId) || albumId <= 0) {
+      return res.status(400).json({ error: 'albumId가 잘못되었어요.' });
+    }
+    if (seenPositions.has(position)) {
+      return res.status(400).json({ error: `중복된 position ${position}` });
+    }
+    seenPositions.add(position);
+    normalised.push({ position, albumId });
+  }
+
+  const db = getDb();
+  const tx = db.transaction((items: typeof normalised) => {
+    db.prepare(`DELETE FROM vinyl_wall_items WHERE user_id = ?`).run(me.id);
+    const insert = db.prepare(
+      `INSERT INTO vinyl_wall_items (user_id, album_id, position)
+       VALUES (?, ?, ?)`
+    );
+    for (const it of items) insert.run(me.id, it.albumId, it.position);
+  });
+
+  try {
+    tx(normalised);
+    res.json({ ok: true, count: normalised.length });
+  } catch (err) {
+    console.error('[mydig/wall] replace failed:', err);
+    res.status(500).json({ error: 'Vinyl Wall 저장 실패' });
+  }
+});
+
+// ─── GET /api/mydig/candidates — edit-mode picker source ────────────────
+//
+// Searches the full albums table (not 샀음-filtered — mydig is
+// identity expression, not inventory per CLAUDE.md). Optional tab
+// switches:
+//   - source=all         → full DB
+//   - source=collection  → albums the user marked 샀음
+//   - source=wantlist    → albums the user marked 살거
+//   - source=crate       → albums in any of the user's own crates
+// Query `q` is fuzzy match on title+artist. Limited to 30 to keep
+// the picker responsive.
+router.get('/mydig/candidates', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const source = String(req.query.source || 'all');
+  const q = String(req.query.q || '').trim();
+  const pattern = q ? `%${q.toLowerCase()}%` : null;
+
+  const selectClause = `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name,
+                               a.release_date, a.release_year,
+                               a.cover_art_url, a.cover_art_fallbacks`;
+  const searchFilter = pattern
+    ? `(LOWER(a.title) LIKE ? OR LOWER(a.artist_name) LIKE ?)`
+    : null;
+  const limitClause = `ORDER BY a.id DESC LIMIT 30`;
+
+  try {
+    let rows: any[] = [];
+    if (source === 'collection') {
+      // Distinct because a user may own multiple formats of the same
+      // album (vinyl + CD, etc.) and each is a separate collections row.
+      const where = ['c.user_id = ?'];
+      const params: any[] = [me.id];
+      if (searchFilter) {
+        where.push(searchFilter);
+        params.push(pattern, pattern);
+      }
+      rows = queryAll(
+        `${selectClause}
+         FROM albums a
+         JOIN collections c ON c.album_id = a.id
+         WHERE ${where.join(' AND ')}
+         GROUP BY a.id
+         ${limitClause}`,
+        params
+      );
+    } else if (source === 'wantlist') {
+      const where = ['w.user_id = ?'];
+      const params: any[] = [me.id];
+      if (searchFilter) {
+        where.push(searchFilter);
+        params.push(pattern, pattern);
+      }
+      rows = queryAll(
+        `${selectClause}
+         FROM albums a
+         JOIN wants w ON w.album_id = a.id
+         WHERE ${where.join(' AND ')}
+         GROUP BY a.id
+         ${limitClause}`,
+        params
+      );
+    } else if (source === 'crate') {
+      const where = ['cb.user_id = ?'];
+      const params: any[] = [me.id];
+      if (searchFilter) {
+        where.push(searchFilter);
+        params.push(pattern, pattern);
+      }
+      rows = queryAll(
+        `${selectClause}
+         FROM albums a
+         JOIN crate_items ci ON ci.album_id = a.id
+         JOIN crate_boxes cb ON cb.id = ci.crate_id
+         WHERE ${where.join(' AND ')}
+         GROUP BY a.id
+         ${limitClause}`,
+        params
+      );
+    } else {
+      // Default: search across the full catalog.
+      const where: string[] = [];
+      const params: any[] = [];
+      if (searchFilter) {
+        where.push(searchFilter);
+        params.push(pattern, pattern);
+      }
+      rows = queryAll(
+        `${selectClause}
+         FROM albums a
+         ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+         ${limitClause}`,
+        params
+      );
+    }
+
+    res.json({
+      albums: rows.map((r: any) => ({
+        id: r.id,
+        mbid: r.mbid,
+        slug: r.slug,
+        title: r.title,
+        artist: r.artist_name,
+        releaseYear: r.release_year,
+        coverArtUrl: r.cover_art_url,
+        coverArtFallbacks: r.cover_art_fallbacks ? JSON.parse(r.cover_art_fallbacks) : [],
+      })),
+    });
+  } catch (err) {
+    console.error('[mydig/candidates] failed:', err);
+    res.status(500).json({ error: '후보 검색 실패' });
+  }
 });
 
 export default router;

@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMyDig, type MyDigWallItem, type MyDigShelfSlot, type MyDigCrate } from '../hooks/useMyDig';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 
 // Phase 3a skeleton — the four-layer placeholder scaffold described
 // in CLAUDE.md. No edit mode, no drag-drop, no flip-through yet —
@@ -24,6 +26,7 @@ const SHELF_BIN_COUNT = 6;
 export default function MyDig() {
   const { username } = useParams<{ username: string }>();
   const { data, isLoading, error } = useMyDig(username);
+  const [editingWall, setEditingWall] = useState(false);
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -93,14 +96,33 @@ export default function MyDig() {
         {/* Tier 1 — Vinyl Wall. 5-5-6-6, equal cover sizes, 5-rows
             centered with empty space at the ends. */}
         <section>
-          <h2 className="text-sm uppercase tracking-wider text-gray-500 mb-4">
-            Vinyl Wall
-          </h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm uppercase tracking-wider text-gray-500">
+              Vinyl Wall
+            </h2>
+            {data.user.isOwner && (
+              <button
+                type="button"
+                onClick={() => setEditingWall(true)}
+                className="text-xs text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-md px-2 py-0.5 cursor-pointer transition-colors"
+              >
+                ✏️ 편집
+              </button>
+            )}
+          </div>
           <VinylWallGrid
             wallByPosition={wallByPosition}
             isOwner={data.user.isOwner}
           />
         </section>
+
+        {editingWall && username && (
+          <VinylWallEditor
+            username={username}
+            initialWall={data.vinylWall}
+            onClose={() => setEditingWall(false)}
+          />
+        )}
 
         {/* Tier 2 — Shelf. 6 bins, each with a genre label. Empty
             bins render as furniture outlines with the label only
