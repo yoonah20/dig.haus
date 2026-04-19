@@ -177,6 +177,27 @@ export function useGenerateReviewSummary(id: string) {
   });
 }
 
+// Admin action: wipe every cached review + the derived korean_summary
+// for an album, reverting it to the un-crawled state. The album row
+// itself stays (use ⚙️ 관리 → 삭제 on the album page for that).
+export function useDeleteAllReviews(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { data } = await axios.delete(
+        `/api/reviews/album/${encodeURIComponent(id)}`
+      );
+      return data as { ok: boolean; deleted: number };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['album', id] });
+      qc.invalidateQueries({ queryKey: ['album-reviews', id] });
+      qc.invalidateQueries({ queryKey: ['album-list'] });
+      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+    },
+  });
+}
+
 // Admin-only URL discovery via Serper (Google SERP proxy) — returns
 // 0–5 editorial review URL candidates for this album. No DB writes;
 // the caller uses the URLs to populate the URL-batch textarea so

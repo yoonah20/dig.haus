@@ -347,7 +347,7 @@ export async function selectEditorialReviewUrls(
   try {
     const resp = await getClient().messages.create({
       model: HAIKU,
-      max_tokens: 400,
+      max_tokens: 600,
       messages: [
         {
           role: 'user',
@@ -356,11 +356,13 @@ export async function selectEditorialReviewUrls(
 후보:
 ${list}
 
-INCLUDE: 전문 음악 매체, 잡지, 음악 블로그의 리뷰 기사. (Pitchfork, AllMusic, Angry Metal Guy, Sputnikmusic, Treble, Paste, The Quietus, Stereogum, Consequence, Loud & Quiet, Exclaim 등, 그리고 네임드 아니어도 writer byline + 평가적 내용 있으면 editorial)
+⚠️ 가장 중요한 조건: URL이나 제목/요약에 **정확히 "${album}"** 앨범이 언급돼야 함. 같은 아티스트의 다른 앨범 리뷰는 **절대 포함 금지**. 제목에 "Dodsrit – Other Album Review" 같이 다른 앨범명이 보이면 거부. 확실하지 않으면 제외하는 쪽으로 판단.
 
-EXCLUDE: 쇼핑몰/마켓플레이스 (Amazon, Discogs, Bandcamp store, HMV, Tower Records), 스트리밍 (Spotify, Apple Music), aggregator (Metacritic, albumoftheyear, rateyourmusic), 포럼/Reddit/팬 커뮤니티, 유저 평점 페이지, 아티스트 공식 사이트/Wikipedia, 뉴스 공지/발매 노트, 트랙리스트만 있는 페이지, 태그/카테고리 페이지.
+INCLUDE: 전문 음악 매체, 잡지, 음악 블로그의 리뷰 기사. (Pitchfork, AllMusic, Angry Metal Guy, Sputnikmusic, Treble, Paste, The Quietus, Stereogum, Consequence, Loud & Quiet, Exclaim, MetalSucks, Decibel, Kerrang, Metal Hammer, Louder Sound, Revolver, Invisible Oranges, Heavy Blog is Heavy, Dead Rhetoric 등, 그리고 네임드 아니어도 writer byline + 평가적 내용 있으면 editorial). 다국어 사이트(네덜란드어, 독일어, 프랑스어, 스웨덴어 등)도 editorial이면 포함.
 
-Return ONLY a JSON array of the chosen URLs (원문 그대로). 최대 5개. 적절한 후보가 없으면 [].`,
+EXCLUDE: 쇼핑몰/마켓플레이스 (Amazon, Discogs, Bandcamp store, HMV, Tower Records), 스트리밍 (Spotify, Apple Music), aggregator (Metacritic, albumoftheyear, rateyourmusic), 포럼/Reddit/팬 커뮤니티, 유저 평점 페이지, 아티스트 공식 사이트/Wikipedia, 뉴스 공지/발매 노트/인터뷰 (리뷰 아님), 트랙리스트만 있는 페이지, 태그/카테고리 페이지, 다른 앨범 리뷰.
+
+최대한 많이 고르되 (최대 10개), 앨범 일치 확신이 없으면 제외. Return ONLY a JSON array of the chosen URLs (원문 그대로). 적절한 후보가 없으면 [].`,
         },
       ],
     });

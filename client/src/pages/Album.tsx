@@ -3,8 +3,7 @@ import { useEffect } from 'react';
 import { useAlbumBase, useAlbumReviews, useAlbumSimilar, useAlbumNeighbors } from '../hooks/useAlbum';
 import { useHomeState } from '../contexts/HomeStateContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useDeletePendingAlbum } from '../hooks/useAlbumRequests';
-import { useGenerateReviewSummary, useMarkNoReviews } from '../hooks/useAlbum';
+import { useGenerateReviewSummary, useMarkNoReviews, useDeleteAllReviews } from '../hooks/useAlbum';
 import { useInView } from '../hooks/useInView';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import HeaderSection from '../components/AlbumDetail/HeaderSection';
@@ -29,9 +28,9 @@ export default function Album() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
-  const deletePending = useDeletePendingAlbum();
   const generateSummary = useGenerateReviewSummary(slug!);
   const markNoReviews = useMarkNoReviews(slug!);
+  const deleteAllReviews = useDeleteAllReviews(slug!);
   const { data: base, isLoading: baseLoading, error: baseError } = useAlbumBase(slug!);
   const baseReady = !!base;
   const { sort } = useHomeState();
@@ -195,7 +194,6 @@ export default function Album() {
                               }
                             }}
                             disabled={
-                              deletePending.isPending ||
                               generateSummary.isPending ||
                               markNoReviews.isPending ||
                               reviewsData.reviews.length < 2
@@ -216,7 +214,6 @@ export default function Album() {
                               }
                             }}
                             disabled={
-                              deletePending.isPending ||
                               generateSummary.isPending ||
                               markNoReviews.isPending
                             }
@@ -228,28 +225,36 @@ export default function Album() {
                           <button
                             type="button"
                             onClick={async () => {
-                              if (deletePending.isPending) return;
+                              if (deleteAllReviews.isPending) return;
+                              const reviewCount = reviewsData.reviews.length;
+                              if (reviewCount === 0) {
+                                alert('삭제할 리뷰가 없습니다.');
+                                return;
+                              }
                               if (
                                 !confirm(
-                                  `"${base.album.artist} — ${base.album.title}" 앨범을 삭제할까요?\n50자 평·구매처 등록도 함께 사라집니다.`
+                                  `이 앨범의 리뷰 ${reviewCount}개를 전부 삭제할까요?\n한국어 요약도 함께 초기화되고 수집-대기 상태로 돌아갑니다.\n앨범 자체는 유지됩니다 (앨범 삭제는 ⚙️ 관리 메뉴).`
                                 )
                               )
                                 return;
                               try {
-                                await deletePending.mutateAsync(albumId);
-                                navigate('/', { replace: true });
+                                await deleteAllReviews.mutateAsync();
                               } catch (err: any) {
-                                alert(err?.response?.data?.error || '삭제에 실패했습니다.');
+                                alert(
+                                  err?.response?.data?.error ||
+                                    '리뷰 삭제에 실패했습니다.'
+                                );
                               }
                             }}
                             disabled={
-                              deletePending.isPending ||
                               generateSummary.isPending ||
-                              markNoReviews.isPending
+                              markNoReviews.isPending ||
+                              deleteAllReviews.isPending
                             }
                             className="text-xs text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            title="이 앨범의 수집된 리뷰 전체 삭제 (앨범은 유지됨)"
                           >
-                            {deletePending.isPending ? '삭제 중…' : '🗑️ 삭제'}
+                            {deleteAllReviews.isPending ? '삭제 중…' : '🗑️ 리뷰 전체 삭제'}
                           </button>
                         </div>
                       </div>

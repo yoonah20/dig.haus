@@ -27,7 +27,11 @@ export async function searchReviewUrls(
     console.warn('[serper] SERPER_API_KEY not set — discovery disabled');
     return [];
   }
-  const q = `${artist} ${album} review`;
+  // Quote artist AND album to stop Google from tokenizing them apart —
+  // without quotes, "Dödsrit Nocturnal Will review" was returning
+  // reviews of other Dödsrit albums because the artist name dominates
+  // Google's relevance signal. Quotes force album-title presence.
+  const q = `"${artist}" "${album}" review`;
   try {
     const resp = await axios.post(
       'https://google.serper.dev/search',

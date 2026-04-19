@@ -68,6 +68,8 @@ const EXCLUDED_TAGS = new Set([
   'all time favorite', 'all time favorites', 'all-time favorite', 'all-time favorites',
   'top', 'top albums', 'top album', 'best', 'best albums', 'best album',
   'best ever', 'best of', 'the best',
+  'best song', 'best songs', 'best track', 'best tracks',
+  'favorite track', 'favorite tracks', 'favourite track', 'favourite tracks',
   'owned', 'own', 'own it', 'i own', 'albums i own',
   'want', 'wanted', 'wantlist', 'wishlist', 'want to hear',
   'heard', 'not heard', 'unheard', 'listened', 'to listen',
@@ -102,6 +104,11 @@ const EXCLUDED_PATTERNS: RegExp[] = [
   /\bseen live\b/i,
   /\bmust hear\b/i,
   /\bneed to\b/i,
+  // "best X" family — "best song", "best songs", "best track", "best
+  // tracks", "best of 2024" style. EXCLUDED_TAGS catches the exact
+  // forms we've seen in the wild; this regex catches year-scoped
+  // variants and any other "best + noun" that slips through.
+  /\bbest\s+(song|songs|tracks?|ever|of)\b/i,
 ];
 
 // Known short genre names to keep (3 chars or less)
@@ -1141,7 +1148,8 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
   try {
     const candidates = await searchReviewUrls(
       albumRow.artist_name,
-      albumRow.title
+      albumRow.title,
+      30 // up from default 20; leaves more headroom after EXCLUDED_URL_DOMAINS trims shops/aggregators
     );
     if (candidates.length === 0) {
       return res.json({
