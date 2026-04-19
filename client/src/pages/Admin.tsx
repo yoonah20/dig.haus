@@ -890,9 +890,124 @@ export default function Admin() {
               </Panel>
             </div>
           </section>
+
+          {/* Scrape-failure log — surfaces hostnames that consistently
+              fail URL scraping, so we can decide which need a
+              site-specific parser vs. staying on the paste-in
+              fallback. Append-only table on the server; the panel
+              lets admin clear entries per hostname after addressing
+              (or giving up on) a site. */}
+          <section className="mt-4">
+            <ScrapeFailuresPanel />
+          </section>
         </>
       )}
     </main>
+  );
+}
+
+interface ScrapeFailureHost {
+  hostname: string;
+  attempts: number;
+  last_failed_at: string;
+  last_reason: string;
+  last_error: string | null;
+  last_url: string;
+}
+
+function ScrapeFailuresPanel() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useQuery<{
+    windowDays: number;
+    hosts: ScrapeFailureHost[];
+  }>({
+    queryKey: ['admin-scrape-failures'],
+    queryFn: async () => {
+      const resp = await axios.get('/api/admin/scrape-failures?days=30');
+      return resp.data;
+    },
+    staleTime: 30_000,
+  });
+
+  const del = useMutation({
+    mutationFn: async (hostname: string) => {
+      await axios.delete(
+        `/api/admin/scrape-failures/${encodeURIComponent(hostname)}`
+      );
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-scrape-failures'] });
+    },
+  });
+
+  const hosts = data?.hosts ?? [];
+
+  return (
+    <Panel title="스크래핑 실패 로그 (30일)" icon="⚠️" count={hosts.length}>
+      {isLoading ? (
+        <EmptyRow>로딩 중...</EmptyRow>
+      ) : isError ? (
+        <EmptyRow>불러오지 못했습니다.</EmptyRow>
+      ) : hosts.length === 0 ? (
+        <EmptyRow>실패한 스크래핑 없음 ✓</EmptyRow>
+      ) : (
+        hosts.map((h) => (
+          <div key={h.hostname} className="p-3 flex items-start gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-white font-medium truncate">
+                  {h.hostname}
+                </span>
+                <span className="text-xs text-gray-500 tabular-nums">
+                  ×{h.attempts}
+                </span>
+                <span className="text-[10px] font-mono uppercase tracking-wider text-[#e8a020]/80 bg-[#e8a020]/10 px-1.5 py-0.5 rounded">
+                  {h.last_reason}
+                </span>
+                <span className="text-xs text-gray-600">
+                  {formatRelativeKo(h.last_failed_at)}
+                </span>
+              </div>
+              <a
+                href={h.last_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-gray-500 hover:text-[#e8a020] truncate mt-1"
+                title={h.last_url}
+              >
+                {h.last_url}
+              </a>
+              {h.last_error && (
+                <div
+                  className="text-xs text-gray-600 truncate mt-1 font-mono"
+                  title={h.last_error}
+                >
+                  {h.last_error}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                if (del.isPending) return;
+                if (
+                  !confirm(
+                    `${h.hostname} 의 실패 로그 ${h.attempts}개를 삭제할까요? (다시 실패하면 자동으로 다시 쌓임)`
+                  )
+                )
+                  return;
+                del.mutate(h.hostname);
+              }}
+              disabled={del.isPending}
+              className="text-xs text-gray-500 hover:text-red-400 disabled:opacity-40 px-2 py-1 cursor-pointer shrink-0"
+              aria-label={`${h.hostname} 실패 로그 삭제`}
+              title="실패 로그 삭제"
+            >
+              🗑️
+            </button>
+          </div>
+        ))
+      )}
+    </Panel>
   );
 }
 

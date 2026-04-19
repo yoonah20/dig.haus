@@ -1625,13 +1625,39 @@ router.patch('/reviews/:reviewId/excerpt', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'excerpt_ko must be a string or null' });
   }
 
-  const existing = queryGet('SELECT id FROM reviews WHERE id = ?', [reviewId]);
+  // Read the old excerpt_ko alongside the existence check so we can
+  // feed the edit-log below. Single query instead of two.
+  const existing = queryGet(
+    'SELECT id, excerpt_ko FROM reviews WHERE id = ?',
+    [reviewId]
+  );
   if (!existing) {
     return res.status(404).json({ error: 'Review not found' });
   }
 
   try {
     execute('UPDATE reviews SET excerpt_ko = ? WHERE id = ?', [value, reviewId]);
+
+    // Log every actual change (both old and new text) so we can
+    // periodically mine the corpus for recurring mistranslation
+    // patterns that deserve a KO_TERM_REPLACEMENTS entry. Noop when
+    // the text didn't change (admin opened the editor and saved
+    // without edits). Intentionally never throws — the log is
+    // best-effort and can't block the user-visible save.
+    const oldText = existing.excerpt_ko ?? null;
+    if (oldText !== value) {
+      try {
+        const adminId = (req.user as AppUser | undefined)?.id ?? null;
+        execute(
+          `INSERT INTO excerpt_edits (review_id, old_excerpt_ko, new_excerpt_ko, edited_by_user_id)
+           VALUES (?, ?, ?, ?)`,
+          [reviewId, oldText, value, adminId]
+        );
+      } catch (logErr) {
+        console.error('[excerpt-edits] log failed:', (logErr as Error).message);
+      }
+    }
+
     res.json({ ok: true, excerptKo: value });
   } catch (error) {
     console.error('Update excerpt error:', error);

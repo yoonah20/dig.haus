@@ -301,6 +301,26 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_scrape_failures_hostname ON scrape_failures(hostname)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_scrape_failures_failed_at ON scrape_failures(failed_at)`);
 
+  // Data-collection feed for the Korean-term normalisation list. Every
+  // time admin edits a review's excerpt_ko (PATCH /api/albums/reviews/:id/excerpt)
+  // we stash the before/after pair here. Intent is NOT to build an
+  // undo feature — it's to accumulate a corpus of real corrections so
+  // we can periodically diff old→new and extract recurring patterns
+  // (ex. "오래된 학교" → "올드 스쿨" showing up 10+ times means it's
+  // worth a KO_TERM_REPLACEMENTS entry). Only rows where the text
+  // actually changed get logged.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS excerpt_edits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      review_id INTEGER NOT NULL,
+      old_excerpt_ko TEXT,
+      new_excerpt_ko TEXT,
+      edited_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      edited_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_excerpt_edits_edited_at ON excerpt_edits(edited_at)`);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS similar_albums (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

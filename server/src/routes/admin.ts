@@ -495,6 +495,56 @@ router.get('/snapshot-dump', (_req, res) => {
 // vs. not-a-review) without a second round-trip. Window defaults to
 // 30 days — older rows aren't deleted but they're usually not
 // actionable once a site has been fixed or given up on.
+// Clear all failure rows for a given hostname — used after we've
+// either added a site-specific parser or decided a site is
+// unscrapable and moved it permanently to the paste-in fallback. The
+// hostname param comes from the GROUP BY key the UI surfaces, so it
+// arrives already-normalised (lowercase, www-stripped). Returns the
+// number of rows deleted so the UI can show "17개 항목 삭제됨" etc.
+router.delete('/scrape-failures/:hostname', (req, res) => {
+  const hostname = String(req.params.hostname || '').trim().toLowerCase();
+  if (!hostname || hostname.length > 253) {
+    return res.status(400).json({ error: 'Invalid hostname' });
+  }
+  try {
+    const result = execute(
+      `DELETE FROM scrape_failures WHERE hostname = ?`,
+      [hostname]
+    );
+    res.json({ ok: true, deleted: result.changes });
+  } catch (err) {
+    console.error('[scrape-failures] delete failed:', err);
+    res.status(500).json({ error: 'failed to delete scrape failures' });
+  }
+});
+
+// Raw excerpt-edit log. No UI yet — intended for periodic curl
+// review: pull the last 90 days of admin edits, diff old→new per
+// row, and promote any recurring pattern to a KO_TERM_REPLACEMENTS
+// entry in claude.ts. The limit keeps the response sane; bump via
+// ?limit=… if the corpus grows past that window.
+router.get('/excerpt-edits', (req, res) => {
+  const limit = Math.max(1, Math.min(1000, parseInt(String(req.query.limit || '200'), 10) || 200));
+  try {
+    const rows = queryAll(
+      `SELECT e.id, e.review_id, e.old_excerpt_ko, e.new_excerpt_ko,
+              e.edited_at, u.display_name, u.email,
+              r.source_name, a.title AS album_title, a.artist_name
+       FROM excerpt_edits e
+       LEFT JOIN users u ON u.id = e.edited_by_user_id
+       LEFT JOIN reviews r ON r.id = e.review_id
+       LEFT JOIN albums a ON a.mbid = r.album_mbid
+       ORDER BY e.edited_at DESC
+       LIMIT ?`,
+      [limit]
+    );
+    res.json({ count: rows.length, edits: rows });
+  } catch (err) {
+    console.error('[excerpt-edits] query failed:', err);
+    res.status(500).json({ error: 'failed to fetch excerpt edits' });
+  }
+});
+
 router.get('/scrape-failures', (req, res) => {
   const days = Math.max(1, Math.min(365, parseInt(String(req.query.days || '30'), 10) || 30));
   try {

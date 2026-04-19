@@ -38,8 +38,8 @@ export function queryAll(sql: string, params: any[] = []): any[] {
   return db.prepare(sql).all(...params);
 }
 
-export function execute(sql: string, params: any[] = []): void {
-  db.prepare(sql).run(...params);
+export function execute(sql: string, params: any[] = []): Database.RunResult {
+  return db.prepare(sql).run(...params);
 }
 
 export function execRaw(sql: string): void {
