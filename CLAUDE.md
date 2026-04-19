@@ -98,16 +98,17 @@ dig.haus is a **digital record store**, not an algorithmic music feed. The core 
 
 ## API cost discipline
 
-Claude API spend was ~$3 for 10 albums before optimization; post-optimization target is ~$0.04/album via the manual flow.
+Phase 1 spent ~$0.30/album via Claude's web_search tool. That path (`searchReviews` / 🔍 리뷰 모아오기) was removed entirely in the Phase 3a review-pipeline rebuild after a single session racked up ~$5 across 10 albums: each web_search invocation pulled tens of thousands of tokens of page content back into context as input tokens, and Claude re-fetching popular sites on every album scaled badly.
+
+Current per-review cost is ~$0.001 via the `scrapeReviewFromUrl` path, which routes page fetches through Jina Reader (`r.jina.ai/`) — free proxy that renders JS and converts to clean markdown, so Claude sees the article instead of the whole HTML boilerplate. URL discovery happens via Serper.dev (admin clicks 🔎 자동 검색), returns 10–20 candidates, Haiku picks the editorial ones (~$0.0003 per pick call).
 
 **Cost-sensitive rules** (do not break without discussion):
-- `reviews.ts` Step 1: `max_uses: 3` for `web_search`, no thin-response retry, hard abort if Step 1 cost > $0.10
 - Anthropic SDK: `maxRetries: 2` (was 5 — amplification risk)
-- `getOrFetchAlbumBase` **never** fires review warm-up. Every album registration lands with `reviews_crawled_at IS NULL`. Admin explicitly triggers via 🔍 리뷰 모아오기 on the album page.
-- `GET /albums/:id/reviews` does NOT auto-trigger `searchReviews` on cache miss. Cached reads only.
-- `scrapeReviewFromUrl` (admin manual add-URL) is the preferred path for most albums. ~$0.003 per review.
-- `generateKoreanSummary` + `stripSummaryPreamble` post-processes to remove markdown headers and title/artist preamble lines. Do not remove that post-process.
-- Admin dashboard API usage panel supports monthly window + manual reset + a "상세" drawer listing individual recent calls. Keep these visibility tools when adding new Claude call sites.
+- `getOrFetchAlbumBase` **never** warm-ups reviews. Every album registration lands with `reviews_crawled_at IS NULL`.
+- `GET /albums/:id/reviews` is cache-only — no auto-fetch on miss.
+- `scrapeReviewFromUrl` is the ONLY automated review fetch path. Jina primary, raw HTML as fallback for detectors (star / filename-image / numeric) that need the original markup.
+- `generateKoreanSummary` + `stripSummaryPreamble` + `normaliseKoreanTerms` post-process every Korean output to strip markdown and literal-translation artefacts. Do not remove.
+- Admin dashboard API usage panel + /api/admin/scrape-failures + /api/admin/excerpt-edits are the observability trio. Keep them working when adding new Claude call sites.
 
 **When adding any new Claude call**, present an estimated per-call cost and per-user / per-album frequency before implementing.
 
@@ -134,8 +135,6 @@ Known-but-deliberately-deferred items surfaced by the Phase 2 closeout audit. Ea
 - **Home-feed N+1 subqueries** (`GET /api/albums`, `ALBUM_ROW_SELECT` around `server/src/routes/albums.ts:598`): 7 correlated subqueries per row (votes SUM×2, reviews AVG/COUNT, user_reviews COUNT, collections, wants). Fine at current traffic. Collapse into a single JOIN+GROUP BY if the feed shows up in latency telemetry. Same pattern in `server/src/routes/userReviews.ts:118` feed.
 - **`generate-summary` missing per-call budget tracking** (`server/src/routes/albums.ts` — the `/:id/reviews/generate-summary` handler): admin-only, `adminClaudeLimiter` (20/min) caps the worst case at ~$0.40/min of Sonnet. Adequate for now; add an explicit budget check when other admin Claude paths gain tracking.
 - **No orphan sweep for `server/data/avatars/` and `custom-covers/`**: account/album deletion removes DB rows but leaves uploaded files on disk. Disk is cheap on Railway so this is accumulation, not a bug. A weekly cron that lists the dirs and deletes files not referenced by any row would close the loop.
-- **Approve-button concurrent-click race** (`approveAlbumRequest` in `server/src/routes/albums.ts`): two admins clicking 승인 on the same pending album in the same second can both fire the Claude review-search (~$0.05 per duplicate). Low-probability one-operator operation; skip a dedup lock unless a second admin joins the project.
-
 ---
 
 ## File map (where things live)

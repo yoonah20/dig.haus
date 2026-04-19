@@ -3,10 +3,7 @@ import { useEffect } from 'react';
 import { useAlbumBase, useAlbumReviews, useAlbumSimilar, useAlbumNeighbors } from '../hooks/useAlbum';
 import { useHomeState } from '../contexts/HomeStateContext';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  useApproveAlbumRequest,
-  useDeletePendingAlbum,
-} from '../hooks/useAlbumRequests';
+import { useDeletePendingAlbum } from '../hooks/useAlbumRequests';
 import { useGenerateReviewSummary, useMarkNoReviews } from '../hooks/useAlbum';
 import { useInView } from '../hooks/useInView';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -32,7 +29,6 @@ export default function Album() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
-  const approveRequest = useApproveAlbumRequest();
   const deletePending = useDeletePendingAlbum();
   const generateSummary = useGenerateReviewSummary(slug!);
   const markNoReviews = useMarkNoReviews(slug!);
@@ -181,8 +177,8 @@ export default function Album() {
                   ? (
                       <div className="rounded-xl border border-[#e8a020]/25 bg-[#1a1a1a]/80 px-4 sm:px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
                         <div className="text-sm text-gray-400 leading-relaxed">
-                          AI로 리뷰를 모으거나(고비용), 직접 리뷰를 모아서
-                          요약을 만들어 보세요.
+                          + 리뷰 추가로 URL을 모은 뒤 📝 요약 생성을 돌리거나,
+                          리뷰가 없는 앨범이면 🙅 리뷰 없음으로 표시하세요.
                         </div>
                         <div className="flex items-center gap-2">
                           <button
@@ -199,7 +195,6 @@ export default function Album() {
                               }
                             }}
                             disabled={
-                              approveRequest.isPending ||
                               deletePending.isPending ||
                               generateSummary.isPending ||
                               markNoReviews.isPending ||
@@ -221,7 +216,6 @@ export default function Album() {
                               }
                             }}
                             disabled={
-                              approveRequest.isPending ||
                               deletePending.isPending ||
                               generateSummary.isPending ||
                               markNoReviews.isPending
@@ -230,36 +224,6 @@ export default function Album() {
                             title="Claude 호출 없이 크롤링 완료로만 표시 (비용 0)"
                           >
                             {markNoReviews.isPending ? '표시 중…' : '🙅 리뷰 없음'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (approveRequest.isPending) return;
-                              if (
-                                !confirm(
-                                  'AI 리뷰 검색을 실행할까요?\n\n' +
-                                    'Claude가 웹 검색으로 리뷰를 한 번에 5–15개 수집합니다. ' +
-                                    'API 호출 비용이 \u2248$0.05–$0.10 발생하고, 실패해도 부분 비용은 나갑니다.\n\n' +
-                                    '잘 알려진 앨범이 아니라면 직접 리뷰 URL을 모으는 편이 더 정확하고 싸요.'
-                                )
-                              )
-                                return;
-                              try {
-                                await approveRequest.mutateAsync(albumId);
-                              } catch (err: any) {
-                                alert(err?.response?.data?.error || '리뷰 수집에 실패했습니다.');
-                              }
-                            }}
-                            disabled={
-                              approveRequest.isPending ||
-                              deletePending.isPending ||
-                              generateSummary.isPending ||
-                              markNoReviews.isPending
-                            }
-                            className="text-xs text-gray-400 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                            title="Claude 웹 검색으로 리뷰 일괄 수집 (~$0.10)"
-                          >
-                            {approveRequest.isPending ? '검색 중…' : '🔍 리뷰 모아오기'}
                           </button>
                           <button
                             type="button"
@@ -279,7 +243,6 @@ export default function Album() {
                               }
                             }}
                             disabled={
-                              approveRequest.isPending ||
                               deletePending.isPending ||
                               generateSummary.isPending ||
                               markNoReviews.isPending

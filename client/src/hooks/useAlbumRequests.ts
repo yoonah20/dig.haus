@@ -77,30 +77,6 @@ export function useSubmitAlbumRequest() {
   });
 }
 
-export function useApproveAlbumRequest() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (mbid: string) => {
-      const { data } = await axios.post(
-        `/api/album-requests/${encodeURIComponent(mbid)}/approve`
-      );
-      return data;
-    },
-    onSuccess: (_data, mbid) => {
-      qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
-      // Bust every cached album-list view so the newly-approved
-      // album un-dims on the home grid.
-      qc.invalidateQueries({ queryKey: ['album-list'] });
-      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
-      qc.invalidateQueries({ queryKey: ['me-album-requests'] });
-      // Album detail page picks up the new reviews_crawled_at stamp
-      // — the placeholder section swaps to the review loader on
-      // next render.
-      qc.invalidateQueries({ queryKey: ['album', mbid] });
-    },
-  });
-}
-
 // Admin action — deletes the user-submitted album entirely. Cascade
 // FKs wipe purchase_links, user_reviews, votes, reports, etc. Used
 // from the "리뷰 수집 대기" panel as the "삭제" button next to

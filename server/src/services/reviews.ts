@@ -2,10 +2,7 @@ import axios from 'axios';
 import {
   getClient,
   HAIKU,
-  SONNET,
   logClaudeUsage,
-  countWebSearchUses,
-  stripSummaryPreamble,
   normaliseKoreanTerms,
 } from './claude.js';
 import { execute } from '../db/index.js';
@@ -95,32 +92,12 @@ function clampScore(raw: unknown): number | null {
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
-interface ReviewSearchResult {
-  reviews: ReviewResult[];
-  koreanSummary: string | null;
-  artistKo: string | null;
-  titleKo: string | null;
-  titleMeaning: string | null;
-}
-
-
-// Non-editorial sources to exclude (shopping/marketplace/aggregators)
-// Match against the lowercased sourceName via substring.
-const EXCLUDED_SOURCE_PATTERNS = [
-  'album of the year', 'albumoftheyear', 'aoty',
-  'rateyourmusic', 'rate your music', 'rym',
-  'metacritic',
-  'discogs', 'amazon', 'ebay', 'bandcamp',
-  'apple music', 'itunes', 'spotify',
-  'hmv', 'tower records', 'towerrecords',
-  'bestbuy', 'best buy', 'walmart', 'target.com',
-  'yesasia', 'cdjapan', 'cd japan',
-  'barnes & noble', 'barnesandnoble',
-];
-
-// Domains to exclude from fullReviewUrl.
-// Substring match over the hostname — covers amazon.com/.co.jp/.de etc.
-const EXCLUDED_URL_DOMAINS = [
+// Domains to exclude from review URLs. Used both by scrapeReviewFromUrl
+// (defensive; admin shouldn't be pasting these) and by the Serper
+// discovery pipeline (primary filter on search results). Substring
+// match over the hostname — covers amazon.com/.co.jp/.de etc. Exported
+// so services/serper.ts can apply the same allowlist definition.
+export const EXCLUDED_URL_DOMAINS = [
   'discogs.com',
   'amazon.',
   'ebay.',
@@ -141,275 +118,6 @@ const EXCLUDED_URL_DOMAINS = [
   'cdjapan.co.jp',
   'barnesandnoble.com',
 ];
-
-function isExcludedSource(sourceName: string, url: string): boolean {
-  const nameLower = sourceName.toLowerCase().trim();
-  if (EXCLUDED_SOURCE_PATTERNS.some((p) => nameLower.includes(p))) return true;
-
-  if (url) {
-    let hostname = '';
-    try {
-      hostname = new URL(url).hostname.toLowerCase();
-    } catch {
-      hostname = url.toLowerCase();
-    }
-    if (EXCLUDED_URL_DOMAINS.some((d) => hostname.includes(d))) return true;
-  }
-
-  return false;
-}
-
-// Coalesce concurrent searches for the same album so we don't burn tokens
-// calling Claude twice when two users hit the reviews endpoint simultaneously.
-const _inflightSearches = new Map<string, Promise<ReviewSearchResult>>();
-
-export function searchReviews(
-  artist: string,
-  album: string,
-): Promise<ReviewSearchResult> {
-  const key = `${artist}\u0001${album}`.toLowerCase();
-  const existing = _inflightSearches.get(key);
-  if (existing) return existing;
-  const p = _searchReviewsImpl(artist, album).finally(() => {
-    _inflightSearches.delete(key);
-  });
-  _inflightSearches.set(key, p);
-  return p;
-}
-
-// Pricing used for the in-pipeline budget check. Kept in sync with
-// server/src/routes/admin.ts PRICING_PER_1M — if that changes, bump
-// this too. Rates are per 1M tokens (input/output) and per 1000 web
-// searches. The check itself is intentionally conservative: we only
-// block progress when Step 1 *already* spent more than the ceiling
-// (the call completed before we knew the real usage), so the goal is
-// to stop Step 2 + Step 3 from adding another ~$0.03 on top of a
-// runaway Step 1.
-const HAIKU_IN_PER_1M = 1;
-const HAIKU_OUT_PER_1M = 5;
-const WEB_SEARCH_PER_1000 = 10;
-const STEP1_BUDGET_CAP_USD = 0.10;
-
-function haikuResponseCostUsd(resp: any, webSearchCount: number): number {
-  const input = resp?.usage?.input_tokens ?? 0;
-  const output = resp?.usage?.output_tokens ?? 0;
-  const tokenUsd =
-    (input / 1_000_000) * HAIKU_IN_PER_1M +
-    (output / 1_000_000) * HAIKU_OUT_PER_1M;
-  const searchUsd = (webSearchCount / 1000) * WEB_SEARCH_PER_1000;
-  return tokenUsd + searchUsd;
-}
-
-async function _searchReviewsImpl(
-  artist: string,
-  album: string,
-): Promise<ReviewSearchResult> {
-  console.log(`[reviews] searchReviews called: artist="${artist}", album="${album}"`);
-  try {
-    const client = getClient();
-
-    // ── Step 1: Haiku + web_search ───────────────────────────────────
-    // Prompt is phrased inclusively ("any editorial music review" + a hard
-    // blocklist) rather than as a named allow-list. An allow-list makes
-    // Haiku drop valid reviews from any publication not literally named
-    // (Treble, Paste, Revolver, Invisible Oranges, Stereogum, etc.), which
-    // previously caused otherwise well-covered albums to return 0 reviews.
-    const step1Prompt = `Find editorial reviews of the album "${album}" by ${artist}. Run 2–3 targeted web searches combining the artist + album title with words like "review", "rating", "score", "out of 10". Include a genre keyword (metal/punk/rock/indie/electronic/jazz/etc.) only if the first search returns too little.
-
-INCLUDE: any editorial music coverage — professional music publications, magazines, and dedicated music blogs of any size. Pitchfork, AllMusic, Sputnikmusic, Angry Metal Guy, MetalStorm, Blabbermouth, Metal Hammer, Kerrang, Dead Rhetoric, Nine Circles, Heavy Blog is Heavy, New Noise, The Quietus, Loud and Quiet, Clash, NME, Drowned in Sound, Consequence, Stereogum, Tiny Mix Tapes, Treble, Paste, Revolver, Invisible Oranges, Slant, PopMatters, The Line of Best Fit, Exclaim, Louder Sound, and many others all count — the list above is illustrative, NOT exhaustive. If a site has a writer byline and an evaluative take, treat it as editorial.
-
-EXCLUDE — never return any of these:
-- Shopping / marketplaces: Discogs, Amazon, eBay, Bandcamp store listings, Apple Music, iTunes, Spotify, HMV, Tower Records, Best Buy, Walmart, Target, YesAsia, CDJapan, Barnes & Noble
-- Aggregators / score collectors: Metacritic, albumoftheyear.org, rateyourmusic.com (we want primary editorial reviews, not sites that re-publish other publications' scores)
-- Anything that is user ratings, customer reviews, product pages, or storefront listings
-
-For each review: source name, score (e.g. "8/10", "4/5", "85/100"; omit if the review has none), 1–2 sentence excerpt from the review body, URL.
-Aim for 6–10 reviews. Do not return an empty list if there are editorial reviews on the web — return whatever you find.`;
-
-    // Step 1 budget: max_uses 6 → 3. Each web_search invocation costs
-    // $0.01 AND pulls a few tens of thousands of tokens of page
-    // content back into the Haiku context (billed as input tokens
-    // at $1/M) — that's where the bulk of a "why did this album
-    // cost $0.15" hit came from. Capping searches tightens the
-    // whole envelope. No retry: a thin first pass almost always
-    // meant the album isn't indexed well enough for web search to
-    // help, and retrying with more searches just burned another
-    // $0.10 to confirm the same miss.
-    async function runStep1(maxUses: number) {
-      const resp = await client.messages.create({
-        model: HAIKU,
-        max_tokens: 2500,
-        tools: [
-          {
-            type: 'web_search_20250305' as const,
-            name: 'web_search' as const,
-            max_uses: maxUses,
-          },
-        ],
-        messages: [{ role: 'user', content: step1Prompt }],
-      });
-      const searchCount = countWebSearchUses(resp);
-      logClaudeUsage('reviews_search', resp, searchCount);
-      const text: string[] = [];
-      for (const block of resp.content) {
-        if (block.type === 'text') text.push(block.text);
-      }
-      return {
-        text: text.join('\n'),
-        costUsd: haikuResponseCostUsd(resp, searchCount),
-      };
-    }
-
-    console.log(`[reviews] Step 1: Haiku web search for "${artist} - ${album}"...`);
-    const step1 = await runStep1(3);
-    console.log(
-      `[reviews] Step 1: ${step1.text.length} chars, $${step1.costUsd.toFixed(4)}`
-    );
-
-    if (step1.text.length < 50) {
-      console.warn(
-        `[reviews] Step 1 empty for "${artist} - ${album}" — giving up (no retry)`
-      );
-      return { reviews: [], koreanSummary: null, artistKo: null, titleKo: null, titleMeaning: null };
-    }
-
-    // Hard cap. If Step 1 alone blew past the per-album ceiling (a
-    // single big album with lots of page content pulled back into
-    // context can still push over even with max_uses=3), don't throw
-    // another Haiku + Sonnet call after it. The data we got is
-    // discarded; better to stop the bleeding than add $0.03 more.
-    if (step1.costUsd > STEP1_BUDGET_CAP_USD) {
-      console.warn(
-        `[reviews] Step 1 cost $${step1.costUsd.toFixed(4)} exceeds $${STEP1_BUDGET_CAP_USD} cap for "${artist} - ${album}" — aborting pipeline`
-      );
-      return { reviews: [], koreanSummary: null, artistKo: null, titleKo: null, titleMeaning: null };
-    }
-
-    const rawReviewData = step1.text;
-
-    // ── Step 2: Haiku — structure + translate + pronunciation ──────────
-    console.log(`[reviews] Step 2: Haiku structuring...`);
-    const structureResponse = await client.messages.create({
-      model: HAIKU,
-      // Output is a JSON object containing up to 15 reviews + pronunciation
-      // fields. 1500 was occasionally truncating the JSON mid-array on
-      // well-covered albums (Korean excerpts are token-heavy), which then
-      // crashed JSON.parse and dropped the whole batch. 2500 is still a
-      // safe runaway ceiling; Anthropic only bills generated tokens.
-      max_tokens: 2500,
-      messages: [{ role: 'user', content: `Raw review data for "${album}" by ${artist}:
----
-${rawReviewData}
----
-Return ONLY JSON:
-{"reviews":[{"sourceName":"Name","score":85,"scoreMax":100,"excerpt":"English excerpt","excerptKo":"한국어 요약","fullReviewUrl":"https://..."}],"artistKo":"발음","titleKo":"발음","titleMeaning":"뜻"}
-
-Score: 8.5/10→85, 4/5→80, 3.5/5→70, 7/10→70. null if none.
-excerptKo: 독립적으로 읽히는 2-3문장 한국어 재구성.
-artistKo: "${artist}" 한국어 발음 (예: Metallica→메탈리카)
-titleKo: "${album}" 한국어 발음
-titleMeaning: "${album}" 한국어 뜻 (고유명사면 "")
-
-Include any editorial music review. The site does NOT need to be on a named allow-list — if the raw data shows a review with a writer/byline and an evaluative take, include it.
-
-CRITICAL EXCLUSIONS — never include:
-- Discogs, Amazon, eBay, Bandcamp, Apple Music, iTunes, Spotify, HMV, Tower Records, Best Buy, Walmart, Target, YesAsia, CDJapan, Barnes & Noble (쇼핑몰 / 마켓플레이스의 유저 평점)
-- Metacritic, albumoftheyear, rateyourmusic (점수 모아놓는 aggregator — primary editorial 리뷰만)
-- Any review whose sourceName contains a format/edition descriptor like "(Vinyl 2024 Reissue)", "(CD Release 435503)", "Release ###" — these are storefront listings, not reviews
-- Any URL on discogs.com, amazon.*, ebay.*, bandcamp.com, apple.com, spotify.com, hmv.*, towerrecords.*
-
-Max 15 reviews. Deduplicate by source.` }],
-    });
-    logClaudeUsage('reviews_structure', structureResponse);
-
-    const textBlock = structureResponse.content.find((b) => b.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') {
-      return { reviews: [], koreanSummary: null, artistKo: null, titleKo: null, titleMeaning: null };
-    }
-
-    let jsonText = textBlock.text.trim();
-    const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenceMatch) jsonText = fenceMatch[1].trim();
-    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { reviews: [], koreanSummary: null, artistKo: null, titleKo: null, titleMeaning: null };
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-
-    const seenSources = new Set<string>();
-    const reviews: ReviewResult[] = [];
-    let filteredCount = 0;
-    for (const r of parsed.reviews || []) {
-      if (!r.sourceName) continue;
-      if (r.score === null && !r.excerpt) continue;
-      const keyLower = r.sourceName.toLowerCase().trim();
-      if (seenSources.has(keyLower)) continue;
-      if (isExcludedSource(r.sourceName, r.fullReviewUrl || '')) {
-        filteredCount++;
-        console.log(`[reviews] filtered non-editorial source: "${r.sourceName}" (${r.fullReviewUrl || 'no url'})`);
-        continue;
-      }
-      seenSources.add(keyLower);
-      reviews.push({
-        sourceName: r.sourceName,
-        score: clampScore(r.score),
-        scoreMax: 100,
-        excerpt: r.excerpt || '',
-        excerptKo: normaliseKoreanTerms(r.excerptKo),
-        fullReviewUrl: r.fullReviewUrl || '',
-      });
-      if (reviews.length >= 15) break;
-    }
-    if (filteredCount > 0) {
-      console.log(`[reviews] filtered ${filteredCount} non-editorial sources (shopping/marketplace/aggregator)`);
-    }
-
-    // ── Step 3: Sonnet — Korean summary (quality matters) ──────────────
-    let koreanSummary: string | null = null;
-    if (reviews.length >= 2) {
-      try {
-        console.log(`[reviews] Step 3: Sonnet summary...`);
-        const reviewsText = reviews
-          .map((r) => `[${r.sourceName}]${r.score ? ` (${r.score}/100)` : ''}: ${r.excerpt}`)
-          .join('\n');
-        const summaryResponse = await client.messages.create({
-          model: SONNET,
-          max_tokens: 500,
-          messages: [{
-            role: 'user',
-            content:
-              `'${album}' by ${artist} 리뷰 3-4문장 한국어 요약. ` +
-              `매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술. ` +
-              `출력 규칙: 요약 본문만 작성. 앨범 제목이나 아티스트명을 헤더로 넣지 말 것. ` +
-              `마크다운(#, **, *, -) 사용하지 말고 순수 문장으로만.\n${reviewsText}`,
-          }],
-        });
-        logClaudeUsage('reviews_summary', summaryResponse);
-        const summaryBlock = summaryResponse.content.find((b) => b.type === 'text');
-        if (summaryBlock && summaryBlock.type === 'text') {
-          koreanSummary = normaliseKoreanTerms(
-            stripSummaryPreamble(summaryBlock.text, album, artist)
-          );
-        }
-      } catch (err: any) {
-        console.log(`[reviews] Sonnet summary failed (${err.status || err.message}), skipping`);
-      }
-    }
-
-    console.log(`[reviews] Done: ${reviews.length} reviews, summary: ${!!koreanSummary}`);
-    return {
-      reviews,
-      koreanSummary,
-      artistKo: parsed.artistKo || null,
-      titleKo: parsed.titleKo || null,
-      titleMeaning: parsed.titleMeaning || null,
-    };
-  } catch (error) {
-    console.error('[reviews] Error:', error);
-    return { reviews: [], koreanSummary: null, artistKo: null, titleKo: null, titleMeaning: null };
-  }
-}
 
 // ─── Admin: scrape a single review from an arbitrary URL ─────────────────
 
@@ -574,6 +282,65 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+const BROWSER_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36';
+
+// Jina Reader fetches the URL through a headless browser and converts
+// the result to clean article markdown — boilerplate nav/footer/ads
+// stripped, JS-rendered content captured. Free tier (no API key) caps
+// at 20 req/min which is plenty for the single-operator manual flow.
+// r.jina.ai/ accepts the target URL appended raw (no encoding) per
+// Jina's docs.
+async function fetchJinaReader(url: string): Promise<string | null> {
+  try {
+    const resp = await axios.get(`https://r.jina.ai/${url}`, {
+      timeout: 25000, // headless browser path can be slow on first hit
+      responseType: 'text',
+      headers: {
+        // Hint Jina to skip their own telemetry banner at the top of
+        // the response. Without X-Return-Format we still get markdown
+        // but with a 2-3 line "Source URL:" preamble that Claude can
+        // handle fine — keep a safety truncation downstream regardless.
+        Accept: 'text/plain',
+        'X-Return-Format': 'markdown',
+      },
+    });
+    const body = typeof resp.data === 'string' ? resp.data : String(resp.data);
+    return body.trim().length > 0 ? body : null;
+  } catch (err) {
+    console.warn(`[jina] fetch failed for ${url}:`, (err as Error).message);
+    return null;
+  }
+}
+
+async function fetchRawHtml(
+  url: string
+): Promise<
+  | { ok: true; html: string }
+  | { ok: false; reason: ScrapeFailureReason; message?: string }
+> {
+  try {
+    const resp = await axios.get(url, {
+      timeout: 15000,
+      maxContentLength: 4_000_000,
+      responseType: 'text',
+      headers: { 'User-Agent': BROWSER_UA, Accept: 'text/html,application/xhtml+xml' },
+    });
+    const html = typeof resp.data === 'string' ? resp.data : String(resp.data);
+    if (isCloudflareChallenge(html)) {
+      return { ok: false, reason: 'bot-blocked', message: 'cloudflare challenge on 200' };
+    }
+    return { ok: true, html };
+  } catch (err) {
+    const axiosErr = err as { response?: { status?: number; data?: unknown }; message?: string };
+    const body = typeof axiosErr.response?.data === 'string' ? axiosErr.response.data : '';
+    const reason: ScrapeFailureReason = isCloudflareChallenge(body)
+      ? 'bot-blocked'
+      : 'fetch-failed';
+    return { ok: false, reason, message: axiosErr.message ?? String(err) };
+  }
+}
+
 export async function scrapeReviewFromUrl(
   url: string,
   artist: string,
@@ -582,63 +349,59 @@ export async function scrapeReviewFromUrl(
 ): Promise<ScrapeOutcome> {
   console.log(`[reviews] scrapeReviewFromUrl: ${url}`);
 
-  let html = '';
-  try {
-    const resp = await axios.get(url, {
-      timeout: 15000,
-      maxContentLength: 4_000_000,
-      responseType: 'text',
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml',
-      },
-    });
-    html = typeof resp.data === 'string' ? resp.data : String(resp.data);
-    // A minority of Cloudflare setups return 200 with the challenge
-    // page embedded instead of a real 4xx. Sniff the body so we still
-    // tag those as bot-blocked rather than letting the downstream
-    // "page text too short" mis-diagnose them.
-    if (isCloudflareChallenge(html)) {
-      recordScrapeFailure(url, albumMbid, 'bot-blocked', 'cloudflare challenge on 200');
-      return { kind: 'fail', reason: 'bot-blocked' };
+  // Two parallel fetches: raw HTML (for visual/encoded score detectors
+  // that need the original markup) and Jina Reader (for Claude's text
+  // input — fewer tokens, JS-rendered content resolved, some bot walls
+  // bypassed). Either can fail independently — we combine what succeeds.
+  const [rawResult, jinaText] = await Promise.all([
+    fetchRawHtml(url),
+    fetchJinaReader(url),
+  ]);
+
+  const html = rawResult.ok ? rawResult.html : '';
+  const jinaAvailable = jinaText !== null && jinaText.length > 100;
+
+  // Hard-fail only if BOTH paths failed. If one worked we can still
+  // produce a review, just with reduced fidelity (no detectors on Jina-
+  // only path; no clean text on raw-only path).
+  if (!rawResult.ok && !jinaAvailable) {
+    const reason = rawResult.reason;
+    recordScrapeFailure(url, albumMbid, reason, rawResult.message);
+    return { kind: 'fail', reason, message: rawResult.message };
+  }
+
+  // Run score detectors on raw HTML when available. These need the
+  // original <img>/<i>/class markup and don't work on Jina markdown.
+  // Priority order, highest-trust first: (1) FontAwesome / Unicode star
+  // icons, (2) filename-encoded rating images (Rating4.png and
+  // friends), (3) text-labelled numeric scores ("Score: 90/100").
+  let detectedScore: number | null = null;
+  if (rawResult.ok) {
+    const starScore = detectStarRating(html);
+    const filenameRatingScore = starScore === null ? detectFilenameRatingImage(html) : null;
+    const numericScore =
+      starScore === null && filenameRatingScore === null
+        ? detectExplicitNumericScore(html)
+        : null;
+    detectedScore = starScore ?? filenameRatingScore ?? numericScore;
+    if (detectedScore !== null) {
+      const source =
+        starScore !== null
+          ? 'star'
+          : filenameRatingScore !== null
+            ? 'filename-image'
+            : 'explicit-numeric';
+      console.log(`[reviews] detected ${source} score ${detectedScore}/100 for ${url}`);
     }
-  } catch (err) {
-    const axiosErr = err as { response?: { status?: number; data?: unknown }; message?: string };
-    const body = typeof axiosErr.response?.data === 'string' ? axiosErr.response.data : '';
-    const reason: ScrapeFailureReason = isCloudflareChallenge(body)
-      ? 'bot-blocked'
-      : 'fetch-failed';
-    const msg = axiosErr.message ?? String(err);
-    recordScrapeFailure(url, albumMbid, reason, msg);
-    return { kind: 'fail', reason, message: msg };
   }
 
-  // Pre-parse the raw HTML for visual/encoded scores before stripHtml
-  // discards the markup they live in. Priority order, highest-trust
-  // first: (1) FontAwesome / Unicode star icons, (2) filename-encoded
-  // rating images (Rating4.png and friends), (3) text-labelled numeric
-  // scores ("Score: 90/100"). When any detector fires we skip Claude's
-  // score entirely since Claude only sees the stripped text and can't
-  // see these signals.
-  const starScore = detectStarRating(html);
-  const filenameRatingScore = starScore === null ? detectFilenameRatingImage(html) : null;
-  const numericScore =
-    starScore === null && filenameRatingScore === null
-      ? detectExplicitNumericScore(html)
-      : null;
-  const detectedScore = starScore ?? filenameRatingScore ?? numericScore;
-  if (detectedScore !== null) {
-    const source =
-      starScore !== null
-        ? 'star'
-        : filenameRatingScore !== null
-          ? 'filename-image'
-          : 'explicit-numeric';
-    console.log(`[reviews] detected ${source} score ${detectedScore}/100 for ${url}`);
-  }
-
-  const pageText = stripHtml(html).slice(0, 20000);
+  // Prefer Jina's cleaned markdown for Claude's input — significantly
+  // fewer tokens vs stripHtml of the whole page, and boilerplate nav/
+  // comments are already gone. Fall back to stripHtml when Jina didn't
+  // work (rate limit, their upstream error, etc.).
+  const pageText = jinaAvailable
+    ? jinaText!.slice(0, 20000)
+    : stripHtml(html).slice(0, 20000);
   if (pageText.length < 100) {
     recordScrapeFailure(url, albumMbid, 'text-too-short');
     return { kind: 'fail', reason: 'text-too-short' };
@@ -662,7 +425,7 @@ export async function scrapeReviewFromUrl(
           content: `Extract a single album review's info from this page about "${album}" by ${artist}.
 
 URL: ${url}
-PAGE TEXT (HTML stripped):
+PAGE TEXT (cleaned markdown via Jina Reader, or stripped HTML if Jina was unavailable):
 ---
 ${pageText}
 ---

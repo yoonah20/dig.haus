@@ -21,7 +21,6 @@ import { searchBandcamp } from '../services/bandcamp.js';
 import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases, getDiscogsMasterMainRelease } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
 import {
-  searchReviews,
   scrapeReviewFromUrl,
   extractFromPastedText,
 } from '../services/reviews.js';
@@ -483,94 +482,6 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     albumTitle,
     discogsArtistId,
   };
-}
-
-// Pre-populate reviews + Korean summary right after a fresh album cache.
-// Mirrors the lazy logic in GET /:id/reviews but runs without an HTTP
-// request behind it. No-op if reviews are already cached (defensive).
-async function warmUpAlbumReviews(
-  mbid: string,
-  artist: string,
-  title: string
-): Promise<void> {
-  if (getCachedReviews(mbid)) return;
-  const result = await searchReviews(artist, title);
-  if (result.reviews.length > 0) {
-    cacheReviews(
-      mbid,
-      result.reviews.map((r) => ({
-        source_name: r.sourceName,
-        score: r.score,
-        score_max: r.scoreMax,
-        excerpt: r.excerpt,
-        excerpt_ko: r.excerptKo,
-        full_review_url: r.fullReviewUrl,
-      }))
-    );
-  }
-  const fields: Record<string, any> = {};
-  if (result.koreanSummary) {
-    fields.korean_summary = result.koreanSummary;
-    fields.korean_summary_generated_at = new Date().toISOString();
-  }
-  if (result.artistKo) fields.artist_ko = result.artistKo;
-  if (result.titleKo) fields.title_ko = result.titleKo;
-  if (result.titleMeaning) fields.title_meaning = result.titleMeaning;
-  if (Object.keys(fields).length > 0) {
-    updateAlbumFields(mbid, fields);
-  }
-  console.log(`[warm-up] reviews ready for ${mbid}: ${result.reviews.length} reviews`);
-}
-
-// Called by routes/albumRequests.ts when an admin approves a user-
-// submitted album. Stamps reviews_crawled_at immediately so the UI
-// (admin queue + home-grid dim) clears the moment the admin clicks
-// 승인, then fires the Claude warm-up async. If the warm-up throws
-// (malformed JSON, 429 after retries, timeout), we roll the stamp
-// back to null so the album reappears in 리뷰 수집 대기 on the next
-// dashboard refresh and the admin can retry with a single click.
-//
-// The old code committed to the stamp without a rollback path, which
-// left "approved" albums with zero cached reviews whenever Claude
-// flaked — the detail page rendered an empty review section and the
-// admin queue looked clean while the pipeline had actually stalled.
-// A legitimate "0 reviews found" (obscure release, all results
-// filtered) returns without throwing, so the stamp sticks — those
-// albums can still be re-crawled from the admin menu on the album
-// page.
-export async function approveAlbumRequest(mbid: string): Promise<void> {
-  const cached = getCachedAlbum(mbid);
-  if (!cached) {
-    throw new Error(`Album not yet registered: ${mbid}`);
-  }
-  const artistName = cached.artist_name as string | null;
-  const albumTitle = cached.title as string | null;
-  if (!artistName || !albumTitle) {
-    throw new Error(`Album missing metadata: ${mbid}`);
-  }
-  updateAlbumFields(mbid, { reviews_crawled_at: new Date().toISOString() });
-  setImmediate(() => {
-    warmUpAlbumReviews(mbid, artistName, albumTitle).catch((err) => {
-      console.warn(
-        `[approve] review warm-up failed for ${mbid} — rolling back stamp so admin can retry:`,
-        (err as Error).message
-      );
-      // Rollback write is itself async-throwable (DB lock, disk
-      // full, etc.). If it fails we log rather than re-throw —
-      // re-throwing inside a .catch becomes an unhandled promise
-      // rejection that can crash the Node process. Worst case
-      // the album stays stamped as reviews_crawled_at=now with
-      // no cached reviews; admin can retry 🔍 리뷰 모아오기.
-      try {
-        updateAlbumFields(mbid, { reviews_crawled_at: null });
-      } catch (rollbackErr) {
-        console.error(
-          `[approve] rollback of reviews_crawled_at failed for ${mbid}:`,
-          (rollbackErr as Error).message
-        );
-      }
-    });
-  });
 }
 
 // ─── GET /api/albums — list all albums (paginated + sorted) ─────────────

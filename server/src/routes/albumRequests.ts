@@ -4,10 +4,6 @@ import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { getCachedAlbum } from '../utils/cache.js';
 import { searchExternalMerged } from '../utils/externalSearch.js';
-import {
-  getRollingDailyClaudeSpendUsd,
-  ROLLING_24H_USD_CAP,
-} from '../services/claudeBudget.js';
 import { extractAlbumFromUrl } from '../services/albumUrlExtract.js';
 import type { AppUser } from '../auth/passport.js';
 
@@ -262,66 +258,6 @@ router.get('/album-requests', requireAdmin, (_req, res) => {
   });
 });
 
-// ─── POST /api/album-requests/:mbid/approve ───────────────────────────
-//
-// Admin approve → triggers the existing register flow by hitting
-// GET /api/albums/:mbid on the same server. That path caches the album
-// and kicks off the Claude pipeline (reviews, pronunciation, similar).
-// All pending rows for this mbid are marked approved at once so the
-// request surfaces disappear for every requester in one shot.
-//
-// Implementation note: we call the cache/fetch helper directly rather
-// than HTTP-self-loop to keep the logic synchronous and easier to
-// error-handle. getOrFetchAlbumBase lives in routes/albums.ts though,
-// so we dynamically import it to avoid a circular dep.
-// ─── POST /api/album-requests/:mbid/approve ───────────────────────────
-//
-// Admin action. The album row already exists (user-submitted via the
-// new POST /album-requests flow). This stamps reviews_crawled_at and
-// fires the Claude review-search warm-up — after which the card
-// un-dims on the home grid and the detail page's review section
-// starts populating. Idempotent: stamping an already-approved row
-// kicks the warm-up again, which is a cached no-op.
-//
-// The `mbid` param may be a slug or raw mbid; we resolve both.
-router.post('/album-requests/:mbid/approve', requireAdmin, async (req, res) => {
-  const param = req.params.mbid as string;
-  if (!param) return res.status(400).json({ error: 'mbid 누락' });
-
-  // Accept either slug or raw mbid. Try raw first, then slug lookup.
-  let cached = getCachedAlbum(param);
-  if (!cached) {
-    cached = queryGet(
-      `SELECT mbid FROM albums WHERE slug = ? LIMIT 1`,
-      [param]
-    ) as { mbid: string } | null;
-  }
-  if (!cached) {
-    return res.status(404).json({ error: '앨범을 찾을 수 없습니다.' });
-  }
-  const realMbid = (cached as any).mbid;
-
-  // Rolling-24h spend ceiling — the per-album pipeline cap in
-  // reviews.ts doesn't stop back-to-back approvals from summing to
-  // real money. Gate at the route level so a hot click doesn't
-  // start another ~$0.05 pipeline once the day's budget is exhausted.
-  const spend = getRollingDailyClaudeSpendUsd();
-  if (spend >= ROLLING_24H_USD_CAP) {
-    return res.status(429).json({
-      error: `지난 24시간 Claude 지출이 $${spend.toFixed(2)} (한도 $${ROLLING_24H_USD_CAP.toFixed(2)}) 에 도달했어요. 나중에 다시 시도해주세요.`,
-    });
-  }
-
-  try {
-    const { approveAlbumRequest } = await import('./albums.js');
-    await approveAlbumRequest(realMbid);
-  } catch (err) {
-    console.error('[album-requests] approve failed:', err);
-    return res.status(500).json({ error: '리뷰 수집을 시작하지 못했어요.' });
-  }
-
-  res.json({ ok: true, mbid: realMbid });
-});
 
 // 거절(discard) 엔드포인트는 제거됨 — admin은 승인하거나
 // DELETE /api/albums/:id 로 완전 삭제하는 두 선택지만 가진다.
