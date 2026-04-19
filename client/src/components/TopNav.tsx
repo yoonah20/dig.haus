@@ -141,7 +141,12 @@ export default function TopNav() {
                 reads as one group; login pill (with any admin
                 pending-badge) anchors the right edge. */}
             {isHome && <SortMenu />}
-            {user && (
+            {/* Admin-only while Phase 3 is still in local-iteration.
+                Flipping back to `user &&` launches the feature for
+                everyone. Hidden button keeps admin able to verify
+                prod behaviour without exposing the under-baked flow
+                to regular users. */}
+            {user?.isAdmin && (
               <button
                 onClick={() => {
                   if (user.mydigUsername) {
