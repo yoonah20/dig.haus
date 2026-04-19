@@ -1054,6 +1054,13 @@ function RecentUsersList({ users }: { users: AdminStats['recentUsers'] }) {
   );
 }
 
+// Collapsed-by-default accordion row. The samples array is useful
+// (it's what admin actually clicks through to fix each backlog
+// item), but rendering 3 × 5 sample rows with cover thumbnails made
+// the whole Panel taller than its neighbour, stretching the
+// surrounding grid row. Default state is a single label · count
+// line; clicking expands to the sample list inline without
+// leaving the admin page.
 function IncompleteSubsection({
   label,
   bucket,
@@ -1061,43 +1068,65 @@ function IncompleteSubsection({
   label: string;
   bucket: { count: number; samples: IncompleteAlbumSample[] };
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   if (bucket.count === 0) {
     return (
-      <div className="px-4 py-3 flex items-center justify-between text-sm">
+      <div className="px-4 py-2.5 flex items-center justify-between text-sm">
         <span className="text-gray-400">{label}</span>
         <span className="text-emerald-400/80 text-xs">없음 ✓</span>
       </div>
     );
   }
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-gray-300">{label}</span>
-        <span className="text-xs text-gray-500 tabular-nums">
-          {bucket.count}
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full px-4 py-2.5 flex items-center justify-between text-sm hover:bg-white/5 transition-colors cursor-pointer text-left"
+        aria-expanded={expanded}
+      >
+        <span className="flex items-center gap-1.5">
+          <span
+            className={`text-gray-600 text-[10px] transition-transform ${expanded ? 'rotate-90' : ''}`}
+            aria-hidden
+          >
+            ▶
+          </span>
+          <span className="text-gray-300">{label}</span>
         </span>
-      </div>
-      <ul className="space-y-1.5">
-        {bucket.samples.map((a) => (
-          <li key={a.id}>
-            <Link
-              to={`/album/${a.mbid}`}
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-[#e8a020] truncate"
-            >
-              <CoverArt
-                src={a.coverArtUrl}
-                fallbacks={a.coverArtFallbacks}
-                alt={a.title}
-                className="w-7 h-7 rounded object-cover flex-shrink-0"
-              />
-              <span className="truncate">
-                <span className="text-gray-200">{a.title}</span>
-                <span className="text-gray-600"> — {a.artist}</span>
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+        <span className="text-xs text-gray-500 tabular-nums">
+          {bucket.count.toLocaleString()}
+        </span>
+      </button>
+      {expanded && (
+        <ul className="px-4 pb-2.5 space-y-1">
+          {bucket.samples.map((a) => (
+            <li key={a.id}>
+              <Link
+                to={`/album/${a.mbid}`}
+                className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#e8a020] truncate py-0.5"
+              >
+                <CoverArt
+                  src={a.coverArtUrl}
+                  fallbacks={a.coverArtFallbacks}
+                  alt={a.title}
+                  className="w-5 h-5 rounded object-cover flex-shrink-0"
+                />
+                <span className="truncate">
+                  <span className="text-gray-200">{a.title}</span>
+                  <span className="text-gray-600"> — {a.artist}</span>
+                </span>
+              </Link>
+            </li>
+          ))}
+          {bucket.count > bucket.samples.length && (
+            <li className="text-[11px] text-gray-600 pl-7 pt-0.5">
+              외 {(bucket.count - bucket.samples.length).toLocaleString()}개 더
+            </li>
+          )}
+        </ul>
+      )}
     </div>
   );
 }
