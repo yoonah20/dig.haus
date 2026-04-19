@@ -17,13 +17,13 @@ export interface SortOption {
 export const SORT_OPTIONS: readonly SortOption[] = [
   { value: 'release_date_desc', label: '발매 최신순' },
   { value: 'registered_desc', label: '등록 최신순' },
-  { value: 'random', label: '랜덤 순서로' },
-  { value: 'artist_az', label: '아티스트 A-Z' },
   { value: 'score_desc', label: '리뷰 평점순' },
   { value: 'price_asc', label: '가격 낮은순' },
-  { value: 'user_review_count_desc', label: '50자평 많은순' },
+  { value: 'artist_az', label: '아티스트 A-Z' },
   { value: 'upvotes_desc', label: '굿굿 많은순' },
   { value: 'downvotes_desc', label: '별루 많은순' },
+  { value: 'user_review_count_desc', label: '코멘트 많은순' },
+  { value: 'random', label: '랜덤 순서로' },
 ] as const;
 
 export type SortValue = (typeof SORT_OPTIONS)[number]['value'];
