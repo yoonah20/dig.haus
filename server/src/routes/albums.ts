@@ -563,7 +563,25 @@ router.get('/', async (req, res) => {
         : ALBUM_PAGE_SIZE_DEFAULT;
     const offset = (page - 1) * pageSize;
 
-    const total = (queryGet('SELECT COUNT(*) AS c FROM albums')?.c as number) || 0;
+    // Score-based sorts only make sense with enough scored reviews to
+    // average meaningfully. Anything under 3 is a single opinion
+    // dressed up as a ranking. The WHERE clause is a correlated
+    // subquery on reviews rather than a HAVING on the selected
+    // review_count column because SQLite doesn't let us reference
+    // aliased SELECT columns in WHERE.
+    const isScoreSort = sortKey === 'score_desc' || sortKey === 'score_asc';
+    const scoreSortFilterSql = isScoreSort
+      ? `WHERE (SELECT COUNT(*) FROM reviews r
+               WHERE r.album_mbid = a.mbid
+                 AND COALESCE(r.manual_score, r.score) IS NOT NULL
+                 AND r.score_max > 0) >= 3`
+      : '';
+
+    const total = isScoreSort
+      ? (queryGet(
+          `SELECT COUNT(*) AS c FROM albums a ${scoreSortFilterSql}`
+        )?.c as number) || 0
+      : (queryGet('SELECT COUNT(*) AS c FROM albums')?.c as number) || 0;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     let albums: any[];
@@ -600,6 +618,7 @@ router.get('/', async (req, res) => {
     } else {
       albums = queryAll(
         `${ALBUM_ROW_SELECT}
+         ${scoreSortFilterSql}
          ORDER BY ${orderBy}
          LIMIT ? OFFSET ?`,
         [pageSize, offset]
@@ -797,10 +816,22 @@ router.get('/neighbors', (req, res) => {
 
     const orderByClause = SORT_CLAUSES[sortKey] || SORT_CLAUSES.release_date_desc;
 
+    // Mirror the home-list score-sort filter (>= 3 scored reviews) so
+    // prev/next navigation doesn't jump to albums that wouldn't even
+    // appear in the filtered grid. Non-score sorts keep the full list.
+    const isScoreSortNeighbor =
+      sortKey === 'score_desc' || sortKey === 'score_asc';
+    const neighborFilterSql = isScoreSortNeighbor
+      ? `WHERE (SELECT COUNT(*) FROM reviews r
+               WHERE r.album_mbid = a.mbid
+                 AND COALESCE(r.manual_score, r.score) IS NOT NULL
+                 AND r.score_max > 0) >= 3`
+      : '';
+
     // Strategy: get the full sorted list of (id, slug, mbid, title, artist, cover)
     // and find our position. For a DB of ~thousands this is fast enough.
     const allRows = queryAll(
-      `${ALBUM_ROW_SELECT} ORDER BY ${orderByClause}`
+      `${ALBUM_ROW_SELECT} ${neighborFilterSql} ORDER BY ${orderByClause}`
     ) as any[];
 
     const idx = allRows.findIndex((r: any) => r.id === id);
