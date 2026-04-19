@@ -280,6 +280,65 @@ interface ReviewSectionProps {
    *  still renders if the parent hasn't threaded them through yet. */
   albumTitle?: string;
   albumArtist?: string;
+  /** When set (admin arrived from the scrape-failure panel's retry
+   *  link), auto-open the + 리뷰 추가 form on the 수동 입력 tab with
+   *  URL + derived source name pre-filled. */
+  prefillManualUrl?: string | null;
+}
+
+// localStorage keyed store of (hostname → source name) pairs admin has
+// used during past manual entries. Drives the datalist suggestions on
+// the 사이트 이름 input so repeat sites don't need re-typing, and
+// provides the auto-fill default when we derive from a URL's hostname.
+const MANUAL_SOURCE_HISTORY_KEY = 'manual-review-source-history';
+const MANUAL_SOURCE_HISTORY_LIMIT = 50;
+
+function loadSourceHistory(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(MANUAL_SOURCE_HISTORY_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'object' && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberSource(hostname: string, sourceName: string): void {
+  if (!hostname || !sourceName) return;
+  try {
+    const history = loadSourceHistory();
+    history[hostname] = sourceName;
+    // Cap the dictionary size so it can't grow unbounded.
+    const entries = Object.entries(history);
+    if (entries.length > MANUAL_SOURCE_HISTORY_LIMIT) {
+      // Drop oldest-inserted; Object iteration preserves insertion order.
+      const trimmed = Object.fromEntries(entries.slice(-MANUAL_SOURCE_HISTORY_LIMIT));
+      localStorage.setItem(MANUAL_SOURCE_HISTORY_KEY, JSON.stringify(trimmed));
+    } else {
+      localStorage.setItem(MANUAL_SOURCE_HISTORY_KEY, JSON.stringify(history));
+    }
+  } catch {
+    /* localStorage quota / privacy mode / etc — fail silently */
+  }
+}
+
+// Title-cased fallback when hostname isn't in history yet. Strips
+// www., drops the TLD, and capitalises. metalstorm.net → MetalStorm,
+// theprogspace.com → Theprogspace (admin can edit).
+function guessSourceFromHostname(hostname: string): string {
+  const clean = hostname.replace(/^www\./i, '');
+  const core = clean.split('.')[0] || clean;
+  if (!core) return '';
+  return core.charAt(0).toUpperCase() + core.slice(1);
+}
+
+function parseHostname(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./i, '').toLowerCase();
+  } catch {
+    return '';
+  }
 }
 
 export default function ReviewSection({
@@ -289,6 +348,7 @@ export default function ReviewSection({
   pendingNotice,
   albumTitle,
   albumArtist,
+  prefillManualUrl,
 }: ReviewSectionProps) {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
@@ -312,18 +372,45 @@ export default function ReviewSection({
   // is in-memory only; a page refresh clears it, which is fine.
   const [justAddedIds, setJustAddedIds] = useState<Set<number>>(new Set());
 
-  // Manual-entry fields (for sites that block crawling).
-  // AllMusic is the default source because it's the one admin
-  // pastes from most often in practice; pre-filling it turns the
-  // three-required-fields flow into two in the common case.
-  const [manualSource, setManualSource] = useState('AllMusic');
+  // Manual-entry fields (for sites that block crawling). Default
+  // source is derived from localStorage history — the most recent
+  // entry admin registered, or 'AllMusic' on first use. When admin
+  // arrives via a retry-url deep link, the source gets re-derived
+  // from the URL's hostname inside the effect below.
+  const [sourceHistory] = useState<Record<string, string>>(() => loadSourceHistory());
+  const initialSource =
+    Object.values(sourceHistory).slice(-1)[0] || 'AllMusic';
+  const [manualSource, setManualSource] = useState(initialSource);
   const [manualUrl, setManualUrl] = useState('');
   const [manualScore, setManualScore] = useState('');
   const [manualBody, setManualBody] = useState('');
 
+  // Deep-link handler: when ?retry-url=... is on the Album page URL,
+  // open the + 리뷰 추가 form on the 수동 입력 tab with URL + source
+  // pre-filled. Fires once on mount (and once if prefillManualUrl
+  // changes, e.g. admin clicks a different retry link without a full
+  // navigation).
+  useEffect(() => {
+    if (!prefillManualUrl) return;
+    const host = parseHostname(prefillManualUrl);
+    const remembered = host ? sourceHistory[host] : null;
+    const source = remembered || guessSourceFromHostname(host) || 'AllMusic';
+    setManualUrl(prefillManualUrl);
+    setManualSource(source);
+    setAddMode('manual');
+    setAddingReview(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillManualUrl]);
+
+  // Falls back to AllMusic on first use, then to whatever admin used
+  // most recently. Keeps the 사이트 이름 input "smart" without
+  // reaching for the history dict every time.
+  const defaultManualSource = () =>
+    Object.values(sourceHistory).slice(-1)[0] || 'AllMusic';
+
   const startAddReview = () => {
     setAddUrl('');
-    setManualSource('AllMusic');
+    setManualSource(defaultManualSource());
     setManualUrl('');
     setManualScore('');
     setManualBody('');
@@ -335,7 +422,7 @@ export default function ReviewSection({
     if (savingReview) return;
     setAddingReview(false);
     setAddUrl('');
-    setManualSource('AllMusic');
+    setManualSource(defaultManualSource());
     setManualUrl('');
     setManualScore('');
     setManualBody('');
@@ -454,9 +541,14 @@ export default function ReviewSection({
         const newId = resp.data.review.id as number;
         setJustAddedIds((prev) => new Set(prev).add(newId));
       }
+      // Remember this (hostname → source) pair so the next manual entry
+      // from the same site auto-fills the correct source name.
+      const host = url ? parseHostname(url) : '';
+      if (host) rememberSource(host, source);
       await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
       setAddingReview(false);
-      setManualSource('AllMusic');
+      // Keep the last-used source as the default for the next entry —
+      // admin often pastes multiple reviews from the same site back-to-back.
       setManualUrl('');
       setManualScore('');
       setManualBody('');
@@ -869,8 +961,20 @@ export default function ReviewSection({
                             disabled={savingReview}
                             placeholder="AllMusic 등"
                             maxLength={100}
+                            list="manual-source-history"
                             className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                           />
+                          {/* Browser-native autocomplete dropdown backed
+                              by localStorage history — every site admin
+                              has saved a manual review from shows up as
+                              a suggestion. Click or arrow-down to pick. */}
+                          <datalist id="manual-source-history">
+                            {Array.from(new Set(Object.values(sourceHistory))).map(
+                              (name) => (
+                                <option key={name} value={name} />
+                              )
+                            )}
+                          </datalist>
                         </div>
                         <div>
                           <label className="block text-xs text-gray-400 mb-1">

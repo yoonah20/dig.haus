@@ -495,6 +495,20 @@ router.get('/snapshot-dump', (_req, res) => {
 // vs. not-a-review) without a second round-trip. Window defaults to
 // 30 days — older rows aren't deleted but they're usually not
 // actionable once a site has been fixed or given up on.
+// Nuke the entire scrape-failure log. Used periodically when admin
+// wants a clean slate after rolling out a prompt/scraper fix — the
+// old failures aren't useful anymore since the fix changes the
+// outcome.
+router.delete('/scrape-failures', (_req, res) => {
+  try {
+    const result = execute(`DELETE FROM scrape_failures`);
+    res.json({ ok: true, deleted: result.changes });
+  } catch (err) {
+    console.error('[scrape-failures] clear-all failed:', err);
+    res.status(500).json({ error: 'failed to clear scrape failures' });
+  }
+});
+
 // Clear all failure rows for a given hostname — used after we've
 // either added a site-specific parser or decided a site is
 // unscrapable and moved it permanently to the paste-in fallback. The
@@ -548,25 +562,36 @@ router.get('/excerpt-edits', (req, res) => {
 router.get('/scrape-failures', (req, res) => {
   const days = Math.max(1, Math.min(365, parseInt(String(req.query.days || '30'), 10) || 30));
   try {
+    // The last_* fields are pulled from the single most-recent failure
+    // row per hostname via correlated subqueries. Joining albums on
+    // the mbid from THAT same row gives the retry link a slug +
+    // title so the UI can deep-link straight to the album page's
+    // manual-entry form.
     const rows = queryAll(
-      `SELECT hostname,
-              COUNT(*) AS attempts,
-              MAX(failed_at) AS last_failed_at,
-              (SELECT reason FROM scrape_failures sf2
+      `WITH last_per_host AS (
+         SELECT hostname, MAX(id) AS last_id
+         FROM scrape_failures
+         WHERE failed_at >= datetime('now', ?)
+         GROUP BY hostname
+       )
+       SELECT sf.hostname,
+              (SELECT COUNT(*) FROM scrape_failures sf2
                WHERE sf2.hostname = sf.hostname
-               ORDER BY failed_at DESC LIMIT 1) AS last_reason,
-              (SELECT error_message FROM scrape_failures sf2
-               WHERE sf2.hostname = sf.hostname
-               ORDER BY failed_at DESC LIMIT 1) AS last_error,
-              (SELECT url FROM scrape_failures sf2
-               WHERE sf2.hostname = sf.hostname
-               ORDER BY failed_at DESC LIMIT 1) AS last_url
+                 AND sf2.failed_at >= datetime('now', ?)) AS attempts,
+              sf.failed_at AS last_failed_at,
+              sf.reason AS last_reason,
+              sf.error_message AS last_error,
+              sf.url AS last_url,
+              sf.album_mbid AS last_album_mbid,
+              a.slug AS last_album_slug,
+              a.title AS last_album_title,
+              a.artist_name AS last_album_artist
        FROM scrape_failures sf
-       WHERE failed_at >= datetime('now', ?)
-       GROUP BY hostname
-       ORDER BY attempts DESC, last_failed_at DESC
+       JOIN last_per_host lph ON lph.last_id = sf.id
+       LEFT JOIN albums a ON a.mbid = sf.album_mbid
+       ORDER BY attempts DESC, sf.failed_at DESC
        LIMIT 200`,
-      [`-${days} days`]
+      [`-${days} days`, `-${days} days`]
     );
     res.json({ windowDays: days, hosts: rows });
   } catch (err) {

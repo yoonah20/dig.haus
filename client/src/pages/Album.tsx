@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useEffect } from 'react';
 import { useAlbumBase, useAlbumReviews, useAlbumSimilar, useAlbumNeighbors } from '../hooks/useAlbum';
 import { useHomeState } from '../contexts/HomeStateContext';
@@ -26,6 +26,11 @@ function SectionLoader({ text }: { text: string }) {
 export default function Album() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Deep-link from the admin scrape-failures panel: when present,
+  // ReviewSection auto-opens + 리뷰 추가 → 수동 입력 tab and pre-fills
+  // the URL + derived source name so admin only has to paste the body.
+  const prefillManualUrl = searchParams.get('retry-url');
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
   const generateSummary = useGenerateReviewSummary(slug!);
@@ -170,6 +175,7 @@ export default function Album() {
             averageScore={reviewsData.averageScore}
             albumTitle={album.title}
             albumArtist={album.artist}
+            prefillManualUrl={prefillManualUrl}
             pendingNotice={
               base.album.reviewsCrawledAt === null
                 ? isAdmin

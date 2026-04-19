@@ -942,6 +942,10 @@ interface ScrapeFailureHost {
   last_reason: string;
   last_error: string | null;
   last_url: string;
+  last_album_mbid: string | null;
+  last_album_slug: string | null;
+  last_album_title: string | null;
+  last_album_artist: string | null;
 }
 
 function ScrapeFailuresPanel() {
@@ -969,10 +973,44 @@ function ScrapeFailuresPanel() {
     },
   });
 
+  const clearAll = useMutation({
+    mutationFn: async () => {
+      await axios.delete('/api/admin/scrape-failures');
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-scrape-failures'] });
+    },
+  });
+
   const hosts = data?.hosts ?? [];
 
+  const headerAction = hosts.length > 0 ? (
+    <button
+      type="button"
+      onClick={() => {
+        if (clearAll.isPending) return;
+        if (
+          !confirm(
+            '실패 로그 전체를 삭제할까요? (새 실패가 발생하면 자동으로 다시 쌓임)'
+          )
+        )
+          return;
+        clearAll.mutate();
+      }}
+      disabled={clearAll.isPending}
+      className="text-xs text-gray-500 hover:text-red-400 border border-white/10 hover:border-red-500/40 rounded-md px-2 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
+    >
+      {clearAll.isPending ? '삭제 중…' : '전체 삭제'}
+    </button>
+  ) : null;
+
   return (
-    <Panel title="스크래핑 실패 로그 (30일)" icon="⚠️" count={hosts.length}>
+    <Panel
+      title="스크래핑 실패 로그 (30일)"
+      icon="⚠️"
+      count={hosts.length}
+      headerAction={headerAction}
+    >
       {isLoading ? (
         <EmptyRow>로딩 중...</EmptyRow>
       ) : isError ? (
@@ -980,61 +1018,88 @@ function ScrapeFailuresPanel() {
       ) : hosts.length === 0 ? (
         <EmptyRow>실패한 스크래핑 없음 ✓</EmptyRow>
       ) : (
-        hosts.map((h) => (
-          <div key={h.hostname} className="p-3 flex items-start gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm text-white font-medium truncate">
-                  {h.hostname}
-                </span>
-                <span className="text-xs text-gray-500 tabular-nums">
-                  ×{h.attempts}
-                </span>
-                <span className="text-[10px] font-mono uppercase tracking-wider text-[#e8a020]/80 bg-[#e8a020]/10 px-1.5 py-0.5 rounded">
-                  {h.last_reason}
-                </span>
-                <span className="text-xs text-gray-600">
-                  {formatRelativeKo(h.last_failed_at)}
-                </span>
-              </div>
-              <a
-                href={h.last_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-xs text-gray-500 hover:text-[#e8a020] truncate mt-1"
-                title={h.last_url}
-              >
-                {h.last_url}
-              </a>
-              {h.last_error && (
-                <div
-                  className="text-xs text-gray-600 truncate mt-1 font-mono"
-                  title={h.last_error}
-                >
-                  {h.last_error}
+        hosts.map((h) => {
+          // Deep-link into the album page's manual-entry form with URL
+          // pre-filled, so admin doesn't have to paste it themselves.
+          // Uses last_album_slug when available (better URL); falls
+          // back to mbid. Missing album (album was deleted after the
+          // failure was logged) → no retry link.
+          const retryHref =
+            (h.last_album_slug || h.last_album_mbid) && h.last_url
+              ? `/album/${h.last_album_slug || h.last_album_mbid}?retry-url=${encodeURIComponent(h.last_url)}`
+              : null;
+          return (
+            <div key={h.hostname} className="p-3 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm text-white font-medium truncate">
+                    {h.hostname}
+                  </span>
+                  <span className="text-xs text-gray-500 tabular-nums">
+                    ×{h.attempts}
+                  </span>
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-[#e8a020]/80 bg-[#e8a020]/10 px-1.5 py-0.5 rounded">
+                    {h.last_reason}
+                  </span>
+                  <span className="text-xs text-gray-600">
+                    {formatRelativeKo(h.last_failed_at)}
+                  </span>
                 </div>
-              )}
+                <a
+                  href={h.last_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-xs text-gray-500 hover:text-[#e8a020] truncate mt-1"
+                  title={h.last_url}
+                >
+                  {h.last_url}
+                </a>
+                {h.last_album_title && (
+                  <div className="text-[11px] text-gray-600 truncate mt-0.5">
+                    → {h.last_album_artist} — {h.last_album_title}
+                  </div>
+                )}
+                {h.last_error && (
+                  <div
+                    className="text-xs text-gray-600 truncate mt-1 font-mono"
+                    title={h.last_error}
+                  >
+                    {h.last_error}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                {retryHref && (
+                  <Link
+                    to={retryHref}
+                    className="text-xs text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded px-2 py-0.5 cursor-pointer transition-colors"
+                    title="이 앨범의 수동 입력 폼 열기 (URL/사이트 자동 프리필)"
+                  >
+                    ✏️ 수동 등록
+                  </Link>
+                )}
+                <button
+                  onClick={() => {
+                    if (del.isPending) return;
+                    if (
+                      !confirm(
+                        `${h.hostname} 의 실패 로그 ${h.attempts}개를 삭제할까요? (다시 실패하면 자동으로 다시 쌓임)`
+                      )
+                    )
+                      return;
+                    del.mutate(h.hostname);
+                  }}
+                  disabled={del.isPending}
+                  className="text-xs text-gray-500 hover:text-red-400 disabled:opacity-40 px-2 py-1 cursor-pointer"
+                  aria-label={`${h.hostname} 실패 로그 삭제`}
+                  title="실패 로그 삭제"
+                >
+                  🗑️
+                </button>
+              </div>
             </div>
-            <button
-              onClick={() => {
-                if (del.isPending) return;
-                if (
-                  !confirm(
-                    `${h.hostname} 의 실패 로그 ${h.attempts}개를 삭제할까요? (다시 실패하면 자동으로 다시 쌓임)`
-                  )
-                )
-                  return;
-                del.mutate(h.hostname);
-              }}
-              disabled={del.isPending}
-              className="text-xs text-gray-500 hover:text-red-400 disabled:opacity-40 px-2 py-1 cursor-pointer shrink-0"
-              aria-label={`${h.hostname} 실패 로그 삭제`}
-              title="실패 로그 삭제"
-            >
-              🗑️
-            </button>
-          </div>
-        ))
+          );
+        })
       )}
     </Panel>
   );
