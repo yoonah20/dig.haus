@@ -15,25 +15,9 @@ import { searchAlbumsByLabel, type LabelSearchMode } from '../services/spotify.j
 
 export const LABEL_FEED_STALE_DAYS = 30;
 
-// How far back we look when mode='recent' — filters Spotify's 2-year
-// year-range search down to a useful window for the feed. 365 days
-// covers labels that release infrequently (once or twice a year is
-// common for indie / boutique metal labels); future release_date
-// values (pre-release albums) always pass.
-const RECENT_WINDOW_DAYS = 365;
-
 interface TrackedLabelRow {
   id: number;
   spotify_label_name: string;
-}
-
-function isWithinRecentWindow(releaseDate: string | null | undefined): boolean {
-  if (!releaseDate) return false;
-  const parsed = Date.parse(releaseDate);
-  if (!Number.isFinite(parsed)) return false;
-  if (parsed > Date.now()) return true; // future / pre-release
-  const cutoff = Date.now() - RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-  return parsed >= cutoff;
 }
 
 export async function pollTrackedLabel(
@@ -44,22 +28,14 @@ export async function pollTrackedLabel(
   let inserted = 0;
   let found = 0;
   try {
-    const rawAlbums = await searchAlbumsByLabel(labelName, 50, mode);
-    // In 'recent' mode Spotify's year:YYYY-YYYY query returns the whole
-    // year's catalogue; filter down to the last N days so the feed
-    // stays about "what's new" even when the window widens.
-    const albums =
-      mode === 'recent'
-        ? rawAlbums.filter((a) => isWithinRecentWindow(a.releaseDate))
-        : rawAlbums;
+    // Date window + label-name fallback are inside searchAlbumsByLabel
+    // so preview / cron / manual refresh all see the same set. No
+    // album_type filter here — singles are useful pre-release signals
+    // and the feed UI tags each row so admin can dismiss types they
+    // don't care about.
+    const albums = await searchAlbumsByLabel(labelName, 50, mode);
     found = albums.length;
     for (const a of albums) {
-      // Filter out singles/EPs when Spotify is confident about it.
-      // Compilations get through — they're often legit retrospective
-      // releases from labels with older catalogues. `album_type=album`
-      // is the canonical full-length marker.
-      if (a.albumType === 'single') continue;
-
       const result = execute(
         `INSERT INTO label_feed_items
            (tracked_label_id, spotify_album_id, artist_name, album_name,

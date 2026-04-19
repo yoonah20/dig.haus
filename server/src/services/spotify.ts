@@ -123,23 +123,36 @@ export async function searchAlbumsByLabel(
       primaryQuery = `label:"${labelName}" tag:new`;
     }
 
-    const primary = await runLabelQuery(token, primaryQuery, limit);
-    if (primary.length > 0) return primary;
+    let results = await runLabelQuery(token, primaryQuery, limit);
 
     // Fallback — drop the scope filter (year/tag:new) and just ask
     // Spotify for everything on this label. Catches cases where the
     // label is real but the release_date_precision on the filter
     // doesn't align with Spotify's internal index (we've seen
     // year:2025-2026 return 0 even when the label has recent
-    // releases — Spotify's year filter is fussy). Caller still
-    // applies a downstream date filter in recent mode so we don't
-    // flood the feed with decade-old catalogue.
-    const fallbackQuery = `label:"${labelName}"`;
-    console.log(
-      `[spotify] ${mode} primary returned 0 for "${labelName}" — retrying without scope filter`
-    );
-    const fallback = await runLabelQuery(token, fallbackQuery, limit);
-    return fallback;
+    // releases — Spotify's year filter is fussy).
+    if (results.length === 0) {
+      console.log(
+        `[spotify] ${mode} primary returned 0 for "${labelName}" — retrying without scope filter`
+      );
+      results = await runLabelQuery(token, `label:"${labelName}"`, limit);
+    }
+
+    // In 'recent' mode apply the 365-day date window server-side so
+    // preview + poll + manual refresh all see the same set. Future
+    // release_date values (pre-release albums) always pass.
+    if (mode === 'recent') {
+      const cutoff = Date.now() - 365 * 24 * 60 * 60 * 1000;
+      results = results.filter((a) => {
+        if (!a.releaseDate) return false;
+        const parsed = Date.parse(a.releaseDate);
+        if (!Number.isFinite(parsed)) return false;
+        if (parsed > Date.now()) return true;
+        return parsed >= cutoff;
+      });
+    }
+
+    return results;
   } catch (err) {
     console.warn(`[spotify] searchAlbumsByLabel failed for "${labelName}":`, (err as Error).message);
     return [];

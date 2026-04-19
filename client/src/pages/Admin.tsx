@@ -1364,8 +1364,19 @@ function LabelFeedPanel() {
               className="w-12 h-12 rounded-md object-cover flex-shrink-0"
             />
             <div className="flex-1 min-w-0">
-              <div className="text-sm text-white font-medium truncate">
-                {item.album_name}
+              <div className="text-sm text-white font-medium truncate flex items-center gap-1.5">
+                <span className="truncate">{item.album_name}</span>
+                {item.album_type && item.album_type !== 'album' && (
+                  <span
+                    className={`text-[9px] font-mono uppercase tracking-wider px-1 py-0.5 rounded shrink-0 ${
+                      item.album_type === 'single'
+                        ? 'text-gray-500 bg-gray-500/10'
+                        : 'text-[#e8a020]/70 bg-[#e8a020]/10'
+                    }`}
+                  >
+                    {item.album_type}
+                  </span>
+                )}
               </div>
               <div className="text-xs text-gray-500 truncate">
                 {item.artist_name}
