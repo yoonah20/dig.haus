@@ -137,6 +137,24 @@ export function usePollTrackedLabel() {
   });
 }
 
+export function usePollAllTrackedLabels() {
+  const qc = useQueryClient();
+  return useMutation<
+    { ok: boolean; totalFound: number; totalInserted: number; labelCount: number },
+    unknown,
+    void
+  >({
+    mutationFn: async () => {
+      const { data } = await axios.post('/api/admin/tracked-labels/poll-all');
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin-tracked-labels'] });
+      qc.invalidateQueries({ queryKey: ['admin-label-feed'] });
+    },
+  });
+}
+
 export function useDismissLabelFeedItem() {
   const qc = useQueryClient();
   return useMutation<unknown, unknown, number>({

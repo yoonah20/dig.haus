@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { queryAll, queryGet, execute } from '../db/index.js';
-import { searchAlbumsByLabel } from '../services/spotify.js';
+import { searchAlbumsByLabel, type LabelSearchMode } from '../services/spotify.js';
 
 // Phase 3a label-tracking feed. Runs once a day and polls Spotify
 // `label:"X" tag:new` for each active tracked_label. New albums land
@@ -15,19 +15,42 @@ import { searchAlbumsByLabel } from '../services/spotify.js';
 
 export const LABEL_FEED_STALE_DAYS = 30;
 
+// How far back we look when mode='recent' — filters Spotify's 2-year
+// year-range search down to a useful window for the feed. 120 days
+// handles labels that go quiet for a quarter; future release_date
+// values (pre-release albums) always pass.
+const RECENT_WINDOW_DAYS = 120;
+
 interface TrackedLabelRow {
   id: number;
   spotify_label_name: string;
 }
 
+function isWithinRecentWindow(releaseDate: string | null | undefined): boolean {
+  if (!releaseDate) return false;
+  const parsed = Date.parse(releaseDate);
+  if (!Number.isFinite(parsed)) return false;
+  if (parsed > Date.now()) return true; // future / pre-release
+  const cutoff = Date.now() - RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return parsed >= cutoff;
+}
+
 export async function pollTrackedLabel(
   trackedLabelId: number,
-  labelName: string
+  labelName: string,
+  mode: LabelSearchMode = 'new'
 ): Promise<{ found: number; inserted: number }> {
   let inserted = 0;
   let found = 0;
   try {
-    const albums = await searchAlbumsByLabel(labelName);
+    const rawAlbums = await searchAlbumsByLabel(labelName, 50, mode);
+    // In 'recent' mode Spotify's year:YYYY-YYYY query returns the whole
+    // year's catalogue; filter down to the last N days so the feed
+    // stays about "what's new" even when the window widens.
+    const albums =
+      mode === 'recent'
+        ? rawAlbums.filter((a) => isWithinRecentWindow(a.releaseDate))
+        : rawAlbums;
     found = albums.length;
     for (const a of albums) {
       // Filter out singles/EPs when Spotify is confident about it.
@@ -66,23 +89,30 @@ export async function pollTrackedLabel(
   return { found, inserted };
 }
 
-export async function runLabelFeedPoll(): Promise<void> {
+export async function runLabelFeedPoll(
+  mode: LabelSearchMode = 'new'
+): Promise<{ totalFound: number; totalInserted: number; labelCount: number }> {
   const labels = queryAll(
     `SELECT id, spotify_label_name FROM tracked_labels
      WHERE COALESCE(is_active, 1) = 1
      ORDER BY id ASC`
   ) as TrackedLabelRow[];
 
+  let totalFound = 0;
+  let totalInserted = 0;
   if (labels.length === 0) {
     console.log('[label-feed] no active tracked labels; skipping');
   } else {
     for (const label of labels) {
       const { found, inserted } = await pollTrackedLabel(
         label.id,
-        label.spotify_label_name
+        label.spotify_label_name,
+        mode
       );
+      totalFound += found;
+      totalInserted += inserted;
       console.log(
-        `[label-feed] "${label.spotify_label_name}": ${found} found, ${inserted} new`
+        `[label-feed] "${label.spotify_label_name}" (${mode}): ${found} found, ${inserted} new`
       );
     }
   }
@@ -104,6 +134,8 @@ export async function runLabelFeedPoll(): Promise<void> {
   } catch (err) {
     console.error('[label-feed] stale cleanup failed:', (err as Error).message);
   }
+
+  return { totalFound, totalInserted, labelCount: labels.length };
 }
 
 export function startLabelFeedPoller(): void {
@@ -128,10 +160,15 @@ export function startLabelFeedPoller(): void {
 }
 
 /**
- * Called after admin adds a new label or toggles one active, so the
- * feed populates immediately instead of waiting for 03:00 KST.
+ * Called after admin adds a new label or clicks 🔄 manually. Defaults
+ * to 'recent' (wider 2-year window + 120-day filter) so the feed has
+ * content even on labels that haven't released anything in the last
+ * 14 days.
  */
-export async function pollSingleLabelById(id: number): Promise<{
+export async function pollSingleLabelById(
+  id: number,
+  mode: LabelSearchMode = 'recent'
+): Promise<{
   found: number;
   inserted: number;
 } | null> {
@@ -140,5 +177,5 @@ export async function pollSingleLabelById(id: number): Promise<{
     [id]
   ) as TrackedLabelRow | undefined;
   if (!row) return null;
-  return pollTrackedLabel(row.id, row.spotify_label_name);
+  return pollTrackedLabel(row.id, row.spotify_label_name, mode);
 }

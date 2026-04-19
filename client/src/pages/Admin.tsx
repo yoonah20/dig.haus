@@ -30,6 +30,7 @@ import {
   useToggleTrackedLabel,
   useDeleteTrackedLabel,
   usePollTrackedLabel,
+  usePollAllTrackedLabels,
   useDismissLabelFeedItem,
   useRegisterLabelFeedItem,
 } from '../hooks/useLabelFeed';
@@ -194,11 +195,13 @@ function Panel({
   title,
   icon,
   count,
+  headerAction,
   children,
 }: {
   title: string;
   icon?: string;
   count?: number;
+  headerAction?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -207,8 +210,9 @@ function Panel({
         {icon && <span aria-hidden className="text-base">{icon}</span>}
         <h3 className="text-base font-semibold text-white">{title}</h3>
         {typeof count === 'number' && count > 0 && (
-          <span className="ml-auto text-sm text-gray-500 tabular-nums">{count}</span>
+          <span className="text-sm text-gray-500 tabular-nums">{count}</span>
         )}
+        {headerAction && <div className="ml-auto">{headerAction}</div>}
       </div>
       <div className="divide-y divide-white/5 max-h-[calc(100vh-280px)] overflow-y-auto">
         {children}
@@ -1161,6 +1165,7 @@ function TrackedLabelsPanel() {
   const toggle = useToggleTrackedLabel();
   const del = useDeleteTrackedLabel();
   const poll = usePollTrackedLabel();
+  const pollAll = usePollAllTrackedLabels();
   const [name, setName] = useState('');
 
   const handleAdd = async () => {
@@ -1198,8 +1203,35 @@ function TrackedLabelsPanel() {
 
   const labels = list.data?.labels ?? [];
 
+  const refreshAllButton = labels.length > 0 ? (
+    <button
+      type="button"
+      onClick={async () => {
+        if (pollAll.isPending) return;
+        try {
+          const result = await pollAll.mutateAsync();
+          console.log(
+            `[label-feed] poll-all: ${result.totalInserted}/${result.totalFound} new across ${result.labelCount} labels`
+          );
+        } catch (err: any) {
+          alert(err?.response?.data?.error || '전체 새로고침 실패');
+        }
+      }}
+      disabled={pollAll.isPending}
+      className="text-xs text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+      title="모든 활성 레이블의 최근 2년 신보 다시 긁어오기"
+    >
+      {pollAll.isPending ? '새로고침 중…' : '🔄 전체 새로고침'}
+    </button>
+  ) : null;
+
   return (
-    <Panel title="추적 중인 레이블" icon="📡" count={labels.length}>
+    <Panel
+      title="추적 중인 레이블"
+      icon="📡"
+      count={labels.length}
+      headerAction={refreshAllButton}
+    >
       <div className="p-3 flex items-center gap-2 border-b border-white/5">
         <input
           type="text"

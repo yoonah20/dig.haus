@@ -11,7 +11,7 @@ import { searchVideo } from '../services/youtube.js';
 import { searchBandcamp } from '../services/bandcamp.js';
 import { cacheAlbum, updateAlbumFields, getCachedAlbum } from '../utils/cache.js';
 import { generateSlug } from '../utils/slug.js';
-import { pollSingleLabelById } from '../jobs/labelFeedPoller.js';
+import { pollSingleLabelById, runLabelFeedPoll } from '../jobs/labelFeedPoller.js';
 import type { AppUser } from '../auth/passport.js';
 
 const router = Router();
@@ -137,13 +137,28 @@ router.delete('/tracked-labels/:id', (req, res) => {
 
 // Manually trigger a poll for a specific label — useful right after
 // deploy or when admin wants to force-refresh without waiting for
-// 03:00 KST.
+// 03:00 KST. Defaults to 'recent' (wider 2-year window) so the feed
+// isn't empty for labels that haven't released anything in the last
+// 14 days; the daily cron still uses tag:new for tighter updates.
 router.post('/tracked-labels/:id/poll', async (req, res) => {
   const id = parseInt((req.params.id as string), 10);
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'id 잘못됨' });
-  const result = await pollSingleLabelById(id);
+  const result = await pollSingleLabelById(id, 'recent');
   if (!result) return res.status(404).json({ error: 'not found' });
   res.json({ ok: true, ...result });
+});
+
+// Refresh every active tracked label at once. Used by the panel-level
+// "🔄 전체 새로고침" button so admin doesn't have to click each row's
+// per-label refresh. Same 'recent' window as the per-label refresh.
+router.post('/tracked-labels/poll-all', async (_req, res) => {
+  try {
+    const result = await runLabelFeedPoll('recent');
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[label-feed] poll-all failed:', err);
+    res.status(500).json({ error: '전체 폴링 실패' });
+  }
 });
 
 // ─── Label feed items ───────────────────────────────────────────────────

@@ -51,32 +51,46 @@ export interface SpotifyLabelAlbum {
   totalTracks: number;
 }
 
+export type LabelSearchMode = 'new' | 'recent';
+
 /**
- * Search Spotify for recent albums released on a specific label. Uses the
- * `label:"X" tag:new` combo which Spotify's search docs expose for
- * discovering newly-released content (~last 2 weeks). Returns whatever
- * Spotify gives us unfiltered — caller applies further filtering
- * (album_type, dedup, etc.).
+ * Search Spotify for albums released on a specific label.
  *
- * limit caps at 50 per Spotify's search API; the label-feed poller keeps
- * it at 50 so infrequent albums on small labels still get picked up.
+ * mode='new' — `label:"X" tag:new` uses Spotify's ~14-day new-releases
+ * tag. Tight window, ideal for the daily cron. Returns 0 results if
+ * the label hasn't dropped anything recently.
+ *
+ * mode='recent' — `label:"X" year:${last}-${this}` spans the last two
+ * calendar years. Much wider net, used for the initial poll right
+ * after an admin adds a label (so the feed isn't empty on labels
+ * that release infrequently) and for the manual refresh button. The
+ * caller is expected to apply a date filter downstream if it only
+ * wants truly recent items.
+ *
+ * limit caps at 50 per Spotify's search API.
  */
 export async function searchAlbumsByLabel(
   labelName: string,
-  limit = 50
+  limit = 50,
+  mode: LabelSearchMode = 'new'
 ): Promise<SpotifyLabelAlbum[]> {
   try {
     const token = await getToken();
     if (!token) return [];
 
+    let query: string;
+    if (mode === 'recent') {
+      const thisYear = new Date().getUTCFullYear();
+      query = `label:"${labelName}" year:${thisYear - 1}-${thisYear}`;
+    } else {
+      query = `label:"${labelName}" tag:new`;
+    }
+
     const res = await axios.get(`${SPOTIFY_API_BASE}/search`, {
       headers: { Authorization: `Bearer ${token}` },
       httpsAgent,
       params: {
-        // `label:"X"` expects exact-ish match; `tag:new` scopes to
-        // Spotify's "new releases" window (~14 days). Both combine via
-        // a single q param.
-        q: `label:"${labelName}" tag:new`,
+        q: query,
         type: 'album',
         limit: String(Math.min(limit, 50)),
       },
