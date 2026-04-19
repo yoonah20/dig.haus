@@ -124,7 +124,12 @@ async function start() {
   startLabelFeedPoller();
   warmExchangeRates();
 
-  server = app.listen(PORT, () => {
+  // Explicit IPv4 bind. Node 18+ defaults to "::" (IPv6 dual-stack)
+  // which is supposed to accept IPv4 too, but WSL2's TCP stack
+  // quirks make the browser's IPv4 `localhost` connections hit
+  // ECONNREFUSED against the IPv6-bound listener. Binding 0.0.0.0
+  // listens on IPv4 all-interfaces and works reliably cross-host.
+  server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`dig.haus server running on port ${PORT}`);
   });
 }
