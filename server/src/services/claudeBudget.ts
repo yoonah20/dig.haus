@@ -9,6 +9,7 @@ import { queryAll } from '../db/index.js';
 const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
   'claude-sonnet-4-5': { input: 3, output: 15 },
+  'deepseek-chat': { input: 0.27, output: 1.1 },
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
 };
 const WEB_SEARCH_PER_1000 = 10;

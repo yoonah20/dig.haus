@@ -38,6 +38,12 @@ function safeParseArray(raw: unknown): any[] {
 const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
   'claude-sonnet-4-5': { input: 3, output: 15 },
+  // DeepSeek V3 — used for scrape extraction (Jina markdown → JSON).
+  // Much cheaper than Haiku for the input-heavy extraction path; we
+  // still log under the same claude_usage_log table keyed by the
+  // response's model string, so the admin panel surfaces a separate
+  // row.
+  'deepseek-chat': { input: 0.27, output: 1.1 },
   // Legacy / fallback
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
 };

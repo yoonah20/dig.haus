@@ -5,7 +5,62 @@ import {
   logClaudeUsage,
   normaliseKoreanTerms,
 } from './claude.js';
+import {
+  callDeepSeek,
+  isDeepSeekConfigured,
+  logDeepSeekUsage,
+} from './deepseek.js';
 import { execute } from '../db/index.js';
+
+// Ask DeepSeek first for a JSON extraction, fall back to Haiku if
+// DeepSeek isn't configured, throws, or returns an unparseable body.
+// Both paths log into claude_usage_log via their respective loggers
+// (keyed by model string) so the admin dashboard can compare cost
+// between the two providers. Returns the raw content string — JSON
+// parsing + schema validation lives at the call site where the
+// expected shape differs per use case.
+async function extractJsonWithFallback(
+  operation: string,
+  prompt: string,
+  maxTokens: number
+): Promise<string | null> {
+  // Primary: DeepSeek. Input-heavy extraction (Jina markdown → JSON)
+  // is exactly where DeepSeek's ~73%-cheaper input pricing vs Haiku
+  // earns the most, and JSON-mode on a structured schema is well
+  // within its capability.
+  if (isDeepSeekConfigured()) {
+    try {
+      const ds = await callDeepSeek(
+        [{ role: 'user', content: prompt }],
+        { jsonMode: true, maxTokens }
+      );
+      logDeepSeekUsage(operation, ds);
+      return ds.content;
+    } catch (err) {
+      console.warn(
+        `[${operation}] deepseek failed, falling back to Haiku:`,
+        (err as Error).message
+      );
+    }
+  }
+
+  // Fallback: Haiku. Identical prompt; the model's own JSON fidelity
+  // handles the "Return ONLY JSON" instruction without response_format.
+  try {
+    const resp = await getClient().messages.create({
+      model: HAIKU,
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    logClaudeUsage(`${operation}_haiku_fallback`, resp);
+    const block = resp.content.find((b) => b.type === 'text');
+    if (!block || block.type !== 'text') return null;
+    return block.text;
+  } catch (err) {
+    console.error(`[${operation}] Haiku fallback also failed:`, (err as Error).message);
+    return null;
+  }
+}
 
 // Append-only log of URL scrapes that didn't yield a review.
 // Reason codes are deliberately short and stable so the admin
@@ -457,15 +512,7 @@ export async function scrapeReviewFromUrl(
     // ignore
   }
 
-  try {
-    const client = getClient();
-    const response = await client.messages.create({
-      model: HAIKU,
-      max_tokens: 2000,
-      messages: [
-        {
-          role: 'user',
-          content: `Extract a single album review's info from this page about "${album}" by ${artist}.
+  const prompt = `Extract a single album review's info from this page about "${album}" by ${artist}.
 
 URL: ${url}
 PAGE TEXT (cleaned markdown via Jina Reader, or stripped HTML if Jina was unavailable):
@@ -488,19 +535,16 @@ Language: the review may be in English, Dutch, German, French, Spanish, Italian,
 
 Excerpt: pick whatever prose about the album you can find. Evaluative sentences first, but if the page only has descriptive prose (release context, band history, track-by-track discussion) include that instead. Skip pure navigation text, ads, and tracklists-only pages. "[Read more...]" preview links or aggregator-style listings with a short paragraph still count — extract what's there.
 
-Be AGGRESSIVE about extracting. The cost of returning a weak excerpt + null score is low (admin can delete the row if useless). The cost of refusing ("not a review") when there was extractable content is much higher — it means we lose real coverage. Only return {"error":"not a review"} when the page text is truly unrelated: 404 pages, completely unrelated albums, pure navigation with zero descriptive prose about THIS album. When in ANY doubt, extract.`,
-        },
-      ],
-    });
-    logClaudeUsage('scrape_review', response);
+Be AGGRESSIVE about extracting. The cost of returning a weak excerpt + null score is low (admin can delete the row if useless). The cost of refusing ("not a review") when there was extractable content is much higher — it means we lose real coverage. Only return {"error":"not a review"} when the page text is truly unrelated: 404 pages, completely unrelated albums, pure navigation with zero descriptive prose about THIS album. When in ANY doubt, extract.`;
 
-    const block = response.content.find((b) => b.type === 'text');
-    if (!block || block.type !== 'text') {
+  try {
+    const rawText = await extractJsonWithFallback('scrape_review', prompt, 2000);
+    if (!rawText) {
       recordScrapeFailure(url, albumMbid, 'claude-no-text');
       return { kind: 'fail', reason: 'claude-no-text' };
     }
 
-    let jsonText = block.text.trim();
+    let jsonText = rawText.trim();
     const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (fenceMatch) jsonText = fenceMatch[1].trim();
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
@@ -563,15 +607,7 @@ export async function extractFromPastedText(
     return null;
   }
 
-  try {
-    const client = getClient();
-    const response = await client.messages.create({
-      model: HAIKU,
-      max_tokens: 2000,
-      messages: [
-        {
-          role: 'user',
-          content: `Extract review info from this hand-pasted article text about "${album}" by ${artist}, published by ${sourceName}.
+  const prompt = `Extract review info from this hand-pasted article text about "${album}" by ${artist}, published by ${sourceName}.
 
 ARTICLE TEXT:
 ---
@@ -588,16 +624,13 @@ Return ONLY JSON, no prose:
 
 Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). If no explicit score in the text, set null.
 Excerpt: pick the most evaluative sentence(s) from the body.
-If the text is clearly NOT a review (shop listing, track list only, marketing copy), return {"error":"not a review"} instead.`,
-        },
-      ],
-    });
-    logClaudeUsage('manual_review', response);
+If the text is clearly NOT a review (shop listing, track list only, marketing copy), return {"error":"not a review"} instead.`;
 
-    const block = response.content.find((b) => b.type === 'text');
-    if (!block || block.type !== 'text') return null;
+  try {
+    const rawText = await extractJsonWithFallback('manual_review', prompt, 2000);
+    if (!rawText) return null;
 
-    let jsonText = block.text.trim();
+    let jsonText = rawText.trim();
     const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (fenceMatch) jsonText = fenceMatch[1].trim();
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
@@ -616,7 +649,7 @@ If the text is clearly NOT a review (shop listing, track list only, marketing co
       excerptKo: normaliseKoreanTerms(parsed.excerptKo),
     };
   } catch (err) {
-    console.error('[reviews] Claude manual-extract failed:', (err as Error).message);
+    console.error('[reviews] manual-extract failed:', (err as Error).message);
     return null;
   }
 }
