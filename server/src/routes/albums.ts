@@ -1249,11 +1249,37 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
   }
 
   try {
-    const scraped = await scrapeReviewFromUrl(url, albumRow.artist_name, albumRow.title, mbid);
-    if (!scraped) {
-      return res.status(422).json({ error: 'URL에서 리뷰를 추출하지 못했습니다.' });
+    const outcome = await scrapeReviewFromUrl(
+      url,
+      albumRow.artist_name,
+      albumRow.title,
+      mbid
+    );
+    if (outcome.kind === 'fail') {
+      // Friendly per-reason message so the batch-result alert in the
+      // client tells admin WHY each URL failed instead of a generic
+      // "추출하지 못했습니다". Status 502 specifically for upstream
+      // network/bot-wall problems (bot-blocked, fetch-failed) so
+      // monitoring treats them differently from "page processed but
+      // unusable" (422).
+      const friendly: Record<string, string> = {
+        'bot-blocked': '봇 차단 (Cloudflare 등). 수동 입력 탭을 사용하세요.',
+        'fetch-failed': '페이지를 가져오지 못했습니다 (네트워크/타임아웃).',
+        'text-too-short': '페이지 본문이 너무 짧습니다 (JS 렌더링 가능). 수동 입력 탭을 사용하세요.',
+        'not-a-review': '리뷰 페이지가 아닌 것으로 판단됐습니다.',
+        'claude-no-text': 'AI 분석 응답이 비어있었습니다.',
+        'claude-error': 'AI 분석 중 오류가 발생했습니다.',
+        'json-parse-failed': 'AI 응답을 파싱하지 못했습니다.',
+      };
+      const status =
+        outcome.reason === 'bot-blocked' || outcome.reason === 'fetch-failed' ? 502 : 422;
+      return res.status(status).json({
+        error: friendly[outcome.reason] ?? 'URL에서 리뷰를 추출하지 못했습니다.',
+        reason: outcome.reason,
+      });
     }
 
+    const scraped = outcome.review;
     execute(
       `INSERT INTO reviews (album_mbid, source_name, score, score_max, excerpt, excerpt_ko, full_review_url)
        VALUES (?, ?, ?, ?, ?, ?, ?)

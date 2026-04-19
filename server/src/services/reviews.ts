@@ -13,13 +13,40 @@ import { execute } from '../db/index.js';
 // Append-only log of URL scrapes that didn't yield a review.
 // Reason codes are deliberately short and stable so the admin
 // aggregate query can GROUP BY them:
-//   - fetch-failed: HTTP/network error (403 bot wall, timeout, etc.)
+//   - bot-blocked: Cloudflare or similar JS-challenge wall (403/503 + challenge body)
+//   - fetch-failed: HTTP/network error not identified as a bot wall
 //   - text-too-short: page stripped to <100 chars (JS-rendered or empty)
 //   - not-a-review: Claude flagged the page as non-review
 //   - claude-no-text: Claude returned no text block (rare, usually API blip)
 //   - claude-error: Claude call threw
 //   - json-parse-failed: couldn't extract JSON from Claude's response
 // errorMessage carries the caught exception text when available.
+
+export type ScrapeFailureReason =
+  | 'bot-blocked'
+  | 'fetch-failed'
+  | 'text-too-short'
+  | 'not-a-review'
+  | 'claude-no-text'
+  | 'claude-error'
+  | 'json-parse-failed';
+
+export type ScrapeOutcome =
+  | { kind: 'ok'; review: ReviewResult }
+  | { kind: 'fail'; reason: ScrapeFailureReason; message?: string };
+
+// Cloudflare's JS challenge pages. They can come back as 403 or 503
+// depending on the "Under Attack" mode level. Sniffing the body for the
+// distinctive "Just a moment..." / cf-chl- markers is more reliable
+// than status-code alone — Cloudflare sometimes returns 200 with the
+// challenge embedded, and unrelated 403s happen for other reasons.
+function isCloudflareChallenge(body: string | undefined): boolean {
+  if (!body) return false;
+  const head = body.slice(0, 2500);
+  return /just a moment\.\.\.|cf-browser-verification|cf-chl-|challenges\.cloudflare\.com|__cf_chl_/i.test(
+    head
+  );
+}
 function recordScrapeFailure(
   url: string,
   albumMbid: string | null,
@@ -456,6 +483,81 @@ function detectStarRating(html: string): number | null {
   return null;
 }
 
+// Label-anchored numeric score detection. Runs on stripped text of
+// the raw HTML so we see human-readable labels (e.g. "Score: 90/100"
+// on Zware Metalen, "Note: 8/10" on French zines, "8 out of 10" on
+// English). The anchor keeps us from grabbing tracklist-style "1/10"
+// that would otherwise produce false positives.
+//
+// Scale must be a recognised editorial one (5, 10, 20, 100) — anything
+// else is almost certainly not a review score. On match, normalises
+// to /100 and returns the rounded integer.
+function detectExplicitNumericScore(html: string): number | null {
+  const text = html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ');
+
+  // "Score: 90/100" / "Rating: 4/5" / "Note: 8.5/10" / "점수: 85/100"
+  const labelled = text.match(
+    /\b(?:Score|Scoring|Rating|Note|Nota|Cijfer|Punkte|Punktzahl|평점|점수|評価|点数)\s*[:：]\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*\/\s*(\d{1,3})\b/i
+  );
+  if (labelled) {
+    const score = parseFloat(labelled[1].replace(',', '.'));
+    const scale = parseInt(labelled[2], 10);
+    if ([5, 10, 20, 100].includes(scale) && score >= 0 && score <= scale) {
+      return Math.max(0, Math.min(100, Math.round((score / scale) * 100)));
+    }
+  }
+
+  // "8 out of 10" / "4.5 out of 5". Unanchored, so require the scale to
+  // still be a recognised editorial one — that check drops "chapter 4
+  // out of 12" or similar non-score sentences.
+  const outOf = text.match(/\b(\d{1,3}(?:[.,]\d{1,2})?)\s+out\s+of\s+(\d{1,3})\b/i);
+  if (outOf) {
+    const score = parseFloat(outOf[1].replace(',', '.'));
+    const scale = parseInt(outOf[2], 10);
+    if ([5, 10, 20, 100].includes(scale) && score >= 0 && score <= scale) {
+      return Math.max(0, Math.min(100, Math.round((score / scale) * 100)));
+    }
+  }
+
+  return null;
+}
+
+// Some WordPress review themes embed the rating as a static image whose
+// FILENAME encodes the numerator — e.g. metal-roos.com.au serves
+// `/wp-content/uploads/helpers/Rating4.png` for a 4/5 review ("4
+// kangaroos"). stripHtml drops the <img> tag and detectStarRating
+// doesn't look at src attrs, so these slip through.
+//
+// Recognised shapes (all optional hyphen/underscore between name and
+// number; fraction via dash, underscore, or dot):
+//   Rating4.png         → 4/5
+//   rating-4.png        → 4/5
+//   Rating_3-5.png      → 3.5/5
+//   stars-4.5.png       → 4.5/5
+//   Score4.png          → 4/5
+//
+// Anchored on `/` so it matches the filename segment cleanly and won't
+// fire on something like `metal-roos-rating-system.png`. Integer
+// numerator bounded 0-5; wider scales here are unusual and prone to
+// false positives from unrelated decorative images.
+function detectFilenameRatingImage(html: string): number | null {
+  const re = /\/(?:Rating|Ratings|Stars?|Score)[-_]?(\d)(?:[-_.](\d))?\.(?:png|jpe?g|webp|svg)\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const whole = parseInt(m[1], 10);
+    if (!Number.isFinite(whole) || whole < 0 || whole > 5) continue;
+    const frac = m[2] ? parseInt(m[2], 10) / 10 : 0;
+    const rating = whole + frac;
+    if (rating < 0 || rating > 5) continue;
+    return Math.round((rating / 5) * 100);
+  }
+  return null;
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -477,7 +579,7 @@ export async function scrapeReviewFromUrl(
   artist: string,
   album: string,
   albumMbid: string | null = null
-): Promise<ReviewResult | null> {
+): Promise<ScrapeOutcome> {
   console.log(`[reviews] scrapeReviewFromUrl: ${url}`);
 
   let html = '';
@@ -493,24 +595,53 @@ export async function scrapeReviewFromUrl(
       },
     });
     html = typeof resp.data === 'string' ? resp.data : String(resp.data);
+    // A minority of Cloudflare setups return 200 with the challenge
+    // page embedded instead of a real 4xx. Sniff the body so we still
+    // tag those as bot-blocked rather than letting the downstream
+    // "page text too short" mis-diagnose them.
+    if (isCloudflareChallenge(html)) {
+      recordScrapeFailure(url, albumMbid, 'bot-blocked', 'cloudflare challenge on 200');
+      return { kind: 'fail', reason: 'bot-blocked' };
+    }
   } catch (err) {
-    recordScrapeFailure(url, albumMbid, 'fetch-failed', (err as Error).message);
-    return null;
+    const axiosErr = err as { response?: { status?: number; data?: unknown }; message?: string };
+    const body = typeof axiosErr.response?.data === 'string' ? axiosErr.response.data : '';
+    const reason: ScrapeFailureReason = isCloudflareChallenge(body)
+      ? 'bot-blocked'
+      : 'fetch-failed';
+    const msg = axiosErr.message ?? String(err);
+    recordScrapeFailure(url, albumMbid, reason, msg);
+    return { kind: 'fail', reason, message: msg };
   }
 
-  // Pull star-rating data from the raw HTML before we strip tags — the
-  // <i> icons that carry it don't survive stripHtml. If detected, this
-  // score overrides whatever Claude extracts (Claude only sees the
-  // stripped text, so it never had the info in the first place).
+  // Pre-parse the raw HTML for visual/encoded scores before stripHtml
+  // discards the markup they live in. Priority order, highest-trust
+  // first: (1) FontAwesome / Unicode star icons, (2) filename-encoded
+  // rating images (Rating4.png and friends), (3) text-labelled numeric
+  // scores ("Score: 90/100"). When any detector fires we skip Claude's
+  // score entirely since Claude only sees the stripped text and can't
+  // see these signals.
   const starScore = detectStarRating(html);
-  if (starScore !== null) {
-    console.log(`[reviews] detected star rating ${starScore}/100 for ${url}`);
+  const filenameRatingScore = starScore === null ? detectFilenameRatingImage(html) : null;
+  const numericScore =
+    starScore === null && filenameRatingScore === null
+      ? detectExplicitNumericScore(html)
+      : null;
+  const detectedScore = starScore ?? filenameRatingScore ?? numericScore;
+  if (detectedScore !== null) {
+    const source =
+      starScore !== null
+        ? 'star'
+        : filenameRatingScore !== null
+          ? 'filename-image'
+          : 'explicit-numeric';
+    console.log(`[reviews] detected ${source} score ${detectedScore}/100 for ${url}`);
   }
 
   const pageText = stripHtml(html).slice(0, 20000);
   if (pageText.length < 100) {
     recordScrapeFailure(url, albumMbid, 'text-too-short');
-    return null;
+    return { kind: 'fail', reason: 'text-too-short' };
   }
 
   let hostname = '';
@@ -541,13 +672,17 @@ Return ONLY JSON, no prose:
   "sourceName": "Publication name (e.g. Pitchfork, Angry Metal Guy). Derive from the page or the domain '${hostname}' if unclear.",
   "score": 85,
   "scoreMax": 100,
-  "excerpt": "One or two sentences quoted or paraphrased from the review body, English.",
+  "excerpt": "One or two sentences quoted or paraphrased from the review body, in the original language.",
   "excerptKo": "2-3 문장 한국어 요약. 매체명 언급 금지, 평론가 시점."
 }
 
-Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). If no explicit score, set null.
-Excerpt: pick the most evaluative sentence(s) from the review body; skip headlines/bylines/ads.
-If this page is clearly NOT a review (shop listing, forum post, directory), return {"error":"not a review"} instead.`,
+Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). A descriptive-only review with no explicit number is perfectly valid — set score to null in that case, do NOT treat "no score" as reason to refuse.
+
+Language: the review may be in English, Dutch, German, French, Spanish, Italian, Portuguese, Swedish, Korean, Japanese, or any other language. Non-English reviews are valid. Extract the excerpt in the review's original language; still produce a Korean excerptKo regardless of the source language.
+
+Excerpt: pick the most evaluative sentence(s) from the review body; skip headlines, bylines, tracklists, and ads.
+
+Refuse ONLY when the page has no actual review content at all — shop listings, forum posts, band-page directories, homepages, tag pages. In that case return {"error":"not a review"}. If ANY prose that evaluates the album is present, return the normal JSON.`,
         },
       ],
     });
@@ -556,7 +691,7 @@ If this page is clearly NOT a review (shop listing, forum post, directory), retu
     const block = response.content.find((b) => b.type === 'text');
     if (!block || block.type !== 'text') {
       recordScrapeFailure(url, albumMbid, 'claude-no-text');
-      return null;
+      return { kind: 'fail', reason: 'claude-no-text' };
     }
 
     let jsonText = block.text.trim();
@@ -565,29 +700,33 @@ If this page is clearly NOT a review (shop listing, forum post, directory), retu
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       recordScrapeFailure(url, albumMbid, 'json-parse-failed', jsonText.slice(0, 200));
-      return null;
+      return { kind: 'fail', reason: 'json-parse-failed', message: jsonText.slice(0, 200) };
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
     if (parsed.error) {
       recordScrapeFailure(url, albumMbid, 'not-a-review', String(parsed.error));
-      return null;
+      return { kind: 'fail', reason: 'not-a-review', message: String(parsed.error) };
     }
 
     return {
-      sourceName:
-        (typeof parsed.sourceName === 'string' && parsed.sourceName.trim()) ||
-        hostname ||
-        'Unknown',
-      score: starScore ?? clampScore(parsed.score),
-      scoreMax: 100,
-      excerpt: typeof parsed.excerpt === 'string' ? parsed.excerpt : '',
-      excerptKo: normaliseKoreanTerms(parsed.excerptKo),
-      fullReviewUrl: url,
+      kind: 'ok',
+      review: {
+        sourceName:
+          (typeof parsed.sourceName === 'string' && parsed.sourceName.trim()) ||
+          hostname ||
+          'Unknown',
+        score: detectedScore ?? clampScore(parsed.score),
+        scoreMax: 100,
+        excerpt: typeof parsed.excerpt === 'string' ? parsed.excerpt : '',
+        excerptKo: normaliseKoreanTerms(parsed.excerptKo),
+        fullReviewUrl: url,
+      },
     };
   } catch (err) {
-    recordScrapeFailure(url, albumMbid, 'claude-error', (err as Error).message);
-    return null;
+    const msg = (err as Error).message;
+    recordScrapeFailure(url, albumMbid, 'claude-error', msg);
+    return { kind: 'fail', reason: 'claude-error', message: msg };
   }
 }
 
