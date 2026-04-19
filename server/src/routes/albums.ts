@@ -23,8 +23,10 @@ import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
 import {
   scrapeReviewFromUrl,
   extractFromPastedText,
+  EXCLUDED_URL_DOMAINS,
 } from '../services/reviews.js';
-import { generateSimilarDescriptions, generatePronunciation, generateKoreanSummary, getClient as getAnthropicClient, HAIKU, logClaudeUsage } from '../services/claude.js';
+import { searchReviewUrls } from '../services/serper.js';
+import { generateSimilarDescriptions, generatePronunciation, generateKoreanSummary, getClient as getAnthropicClient, HAIKU, logClaudeUsage, selectEditorialReviewUrls } from '../services/claude.js';
 import { hostCustomCover, CustomCoverError } from '../services/customCoverHost.js';
 import {
   getCachedAlbum,
@@ -1105,6 +1107,73 @@ router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Refresh discogs error:', error);
     res.status(500).json({ error: 'Failed to refresh Discogs data' });
+  }
+});
+
+// ─── POST /api/albums/:id/reviews/discover — admin URL discovery ────────
+//
+// Serper (Google SERP proxy) + Haiku URL picker. Admin hits this from
+// the manual-add form's URL tab; we return 0-5 editorial review URLs
+// the admin can review, edit, and save through the existing batch
+// scrape flow. No DB writes here — pure discovery.
+//
+// Flow: Serper fetches 20 organic results → we filter hostnames
+// against EXCLUDED_URL_DOMAINS (shops, aggregators) → what's left goes
+// to Haiku for editorial-only selection. Haiku's call is cheap
+// (~$0.0003, just URL+title+snippet as input) and runs even if we end
+// up with 0 usable candidates — the null case is itself useful
+// feedback ("no editorial reviews indexed by Google for this album").
+//
+// Dedupe against reviews already saved for this album is the client's
+// job — it has the current reviews list handy and can filter the
+// response before populating the URL textarea.
+router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+  const albumRow = queryGet(
+    'SELECT title, artist_name FROM albums WHERE mbid = ?',
+    [mbid]
+  );
+  if (!albumRow) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  try {
+    const candidates = await searchReviewUrls(
+      albumRow.artist_name,
+      albumRow.title
+    );
+    if (candidates.length === 0) {
+      return res.json({
+        urls: [],
+        message: '검색 결과가 없습니다. Serper 키가 설정되어 있는지, 이 앨범이 Google에 색인되어 있는지 확인해주세요.',
+      });
+    }
+
+    const filtered = candidates.filter((c) => {
+      try {
+        const host = new URL(c.url).hostname.toLowerCase();
+        return !EXCLUDED_URL_DOMAINS.some((d) => host.includes(d));
+      } catch {
+        return false;
+      }
+    });
+    if (filtered.length === 0) {
+      return res.json({
+        urls: [],
+        message: '쇼핑몰/aggregator만 나왔어요. 직접 구글에서 찾아주세요.',
+      });
+    }
+
+    const picked = await selectEditorialReviewUrls(
+      albumRow.artist_name,
+      albumRow.title,
+      filtered
+    );
+    res.json({ urls: picked });
+  } catch (err) {
+    console.error('[discover] failed:', err);
+    res.status(500).json({ error: 'URL 검색에 실패했습니다.' });
   }
 });
 

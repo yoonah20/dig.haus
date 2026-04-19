@@ -6,7 +6,7 @@ import type { Review } from '../../types';
 import { getScoreColor as scoreColor, getScoreBgColor as scoreBgColor } from '../../utils/score';
 import { useAuth } from '../../contexts/AuthContext';
 import { AiSummaryBadge } from './SimilarAlbums';
-import { useGenerateReviewSummary } from '../../hooks/useAlbum';
+import { useGenerateReviewSummary, useDiscoverReviewUrls } from '../../hooks/useAlbum';
 import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
@@ -296,6 +296,7 @@ export default function ReviewSection({
   const isAdmin = !!user?.isAdmin;
   const scoredCount = reviews.filter(r => r.score !== null).length;
   const regenSummary = useGenerateReviewSummary(slug ?? '');
+  const discover = useDiscoverReviewUrls(slug ?? '');
   const [expanded, setExpanded] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
@@ -759,9 +760,54 @@ export default function ReviewSection({
 
                   {addMode === 'url' ? (
                     <>
-                      <label className="block text-xs text-gray-400">
-                        리뷰 URL <span className="text-gray-600">(여러 개는 한 줄에 하나씩)</span>
-                      </label>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <label className="block text-xs text-gray-400">
+                          리뷰 URL <span className="text-gray-600">(여러 개는 한 줄에 하나씩)</span>
+                        </label>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (discover.isPending || savingReview) return;
+                            try {
+                              const result = await discover.mutateAsync();
+                              const found = result.urls ?? [];
+                              if (found.length === 0) {
+                                alert(result.message || '후보 URL을 찾지 못했어요.');
+                                return;
+                              }
+                              // Filter out URLs already registered as
+                              // reviews for this album — otherwise the
+                              // batch scrape's dup-detect wastes a
+                              // Claude call per known URL.
+                              const existing = new Set(
+                                reviews.map((r) => r.url).filter((u): u is string => !!u)
+                              );
+                              const fresh = found.filter((u) => !existing.has(u));
+                              if (fresh.length === 0) {
+                                alert('찾은 후보가 모두 이미 등록된 리뷰예요.');
+                                return;
+                              }
+                              // Append, preserving anything admin already typed.
+                              setAddUrl((prev) => {
+                                const current = prev.trim();
+                                return [current, ...fresh]
+                                  .filter((s) => s.length > 0)
+                                  .join('\n');
+                              });
+                            } catch (err: any) {
+                              alert(
+                                err?.response?.data?.error ||
+                                  'URL 검색에 실패했어요.'
+                              );
+                            }
+                          }}
+                          disabled={discover.isPending || savingReview}
+                          className="text-[11px] text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                          title="Serper로 구글 검색 → Haiku가 editorial 리뷰 URL 선별 (~$0.001)"
+                        >
+                          {discover.isPending ? '검색 중…' : '🔎 URL 자동 검색'}
+                        </button>
+                      </div>
                       <textarea
                         value={addUrl}
                         onChange={(e) => setAddUrl(e.target.value)}

@@ -323,3 +323,66 @@ export const generateSimilarDescriptions = memoAsync(
   _generateSimilarDescriptions,
   10_000
 );
+
+/**
+ * From a list of Google search candidates (title + snippet + url),
+ * pick the ones that look like editorial album reviews. Excludes
+ * shops, aggregators, forums, user-rating pages, band homepages. One
+ * cheap Haiku call — titles and snippets are short so input tokens
+ * are negligible (~1k), output is a compact JSON array.
+ */
+export async function selectEditorialReviewUrls(
+  artist: string,
+  album: string,
+  candidates: Array<{ url: string; title: string; snippet: string }>
+): Promise<string[]> {
+  if (candidates.length === 0) return [];
+  const list = candidates
+    .map(
+      (c, i) => `${i + 1}. ${c.url}
+   제목: ${c.title}
+   요약: ${c.snippet}`
+    )
+    .join('\n');
+  try {
+    const resp = await getClient().messages.create({
+      model: HAIKU,
+      max_tokens: 400,
+      messages: [
+        {
+          role: 'user',
+          content: `"${album}" by ${artist} 의 editorial 음악 리뷰 URL을 골라주세요.
+
+후보:
+${list}
+
+INCLUDE: 전문 음악 매체, 잡지, 음악 블로그의 리뷰 기사. (Pitchfork, AllMusic, Angry Metal Guy, Sputnikmusic, Treble, Paste, The Quietus, Stereogum, Consequence, Loud & Quiet, Exclaim 등, 그리고 네임드 아니어도 writer byline + 평가적 내용 있으면 editorial)
+
+EXCLUDE: 쇼핑몰/마켓플레이스 (Amazon, Discogs, Bandcamp store, HMV, Tower Records), 스트리밍 (Spotify, Apple Music), aggregator (Metacritic, albumoftheyear, rateyourmusic), 포럼/Reddit/팬 커뮤니티, 유저 평점 페이지, 아티스트 공식 사이트/Wikipedia, 뉴스 공지/발매 노트, 트랙리스트만 있는 페이지, 태그/카테고리 페이지.
+
+Return ONLY a JSON array of the chosen URLs (원문 그대로). 최대 5개. 적절한 후보가 없으면 [].`,
+        },
+      ],
+    });
+    logClaudeUsage('serper_pick', resp);
+    const textBlock = resp.content.find((b) => b.type === 'text');
+    if (!textBlock || textBlock.type !== 'text') return [];
+    const match = textBlock.text.match(/\[[\s\S]*\]/);
+    if (!match) return [];
+    try {
+      const parsed = JSON.parse(match[0]);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(
+        (u): u is string => typeof u === 'string' && /^https?:\/\//i.test(u)
+      );
+    } catch {
+      return [];
+    }
+  } catch (err) {
+    console.warn(
+      `[claude] selectEditorialReviewUrls failed for "${artist} - ${album}":`,
+      (err as Error).message
+    );
+    return [];
+  }
+}

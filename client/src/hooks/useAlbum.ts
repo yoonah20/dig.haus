@@ -177,6 +177,21 @@ export function useGenerateReviewSummary(id: string) {
   });
 }
 
+// Admin-only URL discovery via Serper (Google SERP proxy) — returns
+// 0–5 editorial review URL candidates for this album. No DB writes;
+// the caller uses the URLs to populate the URL-batch textarea so
+// admin can review / edit / save through the existing add-url flow.
+export function useDiscoverReviewUrls(id: string) {
+  return useMutation<{ urls: string[]; message?: string }>({
+    mutationFn: async () => {
+      const { data } = await axios.post(
+        `/api/albums/${encodeURIComponent(id)}/reviews/discover`
+      );
+      return data;
+    },
+  });
+}
+
 // Admin escape hatch for albums too obscure to have any review
 // coverage anywhere. Stamps reviews_crawled_at without any Claude
 // call so the pending badge disappears from the home grid and the
