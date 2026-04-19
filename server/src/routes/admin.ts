@@ -489,4 +489,40 @@ router.get('/snapshot-dump', (_req, res) => {
   });
 });
 
+// Aggregate view of URL-scrape failures, grouped by hostname so the
+// worst-offending sites surface first. Each group carries the most
+// recent failure detail so we can see WHY (bot wall vs. parse miss
+// vs. not-a-review) without a second round-trip. Window defaults to
+// 30 days — older rows aren't deleted but they're usually not
+// actionable once a site has been fixed or given up on.
+router.get('/scrape-failures', (req, res) => {
+  const days = Math.max(1, Math.min(365, parseInt(String(req.query.days || '30'), 10) || 30));
+  try {
+    const rows = queryAll(
+      `SELECT hostname,
+              COUNT(*) AS attempts,
+              MAX(failed_at) AS last_failed_at,
+              (SELECT reason FROM scrape_failures sf2
+               WHERE sf2.hostname = sf.hostname
+               ORDER BY failed_at DESC LIMIT 1) AS last_reason,
+              (SELECT error_message FROM scrape_failures sf2
+               WHERE sf2.hostname = sf.hostname
+               ORDER BY failed_at DESC LIMIT 1) AS last_error,
+              (SELECT url FROM scrape_failures sf2
+               WHERE sf2.hostname = sf.hostname
+               ORDER BY failed_at DESC LIMIT 1) AS last_url
+       FROM scrape_failures sf
+       WHERE failed_at >= datetime('now', ?)
+       GROUP BY hostname
+       ORDER BY attempts DESC, last_failed_at DESC
+       LIMIT 200`,
+      [`-${days} days`]
+    );
+    res.json({ windowDays: days, hosts: rows });
+  } catch (err) {
+    console.error('[scrape-failures] query failed:', err);
+    res.status(500).json({ error: 'failed to fetch scrape failures' });
+  }
+});
+
 export default router;

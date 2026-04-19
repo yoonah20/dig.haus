@@ -150,7 +150,9 @@ export async function generateKoreanSummary(
 
     const textBlock = message.content.find((b) => b.type === 'text');
     if (!textBlock) return null;
-    return stripSummaryPreamble(textBlock.text, albumTitle, artist);
+    return normaliseKoreanTerms(
+      stripSummaryPreamble(textBlock.text, albumTitle, artist)
+    );
   } catch (err) {
     console.warn(`[claude] generateKoreanSummary failed for "${artist} - ${albumTitle}":`, (err as Error).message);
     return null;
@@ -166,6 +168,54 @@ export async function generateKoreanSummary(
 //      (case-insensitive, ignoring punctuation)
 //   3. Leading/trailing bold markers (**text**) and hyphen bullets
 //      — keeps the text content.
+// Claude (both Haiku and Sonnet) occasionally translates English
+// genre terms literally instead of transliterating them — so
+// "old-school death metal" becomes "오래된 학교 데스 메탈" or "구곡 스타일 데스
+// 메탈" instead of the vernacular "올드 스쿨 데스 메탈". The translations
+// aren't wrong, but they're jarring to readers who know the scene
+// in its English-transliterated form (which is how Korean metal /
+// indie / punk fans actually talk).
+//
+// This post-processor runs on every Korean-language field we get
+// back (excerpts, summaries, etc). The map is deliberately short —
+// only phrases we've seen in the wild get entries, and each is
+// specific enough that false positives are unlikely. Expand as new
+// cases surface rather than trying to anticipate every idiom.
+//
+// Word-boundary handling: Korean doesn't have \b-style boundaries
+// that regex knows about, so we rely on the replacement phrases
+// being long / specific enough (2+ syllables of context) that
+// accidentally nesting inside a larger word is rare.
+const KO_TERM_REPLACEMENTS: Array<[RegExp, string]> = [
+  // "old school" — most common literal-translation victim.
+  [/오래된\s*학교/g, '올드 스쿨'],
+  [/구곡\s*스타일/g, '올드 스쿨'],
+  [/구식\s*학교/g, '올드 스쿨'],
+  [/구(?:식|형)\s*학파/g, '올드 스쿨'],
+  // Genre-name "metal" literally translated as 금속.
+  [/죽음의\s*금속/g, '데스 메탈'],
+  [/검은\s*금속/g, '블랙 메탈'],
+  [/무거운\s*금속/g, '헤비 메탈'],
+  [/파멸\s*금속/g, '둠 메탈'],
+  [/운명\s*금속/g, '둠 메탈'],
+  [/속도\s*금속/g, '스피드 메탈'],
+  [/전투\s*금속/g, '배틀 메탈'],
+  // Other genre names that get literal-translated.
+  [/신발\s*응시/g, '슈게이즈'],
+  [/후기\s*펑크/g, '포스트 펑크'],
+  [/새로운\s*물결/g, '뉴 웨이브'],
+  [/진보(?:적)?\s*(?:록|로큰롤)/g, '프로그레시브 록'],
+];
+
+export function normaliseKoreanTerms(text: string | null | undefined): string {
+  if (!text) return '';
+  let out = text;
+  for (const [pattern, replacement] of KO_TERM_REPLACEMENTS) {
+    out = out.replace(pattern, replacement);
+  }
+  return out;
+}
+
 export function stripSummaryPreamble(
   raw: string,
   albumTitle: string,

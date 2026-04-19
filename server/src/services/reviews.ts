@@ -6,7 +6,46 @@ import {
   logClaudeUsage,
   countWebSearchUses,
   stripSummaryPreamble,
+  normaliseKoreanTerms,
 } from './claude.js';
+import { execute } from '../db/index.js';
+
+// Append-only log of URL scrapes that didn't yield a review.
+// Reason codes are deliberately short and stable so the admin
+// aggregate query can GROUP BY them:
+//   - fetch-failed: HTTP/network error (403 bot wall, timeout, etc.)
+//   - text-too-short: page stripped to <100 chars (JS-rendered or empty)
+//   - not-a-review: Claude flagged the page as non-review
+//   - claude-no-text: Claude returned no text block (rare, usually API blip)
+//   - claude-error: Claude call threw
+//   - json-parse-failed: couldn't extract JSON from Claude's response
+// errorMessage carries the caught exception text when available.
+function recordScrapeFailure(
+  url: string,
+  albumMbid: string | null,
+  reason: string,
+  errorMessage?: string
+): void {
+  let hostname = '';
+  try {
+    hostname = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    hostname = 'unknown';
+  }
+  try {
+    execute(
+      `INSERT INTO scrape_failures (url, hostname, album_mbid, reason, error_message)
+       VALUES (?, ?, ?, ?, ?)`,
+      [url, hostname, albumMbid, reason, errorMessage ? errorMessage.slice(0, 500) : null]
+    );
+    console.warn(`[scrape-fail] ${hostname} (${reason}) ${url}`);
+  } catch (err) {
+    // Never let logging itself break the caller — if the DB insert
+    // fails (disk full, schema not yet migrated on first boot) just
+    // fall back to stderr.
+    console.error('[scrape-fail] DB write failed:', (err as Error).message);
+  }
+}
 
 export interface ReviewResult {
   sourceName: string;
@@ -290,7 +329,7 @@ Max 15 reviews. Deduplicate by source.` }],
         score: clampScore(r.score),
         scoreMax: 100,
         excerpt: r.excerpt || '',
-        excerptKo: r.excerptKo || '',
+        excerptKo: normaliseKoreanTerms(r.excerptKo),
         fullReviewUrl: r.fullReviewUrl || '',
       });
       if (reviews.length >= 15) break;
@@ -322,7 +361,9 @@ Max 15 reviews. Deduplicate by source.` }],
         logClaudeUsage('reviews_summary', summaryResponse);
         const summaryBlock = summaryResponse.content.find((b) => b.type === 'text');
         if (summaryBlock && summaryBlock.type === 'text') {
-          koreanSummary = stripSummaryPreamble(summaryBlock.text, album, artist);
+          koreanSummary = normaliseKoreanTerms(
+            stripSummaryPreamble(summaryBlock.text, album, artist)
+          );
         }
       } catch (err: any) {
         console.log(`[reviews] Sonnet summary failed (${err.status || err.message}), skipping`);
@@ -434,7 +475,8 @@ function stripHtml(html: string): string {
 export async function scrapeReviewFromUrl(
   url: string,
   artist: string,
-  album: string
+  album: string,
+  albumMbid: string | null = null
 ): Promise<ReviewResult | null> {
   console.log(`[reviews] scrapeReviewFromUrl: ${url}`);
 
@@ -452,7 +494,7 @@ export async function scrapeReviewFromUrl(
     });
     html = typeof resp.data === 'string' ? resp.data : String(resp.data);
   } catch (err) {
-    console.error('[reviews] URL fetch failed:', (err as Error).message);
+    recordScrapeFailure(url, albumMbid, 'fetch-failed', (err as Error).message);
     return null;
   }
 
@@ -467,7 +509,7 @@ export async function scrapeReviewFromUrl(
 
   const pageText = stripHtml(html).slice(0, 20000);
   if (pageText.length < 100) {
-    console.warn('[reviews] stripped page text too short');
+    recordScrapeFailure(url, albumMbid, 'text-too-short');
     return null;
   }
 
@@ -512,17 +554,23 @@ If this page is clearly NOT a review (shop listing, forum post, directory), retu
     logClaudeUsage('scrape_review', response);
 
     const block = response.content.find((b) => b.type === 'text');
-    if (!block || block.type !== 'text') return null;
+    if (!block || block.type !== 'text') {
+      recordScrapeFailure(url, albumMbid, 'claude-no-text');
+      return null;
+    }
 
     let jsonText = block.text.trim();
     const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (fenceMatch) jsonText = fenceMatch[1].trim();
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return null;
+    if (!jsonMatch) {
+      recordScrapeFailure(url, albumMbid, 'json-parse-failed', jsonText.slice(0, 200));
+      return null;
+    }
 
     const parsed = JSON.parse(jsonMatch[0]);
     if (parsed.error) {
-      console.warn('[reviews] Claude flagged URL as not a review:', parsed.error);
+      recordScrapeFailure(url, albumMbid, 'not-a-review', String(parsed.error));
       return null;
     }
 
@@ -534,11 +582,11 @@ If this page is clearly NOT a review (shop listing, forum post, directory), retu
       score: starScore ?? clampScore(parsed.score),
       scoreMax: 100,
       excerpt: typeof parsed.excerpt === 'string' ? parsed.excerpt : '',
-      excerptKo: typeof parsed.excerptKo === 'string' ? parsed.excerptKo : '',
+      excerptKo: normaliseKoreanTerms(parsed.excerptKo),
       fullReviewUrl: url,
     };
   } catch (err) {
-    console.error('[reviews] Claude extract failed:', (err as Error).message);
+    recordScrapeFailure(url, albumMbid, 'claude-error', (err as Error).message);
     return null;
   }
 }
@@ -620,7 +668,7 @@ If the text is clearly NOT a review (shop listing, track list only, marketing co
       score: clampScore(parsed.score),
       scoreMax: 100,
       excerpt: typeof parsed.excerpt === 'string' ? parsed.excerpt : '',
-      excerptKo: typeof parsed.excerptKo === 'string' ? parsed.excerptKo : '',
+      excerptKo: normaliseKoreanTerms(parsed.excerptKo),
     };
   } catch (err) {
     console.error('[reviews] Claude manual-extract failed:', (err as Error).message);

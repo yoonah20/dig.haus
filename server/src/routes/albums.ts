@@ -1249,7 +1249,7 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
   }
 
   try {
-    const scraped = await scrapeReviewFromUrl(url, albumRow.artist_name, albumRow.title);
+    const scraped = await scrapeReviewFromUrl(url, albumRow.artist_name, albumRow.title, mbid);
     if (!scraped) {
       return res.status(422).json({ error: 'URL에서 리뷰를 추출하지 못했습니다.' });
     }

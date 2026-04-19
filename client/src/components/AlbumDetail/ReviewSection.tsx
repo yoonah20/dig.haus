@@ -791,6 +791,25 @@ export default function ReviewSection({
                     </>
                   ) : (
                     <>
+                      {/* URL comes first — admin opens the target page,
+                          paste its URL before anything else so the rest
+                          of the form (source name, score, body) flows
+                          from what's already on screen. Fine to leave
+                          blank for paywalled / login-walled articles
+                          where no shareable URL exists. */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">
+                          원문 URL <span className="text-gray-600">(선택)</span>
+                        </label>
+                        <input
+                          type="url"
+                          value={manualUrl}
+                          onChange={(e) => setManualUrl(e.target.value)}
+                          disabled={savingReview}
+                          placeholder="https://..."
+                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                        />
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
                         <div>
                           <label className="block text-xs text-gray-400 mb-1">
@@ -834,19 +853,6 @@ export default function ReviewSection({
                           disabled={savingReview}
                           rows={8}
                           placeholder="기사 본문을 붙여넣으세요..."
-                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">
-                          원문 URL <span className="text-gray-600">(선택)</span>
-                        </label>
-                        <input
-                          type="url"
-                          value={manualUrl}
-                          onChange={(e) => setManualUrl(e.target.value)}
-                          disabled={savingReview}
-                          placeholder="https://..."
                           className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                         />
                       </div>

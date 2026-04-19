@@ -279,6 +279,28 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
+  // Tracks every URL-scrape attempt that didn't yield a usable review.
+  // Purpose is diagnostic — grouping by hostname surfaces sites that
+  // consistently fail (bot-walls, dynamic-JS rendering, paywalls,
+  // page layouts our Claude prompt doesn't understand) so we can
+  // decide which ones are worth site-specific parsers vs. leaving on
+  // the paste-in fallback. Intentionally append-only — retries from
+  // the same admin produce multiple rows, because the frequency IS
+  // the signal.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS scrape_failures (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      url TEXT NOT NULL,
+      hostname TEXT NOT NULL,
+      album_mbid TEXT,
+      reason TEXT NOT NULL,
+      error_message TEXT,
+      failed_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_scrape_failures_hostname ON scrape_failures(hostname)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_scrape_failures_failed_at ON scrape_failures(failed_at)`);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS similar_albums (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
