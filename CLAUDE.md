@@ -35,44 +35,150 @@ dig.haus is a **digital record store**, not an algorithmic music feed. The core 
 
 **URL**: `dig.haus/my/:username`
 
-**Four display layers**, each with its own physical metaphor and interaction:
+### Layout — real-record-shop mapping
 
-| Layer | Metaphor | Content | Interaction |
-|-------|----------|---------|-------------|
-| Vinyl Wall | front display | 10–20 curated albums (user-picked favorites/recommendations) | covers visible; drag-drop to rearrange |
-| Shelf | bookshelf of LPs | full 샀음 collection, automatic | spines only (vertical text, dominant-color background); click pops one out |
-| Crate | dig box | multiple user-defined playlists/themes, up to 5 shown on front page | dig peek: pull up partial → drop back, or fully pull to detail |
-| Now Playing | store ambience | optional Spotify/YouTube/Bandcamp embed | iframe player, lower priority |
+Three vertical tiers modelled on a physical shop (see `prototypes/` for source reference image), then ambience. The three tiers stack top-down and their widths align: one shelf bin width = one crate width, so the whole storefront reads as a unified furniture piece.
 
-**Ancillary**:
-- **Guestbook** — notebook/clipboard in a corner. Visitor one-liners.
-- **Visitor counter** — 싸이월드-style "오늘 방문 / 전체" in a corner.
+```
+┌─────────────────────────────────────────────────┐
+│ Vinyl Wall — 22 curated (5-5-6-6)               │   Tier 1
+├───────┬───────┬───────┬───────┬───────┬───────┤
+│ Shelf │ Shelf │ Shelf │ Shelf │ Shelf │ Shelf │   Tier 2
+│ bin 0 │ bin 1 │ bin 2 │ bin 3 │ bin 4 │ bin 5 │
+├───────┼───────┼───────┼───────┼───────┼───────┤
+│ Crate │ Crate │ Crate │ Crate │ Crate │ Crate │   Tier 3 (0–6, variable)
+├─────────────────────────────────────────────────┤
+│ Now Playing strip                               │   Ambience
+└─────────────────────────────────────────────────┘
+```
+
+### Four layers
+
+| Layer | Metaphor | Content | Fixed slots | Interaction |
+|-------|----------|---------|-------------|-------------|
+| Vinyl Wall | front wall display | 22 user-picked favourites | 22 (5-5-6-6, covers identical size) | drag-drop to rearrange, click → album page |
+| Shelf | mid-store flip-through bins | each bin = one admin-defined genre | 6 fixed bins, manually filled by user | click bin → flip-through one album at a time (swipe / ← → / click edge) |
+| Crate | milk-crate floor stack | user-defined themed playlists with freeform labels | 0–6 visible (positions 0-5), extras kept server-side | click crate → pops out, flip-through same as Shelf |
+| Now Playing | store ambience | optional Spotify/YouTube/Bandcamp embed | single slot | iframe, low priority |
+
+Spine view was considered for Shelf and **explicitly rejected**: physical spines get their presence from depth, texture, and lighting, none of which CSS tricks reproduce convincingly (the rendered "spines" read as paper strips, not LPs). The flip-through UX is the actual "digging" motion — covers forward, one at a time, stack edges peeking — and maps to the mid-store bins in the reference photo where browsing actually happens. Spine-out storage in the reference is the overflow tier (shop has thousands of records; we don't), so it has no analog here.
+
+### Core principles
+
+- **Empty-is-OK aesthetic** — Wall slots render as empty picture frames, Shelf bins render as empty bin furniture with only the genre label, Crate row just shows whatever crates the user has made. No "drag albums here!" CTA, no collapsing-when-empty. The furniture is the page; albums populate it over time.
+- **Duplicates allowed** — same album can sit in multiple Wall positions (event-day motif: 22 copies of one album), multiple Shelf bins, multiple crates. Schema enforces `UNIQUE(container, position)` only, never `UNIQUE(user, album)`.
+- **샀음 ≠ mydig candidates**. 샀음 represents real-world physical ownership. mydig is an identity-expression canvas — users should feature albums they love even when they don't own them. Edit-mode search is always over the full `albums` table; 샀음 / 살거 / 내 Crate exposures are optional filters in the picker panel, not the default pool.
+- **Tier widths aligned** — Wall last-row column count (6) = Shelf bin count (6) = Crate visible max (6). The three tiers read as one storefront instead of three unrelated grids.
+
+### Shelf genre system
+
+Admin-curated preset list, shared across all users. Avoids the tag-mess of Last.fm data and keeps Shelf distinct from Crate (genres vs freeform themes).
+
+Initial seed (16, tuned to dig.haus audience — metal-forward with adjacent digger-vinyl niches):
+
+```
+Death Metal, Black Metal, Thrash, Doom & Stoner,
+Grindcore & Powerviolence, Hardcore & Crust,
+Post-Metal & Sludge, Progressive, Traditional Heavy Metal,
+Punk & Post-Punk, Shoegaze & Dreampop, Indie Rock,
+Ambient & Drone, Jazz, Hip-Hop, Electronic
+```
+
+Admin CRUD for this list lives under /admin. Users pick 6 from the list to fill their Shelf bins. No free-form shelf names (that's what Crate is for).
+
+### Edit mode — 80/20 split
+
+```
+┌──────────────────────────────────┬────────────┐
+│  Wall / Shelf / Crate preview    │ 🔍 search  │
+│                                  │ [tabs: 전체│
+│  edit-mode shows empty slots +   │  | 내Crate│
+│  × remove chips on filled ones   │  | 샀음 | │
+│                                  │  살거 ]    │
+│  drag candidate → drop on slot   │ ┌──┐ meta  │
+│  drag within = reorder / move    │ │c.│ ...   │
+│                                  │ └──┘       │
+│  80% width                       │  20% width │
+└──────────────────────────────────┴────────────┘
+```
+
+Desktop uses native HTML5 drag-drop. Touch uses tap-to-select then tap-to-place (drag on touch devices is too finicky for grid targets; skipping react-dnd because 100KB+ bundle isn't worth a cross-device abstraction we'd only use on one page). Candidate cards show a small badge indicating existing placements ("Wall×2 · Shelf(Death Metal)") so admin can see current state without blocking deliberate duplication.
+
+### Ancillary layers
+
+- **Guestbook** — notebook/clipboard in a corner. Visitor one-liners. Defer until 3e.
+- **Visitor counter** — 싸이월드-style "오늘 방문 / 전체" in a corner. Defer until 3e.
 - **Private mode** — page shows an "under construction" visual: fabric drape over the storefront + an A4 notice taped on. NOT an error page. The private state must preserve the shop aesthetic.
-- **Per-layer privacy toggles** — possibly (wall public / shelf private, etc.) — confirm before building.
+- **Per-layer privacy toggles** — possibly (wall public / shelf private, etc.) — defer, confirm before building in 3e.
 
-**Username system**:
+### Username system
+
 - New column `users.username` — URL-safe slug, unique, lowercase alphanumeric + `_` + `-`, 3–20 chars.
 - Existing `users.display_name` also needs uniqueness added (breaks on migration if there are duplicates — suffix `_2` etc.).
 - First `/my` visit forces onboarding for username picker.
-- Changing username freely for first 3–7 days, then 30-day cooldown (to prevent shared-link breakage).
+- Changing username freely for first 3–7 days, then 30-day cooldown (shared-link breakage).
 
-**Sub-phases for build order**:
-- **3a**: skeleton — schema, URL route, username onboarding, 4-layer placeholder scaffold, private-mode "under construction" screen
-- **3b**: Vinyl Wall — grid with drag-drop pinning from 샀음
-- **3c**: Shelf — dominant-color extraction (server-side, on album register, backfill existing rows), spine CSS render, sort options (A-Z / genre+A-Z / purchase order), pop-out
-- **3d**: Crate — multi-crate CRUD, dig peek interaction (desktop mouse + mobile touch + keyboard), 살거 absorbed as the default system crate
-- **3e**: ambience — Now Playing, guestbook, visitor counter
+### Sub-phases
 
-**Data model deltas** (approximate — refine at 3a):
-- `users.username TEXT UNIQUE` + `users.mydig_public INTEGER DEFAULT 1`
-- `mydig_wall_items(user_id, album_id, position)` — vinyl wall pins
-- `crates(id, user_id, name, description, position)` + `crate_items(crate_id, album_id, position)`
-- `albums.cover_dominant_color TEXT` — hex string, server-computed once
-- `mydig_now_playing(user_id, kind, external_url, album_id, updated_at)`
-- `mydig_guestbook(id, page_user_id, author_user_id, body, created_at)`
-- `mydig_visits(user_id, day, count)` — rolled up daily for the counter
+- **3a** — skeleton: schema (genres + wall/shelf/crate tables), `/my/:username` route, username onboarding, empty-furniture placeholder render, private-mode "under construction" screen, admin genre CRUD
+- **3b** — Vinyl Wall: 22-slot 5-5-6-6 layout, edit-mode 80/20 with drag-drop, candidate picker with 전체 / 내 Crate / 샀음 / 살거 tabs
+- **3c** — Shelf: 6-bin horizontal row, flip-through interaction (swipe / ← → / click-edge / keyboard), per-bin genre assignment, edit-mode shares 80/20 with Wall
+- **3d** — Crate: 0-6 visible variable layout, milk-crate visual (grid pattern + label tape), CRUD for crate boxes, flip-through interaction reuses 3c component, 살거 dropped as default system crate (user creates manually if desired)
+- **3e** — ambience: Now Playing, guestbook, visitor counter, private-mode per-layer toggles if needed
 
-**Visual implementation philosophy**: CSS + `perspective` / `rotateY` tricks, same as the existing album flip card. No WebGL. Framer Motion is allowed but optional. Mobile parity is mandatory — every interaction needs a touch equivalent.
+### Data model deltas (refined at 3a)
+
+```sql
+-- Username + privacy
+users.username TEXT UNIQUE
+users.mydig_public INTEGER DEFAULT 1
+
+-- Admin-curated genre taxonomy for Shelf bins
+genres (
+  id, slug,
+  name_ko, name_en,
+  position, is_active
+)
+
+-- Vinyl Wall — 22 slots, duplicates allowed
+vinyl_wall_items (
+  id, user_id, album_id, position INT (0-21),
+  UNIQUE(user_id, position)
+)
+
+-- Shelf — 6 fixed bins per user, each bin scoped to one genre
+shelf_slots (
+  id, user_id, position INT (0-5),
+  genre_id,
+  UNIQUE(user_id, position)
+)
+shelf_items (
+  id, slot_id, album_id, position,
+  UNIQUE(slot_id, position)
+)
+
+-- Crate — variable count, positions 0-5 front-page visible, 6+ hidden
+crate_boxes (
+  id, user_id, position INT,
+  title, description,
+  UNIQUE(user_id, position)
+)
+crate_items (
+  id, crate_id, album_id, position,
+  UNIQUE(crate_id, position)
+)
+
+-- Deferred to 3e
+mydig_now_playing (user_id, kind, external_url, album_id, updated_at)
+mydig_guestbook (id, page_user_id, author_user_id, body, created_at)
+mydig_visits (user_id, day, count)
+```
+
+Dropped from the original plan: `albums.cover_dominant_color` — spine view is out, so dominant-color extraction is no longer needed.
+
+### Visual implementation philosophy
+
+CSS + `perspective` / `rotateY` tricks, same as the existing album flip card. No WebGL. Framer Motion is allowed but optional. Mobile parity is mandatory — every interaction needs a touch equivalent.
 
 ---
 
