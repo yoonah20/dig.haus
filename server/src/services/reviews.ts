@@ -123,6 +123,11 @@ export const EXCLUDED_URL_DOMAINS = [
   // reviewer's take via the manual paste-in tab when a notable reviewer's
   // opinion is worth preserving.
   'metal-archives.com',
+  // YouTube — occasionally indexed as a review target but overwhelmingly
+  // just playback / music video / reaction content. Any legitimate video
+  // review (e.g. Fenriz-style channel takes) admin can paste manually.
+  'youtube.com',
+  'youtu.be',
 ];
 
 // ─── Admin: scrape a single review from an arbitrary URL ─────────────────

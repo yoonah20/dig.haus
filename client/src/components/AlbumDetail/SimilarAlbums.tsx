@@ -399,7 +399,7 @@ function AddSlot({ albumId }: { albumId: string }) {
   return (
     <button
       onClick={() => setOpen(true)}
-      className="bg-transparent rounded-xl border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 flex flex-col items-center justify-center aspect-[3/4] transition-colors cursor-pointer group"
+      className="bg-transparent rounded-xl border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 flex flex-col items-center justify-center h-full transition-colors cursor-pointer group"
     >
       <span className="text-2xl text-gray-600 group-hover:text-[#e8a020] transition-colors">+</span>
       <span className="text-xs text-gray-600 group-hover:text-gray-400 mt-1 transition-colors">추가</span>
