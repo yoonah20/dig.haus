@@ -257,6 +257,25 @@ function detectStarRating(html: string): number | null {
   return null;
 }
 
+// Maps common English / Korean / Romance-language review labels
+// (Score, Rating, Verdict, Overall, Grade, 점수, 평점, Note, ...) to
+// a single unified regex prefix. Every detector below that expects
+// a label uses this, so adding a new label value is a one-liner.
+const SCORE_LABEL_PATTERN =
+  '(?:Score|Scoring|Rating|Verdict|Overall(?:\\s+score)?|Bottom\\s*line|Final(?:\\s+score)?|Grade|Mark|Note|Nota|Cijfer|Punkte|Punktzahl|평점|점수|총평|최종\\s*점수|評価|点数|評点)';
+
+// Letter grade → /100 mapping. Scale is the one conventional music
+// critique uses (A+ near-100, F around 40); Pitchfork and similar
+// numeric sites don't use letters, but smaller blogs + Jazz / 클래식
+// reviewers sometimes do.
+const LETTER_GRADES: Record<string, number> = {
+  'A+': 97, 'A': 93, 'A-': 90,
+  'B+': 87, 'B': 83, 'B-': 80,
+  'C+': 77, 'C': 73, 'C-': 70,
+  'D+': 67, 'D': 63, 'D-': 60,
+  'F': 40,
+};
+
 // Label-anchored numeric score detection. Runs on stripped text of
 // the raw HTML so we see human-readable labels (e.g. "Score: 90/100"
 // on Zware Metalen, "Note: 8/10" on French zines, "8 out of 10" on
@@ -273,9 +292,14 @@ function detectExplicitNumericScore(html: string): number | null {
     .replace(/&nbsp;/gi, ' ')
     .replace(/\s+/g, ' ');
 
-  // "Score: 90/100" / "Rating: 4/5" / "Note: 8.5/10" / "점수: 85/100"
+  // Korean labels aren't \w so \b doesn't anchor them. Use a char-class
+  // lookbehind that accepts start-of-string, whitespace, or punctuation —
+  // matches both "Score: ..." and "점수: ..." consistently.
+  const LABEL_PREFIX = '(?:^|[\\s.,;()\\[\\]])';
+
+  // (1) "Score: 90/100" / "Verdict: 8.5/10" / "평점: 4/5" / "총평: 85/100"
   const labelled = text.match(
-    /\b(?:Score|Scoring|Rating|Note|Nota|Cijfer|Punkte|Punktzahl|평점|점수|評価|点数)\s*[:：]\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*\/\s*(\d{1,3})\b/i
+    new RegExp(`${LABEL_PREFIX}${SCORE_LABEL_PATTERN}\\s*[:：]\\s*(\\d{1,3}(?:[.,]\\d{1,2})?)\\s*\\/\\s*(\\d{1,3})\\b`, 'i')
   );
   if (labelled) {
     const score = parseFloat(labelled[1].replace(',', '.'));
@@ -285,14 +309,56 @@ function detectExplicitNumericScore(html: string): number | null {
     }
   }
 
-  // "8 out of 10" / "4.5 out of 5". Unanchored, so require the scale to
-  // still be a recognised editorial one — that check drops "chapter 4
-  // out of 12" or similar non-score sentences.
+  // (2) "8 out of 10" / "4.5 out of 5". Unanchored, so require the scale
+  // to still be a recognised editorial one — that check drops "chapter
+  // 4 out of 12" or similar non-score sentences.
   const outOf = text.match(/\b(\d{1,3}(?:[.,]\d{1,2})?)\s+out\s+of\s+(\d{1,3})\b/i);
   if (outOf) {
     const score = parseFloat(outOf[1].replace(',', '.'));
     const scale = parseInt(outOf[2], 10);
     if ([5, 10, 20, 100].includes(scale) && score >= 0 && score <= scale) {
+      return Math.max(0, Math.min(100, Math.round((score / scale) * 100)));
+    }
+  }
+
+  // (3) Percentage with a score label: "Verdict: 85%" / "평점 90%".
+  // Require the label to avoid false positives from "40% of this
+  // album's 12 songs..." kind of prose.
+  const percent = text.match(
+    new RegExp(`${LABEL_PREFIX}${SCORE_LABEL_PATTERN}\\s*[:：]?\\s*(\\d{1,3})\\s*%`, 'i')
+  );
+  if (percent) {
+    const n = parseInt(percent[1], 10);
+    if (n >= 0 && n <= 100) {
+      return n;
+    }
+  }
+
+  // (4) Letter grades — "Grade: A-" / "Overall: B+" / "최종 점수: A".
+  // Explicit longest-first alternation (A+, A-, A, B+, ...) so the
+  // regex engine prefers "A-" over bare "A" instead of stopping at
+  // the first match. `-` isn't a word char so `\b` alone couldn't
+  // anchor this right.
+  const letter = text.match(
+    new RegExp(
+      `${LABEL_PREFIX}${SCORE_LABEL_PATTERN}\\s*[:：]?\\s*(A\\+|A-|A|B\\+|B-|B|C\\+|C-|C|D\\+|D-|D|F)(?![\\w+-])`
+    )
+  );
+  if (letter) {
+    const mapped = LETTER_GRADES[letter[1].toUpperCase()];
+    if (typeof mapped === 'number') return mapped;
+  }
+
+  // (5) End-of-document bare "N/M" or "N.M/10" — reviews often place
+  // the score as a sign-off in the last 500 chars without a label.
+  // Restricted to tail-of-text + recognised scales so earlier
+  // body-prose fractions don't accidentally win.
+  const tail = text.slice(-500);
+  const bareTail = tail.match(/(?:^|[\s(])(\d{1,3}(?:[.,]\d{1,2})?)\s*\/\s*(5|10|20|100)\b/);
+  if (bareTail) {
+    const score = parseFloat(bareTail[1].replace(',', '.'));
+    const scale = parseInt(bareTail[2], 10);
+    if (score >= 0 && score <= scale) {
       return Math.max(0, Math.min(100, Math.round((score / scale) * 100)));
     }
   }
@@ -529,7 +595,20 @@ Return ONLY JSON, no prose:
   "excerptKo": "2-3 문장 한국어 요약. 매체명 언급 금지, 평론가 시점."
 }
 
-Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). A descriptive-only review with no explicit number is perfectly valid — set score to null in that case.
+Score: find the review's explicit rating and convert to a /100 integer. Follow these rules in order:
+
+1. If the text has no explicit rating (just descriptive prose about the album), set score to null. Do NOT guess.
+2. If the text has a clear label like "Score: X/Y", "Verdict: X/Y", "8 out of 10", "Rating: 4/5": convert using (X / Y) * 100, rounded. Example conversions:
+   - 8/10 → 80
+   - 8.5/10 → 85
+   - 4/5 → 80
+   - 4.5/5 → 90
+   - 3/5 → 60
+   - 85/100 → 85
+3. Percentages like "Rating: 85%" → 85 (already /100).
+4. Letter grades: A+ → 97, A → 93, A- → 90, B+ → 87, B → 83, B- → 80, C+ → 77, C → 73, C- → 70, D → 63, F → 40.
+5. If you see numbers in the text that are NOT the album's rating — track lengths, release years, "5 of 10 songs are great" style prose, "4 stars" about a different album — do NOT use them. score = null is correct.
+6. If unsure, prefer null over a guess. A null score is fine; a wrong score is worse.
 
 Language: the review may be in English, Dutch, German, French, Spanish, Italian, Portuguese, Swedish, Korean, Japanese, or any other language. Non-English reviews are valid. Extract the excerpt in the review's original language; still produce a Korean excerptKo regardless of the source language.
 
