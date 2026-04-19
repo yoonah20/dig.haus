@@ -4,8 +4,8 @@ import axios from 'axios';
 // then $50/mo for 50k. We hit the /search endpoint with the raw
 // query; the response's `organic` array is the normal 10 blue-link
 // search results. Used by the review-URL discovery flow: admin
-// clicks 🔎 자동 검색, we Google "{artist} {album} review" and pick
-// editorial candidates via a cheap Haiku pass downstream.
+// clicks 🔎 자동 검색, we Google the album and Haiku picks
+// editorial candidates downstream.
 
 export interface SerperResult {
   url: string;
@@ -17,21 +17,11 @@ function getApiKey(): string | null {
   return process.env.SERPER_API_KEY ?? null;
 }
 
-export async function searchReviewUrls(
-  artist: string,
-  album: string,
-  limit = 20
+async function runSerperQuery(
+  apiKey: string,
+  q: string,
+  limit: number
 ): Promise<SerperResult[]> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    console.warn('[serper] SERPER_API_KEY not set — discovery disabled');
-    return [];
-  }
-  // Quote artist AND album to stop Google from tokenizing them apart —
-  // without quotes, "Dödsrit Nocturnal Will review" was returning
-  // reviews of other Dödsrit albums because the artist name dominates
-  // Google's relevance signal. Quotes force album-title presence.
-  const q = `"${artist}" "${album}" review`;
   try {
     const resp = await axios.post(
       'https://google.serper.dev/search',
@@ -51,7 +41,42 @@ export async function searchReviewUrls(
       }))
       .filter((r: SerperResult) => r.url && /^https?:\/\//i.test(r.url));
   } catch (err) {
-    console.error('[serper] search failed:', (err as Error).message);
+    console.error('[serper] query failed:', (err as Error).message, `q=${q}`);
     return [];
   }
+}
+
+export async function searchReviewUrls(
+  artist: string,
+  album: string,
+  limit = 20
+): Promise<SerperResult[]> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.warn('[serper] SERPER_API_KEY not set — discovery disabled');
+    return [];
+  }
+  // Two-tier strategy: quote only the ALBUM so Google has to see the
+  // exact title (the real disambiguation signal), but leave the artist
+  // unquoted so accented / alternately-romanized names (Dödsrit /
+  // Dodsrit / DÖDSRIT) still match loosely. Haiku does the final
+  // album-match check downstream.
+  //
+  // Fallback when the primary returns 0: drop quotes entirely. Some
+  // album titles are short generic phrases ("Home", "Love") that
+  // Google indexes weirdly even for exact-match, and getting SOME
+  // results that Haiku can sift through beats getting zero. The
+  // fallback only runs on empty primary, so Serper usage stays close
+  // to 1 query/discovery in the common case.
+  const primary = await runSerperQuery(
+    apiKey,
+    `"${album}" ${artist} review`,
+    limit
+  );
+  if (primary.length > 0) return primary;
+
+  console.log(
+    `[serper] primary (quoted album) returned 0 for "${artist}" / "${album}" — retrying unquoted`
+  );
+  return runSerperQuery(apiKey, `${artist} ${album} review`, limit);
 }
