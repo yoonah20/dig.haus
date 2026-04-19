@@ -46,7 +46,10 @@ if pgrep -af 'nodemon|tsx.*server/src|node.*server/dist' >/dev/null; then
   exit 1
 fi
 
-if ! tar tzf "$archive" | grep -q '^diggershaus\.db$'; then
+# Materialise the listing first so pipefail doesn't choke on tar
+# getting SIGPIPE when grep -q exits early on its first match.
+archive_entries=$(tar tzf "$archive")
+if ! printf '%s\n' "$archive_entries" | grep -q '^diggershaus\.db$'; then
   echo "error: archive does not contain diggershaus.db at the root: $archive" >&2
   exit 1
 fi
