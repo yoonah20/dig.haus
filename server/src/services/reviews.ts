@@ -191,6 +191,20 @@ export const EXCLUDED_URL_DOMAINS = [
   // doesn't give the extractor enough prose to work with and would
   // save a link ordinary readers can't read either.
   'rockhard.de',
+  // Sites that consistently block our scrape (raw fetch 403/Cloudflare)
+  // and that our "scrape fails if raw is bot-blocked even when Jina
+  // bypassed" guard rails would otherwise log as a noisy failure per
+  // album. Readers hitting the saved URL would see the same wall, so
+  // there's no point attempting them in the first place. Observed in
+  // the curation logs over several batches.
+  'newnoisemagazine.com',
+  'metalstorm.net',
+  'ghostcultmag.com',
+  'theprogspace.com',
+  // Aggregator (user ratings + collected editorial snippets) rather
+  // than an editorial site in its own right. Same reasoning as
+  // metal-archives and rockreport.
+  'metalmusicarchives.com',
   // AllMusic — has both editorial (AMG staff) and user reviews, but for
   // a large chunk of albums only the user-submitted blurbs are present
   // and the extractor picks one of those as if it were editorial. The
