@@ -28,17 +28,24 @@ import { useQueryClient } from '@tanstack/react-query';
 
 const CHUNK_SIZE = 5;
 
-// Cap on URLs the auto-curation pipeline actually scrapes per album.
-// discover may return up to 25 candidates, but stuffing all of them into
-// an album is overkill — Deftones / Whitechapel class albums get
-// coverage on 25+ outlets and the UI reads as a wall of near-duplicate
-// takes. The manual "🔎 URL 자동 검색" flow on the album page still
-// returns the full discover list so admin can hand-pick beyond this cap
-// when a specific album deserves more coverage. Haiku's ranking puts
-// top editorial (usually with numeric scores) first, so slicing the top
-// 15 naturally biases toward scored reviews without an explicit
-// score-preference pass.
-const AUTO_CURATION_URL_CAP = 15;
+// Auto-curation targets *successful* saves (15) rather than just
+// slicing the first 15 URLs — if some fail (403, Cloudflare, not-a-
+// review detection, etc.) we keep drawing from the remaining discover
+// candidates until we hit the target or exhaust the list. MAX_ATTEMPTS
+// caps scrape cost / runtime in the pathological case where every
+// candidate fails. Haiku's discover list is ordered by editorial rank
+// (majors first), so the backfill pulls from the next tier down — same
+// quality gradient, just lower in the ranking.
+const AUTO_CURATION_TARGET_SAVED = 15;
+const AUTO_CURATION_MAX_ATTEMPTS = 25;
+
+// Summary generation retry. Network blips and transient upstream errors
+// (Anthropic 429 / 503, Railway cold-start timeouts) were dropping the
+// summary step entirely on otherwise-successful runs. Three attempts
+// with a linear backoff covers those without turning a genuine 400
+// ("need 2+ reviews") into a slow failure.
+const SUMMARY_MAX_ATTEMPTS = 3;
+const SUMMARY_BACKOFF_MS = [0, 2000, 5000];
 
 export interface CurationLogLine {
   id: string;
@@ -152,24 +159,23 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
       updateAlbum(index, { status: 'running' });
       appendLog(albumMbid, albumTitle, 'URL 자동 검색 시작', 'info');
 
-      // Step 1: discover URLs
-      let urls: string[] = [];
+      // Step 1: discover URLs — keep the full list as the candidate
+      // pool, so Step 2 can backfill from beyond the initial target
+      // when some attempts fail.
+      let candidates: string[] = [];
       try {
         const { data } = await axios.post(
           `/api/albums/${encodeURIComponent(albumMbid)}/reviews/discover`
         );
         const allUrls = Array.isArray(data?.urls) ? (data.urls as string[]) : [];
-        urls = allUrls.slice(0, AUTO_CURATION_URL_CAP);
-        const trimmed = allUrls.length - urls.length;
+        candidates = allUrls.slice(0, AUTO_CURATION_MAX_ATTEMPTS);
         appendLog(
           albumMbid,
           albumTitle,
-          allUrls.length === 0
+          candidates.length === 0
             ? `URL 없음 — ${data?.message ?? '검색 결과 없음'}`
-            : trimmed > 0
-              ? `URL ${allUrls.length}개 발견 — 상위 ${urls.length}개만 큐레이션 (나머지 ${trimmed}개는 수동 경로에서 확인 가능)`
-              : `URL ${urls.length}개 발견`,
-          allUrls.length === 0 ? 'warn' : 'info'
+            : `URL ${candidates.length}개 발견 — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`,
+          candidates.length === 0 ? 'warn' : 'info'
         );
       } catch (err: any) {
         appendLog(
@@ -181,55 +187,93 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
         updateAlbum(index, { status: 'failed' });
         return;
       }
-      updateAlbum(index, { urlsFound: urls.length });
+      updateAlbum(index, { urlsFound: candidates.length });
 
-      // Step 2: batch add-url with concurrency=5
+      // Step 2: chunked add-url with backfill. Keep drawing from the
+      // candidate pool until we hit the success target or exhaust
+      // the list. A "success" is any saved row — duplicates don't
+      // count because they didn't add new coverage; only fresh saves
+      // advance toward the target. `failed` gets incremented on any
+      // axios rejection so the log still reports accurately.
       let saved = 0;
       let dup = 0;
       let failed = 0;
-      if (urls.length > 0) {
-        for (let start = 0; start < urls.length; start += CHUNK_SIZE) {
-          const chunk = urls.slice(start, start + CHUNK_SIZE);
-          await Promise.all(
-            chunk.map(async (url) => {
-              try {
-                const resp = await axios.post(
-                  `/api/albums/${encodeURIComponent(albumMbid)}/reviews/add-url`,
-                  { url }
-                );
-                if (resp.data?.duplicate) dup++;
-                else saved++;
-              } catch {
-                failed++;
-              }
-            })
-          );
-          updateAlbum(index, { urlsSaved: saved, duplicates: dup, failures: failed });
-        }
+      let attempted = 0;
+      while (
+        attempted < candidates.length &&
+        saved < AUTO_CURATION_TARGET_SAVED
+      ) {
+        const chunk = candidates.slice(attempted, attempted + CHUNK_SIZE);
+        attempted += chunk.length;
+        await Promise.all(
+          chunk.map(async (url) => {
+            try {
+              const resp = await axios.post(
+                `/api/albums/${encodeURIComponent(albumMbid)}/reviews/add-url`,
+                { url }
+              );
+              if (resp.data?.duplicate) dup++;
+              else saved++;
+            } catch {
+              failed++;
+            }
+          })
+        );
+        updateAlbum(index, { urlsSaved: saved, duplicates: dup, failures: failed });
+      }
+      if (candidates.length > 0) {
+        const hit = saved >= AUTO_CURATION_TARGET_SAVED;
+        const tail = hit
+          ? `${attempted}회 시도해서 목표 달성`
+          : `후보 소진 (${attempted}회 시도)`;
         appendLog(
           albumMbid,
           albumTitle,
-          `리뷰 ${saved}개 저장 (중복 ${dup}, 실패 ${failed})`,
+          `리뷰 ${saved}개 저장 (중복 ${dup}, 실패 ${failed}) — ${tail}`,
           saved > 0 ? 'success' : 'warn'
         );
       }
 
-      // Step 3: summary (only if there's something to summarize)
+      // Step 3: summary (only if there's something to summarize).
+      // Retried a few times with backoff so transient hiccups
+      // (Network Error, Anthropic 429/503, Railway cold-start) don't
+      // drop the summary step on an otherwise-successful run.
       let summaryOk = false;
       if (saved > 0 || dup > 0) {
         appendLog(albumMbid, albumTitle, '한국어 요약 생성 중', 'info');
-        try {
-          await axios.post(
-            `/api/albums/${encodeURIComponent(albumMbid)}/reviews/generate-summary`
-          );
+        let lastSummaryErr: string | null = null;
+        for (let attempt = 0; attempt < SUMMARY_MAX_ATTEMPTS; attempt++) {
+          if (attempt > 0) {
+            const backoff = SUMMARY_BACKOFF_MS[attempt] ?? 0;
+            appendLog(
+              albumMbid,
+              albumTitle,
+              `요약 재시도 (${attempt + 1}/${SUMMARY_MAX_ATTEMPTS})`,
+              'warn'
+            );
+            if (backoff > 0) {
+              await new Promise((r) => setTimeout(r, backoff));
+            }
+          }
+          try {
+            await axios.post(
+              `/api/albums/${encodeURIComponent(albumMbid)}/reviews/generate-summary`
+            );
+            summaryOk = true;
+            break;
+          } catch (err: any) {
+            lastSummaryErr =
+              err?.response?.data?.error ?? err?.message ?? 'unknown';
+          }
+        }
+        if (summaryOk) {
           updateAlbum(index, { summaryGenerated: true });
           appendLog(albumMbid, albumTitle, '요약 생성 완료', 'success');
-          summaryOk = true;
-        } catch (err: any) {
+        } else {
           appendLog(
             albumMbid,
             albumTitle,
-            `요약 실패: ${err?.response?.data?.error ?? err?.message ?? 'unknown'}`,
+            `요약 실패 (${SUMMARY_MAX_ATTEMPTS}회 시도): ${lastSummaryErr}`,
             'error'
           );
         }
@@ -255,7 +299,7 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
           albumMbid,
           albumTitle,
           triggerKind,
-          urlsFound: urls.length,
+          urlsFound: candidates.length,
           urlsSaved: saved,
           duplicates: dup,
           failures: failed,
