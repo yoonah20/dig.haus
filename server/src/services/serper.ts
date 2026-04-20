@@ -49,7 +49,7 @@ async function runSerperQuery(
 export async function searchReviewUrls(
   artist: string,
   album: string,
-  limit = 20
+  limit = 40
 ): Promise<SerperResult[]> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -62,6 +62,14 @@ export async function searchReviewUrls(
   // Dodsrit / DÖDSRIT) still match loosely. Haiku does the final
   // album-match check downstream.
   //
+  // Query includes the phrase "album review" (rather than just
+  // "review") to push editorial pages up and demote shops/streaming/
+  // lyrics pages that only match the bare "review" token. num=40
+  // covers ~4 Google result pages in a single Serper call, which is
+  // enough to catch major review sites (Angry Metal Guy, Blabbermouth,
+  // Metal Hammer, Pitchfork, etc.) without needing per-site
+  // whitelist queries.
+  //
   // Fallback when the primary returns 0: drop quotes entirely. Some
   // album titles are short generic phrases ("Home", "Love") that
   // Google indexes weirdly even for exact-match, and getting SOME
@@ -70,7 +78,7 @@ export async function searchReviewUrls(
   // to 1 query/discovery in the common case.
   const primary = await runSerperQuery(
     apiKey,
-    `"${album}" ${artist} review`,
+    `"${album}" ${artist} album review`,
     limit
   );
   if (primary.length > 0) return primary;
@@ -78,5 +86,5 @@ export async function searchReviewUrls(
   console.log(
     `[serper] primary (quoted album) returned 0 for "${artist}" / "${album}" — retrying unquoted`
   );
-  return runSerperQuery(apiKey, `${artist} ${album} review`, limit);
+  return runSerperQuery(apiKey, `${artist} ${album} album review`, limit);
 }

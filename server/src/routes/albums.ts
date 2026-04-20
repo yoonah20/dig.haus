@@ -1155,7 +1155,7 @@ router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
 // the admin can review, edit, and save through the existing batch
 // scrape flow. No DB writes here — pure discovery.
 //
-// Flow: Serper fetches 20 organic results → we filter hostnames
+// Flow: Serper fetches ~40 organic results → we filter hostnames
 // against EXCLUDED_URL_DOMAINS (shops, aggregators) → what's left goes
 // to Haiku for editorial-only selection. Haiku's call is cheap
 // (~$0.0003, just URL+title+snippet as input) and runs even if we end
@@ -1179,8 +1179,7 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
   try {
     const candidates = await searchReviewUrls(
       albumRow.artist_name,
-      albumRow.title,
-      30 // up from default 20; leaves more headroom after EXCLUDED_URL_DOMAINS trims shops/aggregators
+      albumRow.title
     );
     if (candidates.length === 0) {
       return res.json({
