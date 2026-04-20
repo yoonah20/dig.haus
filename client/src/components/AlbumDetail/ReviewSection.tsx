@@ -599,7 +599,7 @@ export default function ReviewSection({
   const googleSearchHref =
     albumTitle && albumArtist
       ? `https://www.google.com/search?q=${encodeURIComponent(
-          `${albumTitle} ${albumArtist} review`
+          `${albumTitle} ${albumArtist} album review`
         )}`
       : null;
 
@@ -649,14 +649,17 @@ export default function ReviewSection({
         <span>리뷰 모음집</span>
         <AiSummaryBadge />
         {/* Admin-only shortcut — opens a Google search for the album
-            + artist + "review" in a new tab. Used for quickly
-            finding review URLs to paste back into + 리뷰 추가. */}
+            + artist + "album review" in a new tab. Used for quickly
+            finding review URLs to paste back into + 리뷰 추가.
+            The "album review" phrase (rather than just "review")
+            mirrors services/serper.ts so this manual shortcut and the
+            automated discover flow surface the same SERP. */}
         {isAdmin && googleSearchHref && (
           <a
             href={googleSearchHref}
             target="_blank"
             rel="noopener noreferrer"
-            title={`"${albumTitle} ${albumArtist} review" 구글 검색`}
+            title={`"${albumTitle} ${albumArtist} album review" 구글 검색`}
             aria-label="리뷰 URL 구글 검색"
             className="inline-flex items-center justify-center w-6 h-6 text-gray-500 hover:text-[#e8a020] transition-colors align-middle translate-y-[-2px]"
           >
