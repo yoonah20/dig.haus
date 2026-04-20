@@ -186,6 +186,11 @@ export const EXCLUDED_URL_DOMAINS = [
   // Jina/raw scrape sees only the intro paragraphs and the extractor
   // has nothing to score or excerpt from.
   'medium.com',
+  // Rock Hard Germany — subscriber-only paywall on the review body.
+  // Public pages show only the score and a headline teaser, which
+  // doesn't give the extractor enough prose to work with and would
+  // save a link ordinary readers can't read either.
+  'rockhard.de',
   // AllMusic — has both editorial (AMG staff) and user reviews, but for
   // a large chunk of albums only the user-submitted blurbs are present
   // and the extractor picks one of those as if it were editorial. The
