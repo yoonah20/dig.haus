@@ -75,21 +75,21 @@ function daysUntilRelease(releaseDate: string | null | undefined): number | null
 }
 
 // Record-shop sticker family. All share the same chip shape so a
-// card carrying multiple (stacked top-down: SOON / NEW → HOT →
-// PRE-ORDER → SALE → SOLD OUT) reads as one column of labels rather
-// than competing elements. The "soon" entry is the only one with a
-// dynamic label — it renders the days-to-release countdown (D-N)
-// rather than its static "SOON" lines, which we keep around as the
-// aria fallback. SOON and NEW occupy the same top slot and are
-// mutually exclusive (an album is either before or after its release
-// date). NEW moved from yellow to sky so it doesn't collide with
-// SALE's yellow; the countdown chip uses a brighter electric violet
-// with near-black text so the digits stay legible at sticker scale
-// — the deeper violet we tried first looked the part but rendered
-// the numbers as a smudge. PRE-ORDER and SOLD OUT render as two-line
-// chips (hyphen/space split) so they stay narrow enough to sit over
-// the cover without stretching past single-word stickers.
-type CoverStickerKind = 'soon' | 'new' | 'hot' | 'preorder' | 'sale' | 'soldout';
+// card carrying multiple (stacked top-down: SOON / NEW → HOT) reads
+// as one column of labels rather than competing elements. The "soon"
+// entry is the only one with a dynamic label — it renders the
+// days-to-release countdown (D-N) rather than its static "SOON"
+// lines, which we keep around as the aria fallback. SOON and NEW
+// occupy the same top slot and are mutually exclusive (an album is
+// either before or after its release date). NEW moved from yellow
+// to sky so it doesn't collide with SALE's yellow; the countdown
+// chip uses a brighter electric violet with near-black text so the
+// digits stay legible at sticker scale. PRE-ORDER, SALE, and SOLD
+// OUT don't render as cover stickers — the PriceTagStack already
+// carries those signals on the price tag itself (green fill, yellow
+// fill, strike-through) and doubling up made the cover area feel
+// crowded whenever two chips stacked in the same corner.
+type CoverStickerKind = 'soon' | 'new' | 'hot';
 
 interface StickerSpec {
   bg: string;
@@ -127,39 +127,6 @@ const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
     fg: '#ffffff',
     lines: ['HOT'],
     aria: '굿굿 또는 별루 상위 10',
-  },
-  preorder: {
-    bg: '#2fa46a',
-    fg: '#07231a',
-    lines: ['PRE', 'ORDER'],
-    aria: '발매 예정 구매처 있음',
-    // "ORDER" is 5 chars — tighter letter-spacing + smaller font keeps
-    // the chip from overshooting the single-word ones.
-    fontSize: '6.8px',
-    letterSpacing: '0.01em',
-    padding: '2px 2.5px',
-    lineHeight: 1.05,
-    minWidth: '28px',
-  },
-  sale: {
-    bg: '#f5c542',
-    fg: '#3a2400',
-    lines: ['SALE'],
-    aria: '세일 중인 구매처 있음',
-  },
-  soldout: {
-    bg: '#f08a3c',
-    fg: '#2a1300',
-    lines: ['SOLD', 'OUT'],
-    aria: '품절된 구매처 있음',
-    // "SOLD" is shorter than "ORDER" so this chip was shrinking below
-    // its neighbours. Pull font + padding closer to the single-word
-    // defaults; min-width matches the visual target.
-    fontSize: '7.5px',
-    letterSpacing: '0.04em',
-    padding: '2.1px 4px',
-    lineHeight: 1.05,
-    minWidth: '34px',
   },
 };
 
@@ -214,15 +181,13 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   // returns null and isRecentRelease flips to true on the same render,
   // so the sticker auto-transitions to NEW with no server round-trip.
   const isNew = !isSoon && isRecentRelease(album.releaseDate);
-  // Status stickers use the server-computed flags (which look at
-  // *all* links, not just the top-3 cheapest that priceTagLinks
-  // carries). Otherwise a cheap regular-status listing would mask
-  // a soldout or pre-order entry on the same album.
-  const hasPreorder = !!album.hasPreorderLink;
-  // hasSaleLink / hasSoldoutLink still come down from the server but
-  // don't render as cover stickers anymore — PriceTagStack already
-  // communicates those states on the price tag itself.
-  const hasAnyCoverSticker = isSoon || isNew || album.isHot || hasPreorder;
+  // hasPreorderLink / hasSaleLink / hasSoldoutLink still come down
+  // from the server but don't render as cover stickers — the
+  // PriceTagStack already communicates those states on the price tag
+  // itself (green for pre-order, yellow for sale, strike-through for
+  // sold out), so carrying them as big chips on the cover too was
+  // redundant and made the corner feel crowded.
+  const hasAnyCoverSticker = isSoon || isNew || album.isHot;
 
   // Flip-side glow + card-face score both need at least N scored
   // reviews before we surface a number — see MIN_SCORED_FOR_AVG for
@@ -386,15 +351,6 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
             />
             {hasAnyCoverSticker && (
               <div className="absolute top-2 left-2 flex flex-col items-start gap-1 select-none">
-                {/* When both PRE-ORDER and the D-N countdown apply
-                    (the typical upcoming-release case), the pre-order
-                    chip takes the top slot: "you can actually act on
-                    this now" beats "watch the clock tick". The
-                    countdown sits right underneath. Any other
-                    PRE-ORDER case (rare — it implies a pre-order
-                    link outlasted the release date) falls back to
-                    its legacy position below HOT. */}
-                {isSoon && hasPreorder && <CoverStickerBadge kind="preorder" />}
                 {isSoon && (
                   <CoverStickerBadge
                     kind="soon"
@@ -404,12 +360,6 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 )}
                 {isNew && <CoverStickerBadge kind="new" />}
                 {album.isHot && <CoverStickerBadge kind="hot" />}
-                {!isSoon && hasPreorder && <CoverStickerBadge kind="preorder" />}
-                {/* SALE / SOLD OUT stickers removed — the same signals
-                    live on the PriceTagStack corner (strike-through
-                    for soldout, yellow fill for sale) so carrying
-                    them as big chips on the cover too was redundant
-                    and noisy on the grid. */}
               </div>
             )}
             {/* Admin-only pending-review mark. Bare emoji in the top-
