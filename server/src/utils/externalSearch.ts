@@ -105,8 +105,17 @@ export async function searchExternalMerged(
     }))
   );
 
-  // Filter: require at least one query word to appear in artist+title.
-  const minRelevance = queryWords.length >= 3 ? 2 : 1;
+  // Filter: require query words to appear in artist+title. The user
+  // typed those words on purpose — every one of them is a deliberate
+  // disambiguator, so for short-to-medium queries (≤3 words) we
+  // demand every word match. The previous `>=3 ? 2 : 1` rule let a
+  // 3-word search like "in mourning immortal" keep dozens of "in
+  // mourning" + "immortal-less" results sitting under the real hit,
+  // which was the exact "why is this noise here" complaint. Queries
+  // of 4+ words allow one miss so a single common-word tokenization
+  // difference doesn't sink otherwise-good candidates.
+  const minRelevance =
+    queryWords.length <= 3 ? queryWords.length : queryWords.length - 1;
   const filtered = merged.filter(
     (a) => relevanceScore(a, queryWords) >= minRelevance
   );
