@@ -27,6 +27,7 @@ import {
   scrapeReviewFromUrl,
   extractFromPastedText,
   EXCLUDED_URL_DOMAINS,
+  normalizeReviewUrl,
 } from '../services/reviews.js';
 import { searchReviewUrls } from '../services/serper.js';
 import { generateSimilarDescriptions, generatePronunciation, generateKoreanSummary, getClient as getAnthropicClient, HAIKU, logClaudeUsage, selectEditorialReviewUrls } from '../services/claude.js';
@@ -1203,7 +1204,7 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
       });
     }
 
-    const filtered = candidates.filter((c) => {
+    const domainFiltered = candidates.filter((c) => {
       try {
         const host = new URL(c.url).hostname.toLowerCase();
         return !EXCLUDED_URL_DOMAINS.some((d) => host.includes(d));
@@ -1211,13 +1212,34 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
         return false;
       }
     });
+
+    // Strip candidates we already have a review for against this album,
+    // so admin doesn't see the same URL listed again and the Haiku pick
+    // call doesn't waste tokens ranking URLs we can't use. Normalization
+    // catches cosmetic variants (http vs https, trailing slash, www.)
+    // that the per-URL dup check in /add-url would miss.
+    const existingUrls = queryAll(
+      `SELECT full_review_url FROM reviews WHERE album_mbid = ?`,
+      [mbid]
+    ) as Array<{ full_review_url: string }>;
+    const existingKeys = new Set(
+      existingUrls.map((r) => normalizeReviewUrl(r.full_review_url))
+    );
+    const filtered = domainFiltered.filter(
+      (c) => !existingKeys.has(normalizeReviewUrl(c.url))
+    );
+    const alreadySaved = domainFiltered.length - filtered.length;
+
     if (filtered.length === 0) {
       console.log(
-        `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=0 → haiku-pick=0 (all excluded)`
+        `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=0 (nothing new)`
       );
       return res.json({
         urls: [],
-        message: '쇼핑몰/aggregator만 나왔어요. 직접 구글에서 찾아주세요.',
+        message:
+          alreadySaved > 0
+            ? '새로 가져올 URL이 없어요. 이미 저장된 리뷰들입니다.'
+            : '쇼핑몰/aggregator만 나왔어요. 직접 구글에서 찾아주세요.',
       });
     }
 
@@ -1227,9 +1249,9 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
       filtered
     );
     // Stage counts so we can see where candidates drop off when a known-
-    // reviewed album comes back short. Serper → domain-filter → Haiku.
+    // reviewed album comes back short.
     console.log(
-      `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=${filtered.length} → haiku-pick=${picked.length}`
+      `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=${picked.length}`
     );
     res.json({ urls: picked });
   } catch (err) {
@@ -1267,10 +1289,27 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
   // Avoid burning a Claude call when this URL is already saved against
   // this album — accidental double-clicks or admins re-pasting the same
   // link would otherwise re-scrape and overwrite an identical row.
-  const dup = queryGet(
+  // Comparison goes through normalizeReviewUrl so cosmetic variants
+  // (http vs https, trailing slash, www., tracking params) still
+  // de-duplicate. Reviews-per-album count is small (dozens tops) so
+  // fetching all rows and comparing in JS is fine.
+  const albumReviews = queryAll(
     `SELECT id, source_name, score, manual_score, score_max, excerpt, excerpt_ko, full_review_url
-     FROM reviews WHERE album_mbid = ? AND full_review_url = ?`,
-    [mbid, url]
+     FROM reviews WHERE album_mbid = ?`,
+    [mbid]
+  ) as Array<{
+    id: number;
+    source_name: string;
+    score: number | null;
+    manual_score: number | null;
+    score_max: number;
+    excerpt: string | null;
+    excerpt_ko: string | null;
+    full_review_url: string;
+  }>;
+  const incomingKey = normalizeReviewUrl(url);
+  const dup = albumReviews.find(
+    (r) => normalizeReviewUrl(r.full_review_url) === incomingKey
   );
   if (dup) {
     return res.json({

@@ -193,6 +193,42 @@ export const EXCLUDED_URL_DOMAINS = [
   'youtu.be',
 ];
 
+// Normalize a URL for duplicate-detection only — what we STORE is still
+// the admin-pasted string unchanged. This key is just for comparing two
+// variants of the "same" page. Conservative strips: case-folded host,
+// dropped www. prefix and http/https protocol, trailing slash, fragment,
+// and common tracking params. Path and non-tracking query params are
+// left intact so sites that use ?reviewid=N or similar as the actual
+// page identifier (sputnikmusic, metalcrypt, a bunch of WP blogs) still
+// distinguish different reviews correctly.
+const TRACKING_PARAMS = [
+  'utm_source',
+  'utm_medium',
+  'utm_campaign',
+  'utm_term',
+  'utm_content',
+  'fbclid',
+  'gclid',
+  'mc_cid',
+  'mc_eid',
+  'ref',
+  'source',
+];
+
+export function normalizeReviewUrl(raw: string): string {
+  try {
+    const u = new URL(raw.trim());
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    for (const k of TRACKING_PARAMS) u.searchParams.delete(k);
+    u.hash = '';
+    const path = u.pathname.replace(/\/+$/, '') || '/';
+    const search = u.searchParams.toString();
+    return `${host}${path}${search ? `?${search}` : ''}`;
+  } catch {
+    return raw.trim().toLowerCase();
+  }
+}
+
 // ─── Admin: scrape a single review from an arbitrary URL ─────────────────
 
 // Detect visual star ratings from RAW html (must run before stripHtml,
