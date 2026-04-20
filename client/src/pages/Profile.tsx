@@ -300,8 +300,8 @@ function ProfileFields({
   const dirty = name !== initialDisplayName || ig !== initialInstagram;
 
   return (
-    <div className="grid grid-cols-[5rem_minmax(0,1fr)] sm:grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-3 items-center text-sm max-w-lg">
-      <label className="text-gray-400">표시 이름</label>
+    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] sm:grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-3 items-center text-sm w-full max-w-lg min-w-0">
+      <label className="text-gray-400 truncate">표시 이름</label>
       <input
         type="text"
         value={name}
@@ -310,8 +310,8 @@ function ProfileFields({
         placeholder="비우면 Google 이름"
         className="w-full min-w-0 bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none"
       />
-      <label className="text-gray-400">Instagram</label>
-      <div className="flex items-center gap-1 min-w-0">
+      <label className="text-gray-400 truncate">Instagram</label>
+      <div className="flex items-center gap-1 w-full min-w-0">
         <span className="text-gray-500 shrink-0">@</span>
         <input
           type="text"
@@ -451,8 +451,13 @@ export default function Profile() {
           rather than just a settings screen. */}
       {me && (
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Identity / settings card */}
-          <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-5 border border-white/5 space-y-4">
+          {/* Identity / settings card.
+              `min-w-0` is what lets the card actually fit on a narrow
+              mobile viewport — without it the grid cell sizes to the
+              card's min-content (driven by long unbroken strings like
+              an email address), which on a phone overflows past the
+              right edge and drags the inputs off-screen with it. */}
+          <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-5 border border-white/5 space-y-4 min-w-0">
             <AvatarEditor
               avatarUrl={effectiveAvatar}
               isCustom={isCustomAvatar}
@@ -485,9 +490,10 @@ export default function Profile() {
           </div>
 
           {/* Activity-stats card — at-a-glance counts that the
-              dashboard would otherwise have to scroll to learn. */}
+              dashboard would otherwise have to scroll to learn.
+              Same `min-w-0` reason as the identity card above. */}
           {stats && (
-            <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-5 border border-white/5">
+            <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-5 border border-white/5 min-w-0">
               <div className="text-[11px] uppercase tracking-wider text-gray-500 mb-3">
                 내 활동
               </div>
@@ -617,7 +623,12 @@ export default function Profile() {
           {myRequests.isLoading ? (
             <div className="text-sm text-gray-500">불러오는 중…</div>
           ) : myRequestList.length > 0 ? (
-            <ul className="space-y-2">
+            // Match the 50자 평 panel's height cap so the two columns
+            // stay visually balanced once a heavy registrant racks up
+            // dozens of submissions. The list scrolls independently
+            // instead of stretching the whole row.
+            <div className="max-h-[480px] overflow-y-auto pr-1">
+              <ul className="space-y-2">
               {myRequestList.map((r) => {
                 const meta = REQUEST_STATUS_META[r.status];
                 return (
@@ -695,7 +706,8 @@ export default function Profile() {
                   </li>
                 );
               })}
-            </ul>
+              </ul>
+            </div>
           ) : (
             <div className="text-sm text-gray-500">
               아직 등록한 앨범이 없습니다. 상단 + 버튼으로 등록해보세요.

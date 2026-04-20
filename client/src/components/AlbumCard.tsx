@@ -38,34 +38,49 @@ const TAP_THRESHOLD_PX = 12;
 const SCROLL_CANCEL_DY = 5;
 const TAP_MAX_MS = 350;
 
-// Releases stamped within this window get the "NEW!" sticker so the
+// Releases stamped within this window get the "NEW" sticker so the
 // grid reads like a record-shop 신보 코너. 30 days is forgiving enough
 // to catch late-add releases from the last few weeks; any longer and
 // the badge stops feeling informative.
 const NEW_BADGE_DAYS = 30;
 
-function isRecentRelease(releaseDate: string | null | undefined): boolean {
-  if (!releaseDate) return false;
+function parseReleaseTimestamp(releaseDate: string | null | undefined): number | null {
+  if (!releaseDate) return null;
   const match = releaseDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!match) return false;
+  if (!match) return null;
   const ts = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  if (Number.isNaN(ts)) return false;
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function isRecentRelease(releaseDate: string | null | undefined): boolean {
+  const ts = parseReleaseTimestamp(releaseDate);
+  if (ts === null) return false;
   const diffDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
-  // Include not-yet-released albums too — the sticker already reads as
-  // "new". The floor is what matters (> 30 days = not new).
-  return diffDays <= NEW_BADGE_DAYS;
+  // Past-only window now — future releases get the SOON sticker
+  // instead. The day the release date arrives, this flips to NEW
+  // automatically because diffDays crosses 0.
+  return diffDays >= 0 && diffDays <= NEW_BADGE_DAYS;
+}
+
+function isUpcomingRelease(releaseDate: string | null | undefined): boolean {
+  const ts = parseReleaseTimestamp(releaseDate);
+  if (ts === null) return false;
+  return ts > Date.now();
 }
 
 // Record-shop sticker family. All share the same chip shape so a
-// card carrying multiple (stacked top-down: NEW → HOT → PRE-ORDER
-// → SALE → SOLD OUT) reads as one column of labels rather than
-// five competing elements. NEW moved from yellow to sky so it
-// doesn't collide with SALE's yellow. Labels drop the trailing
-// '!'; the typography carries the energy. PRE-ORDER and SOLD OUT
-// render as two-line chips (hyphen/space split) so they stay
-// narrow enough to sit over the cover without stretching past
-// single-word stickers.
-type CoverStickerKind = 'new' | 'hot' | 'preorder' | 'sale' | 'soldout';
+// card carrying multiple (stacked top-down: SOON / NEW → HOT →
+// PRE-ORDER → SALE → SOLD OUT) reads as one column of labels rather
+// than competing elements. SOON and NEW occupy the same top slot and
+// are mutually exclusive (an album is either before or after its
+// release date). NEW moved from yellow to sky so it doesn't collide
+// with SALE's yellow; SOON uses electric violet so it pops against
+// both NEW (sky) and HOT (red) when scanning the grid for unreleased
+// titles. Labels drop the trailing '!'; the typography carries the
+// energy. PRE-ORDER and SOLD OUT render as two-line chips
+// (hyphen/space split) so they stay narrow enough to sit over the
+// cover without stretching past single-word stickers.
+type CoverStickerKind = 'soon' | 'new' | 'hot' | 'preorder' | 'sale' | 'soldout';
 
 interface StickerSpec {
   bg: string;
@@ -86,6 +101,12 @@ interface StickerSpec {
 }
 
 const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
+  soon: {
+    bg: '#8f00ff',
+    fg: '#ffffff',
+    lines: ['SOON'],
+    aria: '발매 예정',
+  },
   new: {
     bg: '#5aa9e6',
     fg: '#0b1d2e',
@@ -162,7 +183,13 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const down = album.downvotes ?? 0;
   const userReviewCount = album.userReviewCount ?? 0;
   const priceTagLinks = album.priceTagLinks ?? [];
-  const isNew = isRecentRelease(album.releaseDate);
+  const isSoon = isUpcomingRelease(album.releaseDate);
+  // SOON takes precedence over NEW — they share the top slot and are
+  // mutually exclusive. The day the release date arrives, isSoon
+  // flips to false and isRecentRelease flips to true on the same
+  // mount, so the sticker auto-transitions to NEW with no server
+  // round-trip.
+  const isNew = !isSoon && isRecentRelease(album.releaseDate);
   // Status stickers use the server-computed flags (which look at
   // *all* links, not just the top-3 cheapest that priceTagLinks
   // carries). Otherwise a cheap regular-status listing would mask
@@ -171,7 +198,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   // hasSaleLink / hasSoldoutLink still come down from the server but
   // don't render as cover stickers anymore — PriceTagStack already
   // communicates those states on the price tag itself.
-  const hasAnyCoverSticker = isNew || album.isHot || hasPreorder;
+  const hasAnyCoverSticker = isSoon || isNew || album.isHot || hasPreorder;
 
   // Flip-side glow + card-face score both need at least N scored
   // reviews before we surface a number — see MIN_SCORED_FOR_AVG for
@@ -335,6 +362,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
             />
             {hasAnyCoverSticker && (
               <div className="absolute top-2 left-2 flex flex-col items-start gap-1 select-none">
+                {isSoon && <CoverStickerBadge kind="soon" />}
                 {isNew && <CoverStickerBadge kind="new" />}
                 {album.isHot && <CoverStickerBadge kind="hot" />}
                 {hasPreorder && <CoverStickerBadge kind="preorder" />}

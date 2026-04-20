@@ -678,11 +678,23 @@ router.get('/', async (req, res) => {
         }
       }
       for (const [aid, links] of topLinksByAlbum) {
-        links.sort(
-          (a, b) =>
+        // Two-key sort: push soldout entries behind in-stock ones, then
+        // by KRW ascending within each group. The home grid only shows
+        // the very cheapest sticker (maxVisible=1), and a sold-out
+        // listing as the headline price is misleading — the user can't
+        // actually buy at that price. Preferring an available copy
+        // even at a higher tag matches what a shopper actually cares
+        // about; if every link is sold out we still surface the
+        // cheapest one so the price information isn't lost.
+        links.sort((a, b) => {
+          const aSold = a.status === 'soldout';
+          const bSold = b.status === 'soldout';
+          if (aSold !== bSold) return aSold ? 1 : -1;
+          return (
             (a.priceKrw ?? Number.POSITIVE_INFINITY) -
             (b.priceKrw ?? Number.POSITIVE_INFINITY)
-        );
+          );
+        });
         topLinksByAlbum.set(
           aid,
           links.slice(0, 3).map(({ albumId: _ignored, ...rest }) => rest)
