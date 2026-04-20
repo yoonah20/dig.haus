@@ -69,7 +69,11 @@ function Room({
           background: `linear-gradient(180deg, ${ROOM.wallTop}, ${ROOM.wallMid} 55%, ${ROOM.wallBot})`,
         }}
       />
-      {/* plaster noise */}
+      {/* plaster noise — cream-tinted flecks read as aged painted
+          wood panel texture on the dark wall. The original dark
+          brown noise went invisible once the wall palette went
+          dark; these lighter noise values restore the sense of an
+          imperfect hand-painted surface. */}
       <svg
         width={width}
         height={wallH}
@@ -78,11 +82,11 @@ function Room({
         <defs>
           <filter id="plasterTex">
             <feTurbulence baseFrequency="0.9" numOctaves="2" seed="3" />
-            <feColorMatrix values="0 0 0 0 0.1  0 0 0 0 0.07  0 0 0 0 0.03  0 0 0 0.05 0" />
+            <feColorMatrix values="0 0 0 0 0.88  0 0 0 0 0.75  0 0 0 0 0.5  0 0 0 0.06 0" />
           </filter>
           <filter id="plasterBig">
             <feTurbulence baseFrequency="0.008" numOctaves="2" seed="7" />
-            <feColorMatrix values="0 0 0 0 0.12  0 0 0 0 0.08  0 0 0 0 0.04  0 0 0 0.18 0" />
+            <feColorMatrix values="0 0 0 0 0.95  0 0 0 0 0.82  0 0 0 0 0.58  0 0 0 0.1 0" />
           </filter>
         </defs>
         <rect width="100%" height="100%" filter="url(#plasterBig)" />
