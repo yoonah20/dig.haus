@@ -178,6 +178,10 @@ export const EXCLUDED_URL_DOMAINS = [
   // reviewer's take via the manual paste-in tab when a notable reviewer's
   // opinion is worth preserving.
   'metal-archives.com',
+  // RockReport — Belgian aggregator that re-posts reviews from other
+  // outlets rather than writing its own editorial. Same "one editorial
+  // take per source" reasoning as metal-archives.
+  'rockreport.be',
   // YouTube — occasionally indexed as a review target but overwhelmingly
   // just playback / music video / reaction content. Any legitimate video
   // review (e.g. Fenriz-style channel takes) admin can paste manually.

@@ -347,7 +347,10 @@ export async function selectEditorialReviewUrls(
   try {
     const resp = await getClient().messages.create({
       model: HAIKU,
-      max_tokens: 600,
+      // 25 URLs × ~100 chars + JSON overhead ≈ 700–900 tokens; 1200 leaves
+      // headroom so Haiku never truncates the JSON mid-array (which would
+      // fail the regex parse and silently drop every URL it picked).
+      max_tokens: 1200,
       messages: [
         {
           role: 'user',
@@ -364,7 +367,7 @@ ${list}
 
 제외: 쇼핑몰 (Amazon, Discogs store, Bandcamp store, HMV, Tower Records), 스트리밍 플랫폼 (Spotify, Apple Music), score aggregator (Metacritic, albumoftheyear, rateyourmusic, metal-archives), 포럼/Reddit, 아티스트 공식 홈페이지, Wikipedia, 단순 뉴스 공지나 발매 announcement (평가 없음), 트랙리스트만 있는 페이지.
 
-최대 10개까지. 명확한 제외 사유가 없으면 포함. Return ONLY a JSON array of the chosen URLs (원문 그대로).`,
+최대 25개까지. 명확한 제외 사유가 없으면 포함. Return ONLY a JSON array of the chosen URLs (원문 그대로).`,
         },
       ],
     });

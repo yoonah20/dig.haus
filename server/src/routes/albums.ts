@@ -1209,6 +1209,9 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
       }
     });
     if (filtered.length === 0) {
+      console.log(
+        `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=0 → haiku-pick=0 (all excluded)`
+      );
       return res.json({
         urls: [],
         message: '쇼핑몰/aggregator만 나왔어요. 직접 구글에서 찾아주세요.',
@@ -1219,6 +1222,11 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
       albumRow.artist_name,
       albumRow.title,
       filtered
+    );
+    // Stage counts so we can see where candidates drop off when a known-
+    // reviewed album comes back short. Serper → domain-filter → Haiku.
+    console.log(
+      `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=${filtered.length} → haiku-pick=${picked.length}`
     );
     res.json({ urls: picked });
   } catch (err) {
