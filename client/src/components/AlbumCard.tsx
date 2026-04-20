@@ -386,6 +386,15 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
             />
             {hasAnyCoverSticker && (
               <div className="absolute top-2 left-2 flex flex-col items-start gap-1 select-none">
+                {/* When both PRE-ORDER and the D-N countdown apply
+                    (the typical upcoming-release case), the pre-order
+                    chip takes the top slot: "you can actually act on
+                    this now" beats "watch the clock tick". The
+                    countdown sits right underneath. Any other
+                    PRE-ORDER case (rare — it implies a pre-order
+                    link outlasted the release date) falls back to
+                    its legacy position below HOT. */}
+                {isSoon && hasPreorder && <CoverStickerBadge kind="preorder" />}
                 {isSoon && (
                   <CoverStickerBadge
                     kind="soon"
@@ -395,7 +404,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 )}
                 {isNew && <CoverStickerBadge kind="new" />}
                 {album.isHot && <CoverStickerBadge kind="hot" />}
-                {hasPreorder && <CoverStickerBadge kind="preorder" />}
+                {!isSoon && hasPreorder && <CoverStickerBadge kind="preorder" />}
                 {/* SALE / SOLD OUT stickers removed — the same signals
                     live on the PriceTagStack corner (strike-through
                     for soldout, yellow fill for sale) so carrying
