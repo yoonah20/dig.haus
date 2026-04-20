@@ -452,20 +452,34 @@ export default function ReviewSection({
     let duplicate = 0;
     const failures: Array<{ url: string; msg: string }> = [];
     const newIds: number[] = [];
+    // Concurrent chunks instead of strict sequential processing. Each
+    // add-url call takes 5-10s (Jina fetch + DeepSeek extract + Korean
+    // translate), so sequential 20+ URL batches used to run 2-3 minutes.
+    // Chunks of 5 finish in ~30s while staying well under the upstream
+    // rate limits (Jina/DeepSeek) and the server-side admin limiter.
+    const CHUNK_SIZE = 5;
+    let completed = 0;
     try {
-      for (let i = 0; i < urls.length; i++) {
-        setBatchProgress({ current: i + 1, total: urls.length });
-        try {
-          const resp = await axios.post(`/api/albums/${slug}/reviews/add-url`, { url: urls[i] });
-          if (resp.data?.duplicate) duplicate++;
-          else {
-            added++;
-            if (typeof resp.data?.review?.id === 'number') newIds.push(resp.data.review.id);
-          }
-        } catch (err: any) {
-          const msg = err?.response?.data?.error || '알 수 없는 오류';
-          failures.push({ url: urls[i], msg });
-        }
+      for (let start = 0; start < urls.length; start += CHUNK_SIZE) {
+        const chunk = urls.slice(start, start + CHUNK_SIZE);
+        await Promise.all(
+          chunk.map(async (url) => {
+            try {
+              const resp = await axios.post(`/api/albums/${slug}/reviews/add-url`, { url });
+              if (resp.data?.duplicate) duplicate++;
+              else {
+                added++;
+                if (typeof resp.data?.review?.id === 'number') newIds.push(resp.data.review.id);
+              }
+            } catch (err: any) {
+              const msg = err?.response?.data?.error || '알 수 없는 오류';
+              failures.push({ url, msg });
+            } finally {
+              completed++;
+              setBatchProgress({ current: completed, total: urls.length });
+            }
+          })
+        );
       }
       if (newIds.length > 0) {
         setJustAddedIds((prev) => {

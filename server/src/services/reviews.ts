@@ -182,6 +182,10 @@ export const EXCLUDED_URL_DOMAINS = [
   // outlets rather than writing its own editorial. Same "one editorial
   // take per source" reasoning as metal-archives.
   'rockreport.be',
+  // Medium — paywalls the body after a teaser unless you sign in, so
+  // Jina/raw scrape sees only the intro paragraphs and the extractor
+  // has nothing to score or excerpt from.
+  'medium.com',
   // YouTube — occasionally indexed as a review target but overwhelmingly
   // just playback / music video / reaction content. Any legitimate video
   // review (e.g. Fenriz-style channel takes) admin can paste manually.
@@ -257,6 +261,49 @@ function detectStarRating(html: string): number | null {
     const scale = empty > 0 ? total : total <= 5 ? 5 : 10;
     const filled = full + half * 0.5;
     return Math.max(0, Math.min(100, Math.round((filled / scale) * 100)));
+  }
+  return null;
+}
+
+// A11y-first rating widgets draw the visual with pure CSS (no child
+// <i> icons, no Unicode chars) and put the actual number in an
+// aria-label / title / alt attribute on the container element:
+//
+//   <span class="chunk rating" aria-label="Rating: 4 out of 5 stars">
+//   <div class="stars" title="4.5/5">
+//
+// stripHtml drops the attribute text when it removes the tag, so
+// detectExplicitNumericScore can't see it either. This detector reads
+// the attributes directly off the rating container before any strip.
+function detectAriaLabelRating(html: string): number | null {
+  const containerRe =
+    /<[a-z]+\b[^>]*class\s*=\s*"[^"]*(?:rating|stars|score)[^"]*"[^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = containerRe.exec(html)) !== null) {
+    const tagText = m[0];
+    const attr =
+      /aria-label\s*=\s*"([^"]+)"/i.exec(tagText)?.[1] ||
+      /title\s*=\s*"([^"]+)"/i.exec(tagText)?.[1] ||
+      /alt\s*=\s*"([^"]+)"/i.exec(tagText)?.[1];
+    if (!attr) continue;
+    // "4 out of 5 stars" / "8.5 out of 10"
+    const outOf = attr.match(/(\d{1,3}(?:[.,]\d{1,2})?)\s+out\s+of\s+(\d{1,3})/i);
+    if (outOf) {
+      const score = parseFloat(outOf[1].replace(',', '.'));
+      const scale = parseInt(outOf[2], 10);
+      if ([5, 10, 20, 100].includes(scale) && score >= 0 && score <= scale) {
+        return Math.max(0, Math.min(100, Math.round((score / scale) * 100)));
+      }
+    }
+    // "4/5", "8.5/10" inside the attribute
+    const frac = attr.match(/(\d{1,3}(?:[.,]\d{1,2})?)\s*\/\s*(\d{1,3})/);
+    if (frac) {
+      const score = parseFloat(frac[1].replace(',', '.'));
+      const scale = parseInt(frac[2], 10);
+      if ([5, 10, 20, 100].includes(scale) && score >= 0 && score <= scale) {
+        return Math.max(0, Math.min(100, Math.round((score / scale) * 100)));
+      }
+    }
   }
   return null;
 }
@@ -543,19 +590,25 @@ export async function scrapeReviewFromUrl(
   let detectedScore: number | null = null;
   if (rawResult.ok) {
     const starScore = detectStarRating(html);
-    const filenameRatingScore = starScore === null ? detectFilenameRatingImage(html) : null;
+    const ariaScore = starScore === null ? detectAriaLabelRating(html) : null;
+    const filenameRatingScore =
+      starScore === null && ariaScore === null
+        ? detectFilenameRatingImage(html)
+        : null;
     const numericScore =
-      starScore === null && filenameRatingScore === null
+      starScore === null && ariaScore === null && filenameRatingScore === null
         ? detectExplicitNumericScore(html)
         : null;
-    detectedScore = starScore ?? filenameRatingScore ?? numericScore;
+    detectedScore = starScore ?? ariaScore ?? filenameRatingScore ?? numericScore;
     if (detectedScore !== null) {
       const source =
         starScore !== null
           ? 'star'
-          : filenameRatingScore !== null
-            ? 'filename-image'
-            : 'explicit-numeric';
+          : ariaScore !== null
+            ? 'aria-label'
+            : filenameRatingScore !== null
+              ? 'filename-image'
+              : 'explicit-numeric';
       console.log(`[reviews] detected ${source} score ${detectedScore}/100 for ${url}`);
     }
   }

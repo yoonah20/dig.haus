@@ -4,10 +4,13 @@ import https from 'https';
 import rateLimit from 'express-rate-limit';
 
 // Rate limiter for admin endpoints that call Claude or scrape external pages.
-// 20 calls per minute per IP — generous for legit admin work, blocks runaway loops.
+// 60 calls per minute per IP — raised from 20 to accommodate the batch add-url
+// flow after Serper discovery started returning 20+ URLs per album. Admin is
+// effectively one IP (the site owner), so the limit just needs to catch
+// runaway loops without strangling legitimate review-batch work.
 const adminClaudeLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 20,
+  limit: 60,
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Too many admin requests, slow down.' },
