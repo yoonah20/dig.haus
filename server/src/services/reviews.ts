@@ -186,6 +186,14 @@ export const EXCLUDED_URL_DOMAINS = [
   // Jina/raw scrape sees only the intro paragraphs and the extractor
   // has nothing to score or excerpt from.
   'medium.com',
+  // AllMusic — has both editorial (AMG staff) and user reviews, but for
+  // a large chunk of albums only the user-submitted blurbs are present
+  // and the extractor picks one of those as if it were editorial. The
+  // genres dig.haus focuses on (underground metal / niche) are exactly
+  // the ones most likely to fall into the no-editorial bucket on
+  // AllMusic. Losing the occasional real staff review is cheaper than
+  // laundering user reviews as editorial.
+  'allmusic.com',
   // YouTube — occasionally indexed as a review target but overwhelmingly
   // just playback / music video / reaction content. Any legitimate video
   // review (e.g. Fenriz-style channel takes) admin can paste manually.
@@ -216,6 +224,10 @@ export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
   /\bmonthly[-_]/i,
   /\blistening[-_]log\b/i,
   /\balbums?[-_]of[-_]the[-_](?:week|month|year)\b/i,
+  // Sputnikmusic user-rating aggregate page (not an editorial review).
+  // The path is /soundoff.php, separate from the /review/ editorial
+  // URLs. soundoff pages list user scores and one-liners only.
+  /\/soundoff\.php\b/i,
 ];
 
 // Normalize a URL for duplicate-detection only — what we STORE is still
@@ -396,6 +408,26 @@ function detectWpProductReviewRating(html: string): number | null {
   return n;
 }
 
+// MyThemeShop "WP Review" plugin — different from WP Product Review
+// above. Renders the editorial score as a CSS width percentage on a
+// class="review-result" element:
+//   <div class="review-result" style="width:90%; background-color:...">
+// The user review block (wp-review-user-rating-*) appears LATER in the
+// markup and tends to have a different value (100 when a single
+// enthusiastic user submits 10/10). The generic bare-fraction detector
+// grabs the last "10/10" from the user block instead of the editorial
+// 9/10. Matching the width-as-percentage style attribute pins us to
+// the editorial half. Used by gbhbl.com and friends.
+function detectWpReviewPluginRating(html: string): number | null {
+  const m = html.match(
+    /class\s*=\s*"review-result"[^>]*style\s*=\s*"[^"]*width\s*:\s*(\d{1,3})%/i
+  );
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  if (n < 0 || n > 100) return null;
+  return n;
+}
+
 // A11y-first rating widgets draw the visual with pure CSS (no child
 // <i> icons, no Unicode chars) and put the actual number in an
 // aria-label / title / alt attribute on the container element:
@@ -528,9 +560,14 @@ function detectExplicitNumericScore(html: string): number | null {
   // pick the LAST recognised fraction-with-editorial-scale match:
   // body-prose "4 out of 10 songs are great" style mentions come
   // before the final sign-off, and the last occurrence is almost
-  // always the critic's number. Scale whitelist (5/10/20/100)
+  // always the critic's number. Scale whitelist (5 / 10 / 100)
   // filters obvious non-score fractions like "4/4 time signature".
-  const bareRe = /(?:^|[\s(])(\d{1,2}(?:[.,]\d{1,2})?)\s*\/\s*(5|10|20|100)(?=\s|[.,)]|$)/g;
+  // /20 used to be allowed for French zines but caused real-world
+  // false positives (toiletovhell's sidebar link "4/20 Playlist" got
+  // picked over the actual "2.5/5" review score). Labelled /20 still
+  // works via rule (1) — unlabelled /20 is too collision-prone with
+  // dates and track numbers to stay in the bare-fraction whitelist.
+  const bareRe = /(?:^|[\s(])(\d{1,2}(?:[.,]\d{1,2})?)\s*\/\s*(5|10|100)(?=\s|[.,)]|$)/g;
   let lastMatch: RegExpExecArray | null = null;
   let m: RegExpExecArray | null;
   while ((m = bareRe.exec(text)) !== null) lastMatch = m;
@@ -545,34 +582,41 @@ function detectExplicitNumericScore(html: string): number | null {
   return null;
 }
 
-// Some WordPress review themes embed the rating as a static image whose
-// FILENAME encodes the numerator — e.g. metal-roos.com.au serves
+// Some review themes embed the rating as a static image whose FILENAME
+// encodes the numerator — e.g. metal-roos.com.au serves
 // `/wp-content/uploads/helpers/Rating4.png` for a 4/5 review ("4
-// kangaroos"). stripHtml drops the <img> tag and detectStarRating
+// kangaroos"), stereoboard.com serves `/images/icons/stars/x4-0.png`
+// for a 4.0/5 review. stripHtml drops the <img> tag and detectStarRating
 // doesn't look at src attrs, so these slip through.
 //
-// Recognised shapes (all optional hyphen/underscore between name and
-// number; fraction via dash, underscore, or dot):
-//   Rating4.png         → 4/5
-//   rating-4.png        → 4/5
-//   Rating_3-5.png      → 3.5/5
-//   stars-4.5.png       → 4.5/5
-//   Score4.png          → 4/5
+// Two patterns now recognised:
+//   (a) Filename starts with Rating/Ratings/Star(s)/Score:
+//         Rating4.png / rating-4.png / Rating_3-5.png /
+//         stars-4.5.png / Score4.png
+//   (b) Path contains /stars/ and the filename encodes the numerator
+//       with an optional short prefix (x, star-, etc.):
+//         /stars/x4-0.png → 4.0/5
+//         /stars/4.png    → 4/5
+//         /stars/rating-3-5.png → 3.5/5
 //
-// Anchored on `/` so it matches the filename segment cleanly and won't
-// fire on something like `metal-roos-rating-system.png`. Integer
-// numerator bounded 0-5; wider scales here are unusual and prone to
-// false positives from unrelated decorative images.
+// Both branches bound the integer numerator at 0-5; wider scales here
+// are unusual and prone to false positives from unrelated decorative
+// images.
 function detectFilenameRatingImage(html: string): number | null {
-  const re = /\/(?:Rating|Ratings|Stars?|Score)[-_]?(\d)(?:[-_.](\d))?\.(?:png|jpe?g|webp|svg)\b/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    const whole = parseInt(m[1], 10);
-    if (!Number.isFinite(whole) || whole < 0 || whole > 5) continue;
-    const frac = m[2] ? parseInt(m[2], 10) / 10 : 0;
-    const rating = whole + frac;
-    if (rating < 0 || rating > 5) continue;
-    return Math.round((rating / 5) * 100);
+  const patterns = [
+    /\/(?:Rating|Ratings|Stars?|Score)[-_]?(\d)(?:[-_.](\d))?\.(?:png|jpe?g|webp|svg)\b/gi,
+    /\/stars\/[a-z_-]*?(\d)(?:[-_.](\d))?\.(?:png|jpe?g|webp|svg)\b/gi,
+  ];
+  for (const re of patterns) {
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      const whole = parseInt(m[1], 10);
+      if (!Number.isFinite(whole) || whole < 0 || whole > 5) continue;
+      const frac = m[2] ? parseInt(m[2], 10) / 10 : 0;
+      const rating = whole + frac;
+      if (rating < 0 || rating > 5) continue;
+      return Math.round((rating / 5) * 100);
+    }
   }
   return null;
 }
@@ -675,6 +719,33 @@ async function fetchRawHtml(
   }
 }
 
+// Jina Reader renders the whole page, including nav, sidebar, cookie
+// banners, and category listings, before the article body. On sites
+// with heavy chrome (spectrumculture runs 33KB of nav before its
+// Igorrr review body), that pushes the actual review past the slice
+// cap. This trim finds a markdown heading that mentions the target
+// album or artist and slices from there — typically where the article
+// content starts. Matches at the very top of the document are skipped
+// because they're usually the site's own logo/title heading; the
+// post-body heading that repeats the album name shows up after the
+// nav block.
+function trimLeadingNavigation(md: string, artist: string, album: string): string {
+  const artistLower = artist.toLowerCase();
+  const albumLower = album.toLowerCase();
+  const headingRe = /^#{1,3}\s+(.+)$/gm;
+  let m: RegExpExecArray | null;
+  while ((m = headingRe.exec(md)) !== null) {
+    // Skip headings in the top few hundred bytes — those are the
+    // site's own landing title, not the article-body heading we want.
+    if (m.index < 500) continue;
+    const title = m[1].toLowerCase();
+    if (title.includes(albumLower) || title.includes(artistLower)) {
+      return md.slice(m.index);
+    }
+  }
+  return md;
+}
+
 export async function scrapeReviewFromUrl(
   url: string,
   artist: string,
@@ -728,19 +799,28 @@ export async function scrapeReviewFromUrl(
     const starScore = siteScore === null ? detectStarRating(html) : null;
     const ariaScore =
       siteScore === null && starScore === null ? detectAriaLabelRating(html) : null;
-    // WP Product Review runs ahead of the filename/numeric detectors
-    // because pages using that plugin often ALSO have sidebar widgets
-    // with X/10 markup for related posts — explicit-numeric would
-    // grab the last X/10 match and land on the wrong album.
+    // Widget-specific detectors run ahead of the filename/numeric
+    // detectors because these pages often ALSO have sidebar widgets
+    // or user-review blocks with X/10 markup — explicit-numeric would
+    // grab the last X/10 match and land on the wrong album or user
+    // rating.
     const wpprScore =
       siteScore === null && starScore === null && ariaScore === null
         ? detectWpProductReviewRating(html)
+        : null;
+    const wpReviewScore =
+      siteScore === null &&
+      starScore === null &&
+      ariaScore === null &&
+      wpprScore === null
+        ? detectWpReviewPluginRating(html)
         : null;
     const filenameRatingScore =
       siteScore === null &&
       starScore === null &&
       ariaScore === null &&
-      wpprScore === null
+      wpprScore === null &&
+      wpReviewScore === null
         ? detectFilenameRatingImage(html)
         : null;
     const numericScore =
@@ -748,6 +828,7 @@ export async function scrapeReviewFromUrl(
       starScore === null &&
       ariaScore === null &&
       wpprScore === null &&
+      wpReviewScore === null &&
       filenameRatingScore === null
         ? detectExplicitNumericScore(html)
         : null;
@@ -756,6 +837,7 @@ export async function scrapeReviewFromUrl(
       starScore ??
       ariaScore ??
       wpprScore ??
+      wpReviewScore ??
       filenameRatingScore ??
       numericScore;
     if (detectedScore !== null) {
@@ -768,9 +850,11 @@ export async function scrapeReviewFromUrl(
               ? 'aria-label'
               : wpprScore !== null
                 ? 'wppr'
-                : filenameRatingScore !== null
-                  ? 'filename-image'
-                  : 'explicit-numeric';
+                : wpReviewScore !== null
+                  ? 'wp-review'
+                  : filenameRatingScore !== null
+                    ? 'filename-image'
+                    : 'explicit-numeric';
       console.log(`[reviews] detected ${source} score ${detectedScore}/100 for ${url}`);
     }
   }
@@ -779,9 +863,19 @@ export async function scrapeReviewFromUrl(
   // fewer tokens vs stripHtml of the whole page, and boilerplate nav/
   // comments are already gone. Fall back to stripHtml when Jina didn't
   // work (rate limit, their upstream error, etc.).
-  const pageText = jinaAvailable
-    ? jinaText!.slice(0, 20000)
-    : stripHtml(html).slice(0, 20000);
+  //
+  // Slice cap of 40000 chars (≈10k tokens on DeepSeek) because some
+  // WordPress sites produce Jina output with 30KB+ of sidebar nav
+  // before the actual article body — spectrumculture's Igorrr review
+  // lives at offset ~33000 in its Jina markdown. Trimming leading nav
+  // (trimLeadingNavigation) shaves most of that, but the higher slice
+  // cap is there as a safety net for sites the trim heuristic can't
+  // handle.
+  const rawText = jinaAvailable ? jinaText! : stripHtml(html);
+  const trimmed = jinaAvailable
+    ? trimLeadingNavigation(rawText, artist, album)
+    : rawText;
+  const pageText = trimmed.slice(0, 40000);
   if (pageText.length < 100) {
     recordScrapeFailure(url, albumMbid, 'text-too-short');
     return { kind: 'fail', reason: 'text-too-short' };
