@@ -267,7 +267,16 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
         attempted < candidates.length &&
         saved < AUTO_CURATION_TARGET_SAVED
       ) {
-        const chunk = candidates.slice(attempted, attempted + CHUNK_SIZE);
+        // Dynamic chunk sizing near the target: when we have room for
+        // fewer than CHUNK_SIZE successes remaining, shrink the chunk
+        // so a burst of successful saves can't overshoot (previously,
+        // saved=13 + chunk of 5 all-succeed → saved=18, violating the
+        // "15 cap" contract). The upper half of the run still uses
+        // the full CHUNK_SIZE for parallelism; only the final chunk
+        // or two near the target run narrower.
+        const roomLeft = AUTO_CURATION_TARGET_SAVED - saved;
+        const chunkSize = Math.max(1, Math.min(CHUNK_SIZE, roomLeft));
+        const chunk = candidates.slice(attempted, attempted + chunkSize);
         attempted += chunk.length;
         await Promise.all(
           chunk.map(async (url) => {
