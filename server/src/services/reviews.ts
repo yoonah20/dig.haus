@@ -201,6 +201,12 @@ export const EXCLUDED_URL_DOMAINS = [
   'metalstorm.net',
   'ghostcultmag.com',
   'theprogspace.com',
+  'headbangerslifestyle.com',
+  'progarchives.com',
+  'treblezine.com',
+  'myglobalmind.com',
+  'brooklynvegan.com',
+  'grande-rock.com',
   // Aggregator (user ratings + collected editorial snippets) rather
   // than an editorial site in its own right. Same reasoning as
   // metal-archives and rockreport.
