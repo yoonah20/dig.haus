@@ -193,6 +193,31 @@ export const EXCLUDED_URL_DOMAINS = [
   'youtu.be',
 ];
 
+// URL path / filename patterns that signal the target page is a multi-
+// album roundup rather than a dedicated review (year-end lists, staff
+// picks, "in brief" sweep posts, monthly digests). These pages usually
+// mention the album in passing at best, and even when the LLM correctly
+// refuses them the Haiku editorial filter has already paid to look at
+// them. The mystificationzine.com "in-brief-october-25-pt-i" and
+// heavyblogisheavy.com "heavy-blogs-superlatives-2025" hits that
+// motivated this list are both year/month roundups; admin can still
+// paste a specific URL manually through the add-url flow if one of
+// these posts genuinely is a one-album feature.
+export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
+  /\bsuperlative/i,
+  /\bbest[-_]of[-_]/i,
+  /\byear[-_]end\b/i,
+  /\byear[-_]in[-_]review\b/i,
+  /\broundup\b/i,
+  /\bround[-_]up\b/i,
+  /\bin[-_]brief\b/i,
+  /\btop[-_]\d+/i,
+  /\bstaff[-_]picks?\b/i,
+  /\bmonthly[-_]/i,
+  /\blistening[-_]log\b/i,
+  /\balbums?[-_]of[-_]the[-_](?:week|month|year)\b/i,
+];
+
 // Normalize a URL for duplicate-detection only — what we STORE is still
 // the admin-pasted string unchanged. This key is just for comparing two
 // variants of the "same" page. Conservative strips: case-folded host,
@@ -298,6 +323,59 @@ function detectStarRating(html: string): number | null {
     const filled = full + half * 0.5;
     return Math.max(0, Math.min(100, Math.round((filled / scale) * 100)));
   }
+  return null;
+}
+
+// Per-site score extractors for publications whose rating widgets are
+// in places the generic detectors can't see — buried in a JS config,
+// embedded with a site-specific visual convention, etc. Keyed by
+// hostname so a pattern that only holds for one site can't false-
+// positive elsewhere.
+function detectSiteSpecificScore(html: string, url: string): number | null {
+  let host = '';
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+
+  // Sputnikmusic — the reviewer's score sits in a red-bold span with
+  // no "Album Rating:" label. Every "Album Rating: N.N" on the page
+  // belongs to a user comment, so the generic Album-Rating detector
+  // (detectExplicitNumericScore rule 4) grabs the first user comment's
+  // number instead of the reviewer's. Match the specific color-coded
+  // span convention that Sputnik uses for its own score box.
+  if (host === 'sputnikmusic.com') {
+    const m = html.match(
+      /color\s*:\s*#ff0000[^"]*"[^>]*>\s*(\d(?:\.\d)?)\s*<\/span>/i
+    );
+    if (m) {
+      const score = parseFloat(m[1]);
+      if (score >= 0 && score <= 5) {
+        return Math.round((score / 5) * 100);
+      }
+    }
+  }
+
+  // Metal Trenches — the page renders a Highcharts rating distribution
+  // chart and keeps the computed overall score in the chart title
+  // (`text: 'Average Score: 10.0'`). Never surfaces in visible text, so
+  // stripHtml + the text-based detectors never see it. Scan the raw
+  // HTML (before any script strip) for the quoted pattern.
+  if (host === 'metaltrenches.com') {
+    const m = html.match(
+      /['"]\s*(?:Average\s+)?(?:Score|Rating)\s*:\s*(\d+(?:\.\d+)?)\s*['"]/i
+    );
+    if (m) {
+      const score = parseFloat(m[1]);
+      // Site's scale is /10 (confirmed by the '10/10 perfect' rubric
+      // on the ratings-chart legend). Clamp defensively.
+      if (score >= 0 && score <= 10) {
+        return Math.round((score / 10) * 100);
+      }
+    }
+  }
+
   return null;
 }
 
@@ -642,21 +720,31 @@ export async function scrapeReviewFromUrl(
   // friends), (3) text-labelled numeric scores ("Score: 90/100").
   let detectedScore: number | null = null;
   if (rawResult.ok) {
-    const starScore = detectStarRating(html);
-    const ariaScore = starScore === null ? detectAriaLabelRating(html) : null;
+    // Site-specific handler runs first — high-confidence per-site
+    // knowledge (sputnikmusic reviewer box, metaltrenches Highcharts
+    // config, etc.) that would otherwise be shadowed by a generic
+    // detector landing on the wrong number.
+    const siteScore = detectSiteSpecificScore(html, url);
+    const starScore = siteScore === null ? detectStarRating(html) : null;
+    const ariaScore =
+      siteScore === null && starScore === null ? detectAriaLabelRating(html) : null;
     // WP Product Review runs ahead of the filename/numeric detectors
     // because pages using that plugin often ALSO have sidebar widgets
     // with X/10 markup for related posts — explicit-numeric would
     // grab the last X/10 match and land on the wrong album.
     const wpprScore =
-      starScore === null && ariaScore === null
+      siteScore === null && starScore === null && ariaScore === null
         ? detectWpProductReviewRating(html)
         : null;
     const filenameRatingScore =
-      starScore === null && ariaScore === null && wpprScore === null
+      siteScore === null &&
+      starScore === null &&
+      ariaScore === null &&
+      wpprScore === null
         ? detectFilenameRatingImage(html)
         : null;
     const numericScore =
+      siteScore === null &&
       starScore === null &&
       ariaScore === null &&
       wpprScore === null &&
@@ -664,18 +752,25 @@ export async function scrapeReviewFromUrl(
         ? detectExplicitNumericScore(html)
         : null;
     detectedScore =
-      starScore ?? ariaScore ?? wpprScore ?? filenameRatingScore ?? numericScore;
+      siteScore ??
+      starScore ??
+      ariaScore ??
+      wpprScore ??
+      filenameRatingScore ??
+      numericScore;
     if (detectedScore !== null) {
       const source =
-        starScore !== null
-          ? 'star'
-          : ariaScore !== null
-            ? 'aria-label'
-            : wpprScore !== null
-              ? 'wppr'
-              : filenameRatingScore !== null
-                ? 'filename-image'
-                : 'explicit-numeric';
+        siteScore !== null
+          ? 'site-specific'
+          : starScore !== null
+            ? 'star'
+            : ariaScore !== null
+              ? 'aria-label'
+              : wpprScore !== null
+                ? 'wppr'
+                : filenameRatingScore !== null
+                  ? 'filename-image'
+                  : 'explicit-numeric';
       console.log(`[reviews] detected ${source} score ${detectedScore}/100 for ${url}`);
     }
   }

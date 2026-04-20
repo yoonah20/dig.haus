@@ -27,6 +27,7 @@ import {
   scrapeReviewFromUrl,
   extractFromPastedText,
   EXCLUDED_URL_DOMAINS,
+  EXCLUDED_URL_PATH_PATTERNS,
   normalizeReviewUrl,
 } from '../services/reviews.js';
 import { searchReviewUrls } from '../services/serper.js';
@@ -1206,8 +1207,17 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
 
     const domainFiltered = candidates.filter((c) => {
       try {
-        const host = new URL(c.url).hostname.toLowerCase();
-        return !EXCLUDED_URL_DOMAINS.some((d) => host.includes(d));
+        const parsed = new URL(c.url);
+        const host = parsed.hostname.toLowerCase();
+        if (EXCLUDED_URL_DOMAINS.some((d) => host.includes(d))) return false;
+        // Path-level roundup / multi-album post filter. We'd rather
+        // miss an occasional single-album feature nested inside a
+        // "best-of" post than let the LLM pay tokens to sift through
+        // year-end digests that almost never contain a real per-album
+        // review.
+        const pathKey = parsed.pathname + parsed.search;
+        if (EXCLUDED_URL_PATH_PATTERNS.some((re) => re.test(pathKey))) return false;
+        return true;
       } catch {
         return false;
       }
