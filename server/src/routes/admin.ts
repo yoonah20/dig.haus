@@ -32,12 +32,16 @@ function safeParseArray(raw: unknown): any[] {
 
 // Hardcoded prices for token → USD conversion. Update when Anthropic's
 // pricing page changes. Rates are per 1M tokens (input / output) and
-// per 1000 calls (web search). If we see an unfamiliar model string in
-// the log, we fall back to Haiku 4.5 rates rather than dropping the
-// row — better to slightly misestimate than under-report.
+// per 1000 calls (web search). Both exact alias (what we pass into the
+// SDK) and the dated response model string (what Anthropic echoes back
+// and what logClaudeUsage actually stores) are listed so the lookup
+// hits on either side. If a brand-new versioned model shows up we
+// prefix-match in pricingFor before giving up.
 const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
+  'claude-haiku-4-5': { input: 1, output: 5 },
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
   'claude-sonnet-4-5': { input: 3, output: 15 },
+  'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
   // DeepSeek V3 — used for scrape extraction (Jina markdown → JSON).
   // Much cheaper than Haiku for the input-heavy extraction path; we
   // still log under the same claude_usage_log table keyed by the
@@ -49,8 +53,23 @@ const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
 };
 const WEB_SEARCH_PER_1000 = 10; // $10 / 1000 calls
 
+// Prefix-match fallback: if Anthropic bumps the date suffix on an
+// existing model (e.g. claude-sonnet-4-5-20250929 → ...-20260115) the
+// exact lookup misses. Match on the family prefix and use those rates
+// so costs stay honest until the table is updated. Ordered longest-
+// prefix-first so "claude-sonnet-4-5" wins over a hypothetical
+// "claude-sonnet" entry.
+const PRICING_PREFIXES = Object.keys(PRICING_PER_1M).sort(
+  (a, b) => b.length - a.length
+);
+
 function pricingFor(model: string) {
-  return PRICING_PER_1M[model] ?? PRICING_PER_1M['claude-haiku-4-5-20251001'];
+  const exact = PRICING_PER_1M[model];
+  if (exact) return exact;
+  for (const p of PRICING_PREFIXES) {
+    if (model.startsWith(p)) return PRICING_PER_1M[p];
+  }
+  return PRICING_PER_1M['claude-haiku-4-5'];
 }
 
 // GET /api/admin/stats — dashboard overview

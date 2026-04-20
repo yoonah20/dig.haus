@@ -432,13 +432,16 @@ function ClaudeUsageCard({
               {recent.data.calls.map((c) => (
                 <div
                   key={c.id}
-                  className="py-1.5 grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 items-baseline"
+                  className="py-1.5 grid grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-2 items-baseline"
                 >
                   <span className="text-gray-300 truncate">
                     {OPERATION_LABEL(c.operation)}
                     {c.webSearchCount > 0 && (
                       <span className="ml-1 text-gray-500">· {c.webSearchCount}검색</span>
                     )}
+                  </span>
+                  <span className="text-gray-500 text-[10px] whitespace-nowrap">
+                    {MODEL_LABEL(c.model)}
                   </span>
                   <span className="text-gray-500 text-[10px] tabular-nums whitespace-nowrap">
                     {formatShortKstDateTime(c.createdAt)}
@@ -556,6 +559,19 @@ function OPERATION_LABEL(op: string): string {
     default:
       return op;
   }
+}
+
+// The raw model field is "claude-haiku-4-5-20251001" / "claude-sonnet-
+// 4-5" / "deepseek-chat" etc. Way too long for the per-call row. Pull
+// out the distinctive word and a short version tag so the viewer can
+// tell at a glance which provider/size handled the call.
+function MODEL_LABEL(model: string): string {
+  const m = model.toLowerCase();
+  if (m.includes('haiku')) return 'haiku 4.5';
+  if (m.includes('sonnet')) return 'sonnet 4.5';
+  if (m.includes('opus')) return 'opus';
+  if (m.startsWith('deepseek')) return 'deepseek';
+  return model;
 }
 
 export default function Admin() {

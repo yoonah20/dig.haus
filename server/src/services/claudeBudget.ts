@@ -7,12 +7,26 @@ import { queryAll } from '../db/index.js';
 // to keep in both places; keep them in sync when Anthropic pricing
 // changes.
 const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
+  'claude-haiku-4-5': { input: 1, output: 5 },
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
   'claude-sonnet-4-5': { input: 3, output: 15 },
+  'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
   'deepseek-chat': { input: 0.27, output: 1.1 },
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
 };
+const PRICING_PREFIXES = Object.keys(PRICING_PER_1M).sort(
+  (a, b) => b.length - a.length
+);
 const WEB_SEARCH_PER_1000 = 10;
+
+function pricingFor(model: string) {
+  const exact = PRICING_PER_1M[model];
+  if (exact) return exact;
+  for (const p of PRICING_PREFIXES) {
+    if (model.startsWith(p)) return PRICING_PER_1M[p];
+  }
+  return PRICING_PER_1M['claude-haiku-4-5'];
+}
 
 // Rolling-24h Claude spend ceiling. The per-album STEP1_BUDGET_CAP_USD
 // in reviews.ts stops a single runaway pipeline; this cap is the
@@ -37,8 +51,7 @@ export function getRollingDailyClaudeSpendUsd(): number {
 
   let total = 0;
   for (const r of rows) {
-    const prices =
-      PRICING_PER_1M[r.model] ?? PRICING_PER_1M['claude-haiku-4-5-20251001'];
+    const prices = pricingFor(r.model);
     total += (r.in_tok / 1_000_000) * prices.input;
     total += (r.out_tok / 1_000_000) * prices.output;
     total += (r.search_n / 1000) * WEB_SEARCH_PER_1000;

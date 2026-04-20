@@ -265,6 +265,23 @@ function detectStarRating(html: string): number | null {
   return null;
 }
 
+// WordPress "WP Product Review" plugin encodes the score directly in
+// a class name: `wppr-pNN` where NN is 0-100 (already on a /100 scale).
+// The main article's review widget appears first in document order;
+// sidebar "related posts" and "other reviews" widgets come later in
+// the markup, so taking the FIRST match keeps us on the album the page
+// is actually reviewing. Our detectExplicitNumericScore would otherwise
+// land on a sidebar "8.5/10" via the bare-fraction last-match rule.
+// Used by thedarkmelody.com and a bunch of other indie WordPress
+// review blogs that use the same plugin.
+function detectWpProductReviewRating(html: string): number | null {
+  const m = html.match(/class\s*=\s*"[^"]*\bwppr-p(\d{1,3})\b[^"]*"/i);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  if (n < 0 || n > 100) return null;
+  return n;
+}
+
 // A11y-first rating widgets draw the visual with pure CSS (no child
 // <i> icons, no Unicode chars) and put the actual number in an
 // aria-label / title / alt attribute on the container element:
@@ -591,24 +608,38 @@ export async function scrapeReviewFromUrl(
   if (rawResult.ok) {
     const starScore = detectStarRating(html);
     const ariaScore = starScore === null ? detectAriaLabelRating(html) : null;
-    const filenameRatingScore =
+    // WP Product Review runs ahead of the filename/numeric detectors
+    // because pages using that plugin often ALSO have sidebar widgets
+    // with X/10 markup for related posts — explicit-numeric would
+    // grab the last X/10 match and land on the wrong album.
+    const wpprScore =
       starScore === null && ariaScore === null
+        ? detectWpProductReviewRating(html)
+        : null;
+    const filenameRatingScore =
+      starScore === null && ariaScore === null && wpprScore === null
         ? detectFilenameRatingImage(html)
         : null;
     const numericScore =
-      starScore === null && ariaScore === null && filenameRatingScore === null
+      starScore === null &&
+      ariaScore === null &&
+      wpprScore === null &&
+      filenameRatingScore === null
         ? detectExplicitNumericScore(html)
         : null;
-    detectedScore = starScore ?? ariaScore ?? filenameRatingScore ?? numericScore;
+    detectedScore =
+      starScore ?? ariaScore ?? wpprScore ?? filenameRatingScore ?? numericScore;
     if (detectedScore !== null) {
       const source =
         starScore !== null
           ? 'star'
           : ariaScore !== null
             ? 'aria-label'
-            : filenameRatingScore !== null
-              ? 'filename-image'
-              : 'explicit-numeric';
+            : wpprScore !== null
+              ? 'wppr'
+              : filenameRatingScore !== null
+                ? 'filename-image'
+                : 'explicit-numeric';
       console.log(`[reviews] detected ${source} score ${detectedScore}/100 for ${url}`);
     }
   }
@@ -662,14 +693,20 @@ Score: find the review's explicit rating and convert to a /100 integer. Follow t
 3. Percentages like "Rating: 85%" → 85 (already /100).
 4. "Album Rating: 4.0" (Sputnikmusic style, no visible denominator) → treat as /5. So 4.0 → 80, 3.5 → 70, 5.0 → 100.
 5. If you see numbers in the text that are NOT the album's rating — track lengths, release years, "5 of 10 songs are great" style prose, "4 stars" about a different album — do NOT use them. score = null is correct.
-6. Letter grades (A+, B-, etc.) are hard to convert reliably — if you see one and no numeric score, return null and let admin fill in manually.
+6. QUALITATIVE ratings map to null — never guess a number. This includes:
+   - Letter grades (A+, B-, etc.)
+   - Word ratings like "Great!", "Excellent", "Good", "Okay", "Mediocre", "Disappointing"
+   - Publication-specific scales (e.g. Angry Metal Guy's Great/Excellent/Good system maps internally to 4/5/3/5 BUT we treat them as null — the site reader should see admin-confirmed numbers, not our reverse-engineered conversions)
+   If a page has ONLY a word rating and no visible number, score = null.
 7. If unsure, prefer null over a guess. A null score is fine; a wrong score is worse.
 
 Language: the review may be in English, Dutch, German, French, Spanish, Italian, Portuguese, Swedish, Korean, Japanese, or any other language. Non-English reviews are valid. Extract the excerpt in the review's original language; still produce a Korean excerptKo regardless of the source language.
 
 Excerpt: pick whatever prose about the album you can find. Evaluative sentences first, but if the page only has descriptive prose (release context, band history, track-by-track discussion) include that instead. Skip pure navigation text, ads, and tracklists-only pages. "[Read more...]" preview links or aggregator-style listings with a short paragraph still count — extract what's there.
 
-Be AGGRESSIVE about extracting. The cost of returning a weak excerpt + null score is low (admin can delete the row if useless). The cost of refusing ("not a review") when there was extractable content is much higher — it means we lose real coverage. Only return {"error":"not a review"} when the page text is truly unrelated: 404 pages, completely unrelated albums, pure navigation with zero descriptive prose about THIS album. When in ANY doubt, extract.`;
+Be AGGRESSIVE about extracting. The cost of returning a weak excerpt + null score is low (admin can delete the row if useless). The cost of refusing ("not a review") when there was extractable content is much higher — it means we lose real coverage. Only return {"error":"not a review"} when the page text is truly unrelated: 404 pages, completely unrelated albums, pure navigation with zero descriptive prose about THIS album. When in ANY doubt, extract.
+
+Refusal format is STRICT: when the page is about OTHER albums entirely (a roundup of different records, a different album's review page, etc.), you MUST return {"error":"not a review of this album"} and nothing else. Do NOT put the refusal as prose into the excerpt / excerptKo fields. Do NOT list the other albums that ARE on the page. Just the error key.`;
 
   try {
     const rawText = await extractJsonWithFallback('scrape_review', prompt, 2000);
@@ -691,6 +728,30 @@ Be AGGRESSIVE about extracting. The cost of returning a weak excerpt + null scor
     if (parsed.error) {
       recordScrapeFailure(url, albumMbid, 'not-a-review', String(parsed.error));
       return { kind: 'fail', reason: 'not-a-review', message: String(parsed.error) };
+    }
+
+    // Second line of defense: the LLM sometimes describes its own
+    // refusal as prose inside excerpt / excerptKo instead of using the
+    // {"error":"..."} structure it was told to use. Catches roundup
+    // posts and wrong-album pages that slipped past the editorial
+    // filter. Patterns cover English + Korean since excerpt may be
+    // either and excerptKo is always Korean.
+    const rejectionPatterns = [
+      /제공된 페이지/,
+      /리뷰가?\s*(?:포함되[^가-힣]*않|없|찾을 수 없)/,
+      /이\s*페이지에는\s*[^가-힣]*리뷰만?\s*수록/,
+      /no review (?:of|for)\s+(?:this|the)/i,
+      /this page (?:does not|doesn't)\s+(?:contain|include|have)/i,
+      /(?:page|article|text)\s+is\s+(?:about|covering)\s+(?:other|different|another)\s+albums?/i,
+    ];
+    const prose = `${parsed.excerpt ?? ''}\n${parsed.excerptKo ?? ''}`;
+    if (rejectionPatterns.some((re) => re.test(prose))) {
+      recordScrapeFailure(url, albumMbid, 'not-a-review-in-prose', prose.slice(0, 200));
+      return {
+        kind: 'fail',
+        reason: 'not-a-review',
+        message: 'LLM described refusal as prose instead of using the error key',
+      };
     }
 
     return {
