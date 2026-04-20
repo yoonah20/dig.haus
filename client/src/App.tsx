@@ -3,8 +3,10 @@ import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SearchOverlayProvider } from './contexts/SearchOverlayContext';
 import { HomeStateProvider } from './contexts/HomeStateContext';
+import { CurationProgressProvider } from './contexts/CurationProgressContext';
 import TopNav from './components/TopNav';
 import SiteFooter from './components/SiteFooter';
+import CurationProgressPanel from './components/CurationProgressPanel';
 
 const Home = lazy(() => import('./pages/Home'));
 const Album = lazy(() => import('./pages/Album'));
@@ -66,21 +68,24 @@ export default function App() {
     <AuthProvider>
       <SearchOverlayProvider>
         <HomeStateProvider>
-          <div className="min-h-screen flex flex-col bg-[#0a0703] text-gray-100">
-            <TopNav />
-            <Suspense fallback={<RouteFallback />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/album/:slug" element={<Album />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/my-preview" element={<MyDigPreview />} />
-                <Route path="/my/:username" element={<MyDig />} />
-                <Route path="/admin/api-console" element={<ApiConsole />} />
-              </Routes>
-            </Suspense>
-            <SiteFooter />
-          </div>
+          <CurationProgressProvider>
+            <div className="min-h-screen flex flex-col bg-[#0a0703] text-gray-100">
+              <TopNav />
+              <Suspense fallback={<RouteFallback />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/album/:slug" element={<Album />} />
+                  <Route path="/admin" element={<Admin />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/my-preview" element={<MyDigPreview />} />
+                  <Route path="/my/:username" element={<MyDig />} />
+                  <Route path="/admin/api-console" element={<ApiConsole />} />
+                </Routes>
+              </Suspense>
+              <SiteFooter />
+              <CurationProgressPanel />
+            </div>
+          </CurationProgressProvider>
         </HomeStateProvider>
       </SearchOverlayProvider>
     </AuthProvider>
