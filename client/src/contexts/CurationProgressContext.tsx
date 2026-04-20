@@ -60,8 +60,13 @@ export interface CurationRunState {
 interface CurationProgressAPI {
   run: CurationRunState | null;
   isRunning: boolean;
+  /** One-off (album-page) vs batch (/admin checkbox) is a cosmetic tag
+   *  that shows up in the curation-history feed — doesn't change the
+   *  pipeline itself. Defaults to 'oneclick' when a single album is
+   *  passed, 'batch' when more than one. */
   startRun: (
-    albums: Array<{ mbid: string; title: string }>
+    albums: Array<{ mbid: string; title: string }>,
+    triggerKind?: 'oneclick' | 'batch'
   ) => Promise<void>;
   clearRun: () => void;
 }
@@ -105,9 +110,32 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
     []
   );
 
+  // Snapshot the admin's Claude-usage tally before and after each album
+  // so we can compute an approximate per-album cost for the curation log.
+  // GET /api/admin/stats is already polled by the Admin page via React
+  // Query so this should hit cache most of the time; worst case it's
+  // one extra light request per album.
+  const fetchTotalUsd = useCallback(async (): Promise<number> => {
+    try {
+      const { data } = await axios.get('/api/admin/stats');
+      return typeof data?.claudeUsage?.month?.usd === 'number'
+        ? data.claudeUsage.month.usd
+        : 0;
+    } catch {
+      return 0;
+    }
+  }, []);
+
   const processAlbum = useCallback(
-    async (album: CurationAlbumResult, index: number) => {
+    async (
+      album: CurationAlbumResult,
+      index: number,
+      runId: string,
+      startedAt: string,
+      triggerKind: 'oneclick' | 'batch'
+    ) => {
       const { albumMbid, albumTitle } = album;
+      const costBefore = await fetchTotalUsd();
 
       updateAlbum(index, { status: 'running' });
       appendLog(albumMbid, albumTitle, 'URL 자동 검색 시작', 'info');
@@ -171,6 +199,7 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
       }
 
       // Step 3: summary (only if there's something to summarize)
+      let summaryOk = false;
       if (saved > 0 || dup > 0) {
         appendLog(albumMbid, albumTitle, '한국어 요약 생성 중', 'info');
         try {
@@ -179,6 +208,7 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
           );
           updateAlbum(index, { summaryGenerated: true });
           appendLog(albumMbid, albumTitle, '요약 생성 완료', 'success');
+          summaryOk = true;
         } catch (err: any) {
           appendLog(
             albumMbid,
@@ -196,18 +226,51 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
       qc.invalidateQueries({ queryKey: ['album-reviews', albumMbid] });
       qc.invalidateQueries({ queryKey: ['album-list'] });
       qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+
+      // Persist a curation-history row. Cost is the Claude-usage
+      // delta over the album's processing window. Fire-and-forget
+      // since a failed insert shouldn't break the run — the ledger
+      // is observability, not critical state.
+      const costAfter = await fetchTotalUsd();
+      const costDelta = Math.max(0, costAfter - costBefore);
+      axios
+        .post('/api/admin/curation-runs', {
+          runId,
+          albumMbid,
+          albumTitle,
+          triggerKind,
+          urlsFound: urls.length,
+          urlsSaved: saved,
+          duplicates: dup,
+          failures: failed,
+          summaryGenerated: summaryOk,
+          costUsd: costDelta,
+          status: 'done',
+          startedAt,
+        })
+        .catch(() => {
+          // Best-effort — already logged the work in the panel.
+        });
     },
-    [appendLog, qc, updateAlbum]
+    [appendLog, qc, updateAlbum, fetchTotalUsd]
   );
 
   const startRun = useCallback(
-    async (albums: Array<{ mbid: string; title: string }>) => {
+    async (
+      albums: Array<{ mbid: string; title: string }>,
+      triggerKindArg?: 'oneclick' | 'batch'
+    ) => {
       if (isRunningRef.current) return;
       if (albums.length === 0) return;
       isRunningRef.current = true;
 
+      const runId = `r-${Date.now()}`;
+      const startedAtIso = new Date().toISOString();
+      const triggerKind =
+        triggerKindArg ?? (albums.length === 1 ? 'oneclick' : 'batch');
+
       const initial: CurationRunState = {
-        runId: `r-${Date.now()}`,
+        runId,
         albums: albums.map((a) => ({
           albumMbid: a.mbid,
           albumTitle: a.title,
@@ -228,14 +291,16 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
       try {
         for (let i = 0; i < initial.albums.length; i++) {
           setRun((prev) => (prev ? { ...prev, currentIndex: i } : prev));
-          await processAlbum(initial.albums[i], i);
+          await processAlbum(initial.albums[i], i, runId, startedAtIso, triggerKind);
         }
       } finally {
         setRun((prev) => (prev ? { ...prev, finished: true } : prev));
         isRunningRef.current = false;
         // Admin-facing stats refresh so the 데이터 미완 panel reflects
-        // the albums that just got summaries.
+        // the albums that just got summaries, and the new curation-run
+        // rows show in the 큐레이션 이력 panel.
         qc.invalidateQueries({ queryKey: ['admin-stats'] });
+        qc.invalidateQueries({ queryKey: ['curation-runs'] });
       }
     },
     [processAlbum, qc]

@@ -34,6 +34,7 @@ import {
   useDismissLabelFeedItem,
   useRegisterLabelFeedItem,
 } from '../hooks/useLabelFeed';
+import { useCurationProgress } from '../contexts/CurationProgressContext';
 
 interface IncompleteAlbumSample {
   id: number;
@@ -714,20 +715,7 @@ export default function Admin() {
               )}
             </Panel>
 
-            <Panel title="데이터 미완 앨범" icon="⚠️">
-              <IncompleteSubsection
-                label="리뷰 없음"
-                bucket={data.incompleteAlbums.noReviews}
-              />
-              <IncompleteSubsection
-                label="한국어 요약 없음"
-                bucket={data.incompleteAlbums.noSummary}
-              />
-              <IncompleteSubsection
-                label="커버 없음"
-                bucket={data.incompleteAlbums.noCover}
-              />
-            </Panel>
+            <IncompletePanel incompleteAlbums={data.incompleteAlbums} />
           </section>
 
           {/* 3-column feed grid — all "최근 ~" columns. */}
@@ -953,6 +941,15 @@ export default function Admin() {
               (or giving up on) a site. */}
           <section className="mt-4">
             <ScrapeFailuresPanel />
+          </section>
+
+          {/* Per-album record of every curation pipeline run (one-click
+              or batch). Written by the client from
+              CurationProgressContext as each album finishes — gives
+              admin a permanent ledger of "how much coverage did that
+              batch actually produce, and what did it cost." */}
+          <section className="mt-4">
+            <CurationRunsPanel />
           </section>
 
         </>
@@ -1181,12 +1178,111 @@ function RecentUsersList({ users }: { users: AdminStats['recentUsers'] }) {
 // surrounding grid row. Default state is a single label · count
 // line; clicking expands to the sample list inline without
 // leaving the admin page.
+// Wraps the three 데이터 미완 buckets and owns selection state across
+// the two curation-eligible ones (리뷰 없음 + 한국어 요약 없음). The
+// 커버 없음 bucket doesn't get checkboxes — the curation pipeline
+// doesn't add covers, so selecting a cover-missing album is just
+// noise. Batch button fires a single CurationProgressContext run
+// containing every selected album; the floating panel takes over
+// from there.
+function IncompletePanel({
+  incompleteAlbums,
+}: {
+  incompleteAlbums: AdminStats['incompleteAlbums'];
+}) {
+  const curation = useCurationProgress();
+  // Map<mbid, sample> so the "선택 N개 큐레이션" button can pass
+  // title along to startRun without re-lookup, and so toggling is O(1).
+  const [selected, setSelected] = useState<Map<string, IncompleteAlbumSample>>(
+    () => new Map()
+  );
+
+  const toggleSelected = (a: IncompleteAlbumSample) => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (next.has(a.mbid)) next.delete(a.mbid);
+      else next.set(a.mbid, a);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelected(new Map());
+
+  const startBatch = () => {
+    if (curation.isRunning || selected.size === 0) return;
+    const albums = Array.from(selected.values()).map((a) => ({
+      mbid: a.mbid,
+      title: a.title,
+    }));
+    clearSelection();
+    curation.startRun(albums);
+  };
+
+  const hasSelection = selected.size > 0;
+
+  return (
+    <Panel
+      title="데이터 미완 앨범"
+      icon="⚠️"
+      headerAction={
+        hasSelection ? (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={clearSelection}
+              className="text-[11px] text-gray-500 hover:text-white px-2 py-0.5 cursor-pointer"
+              title="선택 해제"
+            >
+              해제
+            </button>
+            <button
+              onClick={startBatch}
+              disabled={curation.isRunning}
+              className="text-[11px] text-[#e8a020]/90 hover:text-[#e8a020] border border-[#e8a020]/50 hover:border-[#e8a020]/80 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1.5"
+              title="선택한 앨범들에 대해 URL 검색 → 리뷰 수집 → 요약까지 배치 실행"
+            >
+              {curation.isRunning && (
+                <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+              )}
+              🔍 {selected.size}개 큐레이션
+            </button>
+          </div>
+        ) : null
+      }
+    >
+      <IncompleteSubsection
+        label="리뷰 없음"
+        bucket={incompleteAlbums.noReviews}
+        selectable
+        selected={selected}
+        onToggle={toggleSelected}
+      />
+      <IncompleteSubsection
+        label="한국어 요약 없음"
+        bucket={incompleteAlbums.noSummary}
+        selectable
+        selected={selected}
+        onToggle={toggleSelected}
+      />
+      <IncompleteSubsection
+        label="커버 없음"
+        bucket={incompleteAlbums.noCover}
+      />
+    </Panel>
+  );
+}
+
 function IncompleteSubsection({
   label,
   bucket,
+  selectable = false,
+  selected,
+  onToggle,
 }: {
   label: string;
   bucket: { count: number; samples: IncompleteAlbumSample[] };
+  selectable?: boolean;
+  selected?: Map<string, IncompleteAlbumSample>;
+  onToggle?: (a: IncompleteAlbumSample) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -1198,6 +1294,12 @@ function IncompleteSubsection({
       </div>
     );
   }
+  // Count of this bucket's samples currently selected — shown next
+  // to the bucket count so admin sees how much of the visible slice
+  // they've picked. Only meaningful when `selectable`.
+  const selectedInBucket = selectable && selected
+    ? bucket.samples.reduce((n, a) => n + (selected.has(a.mbid) ? 1 : 0), 0)
+    : 0;
   return (
     <div>
       <button
@@ -1214,6 +1316,11 @@ function IncompleteSubsection({
             ▶
           </span>
           <span className="text-gray-300">{label}</span>
+          {selectedInBucket > 0 && (
+            <span className="text-[10px] text-[#e8a020] tabular-nums">
+              ({selectedInBucket} 선택)
+            </span>
+          )}
         </span>
         <span className="text-xs text-gray-500 tabular-nums">
           {bucket.count.toLocaleString()}
@@ -1221,25 +1328,56 @@ function IncompleteSubsection({
       </button>
       {expanded && (
         <ul className="px-4 pb-2.5 space-y-1">
-          {bucket.samples.map((a) => (
-            <li key={a.id}>
-              <Link
-                to={`/album/${a.mbid}`}
-                className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#e8a020] truncate py-0.5"
-              >
-                <CoverArt
-                  src={a.coverArtUrl}
-                  fallbacks={a.coverArtFallbacks}
-                  alt={a.title}
-                  className="w-5 h-5 rounded object-cover flex-shrink-0"
-                />
-                <span className="truncate">
-                  <span className="text-gray-200">{a.title}</span>
-                  <span className="text-gray-600"> — {a.artist}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
+          {bucket.samples.map((a) => {
+            const isChecked = !!selected?.has(a.mbid);
+            if (selectable && onToggle) {
+              return (
+                <li key={a.id} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => onToggle(a)}
+                    className="w-3 h-3 accent-[#e8a020] cursor-pointer flex-shrink-0"
+                    aria-label={`${a.title} 선택`}
+                  />
+                  <Link
+                    to={`/album/${a.mbid}`}
+                    className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#e8a020] truncate py-0.5 flex-1 min-w-0"
+                  >
+                    <CoverArt
+                      src={a.coverArtUrl}
+                      fallbacks={a.coverArtFallbacks}
+                      alt={a.title}
+                      className="w-5 h-5 rounded object-cover flex-shrink-0"
+                    />
+                    <span className="truncate">
+                      <span className="text-gray-200">{a.title}</span>
+                      <span className="text-gray-600"> — {a.artist}</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            }
+            return (
+              <li key={a.id}>
+                <Link
+                  to={`/album/${a.mbid}`}
+                  className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#e8a020] truncate py-0.5"
+                >
+                  <CoverArt
+                    src={a.coverArtUrl}
+                    fallbacks={a.coverArtFallbacks}
+                    alt={a.title}
+                    className="w-5 h-5 rounded object-cover flex-shrink-0"
+                  />
+                  <span className="truncate">
+                    <span className="text-gray-200">{a.title}</span>
+                    <span className="text-gray-600"> — {a.artist}</span>
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
           {bucket.count > bucket.samples.length && (
             <li className="text-[11px] text-gray-600 pl-7 pt-0.5">
               외 {(bucket.count - bucket.samples.length).toLocaleString()}개 더
@@ -1531,6 +1669,120 @@ function LabelFeedPanel() {
             </div>
           </div>
         ))
+      )}
+    </Panel>
+  );
+}
+
+// ─── Curation ledger ─────────────────────────────────────────────────
+
+interface CurationRunRow {
+  id: number;
+  run_id: string;
+  album_mbid: string;
+  album_title: string;
+  trigger_kind: string;
+  urls_found: number;
+  urls_saved: number;
+  duplicates: number;
+  failures: number;
+  summary_generated: number;
+  cost_usd: number;
+  status: string;
+  started_at: string;
+  finished_at: string;
+  album_slug: string | null;
+  cover_art_url: string | null;
+  cover_art_fallbacks: string | null;
+  artist_name: string | null;
+}
+
+function CurationRunsPanel() {
+  const query = useQuery<{ runs: CurationRunRow[] }>({
+    queryKey: ['curation-runs'],
+    queryFn: async () => {
+      const { data } = await axios.get('/api/admin/curation-runs');
+      return data;
+    },
+    refetchInterval: 30_000,
+  });
+
+  const runs = query.data?.runs ?? [];
+
+  return (
+    <Panel title="큐레이션 이력" icon="📋" count={runs.length}>
+      {query.isLoading ? (
+        <EmptyRow>로딩 중...</EmptyRow>
+      ) : runs.length === 0 ? (
+        <EmptyRow>아직 큐레이션 기록이 없어요.</EmptyRow>
+      ) : (
+        <div className="divide-y divide-white/5 max-h-[400px] overflow-y-auto">
+          {runs.map((r) => {
+            const href = r.album_slug
+              ? `/album/${r.album_slug}`
+              : `/album/${r.album_mbid}`;
+            const fallbacks = (() => {
+              try {
+                const parsed = r.cover_art_fallbacks
+                  ? JSON.parse(r.cover_art_fallbacks)
+                  : [];
+                return Array.isArray(parsed) ? parsed : [];
+              } catch {
+                return [];
+              }
+            })();
+            return (
+              <Link
+                key={r.id}
+                to={href}
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors"
+              >
+                <CoverArt
+                  src={r.cover_art_url}
+                  fallbacks={fallbacks}
+                  alt={r.album_title}
+                  className="w-8 h-8 rounded object-cover flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-gray-200 truncate">
+                    {r.album_title}
+                    {r.artist_name && (
+                      <span className="text-gray-600"> — {r.artist_name}</span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-gray-500 flex items-center gap-2">
+                    <span className="uppercase tracking-wider">
+                      {r.trigger_kind === 'batch' ? '배치' : '원클릭'}
+                    </span>
+                    <span className="text-gray-600">·</span>
+                    <span className="tabular-nums">
+                      리뷰 {r.urls_saved}/{r.urls_found}
+                      {r.duplicates > 0 && (
+                        <span className="text-gray-600"> (중복 {r.duplicates})</span>
+                      )}
+                      {r.failures > 0 && (
+                        <span className="text-red-400"> · 실패 {r.failures}</span>
+                      )}
+                    </span>
+                    {r.summary_generated ? (
+                      <span className="text-green-400">· 요약 ✓</span>
+                    ) : (
+                      <span className="text-gray-600">· 요약 —</span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-[11px] text-[#e8a020] tabular-nums">
+                    ${r.cost_usd.toFixed(4)}
+                  </div>
+                  <div className="text-[10px] text-gray-500 tabular-nums">
+                    {formatShortKstDateTime(r.finished_at)}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       )}
     </Panel>
   );

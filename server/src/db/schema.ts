@@ -301,6 +301,37 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_scrape_failures_hostname ON scrape_failures(hostname)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_scrape_failures_failed_at ON scrape_failures(failed_at)`);
 
+  // Curation runs — one row per album processed by the admin one-click
+  // or batch curation pipeline (discover → add-url × N → summary).
+  // Used for the "큐레이션 이력" panel in /admin: shows per-album
+  // stats (URLs found vs. saved, duplicate count, failure count,
+  // whether a summary landed, approximate cost) so admin can see
+  // where the pipeline drifted over time without trawling server logs.
+  // trigger_kind distinguishes one-click (single album, album page) from
+  // batch (checkbox selection, /admin page) even though both use the
+  // same pipeline — useful for spotting "my click rate produced N
+  // failures today" vs. "that 20-album batch had a bad run".
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS curation_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id TEXT NOT NULL,
+      album_mbid TEXT NOT NULL,
+      album_title TEXT NOT NULL,
+      trigger_kind TEXT NOT NULL,
+      urls_found INTEGER NOT NULL DEFAULT 0,
+      urls_saved INTEGER NOT NULL DEFAULT 0,
+      duplicates INTEGER NOT NULL DEFAULT 0,
+      failures INTEGER NOT NULL DEFAULT 0,
+      summary_generated INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'done',
+      started_at TEXT NOT NULL,
+      finished_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_curation_runs_finished_at ON curation_runs(finished_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_curation_runs_run_id ON curation_runs(run_id)`);
+
   // Data-collection feed for the Korean-term normalisation list. Every
   // time admin edits a review's excerpt_ko (PATCH /api/albums/reviews/:id/excerpt)
   // we stash the before/after pair here. Intent is NOT to build an

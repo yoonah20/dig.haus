@@ -871,4 +871,77 @@ router.get('/scrape-failures', (req, res) => {
   }
 });
 
+// ─── POST /api/admin/curation-runs ────────────────────────────────────
+// Client (CurationProgressContext) pings this once per album as the
+// pipeline finishes — one row per album per run. Cost_usd is computed
+// client-side from the API-usage delta so we keep the write-path
+// simple; the server just stores what it's told.
+router.post('/curation-runs', (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const runId = typeof body.runId === 'string' ? body.runId : null;
+  const albumMbid = typeof body.albumMbid === 'string' ? body.albumMbid : null;
+  const albumTitle = typeof body.albumTitle === 'string' ? body.albumTitle : null;
+  const triggerKind = typeof body.triggerKind === 'string' ? body.triggerKind : 'oneclick';
+  const startedAt = typeof body.startedAt === 'string' ? body.startedAt : null;
+  if (!runId || !albumMbid || !albumTitle || !startedAt) {
+    return res.status(400).json({ error: 'runId, albumMbid, albumTitle, startedAt required' });
+  }
+  const toInt = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : 0);
+  const toFloat = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+  try {
+    execute(
+      `INSERT INTO curation_runs
+         (run_id, album_mbid, album_title, trigger_kind,
+          urls_found, urls_saved, duplicates, failures,
+          summary_generated, cost_usd, status, started_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        runId,
+        albumMbid,
+        albumTitle,
+        triggerKind,
+        toInt(body.urlsFound),
+        toInt(body.urlsSaved),
+        toInt(body.duplicates),
+        toInt(body.failures),
+        body.summaryGenerated ? 1 : 0,
+        toFloat(body.costUsd),
+        typeof body.status === 'string' ? body.status : 'done',
+        startedAt,
+      ]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[curation-runs] insert failed:', err);
+    res.status(500).json({ error: 'failed to record curation run' });
+  }
+});
+
+// ─── GET /api/admin/curation-runs ─────────────────────────────────────
+// Feed for the "큐레이션 이력" panel on /admin. Returns the most
+// recent ~50 rows with the album slug so UI can deep-link. Ordered
+// by finished_at DESC so the most recent run is at the top.
+router.get('/curation-runs', (_req, res) => {
+  try {
+    const rows = queryAll(
+      `SELECT cr.id, cr.run_id, cr.album_mbid, cr.album_title,
+              cr.trigger_kind, cr.urls_found, cr.urls_saved,
+              cr.duplicates, cr.failures, cr.summary_generated,
+              cr.cost_usd, cr.status, cr.started_at, cr.finished_at,
+              a.slug AS album_slug,
+              a.cover_art_url AS cover_art_url,
+              a.cover_art_fallbacks AS cover_art_fallbacks,
+              a.artist_name AS artist_name
+         FROM curation_runs cr
+         LEFT JOIN albums a ON a.mbid = cr.album_mbid
+         ORDER BY cr.finished_at DESC
+         LIMIT 50`
+    );
+    res.json({ runs: rows });
+  } catch (err) {
+    console.error('[curation-runs] list failed:', err);
+    res.status(500).json({ error: 'failed to list curation runs' });
+  }
+});
+
 export default router;
