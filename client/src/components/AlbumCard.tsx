@@ -62,24 +62,33 @@ function isRecentRelease(releaseDate: string | null | undefined): boolean {
   return diffDays >= 0 && diffDays <= NEW_BADGE_DAYS;
 }
 
-function isUpcomingRelease(releaseDate: string | null | undefined): boolean {
+// Returns days until release (positive integer) for upcoming albums,
+// or null if the album is already out / has no usable release date.
+// The home grid uses this both as the SOON-vs-NEW gate and as the
+// label content (D-N) so we don't compute the diff twice.
+function daysUntilRelease(releaseDate: string | null | undefined): number | null {
   const ts = parseReleaseTimestamp(releaseDate);
-  if (ts === null) return false;
-  return ts > Date.now();
+  if (ts === null) return null;
+  const diffMs = ts - Date.now();
+  if (diffMs <= 0) return null;
+  return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 }
 
 // Record-shop sticker family. All share the same chip shape so a
 // card carrying multiple (stacked top-down: SOON / NEW → HOT →
 // PRE-ORDER → SALE → SOLD OUT) reads as one column of labels rather
-// than competing elements. SOON and NEW occupy the same top slot and
-// are mutually exclusive (an album is either before or after its
-// release date). NEW moved from yellow to sky so it doesn't collide
-// with SALE's yellow; SOON uses electric violet so it pops against
-// both NEW (sky) and HOT (red) when scanning the grid for unreleased
-// titles. Labels drop the trailing '!'; the typography carries the
-// energy. PRE-ORDER and SOLD OUT render as two-line chips
-// (hyphen/space split) so they stay narrow enough to sit over the
-// cover without stretching past single-word stickers.
+// than competing elements. The "soon" entry is the only one with a
+// dynamic label — it renders the days-to-release countdown (D-N)
+// rather than its static "SOON" lines, which we keep around as the
+// aria fallback. SOON and NEW occupy the same top slot and are
+// mutually exclusive (an album is either before or after its release
+// date). NEW moved from yellow to sky so it doesn't collide with
+// SALE's yellow; the countdown chip uses a brighter electric violet
+// with near-black text so the digits stay legible at sticker scale
+// — the deeper violet we tried first looked the part but rendered
+// the numbers as a smudge. PRE-ORDER and SOLD OUT render as two-line
+// chips (hyphen/space split) so they stay narrow enough to sit over
+// the cover without stretching past single-word stickers.
 type CoverStickerKind = 'soon' | 'new' | 'hot' | 'preorder' | 'sale' | 'soldout';
 
 interface StickerSpec {
@@ -102,8 +111,8 @@ interface StickerSpec {
 
 const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
   soon: {
-    bg: '#8f00ff',
-    fg: '#ffffff',
+    bg: '#b78bff',
+    fg: '#15001f',
     lines: ['SOON'],
     aria: '발매 예정',
   },
@@ -154,8 +163,20 @@ const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
   },
 };
 
-function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
+function CoverStickerBadge({
+  kind,
+  lines: linesOverride,
+  ariaOverride,
+}: {
+  kind: CoverStickerKind;
+  /** Replaces palette.lines for stickers whose label is data-driven
+   *  (currently only 'soon' for the D-N countdown). All other kinds
+   *  rely on the static palette text and leave this undefined. */
+  lines?: string[];
+  ariaOverride?: string;
+}) {
   const palette = STICKER_PALETTE[kind];
+  const lines = linesOverride ?? palette.lines;
   return (
     <span
       className="inline-flex flex-col items-center justify-center font-extrabold uppercase rounded-sm shadow-md"
@@ -168,10 +189,13 @@ function CoverStickerBadge({ kind }: { kind: CoverStickerKind }) {
         padding: palette.padding ?? '2.2px 5.4px',
         lineHeight: palette.lineHeight ?? 1,
         minWidth: palette.minWidth,
+        // Tabular numerals keep the countdown digits from jiggling as
+        // the album rolls D-99 → D-7 day by day.
+        fontVariantNumeric: 'tabular-nums',
       }}
-      aria-label={palette.aria}
+      aria-label={ariaOverride ?? palette.aria}
     >
-      {palette.lines.map((line) => (
+      {lines.map((line) => (
         <span key={line}>{line}</span>
       ))}
     </span>
@@ -183,12 +207,12 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
   const down = album.downvotes ?? 0;
   const userReviewCount = album.userReviewCount ?? 0;
   const priceTagLinks = album.priceTagLinks ?? [];
-  const isSoon = isUpcomingRelease(album.releaseDate);
+  const daysToRelease = daysUntilRelease(album.releaseDate);
+  const isSoon = daysToRelease !== null;
   // SOON takes precedence over NEW — they share the top slot and are
-  // mutually exclusive. The day the release date arrives, isSoon
-  // flips to false and isRecentRelease flips to true on the same
-  // mount, so the sticker auto-transitions to NEW with no server
-  // round-trip.
+  // mutually exclusive. The day the release date arrives, daysToRelease
+  // returns null and isRecentRelease flips to true on the same render,
+  // so the sticker auto-transitions to NEW with no server round-trip.
   const isNew = !isSoon && isRecentRelease(album.releaseDate);
   // Status stickers use the server-computed flags (which look at
   // *all* links, not just the top-3 cheapest that priceTagLinks
@@ -362,7 +386,13 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
             />
             {hasAnyCoverSticker && (
               <div className="absolute top-2 left-2 flex flex-col items-start gap-1 select-none">
-                {isSoon && <CoverStickerBadge kind="soon" />}
+                {isSoon && (
+                  <CoverStickerBadge
+                    kind="soon"
+                    lines={[`D-${daysToRelease}`]}
+                    ariaOverride={`발매 ${daysToRelease}일 전`}
+                  />
+                )}
                 {isNew && <CoverStickerBadge kind="new" />}
                 {album.isHot && <CoverStickerBadge kind="hot" />}
                 {hasPreorder && <CoverStickerBadge kind="preorder" />}
