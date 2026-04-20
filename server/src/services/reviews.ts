@@ -902,7 +902,7 @@ Return ONLY JSON, no prose:
   "score": 85,
   "scoreMax": 100,
   "excerpt": "One or two sentences quoted or paraphrased from the review body, in the original language.",
-  "excerptKo": "2-3 문장 한국어 요약. 매체명 언급 금지, 평론가 시점."
+  "excerptKo": "한국어 요약. 매체명 언급 금지, 평론가 시점. **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
 }
 
 Score: find the review's explicit rating and convert to a /100 integer. Follow these rules in order:
@@ -1039,7 +1039,7 @@ Return ONLY JSON, no prose:
   "score": 85,
   "scoreMax": 100,
   "excerpt": "One or two sentences quoted or paraphrased from the article body, original language.",
-  "excerptKo": "2-3 문장 한국어 요약. 매체명 언급 금지, 평론가 시점."
+  "excerptKo": "한국어 요약. 매체명 언급 금지, 평론가 시점. **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
 }
 
 Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). If no explicit score in the text, set null.
