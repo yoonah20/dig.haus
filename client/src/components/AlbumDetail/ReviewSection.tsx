@@ -911,9 +911,12 @@ export default function ReviewSection({
                             }
                           }}
                           disabled={discover.isPending || savingReview}
-                          className="text-[11px] text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                          className="text-[11px] text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1.5"
                           title="Serper로 구글 검색 → Haiku가 editorial 리뷰 URL 선별 (~$0.001)"
                         >
+                          {discover.isPending && (
+                            <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+                          )}
                           {discover.isPending ? '검색 중…' : '🔎 URL 자동 검색'}
                         </button>
                       </div>
@@ -935,8 +938,11 @@ export default function ReviewSection({
                       <button
                         onClick={saveAddReview}
                         disabled={savingReview || !addUrl.trim()}
-                        className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer"
+                        className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
                       >
+                        {savingReview && (
+                          <span className="w-4 h-4 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+                        )}
                         {savingReview
                           ? batchProgress
                             ? `페이지 분석 중... ${batchProgress.current}/${batchProgress.total}`
@@ -1045,8 +1051,11 @@ export default function ReviewSection({
                       <button
                         onClick={saveManualReview}
                         disabled={savingReview || !manualSource.trim() || manualBody.trim().length < 50}
-                        className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer"
+                        className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
                       >
+                        {savingReview && (
+                          <span className="w-4 h-4 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+                        )}
                         {savingReview ? '본문 분석 중...' : '저장'}
                       </button>
                     </>

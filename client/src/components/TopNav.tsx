@@ -141,26 +141,13 @@ export default function TopNav() {
                 reads as one group; login pill (with any admin
                 pending-badge) anchors the right edge. */}
             {isHome && <SortMenu />}
-            {/* Admin-only while Phase 3 is still in local-iteration.
-                Flipping back to `user &&` launches the feature for
-                everyone. Hidden button keeps admin able to verify
-                prod behaviour without exposing the under-baked flow
-                to regular users. */}
-            {user?.isAdmin && (
-              <button
-                onClick={() => {
-                  if (user.mydigUsername) {
-                    navigate(`/my/${user.mydigUsername}`);
-                  } else {
-                    setUsernameModalOpen(true);
-                  }
-                }}
-                className="hidden sm:inline-flex items-center text-xs font-medium text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-full px-3 py-1 transition-colors cursor-pointer"
-                title={user.mydigUsername ? `내 가게 — @${user.mydigUsername}` : '사용자명 설정 후 내 가게 열기'}
-              >
-                내 가게
-              </button>
-            )}
+            {/* "내 가게" entry point is paused — Phase 3 (mydig storefront)
+                is still in visual iteration, and admin doesn't want to
+                see the half-baked preview in the nav while other work is
+                ongoing. Route to /my/:username still lives (Claude Design
+                storefront preview + the Phase 3a skeleton are both
+                reachable directly), just no nav affordance. Restore this
+                button when the scene is ready to ship. */}
             <LoginButton />
           </div>
         </div>

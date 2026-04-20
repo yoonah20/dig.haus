@@ -224,6 +224,15 @@ export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
   /\bmonthly[-_]/i,
   /\blistening[-_]log\b/i,
   /\balbums?[-_]of[-_]the[-_](?:week|month|year)\b/i,
+  // Discography-ranking listicles ("The albums ranked worst to first",
+  // "best to worst", "albums-ranked"). These cover a whole band catalog
+  // with a paragraph per album and never offer a focused single-album
+  // take — same problem as year-end roundups. 2loud2oldmusic's "W.E.T.
+  // The Albums Ranked Worst to First" was the recent trigger.
+  /\bworst[-_]to[-_]first\b/i,
+  /\bbest[-_]to[-_]worst\b/i,
+  /\balbums?[-_]ranked\b/i,
+  /\bdiscography[-_]ranked\b/i,
   // Sputnikmusic user-rating aggregate page (not an editorial review).
   // The path is /soundoff.php, separate from the /review/ editorial
   // URLs. soundoff pages list user scores and one-liners only.
