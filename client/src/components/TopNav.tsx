@@ -165,10 +165,18 @@ export default function TopNav() {
           </div>
         )}
       </nav>
-      <RegisterAlbumModal
-        open={registerOpen}
-        onClose={() => setRegisterOpen(false)}
-      />
+      {/* Conditional mount — when the modal closes we want its state
+          (input, query, last search results) gone, so the next open
+          is a fresh session rather than picking up where the previous
+          one left off. An always-mounted modal preserved useState
+          across close/reopen and showed stale result rows for a beat
+          before the reset effect could clear them. */}
+      {registerOpen && (
+        <RegisterAlbumModal
+          open={registerOpen}
+          onClose={() => setRegisterOpen(false)}
+        />
+      )}
       <UsernameModal
         open={usernameModalOpen}
         onClose={() => setUsernameModalOpen(false)}

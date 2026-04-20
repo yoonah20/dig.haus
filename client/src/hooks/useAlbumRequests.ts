@@ -73,6 +73,14 @@ export function useSubmitAlbumRequest() {
       // (no-op on non-admin clients but cheap).
       qc.invalidateQueries({ queryKey: ['me-album-requests'] });
       qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
+      // Also invalidate the home grid — a successful submit creates
+      // the album row immediately, and the user expects to see it
+      // there when they navigate back (browser-back or /-tap) without
+      // needing a manual refresh. Matches the pattern already used
+      // by useGenerateReviewSummary / useDeleteAllReviews /
+      // useMarkNoReviews for their album-state mutations.
+      qc.invalidateQueries({ queryKey: ['album-list'] });
+      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
     },
   });
 }

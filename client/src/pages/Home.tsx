@@ -72,6 +72,14 @@ function useDesktopAlbumList(
     queryKey: ['album-list', sort, page, DESKTOP_PAGE_SIZE, seed ?? null],
     queryFn: () => fetchAlbumPage(sort, page, DESKTOP_PAGE_SIZE, seed),
     staleTime: 1000 * 60 * 5,
+    // Always refetch when the user lands on Home, not just when the
+    // cache is past staleTime. Without this, returning to / via
+    // browser back after registering an album or running review
+    // summary would keep showing the old grid (no ⚠️ badge clearing,
+    // no newly-registered album appearing) until a manual refresh —
+    // invalidation from those mutations alone wasn't reliably waking
+    // the inactive query. The extra page fetch is cheap.
+    refetchOnMount: 'always',
     placeholderData: keepPreviousData,
     enabled,
   });
@@ -86,6 +94,10 @@ function useMobileAlbumList(sort: SortValue, enabled: boolean, seed?: number) {
     getNextPageParam: (last) =>
       last.page < last.totalPages ? last.page + 1 : undefined,
     staleTime: 1000 * 60 * 5,
+    // Same rationale as the desktop query — guarantee a fresh first
+    // page on every Home mount so back-nav after mutations shows
+    // updated state without the user having to reload.
+    refetchOnMount: 'always',
     enabled,
   });
 }
