@@ -11,6 +11,7 @@ const Album = lazy(() => import('./pages/Album'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Profile = lazy(() => import('./pages/Profile'));
 const MyDig = lazy(() => import('./pages/MyDig'));
+const MyDigPreview = lazy(() => import('./pages/MyDigPreview'));
 const ApiConsole = lazy(() => import('./pages/ApiConsole'));
 
 function RouteFallback() {
@@ -73,6 +74,7 @@ export default function App() {
                 <Route path="/album/:slug" element={<Album />} />
                 <Route path="/admin" element={<Admin />} />
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/my-preview" element={<MyDigPreview />} />
                 <Route path="/my/:username" element={<MyDig />} />
                 <Route path="/admin/api-console" element={<ApiConsole />} />
               </Routes>
