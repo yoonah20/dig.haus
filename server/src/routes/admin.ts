@@ -275,18 +275,25 @@ router.get('/stats', (_req, res) => {
   // Buckets the admin should glance at and decide whether to top up
   // manually. Each bucket returns up to 5 rows — dashboard just needs
   // "something to click into", not a full inventory.
-  const INCOMPLETE_LIMIT = 5;
+  // Higher sample cap so the checkbox-batch curation flow on the admin
+  // page can select a meaningful chunk at once without paging. Admin
+  // can still refresh after a batch to pick up the next slice.
+  const INCOMPLETE_LIMIT = 30;
 
-  // Exclude review-collection-pending albums (reviews_crawled_at IS NULL)
-  // from every bucket — those are already surfaced in "리뷰 수집 대기"
-  // and shouldn't double-count against the backlog here.
-  const PENDING_FILTER = 'a.reviews_crawled_at IS NOT NULL';
+  // PENDING_FILTER used to exclude albums with reviews_crawled_at IS NULL
+  // because they were double-counted in a separate "리뷰 수집 대기" panel.
+  // That panel is gone (replaced by "최근 등록 앨범"), so filtering on
+  // reviews_crawled_at IS NOT NULL was hiding the majority of the backlog
+  // — every fresh registration lands with NULL per the cost-discipline
+  // rule in CLAUDE.md ("never warm-up reviews"), so the bucket was showing
+  // only the tiny subset of albums that had a review-scrape explicitly
+  // triggered before. The filter is dropped entirely; the buckets now
+  // reflect the real backlog admin needs to work through.
 
   const noReviews = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
      FROM albums a
-     WHERE ${PENDING_FILTER}
-       AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)
+     WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)
      ORDER BY a.created_at DESC
      LIMIT ?`,
     [INCOMPLETE_LIMIT]
@@ -295,8 +302,7 @@ router.get('/stats', (_req, res) => {
   const noSummary = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
      FROM albums a
-     WHERE ${PENDING_FILTER}
-       AND (a.korean_summary IS NULL OR a.korean_summary = '')
+     WHERE a.korean_summary IS NULL OR a.korean_summary = ''
      ORDER BY a.created_at DESC
      LIMIT ?`,
     [INCOMPLETE_LIMIT]
@@ -305,8 +311,7 @@ router.get('/stats', (_req, res) => {
   const noCover = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
      FROM albums a
-     WHERE ${PENDING_FILTER}
-       AND (a.cover_art_url IS NULL OR a.cover_art_url = '')
+     WHERE a.cover_art_url IS NULL OR a.cover_art_url = ''
      ORDER BY a.created_at DESC
      LIMIT ?`,
     [INCOMPLETE_LIMIT]
@@ -316,18 +321,15 @@ router.get('/stats', (_req, res) => {
   // knows how big the backlog is.
   const noReviewsCount = queryGet(
     `SELECT COUNT(*) AS n FROM albums a
-     WHERE ${PENDING_FILTER}
-       AND NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)`
+     WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)`
   )?.n || 0;
   const noSummaryCount = queryGet(
     `SELECT COUNT(*) AS n FROM albums a
-     WHERE ${PENDING_FILTER}
-       AND (a.korean_summary IS NULL OR a.korean_summary = '')`
+     WHERE a.korean_summary IS NULL OR a.korean_summary = ''`
   )?.n || 0;
   const noCoverCount = queryGet(
     `SELECT COUNT(*) AS n FROM albums a
-     WHERE ${PENDING_FILTER}
-       AND (a.cover_art_url IS NULL OR a.cover_art_url = '')`
+     WHERE a.cover_art_url IS NULL OR a.cover_art_url = ''`
   )?.n || 0;
 
   function mapIncomplete(rows: any[]) {

@@ -19,6 +19,16 @@ function userKey(req: { user?: unknown; ip?: string }): string {
   return uid ? `u:${uid}` : (req.ip || 'anon');
 }
 
+// Admin bypass for both create limiters. Admin curation sessions
+// regularly involve dropping many albums at once (e.g. a label's 2025
+// discography seed), and the "5/min" burst + "500/day" ceiling were
+// designed as abuse guards for normal users, not as throttles on the
+// site owner's own curation work. Keeping the limiters enforced for
+// everyone else.
+function skipIfAdmin(req: any): boolean {
+  return !!(req.user as AppUser | undefined)?.is_admin;
+}
+
 // Burst guard for create: 5/min per user. Tight enough that a
 // misbehaving client can't dump a session's worth of rows into the
 // admin queue in seconds; loose enough that a genuine flurry of
@@ -29,6 +39,7 @@ const createBurstLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   keyGenerator: userKey,
+  skip: skipIfAdmin,
   message: { error: '잠시 뒤에 다시 시도해주세요 (1분에 최대 5개).' },
 });
 
@@ -41,6 +52,7 @@ const createDailyLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   keyGenerator: userKey,
+  skip: skipIfAdmin,
   message: { error: '하루에 500개 이상은 안 돼요. 내일 다시 시도해주세요.' },
 });
 
