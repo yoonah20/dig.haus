@@ -7,7 +7,6 @@ import { getScoreColor as scoreColor, getScoreBgColor as scoreBgColor } from '..
 import { useAuth } from '../../contexts/AuthContext';
 import { AiSummaryBadge } from './SimilarAlbums';
 import { useGenerateReviewSummary, useDiscoverReviewUrls } from '../../hooks/useAlbum';
-import { useCurationProgress } from '../../contexts/CurationProgressContext';
 import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
@@ -358,7 +357,6 @@ export default function ReviewSection({
   const scoredCount = reviews.filter(r => r.score !== null).length;
   const regenSummary = useGenerateReviewSummary(slug ?? '');
   const discover = useDiscoverReviewUrls(slug ?? '');
-  const curation = useCurationProgress();
   const [expanded, setExpanded] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
@@ -664,31 +662,6 @@ export default function ReviewSection({
       <h2 className="text-2xl font-bold text-white mb-6 font-serif flex items-baseline gap-2 flex-wrap">
         <span>리뷰 모음집</span>
         <AiSummaryBadge />
-        {/* One-click curation — admin starts the full pipeline
-            (discover URLs → batch scrape → Korean summary) with a
-            single click. Runs inside CurationProgressContext so the
-            floating progress panel takes over the UI from here;
-            admin can navigate away and come back to watch it finish.
-            Disabled while any curation run (this album or another
-            from the /admin batch flow) is in progress. */}
-        {isAdmin && slug && (
-          <button
-            onClick={() => {
-              if (curation.isRunning) return;
-              curation.startRun([
-                { mbid: slug as string, title: albumTitle ?? slug },
-              ]);
-            }}
-            disabled={curation.isRunning}
-            className="text-xs text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1.5 translate-y-[-2px]"
-            title="URL 자동 검색 → 리뷰 수집 → 한국어 요약까지 한 번에"
-          >
-            {curation.isRunning && (
-              <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
-            )}
-            {curation.isRunning ? '큐레이션 중…' : '🔍 자동 큐레이션'}
-          </button>
-        )}
         {/* Admin-only shortcut — opens a Google search for the album
             + artist + "album review" in a new tab. Used for quickly
             finding review URLs to paste back into + 리뷰 추가.

@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useAlbumBase, useAlbumReviews, useAlbumSimilar, useAlbumNeighbors } from '../hooks/useAlbum';
 import { useHomeState } from '../contexts/HomeStateContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useCurationProgress } from '../contexts/CurationProgressContext';
 import { useGenerateReviewSummary, useMarkNoReviews, useDeleteAllReviews } from '../hooks/useAlbum';
 import { useInView } from '../hooks/useInView';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -36,6 +37,7 @@ export default function Album() {
   const generateSummary = useGenerateReviewSummary(slug!);
   const markNoReviews = useMarkNoReviews(slug!);
   const deleteAllReviews = useDeleteAllReviews(slug!);
+  const curation = useCurationProgress();
   const { data: base, isLoading: baseLoading, error: baseError } = useAlbumBase(slug!);
   const baseReady = !!base;
   const { sort } = useHomeState();
@@ -180,12 +182,28 @@ export default function Album() {
               base.album.reviewsCrawledAt === null
                 ? isAdmin
                   ? (
-                      <div className="rounded-xl border border-[#e8a020]/25 bg-[#1a1a1a]/80 px-4 sm:px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
-                        <div className="text-sm text-gray-400 leading-relaxed">
-                          + 리뷰 추가로 URL을 모은 뒤 📝 요약 생성을 돌리거나,
-                          리뷰가 없는 앨범이면 🙅 리뷰 없음으로 표시하세요.
-                        </div>
-                        <div className="flex items-center gap-2">
+                      <div className="rounded-xl border border-[#e8a020]/25 bg-[#1a1a1a]/80 px-4 sm:px-5 py-3">
+                        <div className="flex items-center justify-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (curation.isRunning) return;
+                              curation.startRun([{ mbid: slug!, title: album.title }]);
+                            }}
+                            disabled={
+                              curation.isRunning ||
+                              generateSummary.isPending ||
+                              markNoReviews.isPending ||
+                              deleteAllReviews.isPending
+                            }
+                            className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/15 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5"
+                            title="URL 자동 검색 → 리뷰 수집 → 한국어 요약까지 한 번에 실행"
+                          >
+                            {curation.isRunning && (
+                              <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+                            )}
+                            {curation.isRunning ? '큐레이션 중…' : '🔍 자동 큐레이션'}
+                          </button>
                           <button
                             type="button"
                             onClick={async () => {
