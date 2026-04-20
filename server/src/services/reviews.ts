@@ -704,7 +704,7 @@ async function fetchRawHtml(
   url: string
 ): Promise<
   | { ok: true; html: string }
-  | { ok: false; reason: ScrapeFailureReason; message?: string }
+  | { ok: false; reason: ScrapeFailureReason; status?: number; message?: string }
 > {
   try {
     const resp = await axios.get(url, {
@@ -715,16 +715,24 @@ async function fetchRawHtml(
     });
     const html = typeof resp.data === 'string' ? resp.data : String(resp.data);
     if (isCloudflareChallenge(html)) {
-      return { ok: false, reason: 'bot-blocked', message: 'cloudflare challenge on 200' };
+      return { ok: false, reason: 'bot-blocked', status: 200, message: 'cloudflare challenge on 200' };
     }
     return { ok: true, html };
   } catch (err) {
     const axiosErr = err as { response?: { status?: number; data?: unknown }; message?: string };
     const body = typeof axiosErr.response?.data === 'string' ? axiosErr.response.data : '';
-    const reason: ScrapeFailureReason = isCloudflareChallenge(body)
-      ? 'bot-blocked'
-      : 'fetch-failed';
-    return { ok: false, reason, message: axiosErr.message ?? String(err) };
+    const status = axiosErr.response?.status;
+    // 401 / 403 = the page exists but we're not allowed through. Even if
+    // Jina manages to bypass with its proxy infrastructure, ordinary
+    // visitors clicking the saved URL from a review card will hit the
+    // same wall. Treat as bot-blocked so the scrape outer flow can drop
+    // the URL rather than save an unreachable citation.
+    // (musicwaves.org returned 403 across all browser UAs + referers.)
+    const reason: ScrapeFailureReason =
+      isCloudflareChallenge(body) || status === 401 || status === 403
+        ? 'bot-blocked'
+        : 'fetch-failed';
+    return { ok: false, reason, status, message: axiosErr.message ?? String(err) };
   }
 }
 
@@ -783,6 +791,18 @@ export async function scrapeReviewFromUrl(
     console.log(`[jina] error-payload detected for ${url} — discarded`);
   }
   const jinaAvailable = jinaText !== null && jinaText.length > 100;
+
+  // If raw fetch reports the page as bot-blocked (401/403/Cloudflare
+  // challenge), we refuse the scrape even when Jina managed to pull
+  // content. Jina's proxy infrastructure can sometimes reach pages that
+  // ordinary browsers can't, but end-users clicking a saved review card
+  // URL would hit the same wall — so storing a Jina-only review means
+  // every reader sees a broken "read full review" link. The musicwaves.
+  // org case (all external visitors see HTTP 403) was the trigger.
+  if (!rawResult.ok && rawResult.reason === 'bot-blocked') {
+    recordScrapeFailure(url, albumMbid, 'bot-blocked', rawResult.message);
+    return { kind: 'fail', reason: 'bot-blocked', message: rawResult.message };
+  }
 
   // Hard-fail only if BOTH paths failed. If one worked we can still
   // produce a review, just with reduced fidelity (no detectors on Jina-
