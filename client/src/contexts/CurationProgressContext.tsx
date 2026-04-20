@@ -28,6 +28,18 @@ import { useQueryClient } from '@tanstack/react-query';
 
 const CHUNK_SIZE = 5;
 
+// Cap on URLs the auto-curation pipeline actually scrapes per album.
+// discover may return up to 25 candidates, but stuffing all of them into
+// an album is overkill — Deftones / Whitechapel class albums get
+// coverage on 25+ outlets and the UI reads as a wall of near-duplicate
+// takes. The manual "🔎 URL 자동 검색" flow on the album page still
+// returns the full discover list so admin can hand-pick beyond this cap
+// when a specific album deserves more coverage. Haiku's ranking puts
+// top editorial (usually with numeric scores) first, so slicing the top
+// 15 naturally biases toward scored reviews without an explicit
+// score-preference pass.
+const AUTO_CURATION_URL_CAP = 15;
+
 export interface CurationLogLine {
   id: string;
   albumMbid: string;
@@ -146,14 +158,18 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
         const { data } = await axios.post(
           `/api/albums/${encodeURIComponent(albumMbid)}/reviews/discover`
         );
-        urls = Array.isArray(data?.urls) ? data.urls : [];
+        const allUrls = Array.isArray(data?.urls) ? (data.urls as string[]) : [];
+        urls = allUrls.slice(0, AUTO_CURATION_URL_CAP);
+        const trimmed = allUrls.length - urls.length;
         appendLog(
           albumMbid,
           albumTitle,
-          urls.length === 0
+          allUrls.length === 0
             ? `URL 없음 — ${data?.message ?? '검색 결과 없음'}`
-            : `URL ${urls.length}개 발견`,
-          urls.length === 0 ? 'warn' : 'info'
+            : trimmed > 0
+              ? `URL ${allUrls.length}개 발견 — 상위 ${urls.length}개만 큐레이션 (나머지 ${trimmed}개는 수동 경로에서 확인 가능)`
+              : `URL ${urls.length}개 발견`,
+          allUrls.length === 0 ? 'warn' : 'info'
         );
       } catch (err: any) {
         appendLog(
