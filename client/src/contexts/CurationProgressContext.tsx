@@ -47,6 +47,63 @@ const AUTO_CURATION_MAX_ATTEMPTS = 25;
 const SUMMARY_MAX_ATTEMPTS = 3;
 const SUMMARY_BACKOFF_MS = [0, 2000, 5000];
 
+// Soft priority list — outlets that reliably publish numeric scores,
+// clean editorial voice, and whose pages the scraper handles well.
+// When discover returns a mixed list, these get re-ordered to the
+// front of the candidate queue so they land in the first-15 success
+// slots whenever they're part of the result. No forced inclusion —
+// if Haiku didn't pick them (album genuinely outside their scope),
+// we don't add them. Within the priority bucket the original Haiku
+// ranking is preserved; same for the non-priority bucket.
+const PRIORITY_REVIEW_DOMAINS = [
+  'sputnikmusic.com',
+  'pitchfork.com',
+  'kerrang.com',
+  'loudersound.com',
+  'metalhammer.com',
+  'angrymetalguy.com',
+  'nocleansinging.com',
+  'metalsucks.net',
+  'blabbermouth.net',
+  'everythingisnoise.net',
+  'metalinjection.net',
+  'stereogum.com',
+  'consequence.net',
+  'exclaim.ca',
+  'rollingstone.com',
+  'thequietus.com',
+  'metalreviews.com',
+  'distortedsoundmag.com',
+];
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
+function isPriorityDomain(url: string): boolean {
+  const host = hostOf(url);
+  if (!host) return false;
+  return PRIORITY_REVIEW_DOMAINS.some(
+    (d) => host === d || host.endsWith('.' + d)
+  );
+}
+
+// Stable-partition: priority URLs first (in their original relative
+// order), then everyone else (in their original relative order).
+function orderByPriority(urls: string[]): string[] {
+  const priority: string[] = [];
+  const rest: string[] = [];
+  for (const u of urls) {
+    if (isPriorityDomain(u)) priority.push(u);
+    else rest.push(u);
+  }
+  return [...priority, ...rest];
+}
+
 export interface CurationLogLine {
   id: string;
   albumMbid: string;
@@ -161,20 +218,27 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
 
       // Step 1: discover URLs — keep the full list as the candidate
       // pool, so Step 2 can backfill from beyond the initial target
-      // when some attempts fail.
+      // when some attempts fail. Priority-domain URLs are re-ordered
+      // to the front of the queue so they land in the first success
+      // slots whenever Haiku picked them.
       let candidates: string[] = [];
+      let priorityCount = 0;
       try {
         const { data } = await axios.post(
           `/api/albums/${encodeURIComponent(albumMbid)}/reviews/discover`
         );
         const allUrls = Array.isArray(data?.urls) ? (data.urls as string[]) : [];
-        candidates = allUrls.slice(0, AUTO_CURATION_MAX_ATTEMPTS);
+        const ordered = orderByPriority(allUrls);
+        candidates = ordered.slice(0, AUTO_CURATION_MAX_ATTEMPTS);
+        priorityCount = candidates.filter(isPriorityDomain).length;
         appendLog(
           albumMbid,
           albumTitle,
           candidates.length === 0
             ? `URL 없음 — ${data?.message ?? '검색 결과 없음'}`
-            : `URL ${candidates.length}개 발견 — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`,
+            : priorityCount > 0
+              ? `URL ${candidates.length}개 발견 (우선 도메인 ${priorityCount}개) — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`
+              : `URL ${candidates.length}개 발견 — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`,
           candidates.length === 0 ? 'warn' : 'info'
         );
       } catch (err: any) {

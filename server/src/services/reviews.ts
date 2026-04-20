@@ -402,6 +402,25 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
     }
   }
 
+  // Angry Metal Guy — the visible "Rating:" line is a qualitative word
+  // ("Great!", "Excellent!", "Good", etc.) that our prompt explicitly
+  // refuses to guess numerically. But the numeric /5 value is filed as a
+  // tag on the post: <a href="/tag/45/" rel="tag">4.5</a> for 4.5/5.
+  // Year tags ("2025", "Apr25") never match because they're 4-digit or
+  // alphanumeric, while the rating tag is always a 2-digit path + a
+  // visible decimal in N or N.N form.
+  if (host === 'angrymetalguy.com') {
+    const m = html.match(
+      /<a\s+href="[^"]*\/tag\/\d{2}\/"\s+rel="tag"\s*>\s*(\d(?:\.\d)?)\s*</i
+    );
+    if (m) {
+      const score = parseFloat(m[1]);
+      if (score >= 0 && score <= 5) {
+        return Math.round((score / 5) * 100);
+      }
+    }
+  }
+
   return null;
 }
 
