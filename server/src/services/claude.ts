@@ -299,8 +299,12 @@ async function _generateSimilarDescriptions(
   const list = similarAlbums.map((a, i) => `${i + 1}. "${a.title}" by ${a.artist}`).join('\n');
 
   try {
-    const promptText = `"${baseAlbum}" by ${baseArtist} 팬을 위한 비슷한 앨범 설명. 각 1-2문장 한국어.
+    const promptText = `기준 앨범: "${baseAlbum}" by ${baseArtist}
+
+아래 앨범들이 기준 앨범과 어떻게 닮았는지 각 1-2문장 한국어로 설명해주세요. **기준 앨범의 어떤 면(사운드·분위기·장르·구조·보컬·프로덕션 등)이 공통되는지 반드시 언급**할 것. 개별 앨범을 단순 기술하지 말고 항상 "${baseAlbum}"과의 연결점을 중심으로 서술.
+
 ${list}
+
 JSON array only: [{"title":"","artist":"","descriptionKo":""}]`;
     const result = await invokeLlm({
       operation: 'similar_descriptions',
