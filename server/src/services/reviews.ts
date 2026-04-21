@@ -244,6 +244,12 @@ export const EXCLUDED_URL_DOMAINS = [
   // not editorial. Scraper sees "Review: xxx" in thread titles and
   // lands on pages with nothing but back-and-forth user posts.
   'ultimatemetal.com',
+  // Any Decent Music — meta-aggregator that collects review scores
+  // from other outlets. Not editorial content of its own.
+  'anydecentmusic.com',
+  // Musicboard — user-review social network (Letterboxd for albums).
+  // Every page is a user's take, not an editorial review.
+  'musicboard.app',
   // Aggregator (user ratings + collected editorial snippets) rather
   // than an editorial site in its own right. Same reasoning as
   // metal-archives and rockreport.
@@ -399,27 +405,33 @@ function detectStarRating(html: string): number | null {
     while ((icon = ICON_RE.exec(window)) !== null) {
       const classes = icon[1];
       // Star-class detection: named prefixed variants (fa-star*,
-      // icon-star*, bi-star*, glyphicon-star) OR a standalone "star"
-      // class. The standalone match requires whitespace / end on both
-      // sides so "startup-icon" and "star-chart" don't slip through
-      // — we only want "star" as a dedicated class-name token.
+      // icon-star*, bi-star*, glyphicon-star, lucide-star), suffixed
+      // variants (star-full, star-empty, star-half, star-o, star-filled,
+      // star-fill), OR a standalone "star" class. The standalone match
+      // requires whitespace / end on both sides so "startup-icon" and
+      // "star-chart" don't slip through — we only want "star" as a
+      // dedicated class-name token.
       const isStar =
-        /\b(?:fa-star|icon-star|bi-star|glyphicon-star)\b/i.test(classes) ||
+        /\b(?:fa-star|icon-star|bi-star|glyphicon-star|lucide-star)\b/i.test(classes) ||
+        /\bstar(?:-full|-empty|-half|-o|-filled|-fill)\b/i.test(classes) ||
         /(?:^|\s)star(?:\s|$)/i.test(classes);
       if (!isStar) continue;
-      // Half-star: explicit "half" token or FA/bootstrap half variants.
+      // Half-star: explicit "half" token or FA/bootstrap half variants
+      // or the star-half suffix form.
       const isHalf =
         /(?:^|\s|-)half(?:$|\s|-)/i.test(classes) ||
-        /\b(?:fa-star-half|bi-star-half|icon-star-half)\b/i.test(classes);
+        /\b(?:fa-star-half|bi-star-half|icon-star-half|star-half)\b/i.test(classes);
       // Empty/outline star:
       //   `far` / `fa-regular` — FontAwesome regular (outline) style
-      //   `fa-star-o` — FA v4 outline variant
+      //   `fa-star-o` / `star-o` — FA v4 outline variant
+      //   `star-empty` — common suffix form (newnoisemagazine, readdork)
       //   `bi-star` (not fill/half) handled by not-full fallback
       //   generic "empty"/"outline" — ad-hoc blog CSS
       const isOutline =
         /(?:^|\s)(?:fa-regular|far|fa-star-o|empty|outline)(?:$|\s|-)/i.test(
           classes
-        );
+        ) ||
+        /\b(?:star-empty|star-o)\b/i.test(classes);
       if (isHalf) half++;
       else if (isOutline) empty++;
       else full++;
@@ -567,6 +579,42 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
     }
   }
 
+  // Sea of Tranquility — uses filename images for stars:
+  //   star_whole.gif = filled, star_half.gif = half, star_empty.gif = empty
+  // The generic detectFilenameRatingImage only matches Rating_N.png
+  // and /stars/N.png patterns, so seaoftranquility's scheme never
+  // matched and the Claude extractor sometimes inferred a wrong
+  // number from the page text. Count the three variants directly.
+  // Scale is locked to 5 — the site never renders empty slots, so
+  // treating (full + half) as the total would undersize the scale
+  // for sub-5 ratings (3 full + 1 half would read 88 instead of 70).
+  if (host === 'seaoftranquility.org') {
+    const full = (html.match(/star_whole\.gif/gi) || []).length;
+    const half = (html.match(/star_half\.gif/gi) || []).length;
+    const empty = (html.match(/star_empty\.gif/gi) || []).length;
+    const rendered = full + half + empty;
+    if (rendered >= 1 && rendered <= 5) {
+      const filled = full + half * 0.5;
+      return Math.round((filled / 5) * 100);
+    }
+  }
+
+  // The Metal Pit — presents the editorial score as "Review Score: N"
+  // with NO visible denominator. Convention is /10 (they use 10 as
+  // the top end, confirmed across their recent reviews). None of the
+  // generic detectors match a bare "Review Score: 10" — rule 1 wants
+  // a fraction, rule 3 wants a %, rule 4 is Sputnik-specific "Album
+  // Rating" /5 assumption which 10 would exceed. Site-specific.
+  if (host === 'themetalpit.org') {
+    const m = html.match(/Review\s+Score\s*:\s*(\d{1,3}(?:\.\d+)?)/i);
+    if (m) {
+      const score = parseFloat(m[1]);
+      if (Number.isFinite(score) && score >= 0 && score <= 10) {
+        return Math.round(score * 10);
+      }
+    }
+  }
+
   if (host === 'chaoszine.net') {
     // Scan a 500-char window after the container open to count the
     // filled/empty slot divs. 5 slots × ~30 chars per slot = ~150,
@@ -656,19 +704,53 @@ function detectWpReviewPluginRating(html: string): number | null {
 // detector grabbed the first). If bestRating is missing, falls back
 // to 5 (the only common default for star-system reviews).
 function detectSchemaOrgRating(html: string): number | null {
-  const vm = html.match(
+  // Form 1 — microdata: <meta itemprop="ratingValue" content="4">
+  const metaValue = html.match(
     /<meta[^>]*itemprop\s*=\s*"ratingValue"[^>]*content\s*=\s*"([^"]+)"/i
   );
-  if (!vm) return null;
-  const value = parseFloat(vm[1].replace(',', '.'));
-  if (!Number.isFinite(value)) return null;
-  const bm = html.match(
-    /<meta[^>]*itemprop\s*=\s*"bestRating"[^>]*content\s*=\s*"([^"]+)"/i
-  );
-  const scale = bm ? parseFloat(bm[1]) : 5;
-  if (![5, 10, 20, 100].includes(scale)) return null;
-  if (value < 0 || value > scale) return null;
-  return Math.max(0, Math.min(100, Math.round((value / scale) * 100)));
+  if (metaValue) {
+    const value = parseFloat(metaValue[1].replace(',', '.'));
+    if (Number.isFinite(value)) {
+      const metaBest = html.match(
+        /<meta[^>]*itemprop\s*=\s*"bestRating"[^>]*content\s*=\s*"([^"]+)"/i
+      );
+      const scale = metaBest ? parseFloat(metaBest[1]) : 5;
+      if (
+        [5, 10, 20, 100].includes(scale) &&
+        value >= 0 &&
+        value <= scale
+      ) {
+        return Math.max(0, Math.min(100, Math.round((value / scale) * 100)));
+      }
+    }
+  }
+
+  // Form 2 — JSON-LD or JSON-in-attribute: "ratingValue":4, "bestRating":5.
+  // Modern React / Next.js sites (readdork, many Headless-WP builds)
+  // embed schema.org data inline as JSON. Two common encodings:
+  //   1. <script type="application/ld+json">{"ratingValue":4,…}</script>
+  //      (plain, unescaped quotes)
+  //   2. <div data-foo="…\"ratingValue\":4,…">
+  //      (JSON serialised into an attribute — inner quotes escape-slashed)
+  // The pattern below tolerates both: "ratingValue" + any 1-10 non-digit
+  // chars (covers `":`, `\":`, `":` with whitespace, etc.) + the number.
+  const jsonValue = html.match(/ratingValue[^\d]{1,10}(\d+(?:\.\d+)?)/);
+  if (jsonValue) {
+    const value = parseFloat(jsonValue[1]);
+    if (Number.isFinite(value)) {
+      const jsonBest = html.match(/bestRating[^\d]{1,10}(\d+(?:\.\d+)?)/);
+      const scale = jsonBest ? parseFloat(jsonBest[1]) : 5;
+      if (
+        [5, 10, 20, 100].includes(scale) &&
+        value >= 0 &&
+        value <= scale
+      ) {
+        return Math.max(0, Math.min(100, Math.round((value / scale) * 100)));
+      }
+    }
+  }
+
+  return null;
 }
 
 function detectAriaLabelRating(html: string): number | null {
@@ -1301,6 +1383,12 @@ Refusal format is STRICT: when the page is about OTHER albums entirely (a roundu
       /트랙리스트[\s\S]{0,50}(?:발매\s*정보|세부\s*정보|메타데이터)/,
       /(?:page|article)\s+(?:provides|offers|shows)\s+(?:only\s+)?(?:tracklist|metadata|release\s+info)/i,
       /no\s+(?:explicit|specific|actual)\s+review\s+(?:text|content|prose)/i,
+      // Search-results / empty-hits landing page echo. Some scrape
+      // targets serve a "no results" page with a generic message when
+      // the album slug doesn't resolve, and the LLM writes that
+      // phrasing straight into the excerpt.
+      /검색\s*결과(?:가|를)?\s*(?:없|찾을 수 없|존재하지 않)/,
+      /no\s+(?:search\s+)?results?\s+(?:found|for)/i,
     ];
     const prose = `${parsed.excerpt ?? ''}\n${parsed.excerptKo ?? ''}`;
     if (rejectionPatterns.some((re) => re.test(prose))) {

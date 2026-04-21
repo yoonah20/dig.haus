@@ -821,6 +821,50 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // Second round of purges for blacklist additions post the 04-21
+  // sweep (newnoisemagazine and ultimatemetal, plus anydecentmusic /
+  // musicboard added today). Separate runOnce key so databases that
+  // already absorbed the first purge still pick these up on next
+  // boot. Also cleans up any review rows whose excerpt or Korean
+  // translation devolved into a "검색 결과가 없다 / no results found"
+  // meta-commentary — those pages were never actually reviews, and
+  // the Claude extractor wrote the no-results phrasing straight into
+  // the excerpt before the rejection pattern landed.
+  runOnce(db, 'purge-blacklisted-review-urls-2026-04-22', () => {
+    const urlPatterns = [
+      '%newnoisemagazine.com/%',
+      '%ultimatemetal.com/%',
+      '%anydecentmusic.com/%',
+      '%musicboard.app/%',
+    ];
+    let total = 0;
+    for (const p of urlPatterns) {
+      const info = db.prepare('DELETE FROM reviews WHERE full_review_url LIKE ?').run(p);
+      total += info.changes as number;
+    }
+    // Text-based: reviews whose excerpt (either language) reads as
+    // a "no results found" meta-commentary. String match is cheap;
+    // the column sizes are small enough that a full-table scan is
+    // fine for a one-shot migration.
+    const textPatterns = [
+      '%검색 결과가 없%',
+      '%검색 결과를 찾을 수 없%',
+      '%no search results found%',
+      '%no results found for%',
+    ];
+    for (const p of textPatterns) {
+      const info = db
+        .prepare(
+          'DELETE FROM reviews WHERE excerpt LIKE ? OR excerpt_ko LIKE ?'
+        )
+        .run(p, p);
+      total += info.changes as number;
+    }
+    if (total > 0) {
+      console.log(`[migration] purged ${total} blacklisted / no-result review rows`);
+    }
+  });
+
   // Backfill: pre-existing sold-out rows lose no fidelity when we swap to the
   // `status` enum. Idempotent — admins who later edit the row can only do so
   // via `status`, so once it's set this WHERE clause no longer matches.
