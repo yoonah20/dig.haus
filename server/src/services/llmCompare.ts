@@ -1,25 +1,41 @@
 import { execute } from '../db/index.js';
-import { callDeepSeek, isDeepSeekConfigured } from './deepseek.js';
+import { callLlmByModel } from './llmAdapter.js';
 
-// Shadow-comparison helper. Only active when LLM_COMPARE=1 env is set,
-// and only when DeepSeek is configured (otherwise there's no shadow to
-// run). Fires a DeepSeek call with the SAME prompt as the primary
-// Haiku/Sonnet call, logs both responses into llm_comparison_log for
-// the admin /admin/compare page to inspect side-by-side.
+// Shadow-comparison log writer. Controlled by env:
 //
-// Fire-and-forget: the caller awaits the primary, then calls this with
-// the primary's captured output/tokens/latency. Shadow runs in the
-// background (the returned promise is intentionally NOT awaited by the
-// call site). Errors are swallowed into the shadow_error column so a
-// DeepSeek outage during comparison testing never breaks the user-
-// facing primary path.
-export function isCompareEnabled(): boolean {
-  return process.env.LLM_COMPARE === '1';
+//   LLM_SHADOW_MODEL=<model>              global default shadow
+//   LLM_SHADOW_MODEL_<OP>=<model|off>     per-op override
+//   LLM_COMPARE=1                         backward-compat shortcut for
+//                                          LLM_SHADOW_MODEL=deepseek-chat
+//
+// When a shadow model resolves, every invokeLlm() call fires a
+// background call to the shadow model with the SAME prompt and writes
+// both responses to llm_comparison_log. The /admin/compare page shows
+// them side-by-side so we can judge output quality + cost before
+// committing to a provider / model swap.
+//
+// Shadow is always fire-and-forget: it never blocks the primary
+// response, and its errors are caught into a shadow_error column so
+// a DeepSeek outage during comparison testing can't break production.
+export function resolveShadowModel(operation: string): string | null {
+  const perOp = process.env[`LLM_SHADOW_MODEL_${operation.toUpperCase()}`];
+  if (perOp === 'off') return null;
+  if (perOp) return perOp;
+  const global = process.env.LLM_SHADOW_MODEL;
+  if (global === 'off') return null;
+  if (global) return global;
+  // Backward compat — pre-refactor the only option was DeepSeek via
+  // a binary flag. Keep that working so existing env setups don't
+  // silently stop logging.
+  if (process.env.LLM_COMPARE === '1') return 'deepseek-chat';
+  return null;
 }
 
 export interface CompareContext {
   operation: string;
   prompt: string;
+  maxTokens: number;
+  jsonMode?: boolean;
   albumMbid?: string | null;
   albumTitle?: string | null;
   primaryModel: string;
@@ -30,30 +46,42 @@ export interface CompareContext {
 }
 
 export function fireShadowComparison(ctx: CompareContext): void {
-  if (!isCompareEnabled()) return;
-  if (!isDeepSeekConfigured()) return;
+  const shadowModel = resolveShadowModel(ctx.operation);
+  if (!shadowModel) return;
+  // If the shadow model resolves to the same model as primary (e.g.
+  // an admin set both LLM_PRIMARY_MODEL_FOO and LLM_SHADOW_MODEL to
+  // the same value), skip — comparing against itself is wasted
+  // tokens and clutters the log with identical rows.
+  if (shadowModel === ctx.primaryModel) return;
 
-  // Detached: intentionally no await. The primary path has already
-  // returned to the user by the time this settles.
+  // Detached execution. Runs in the background; primary call has
+  // already returned by the time any of this settles.
   void (async () => {
-    const started = Date.now();
+    let shadowModelEchoed = shadowModel;
     let shadowOutput = '';
-    let shadowModel = 'deepseek-chat';
     let shadowInputTokens = 0;
     let shadowOutputTokens = 0;
+    let shadowLatencyMs = 0;
     let shadowError: string | null = null;
     try {
-      const ds = await callDeepSeek([{ role: 'user', content: ctx.prompt }], {
-        maxTokens: 2000,
+      // Operation tag is suffixed with __shadow so API-console usage
+      // rows are clearly labelled as comparison calls, not regular
+      // production calls — same cost tracking, but filterable.
+      const res = await callLlmByModel({
+        operation: `${ctx.operation}__shadow`,
+        model: shadowModel,
+        prompt: ctx.prompt,
+        maxTokens: ctx.maxTokens,
+        jsonMode: ctx.jsonMode,
       });
-      shadowOutput = ds.content;
-      shadowModel = ds.model;
-      shadowInputTokens = ds.inputTokens;
-      shadowOutputTokens = ds.outputTokens;
+      shadowModelEchoed = res.model;
+      shadowOutput = res.text;
+      shadowInputTokens = res.inputTokens;
+      shadowOutputTokens = res.outputTokens;
+      shadowLatencyMs = res.latencyMs;
     } catch (err) {
       shadowError = (err as Error).message;
     }
-    const latency = Date.now() - started;
 
     try {
       execute(
@@ -72,11 +100,11 @@ export function fireShadowComparison(ctx: CompareContext): void {
           ctx.primaryInputTokens,
           ctx.primaryOutputTokens,
           ctx.primaryLatencyMs,
-          shadowModel,
+          shadowModelEchoed,
           shadowOutput,
           shadowInputTokens,
           shadowOutputTokens,
-          latency,
+          shadowLatencyMs,
           shadowError,
         ]
       );
@@ -87,4 +115,11 @@ export function fireShadowComparison(ctx: CompareContext): void {
       );
     }
   })();
+}
+
+// Deprecated alias. Kept for any code that used the old binary flag
+// for other purposes — new code should call resolveShadowModel()
+// directly and check for null.
+export function isCompareEnabled(): boolean {
+  return resolveShadowModel('__probe__') !== null;
 }

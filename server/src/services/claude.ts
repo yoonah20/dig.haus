@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { memoAsync } from '../utils/memoCache.js';
 import { execute } from '../db/index.js';
-import { fireShadowComparison } from './llmCompare.js';
+import { invokeLlm } from './llmRouter.js';
 
 // maxRetries=5 amplified 429 storms into 5×-call cascades per failed
 // request. 2 absorbs transient blips without turning a rate-limit
@@ -86,27 +86,16 @@ titleMeaning 규칙:
 - Love Is Not Enough → {"titleKo":"러브 이즈 낫 이너프","titleMeaning":"사랑은 충분하지 않다"}
 - Coronach → {"titleKo":"코로나크","titleMeaning":"장송곡"}
 - Datalysium → {"titleKo":"데이터리시움","titleMeaning":""}`;
-    const t0 = Date.now();
-    const message = await getClient().messages.create({
-      model: HAIKU_LITE,
-      max_tokens: 200,
-      messages: [{ role: 'user', content: promptText }],
-    });
-    const latency = Date.now() - t0;
-    logClaudeUsage('pronunciation', message);
-    const text = message.content.find((b) => b.type === 'text');
-    if (!text || text.type !== 'text') return null;
-    fireShadowComparison({
+    const result = await invokeLlm({
       operation: 'pronunciation',
       prompt: promptText,
+      maxTokens: 200,
+      defaultModel: HAIKU_LITE,
+      jsonMode: true,
       albumTitle: `${artist} - ${album}`,
-      primaryModel: message.model || HAIKU_LITE,
-      primaryOutput: text.text,
-      primaryInputTokens: message.usage?.input_tokens ?? 0,
-      primaryOutputTokens: message.usage?.output_tokens ?? 0,
-      primaryLatencyMs: latency,
     });
-    const match = text.text.match(/\{[\s\S]*\}/);
+    if (!result.text) return null;
+    const match = result.text.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]);
     // Defensive: if the model still emits "A/B" despite instructions,
@@ -152,29 +141,16 @@ export async function generateKoreanSummary(
       `'~라고 평가한다/~라고 말한다/~라고 지적한다' 같은 전달체 금지 — 리뷰어가 자기 말을 그대로 하듯 서술. ` +
       `출력 규칙: 요약 본문만 작성. 앨범 제목이나 아티스트명을 헤더로 넣지 말 것. ` +
       `마크다운(#, **, *, -) 사용하지 말고 순수 문장으로만.\n${reviewsText}`;
-    const t0 = Date.now();
-    const message = await getClient().messages.create({
-      model: SONNET,
-      max_tokens: 500,
-      messages: [{ role: 'user', content: promptText }],
-    });
-    const latency = Date.now() - t0;
-    logClaudeUsage('summary_fallback', message);
-
-    const textBlock = message.content.find((b) => b.type === 'text');
-    if (!textBlock) return null;
-    fireShadowComparison({
+    const result = await invokeLlm({
       operation: 'summary_fallback',
       prompt: promptText,
+      maxTokens: 500,
+      defaultModel: SONNET,
       albumTitle: `${artist} - ${albumTitle}`,
-      primaryModel: message.model || SONNET,
-      primaryOutput: (textBlock as { text?: string }).text ?? '',
-      primaryInputTokens: message.usage?.input_tokens ?? 0,
-      primaryOutputTokens: message.usage?.output_tokens ?? 0,
-      primaryLatencyMs: latency,
     });
+    if (!result.text) return null;
     return normaliseKoreanTerms(
-      stripSummaryPreamble(textBlock.text, albumTitle, artist)
+      stripSummaryPreamble(result.text, albumTitle, artist)
     );
   } catch (err) {
     console.warn(`[claude] generateKoreanSummary failed for "${artist} - ${albumTitle}":`, (err as Error).message);
@@ -321,28 +297,16 @@ async function _generateSimilarDescriptions(
     const promptText = `"${baseAlbum}" by ${baseArtist} 팬을 위한 비슷한 앨범 설명. 각 1-2문장 한국어.
 ${list}
 JSON array only: [{"title":"","artist":"","descriptionKo":""}]`;
-    const t0 = Date.now();
-    const message = await getClient().messages.create({
-      model: HAIKU,
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: promptText }],
-    });
-    const latency = Date.now() - t0;
-    logClaudeUsage('similar_descriptions', message);
-
-    const textBlock = message.content.find((b) => b.type === 'text');
-    if (!textBlock) return null;
-    fireShadowComparison({
+    const result = await invokeLlm({
       operation: 'similar_descriptions',
       prompt: promptText,
+      maxTokens: 1000,
+      defaultModel: HAIKU,
+      jsonMode: true,
       albumTitle: `${baseArtist} - ${baseAlbum}`,
-      primaryModel: message.model || HAIKU,
-      primaryOutput: (textBlock as { text?: string }).text ?? '',
-      primaryInputTokens: message.usage?.input_tokens ?? 0,
-      primaryOutputTokens: message.usage?.output_tokens ?? 0,
-      primaryLatencyMs: latency,
     });
-    const jsonMatch = textBlock.text.match(/\[[\s\S]*\]/);
+    if (!result.text) return null;
+    const jsonMatch = result.text.match(/\[[\s\S]*\]/);
     if (!jsonMatch) return null;
     const parsed = JSON.parse(jsonMatch[0]);
     if (!Array.isArray(parsed)) return null;
@@ -400,30 +364,19 @@ ${list}
 제외: 쇼핑몰 (Amazon, Discogs store, Bandcamp store, HMV, Tower Records), 스트리밍 플랫폼 (Spotify, Apple Music), score aggregator (Metacritic, albumoftheyear, rateyourmusic, metal-archives), 포럼/Reddit, 아티스트 공식 홈페이지, Wikipedia, 단순 뉴스 공지나 발매 announcement (평가 없음), 트랙리스트만 있는 페이지.
 
 최대 25개까지. 명확한 제외 사유가 없으면 포함. Return ONLY a JSON array of the chosen URLs (원문 그대로).`;
-    const t0 = Date.now();
-    const resp = await getClient().messages.create({
-      model: HAIKU,
-      // 25 URLs × ~100 chars + JSON overhead ≈ 700–900 tokens; 1200 leaves
-      // headroom so Haiku never truncates the JSON mid-array (which would
-      // fail the regex parse and silently drop every URL it picked).
-      max_tokens: 1200,
-      messages: [{ role: 'user', content: promptText }],
-    });
-    const latency = Date.now() - t0;
-    logClaudeUsage('serper_pick', resp);
-    const textBlock = resp.content.find((b) => b.type === 'text');
-    if (!textBlock || textBlock.type !== 'text') return [];
-    fireShadowComparison({
+    // 25 URLs × ~100 chars + JSON overhead ≈ 700–900 tokens; 1200 leaves
+    // headroom so the model never truncates the JSON mid-array (which
+    // would fail the regex parse and silently drop every URL it picked).
+    const result = await invokeLlm({
       operation: 'serper_pick',
       prompt: promptText,
+      maxTokens: 1200,
+      defaultModel: HAIKU,
+      jsonMode: true,
       albumTitle: `${artist} - ${album}`,
-      primaryModel: resp.model || HAIKU,
-      primaryOutput: textBlock.text,
-      primaryInputTokens: resp.usage?.input_tokens ?? 0,
-      primaryOutputTokens: resp.usage?.output_tokens ?? 0,
-      primaryLatencyMs: latency,
     });
-    const match = textBlock.text.match(/\[[\s\S]*\]/);
+    if (!result.text) return [];
+    const match = result.text.match(/\[[\s\S]*\]/);
     if (!match) return [];
     try {
       const parsed = JSON.parse(match[0]);

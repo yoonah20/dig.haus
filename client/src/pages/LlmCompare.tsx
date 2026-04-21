@@ -38,10 +38,19 @@ interface OperationCount {
   n: number;
 }
 
+interface OperationRoute {
+  operation: string;
+  defaultModel: string;
+  primaryModel: string;
+  shadowModel: string | null;
+  shadowIsNoop: boolean;
+}
+
 interface CompareResponse {
   rows: CompareRow[];
   total: number;
   operations: OperationCount[];
+  routes: OperationRoute[];
   enabled: boolean;
 }
 
@@ -163,8 +172,8 @@ export default function LlmCompare() {
             }
           >
             {data?.enabled
-              ? 'LLM_COMPARE=1 active'
-              : 'LLM_COMPARE off — no new rows will be recorded'}
+              ? 'shadow active — new calls will be recorded'
+              : 'shadow off — set LLM_SHADOW_MODEL or LLM_COMPARE=1'}
           </span>
           <button
             onClick={() => {
@@ -177,6 +186,80 @@ export default function LlmCompare() {
           </button>
         </div>
       </header>
+
+      {/* Active routing — what each operation is currently wired to.
+          Reads the resolved primary + shadow per op from the server so
+          the displayed config is authoritative (matches what the next
+          invokeLlm() call would actually do), not guessed from env. */}
+      {data?.routes && data.routes.length > 0 && (
+        <section className="mb-6">
+          <h2 className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">
+            active routing
+          </h2>
+          <div className="bg-[#141414] border border-white/5 rounded-md overflow-hidden">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wider text-gray-500 bg-[#0f0f0f]">
+                  <th className="text-left px-3 py-1.5">operation</th>
+                  <th className="text-left px-3 py-1.5">primary</th>
+                  <th className="text-left px-3 py-1.5">shadow</th>
+                  <th className="text-left px-3 py-1.5 text-gray-600">default</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {data.routes.map((r) => {
+                  const primaryOverridden = r.primaryModel !== r.defaultModel;
+                  return (
+                    <tr key={r.operation} className="text-gray-300">
+                      <td className="px-3 py-1 text-white">{r.operation}</td>
+                      <td className="px-3 py-1">
+                        <span
+                          className={
+                            primaryOverridden ? 'text-[#e8a020]' : 'text-gray-400'
+                          }
+                        >
+                          {shortModel(r.primaryModel)}
+                        </span>
+                        {primaryOverridden && (
+                          <span className="text-gray-600 text-[10px] ml-2">
+                            (override)
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1">
+                        {r.shadowModel ? (
+                          <span
+                            className={
+                              r.shadowIsNoop ? 'text-gray-600' : 'text-sky-300'
+                            }
+                          >
+                            {shortModel(r.shadowModel)}
+                            {r.shadowIsNoop && (
+                              <span className="text-gray-600 text-[10px] ml-2">
+                                (no-op: same as primary)
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-gray-600">—</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-1 text-gray-600">
+                        {shortModel(r.defaultModel)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="text-[10px] text-gray-600 mt-1 leading-relaxed">
+            primary swap: <span className="text-gray-400">LLM_PRIMARY_MODEL_&lt;OP&gt;=&lt;model&gt;</span>{' '}
+            · shadow: <span className="text-gray-400">LLM_SHADOW_MODEL_&lt;OP&gt;=&lt;model|off&gt;</span>{' '}
+            · 'off' disables shadow for that op; 'default' on primary falls back to the built-in default.
+          </div>
+        </section>
+      )}
 
       {/* Operation filter tabs */}
       <div className="flex flex-wrap gap-2 mb-4 text-[11px]">

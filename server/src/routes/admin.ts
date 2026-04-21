@@ -10,6 +10,7 @@ import {
   getRollingDailyClaudeSpendUsd,
   ROLLING_24H_USD_CAP,
 } from '../services/claudeBudget.js';
+import { describeOperationRoutes } from '../services/llmRouter.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -993,11 +994,28 @@ router.get('/llm-comparisons', (req, res) => {
          ORDER BY n DESC`
     ) as Array<{ operation: string; n: number }>;
 
+    // Introspect the currently-active primary/shadow wiring per
+    // known operation so the /admin/compare page can show "you're
+    // comparing Haiku 4.5 vs DeepSeek on pronunciation, Sonnet 4.5
+    // vs DeepSeek on summary_fallback…" without admin having to
+    // remember which env vars are set. KNOWN_OPS is the list of
+    // invokeLlm call-site IDs; keep in sync with the shadow-wrapped
+    // operations in services/claude.ts.
+    const KNOWN_OPS: Array<{ operation: string; defaultModel: string }> = [
+      { operation: 'pronunciation', defaultModel: 'claude-haiku-4-5-20251001' },
+      { operation: 'similar_descriptions', defaultModel: 'claude-haiku-4-5-20251001' },
+      { operation: 'serper_pick', defaultModel: 'claude-haiku-4-5-20251001' },
+      { operation: 'summary_fallback', defaultModel: 'claude-sonnet-4-5' },
+    ];
+    const routes = describeOperationRoutes(KNOWN_OPS);
+    const shadowConfigured = routes.some((r) => r.shadowModel !== null);
+
     res.json({
       rows,
       total,
       operations: opsRows,
-      enabled: process.env.LLM_COMPARE === '1',
+      routes,
+      enabled: shadowConfigured,
     });
   } catch (err) {
     console.error('[llm-comparisons] list failed:', err);
