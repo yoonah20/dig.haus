@@ -17,7 +17,7 @@ import {
 } from '../hooks/useUserReviewsFeed';
 import { useHomeState } from '../contexts/HomeStateContext';
 import type { AlbumSearchResult } from '../types';
-import { type SortValue } from '../lib/homeSort';
+import { type SortValue, SORT_OPTIONS } from '../lib/homeSort';
 
 interface AlbumListResponse {
   albums: AlbumSearchResult[];
@@ -332,12 +332,21 @@ export default function Home() {
 
   const items = paginationItems(page, totalPages);
 
+  const currentSortLabel =
+    SORT_OPTIONS.find((o) => o.value === sort)?.label ?? '';
+
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
-        {/* Top bar (count / page info / sort) was removed — sort lives
-            in TopNav as an icon, count moved into the footer below.
-            Grid is the first thing on the page. */}
+        {/* Thin sort-state strip above the grid. The SortMenu nav
+            icon no longer carries a label — that keeps the nav row
+            compact and the state visible here instead, where the
+            user is actually looking when they're browsing. */}
+        {albums.length > 0 && (
+          <div className="mb-3 text-[11px] text-gray-500 tabular-nums">
+            정렬: <span className="text-gray-300">{currentSortLabel}</span>
+          </div>
+        )}
         {isLoading && albums.length === 0 ? (
           <div className="text-center py-20 text-sm text-gray-500">불러오는 중...</div>
         ) : albums.length === 0 ? (

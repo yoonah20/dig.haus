@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LoginButton from './LoginButton';
-import RegisterAlbumModal from './RegisterAlbumModal';
 import UsernameModal from './UsernameModal';
 import SearchBar from './SearchBar';
 import SortMenu from './Home/SortMenu';
@@ -11,12 +10,6 @@ import { useHomeState } from '../contexts/HomeStateContext';
 
 export default function TopNav() {
   const { user } = useAuth();
-  const [registerOpen, setRegisterOpen] = useState(false);
-  // Pre-fill source for the register modal. Set when admin triggers
-  // registration from the search overlay's empty-result hand-off;
-  // reset to '' when the + button in the nav (no keyword context) is
-  // used, so each flow gets the intended starting state.
-  const [registerInitialQuery, setRegisterInitialQuery] = useState('');
   const [usernameModalOpen, setUsernameModalOpen] = useState(false);
   const { open: searchOpen, initialQuery, openOverlay, closeOverlay } = useSearchOverlay();
   const navigate = useNavigate();
@@ -98,32 +91,12 @@ export default function TopNav() {
             </span>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3">
-            {/* The "+" affordance opens the same modal for both admin
-                and logged-in users — mode changes the submit action:
-                admin directly registers; a user creates a request row
-                that admin approves later. Hidden for guests. */}
-            {user && (
-              <button
-                onClick={() => {
-                  setRegisterInitialQuery('');
-                  setRegisterOpen(true);
-                }}
-                className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
-                title="앨범 등록"
-                aria-label="앨범 등록"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-4 h-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2.5}
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              </button>
-            )}
+            {/* "+" album-register nav button is gone — registration
+                happens inline in the search overlay now. Typing an
+                album that isn't in dig.haus yet shows MB/Discogs
+                candidates with a per-row [+] button; admins also get
+                a [⚡] that registers + kicks off auto-curation. Less
+                nav chrome, fewer surfaces to maintain. */}
             <button
               onClick={() => (searchOpen ? closeOverlay() : openOverlay())}
               className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
@@ -197,11 +170,6 @@ export default function TopNav() {
               initialQuery={initialQuery}
               autoFocus
               onSelect={closeOverlay}
-              onRegisterRequest={(q) => {
-                closeOverlay();
-                setRegisterInitialQuery(q);
-                setRegisterOpen(true);
-              }}
             />
           </div>
         )}
@@ -212,13 +180,6 @@ export default function TopNav() {
           one left off. An always-mounted modal preserved useState
           across close/reopen and showed stale result rows for a beat
           before the reset effect could clear them. */}
-      {registerOpen && (
-        <RegisterAlbumModal
-          open={registerOpen}
-          onClose={() => setRegisterOpen(false)}
-          initialQuery={registerInitialQuery}
-        />
-      )}
       <UsernameModal
         open={usernameModalOpen}
         onClose={() => setUsernameModalOpen(false)}
