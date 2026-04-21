@@ -219,6 +219,27 @@ export const EXCLUDED_URL_DOMAINS = [
   // boilerplate with no prose to extract. iheart.com also hosts radio
   // / playlist content that isn't review material either.
   'iheart.com',
+  // Metal Epidemic — all "reviews" are podcast-episode landing pages:
+  // a one-line intro + metadata (release date, label, bandcamp link)
+  // + two star ratings from the hosts, no written review prose. Same
+  // shape as iHeart; scraper captures a score but the excerpt is
+  // useless ("Join Dave & Duncan as they review…").
+  'metalepidemic.com',
+  // Social media — never an editorial album review source. Tweets,
+  // Facebook posts, TikToks, threads, Bluesky, Telegram, Reddit posts
+  // may LINK to reviews but are themselves social noise that Jina
+  // still renders, and the scraper sometimes lands on them when an
+  // artist account or fan community is high on the SERP. Blocked
+  // across the common platforms + their TLD variants.
+  'x.com',
+  'twitter.com',
+  'facebook.com',
+  'instagram.com',
+  'threads.net',
+  'tiktok.com',
+  'bsky.app',
+  't.me',
+  'reddit.com',
   // Aggregator (user ratings + collected editorial snippets) rather
   // than an editorial site in its own right. Same reasoning as
   // metal-archives and rockreport.

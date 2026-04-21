@@ -788,6 +788,39 @@ export function initializeDatabase(db: Database.Database): void {
     console.log('[migration] dropped legacy album_requests table');
   });
 
+  // Purge reviews saved under URLs the curator has since blacklisted.
+  // Historical rows linger after a blacklist addition (the filter only
+  // stops future saves), so this one-shot migration wipes any row whose
+  // full_review_url matches today's excluded-domain / excluded-path
+  // list. Covers:
+  //   - sputnikmusic.com/soundoff.php (user-rating aggregator, not editorial)
+  //   - metalepidemic.com (podcast stub pages, no prose)
+  //   - Social media: x.com, twitter.com, facebook.com, instagram.com,
+  //     threads.net, tiktok.com, bsky.app, t.me, reddit.com
+  runOnce(db, 'purge-blacklisted-review-urls-2026-04-21', () => {
+    const patterns = [
+      '%sputnikmusic.com/soundoff.php%',
+      '%metalepidemic.com/%',
+      '%x.com/%',
+      '%twitter.com/%',
+      '%facebook.com/%',
+      '%instagram.com/%',
+      '%threads.net/%',
+      '%tiktok.com/%',
+      '%bsky.app/%',
+      '%t.me/%',
+      '%reddit.com/%',
+    ];
+    let total = 0;
+    for (const p of patterns) {
+      const info = db.prepare('DELETE FROM reviews WHERE full_review_url LIKE ?').run(p);
+      total += info.changes as number;
+    }
+    if (total > 0) {
+      console.log(`[migration] purged ${total} blacklisted review rows`);
+    }
+  });
+
   // Backfill: pre-existing sold-out rows lose no fidelity when we swap to the
   // `status` enum. Idempotent — admins who later edit the row can only do so
   // via `status`, so once it's set this WHERE clause no longer matches.
