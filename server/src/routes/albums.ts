@@ -1507,12 +1507,51 @@ router.get('/:id/similar', async (req, res) => {
               let enrichedMbid = a.mbid || '';
               let enrichedImage = a.imageUrl || '';
 
+              // Short-circuit: when Last.fm already gave us a trusted
+              // MBID but no image, skip the MB search entirely and
+              // derive the Cover Art Archive URL directly. The search
+              // step is where wrong-album artwork creeps in — if we
+              // have the right MBID there's no reason to run it.
+              if (enrichedMbid && !enrichedImage) {
+                enrichedImage = `https://coverartarchive.org/release/${enrichedMbid}/front-250`;
+              }
+
               if (!enrichedMbid || !enrichedImage) {
                 try {
-                  const mbResults = await searchAlbums(`${a.artist} ${a.title}`);
-                  if (mbResults.length > 0) {
-                    enrichedMbid = enrichedMbid || mbResults[0].mbid;
-                    enrichedImage = enrichedImage || mbResults[0].coverArtUrl;
+                  // Lucene field-scoped query so MusicBrainz can't
+                  // hand back a same-titled album by a DIFFERENT
+                  // artist ("Incubus Serpent's Temptation" used to
+                  // match unrelated Serpent-titled releases from
+                  // other bands). Strip `"` / `\` from the user-
+                  // provided strings so they can't escape the field.
+                  const esc = (s: string) => s.replace(/["\\]/g, '').trim();
+                  const query = `artist:"${esc(a.artist)}" AND release:"${esc(a.title)}"`;
+                  const mbResults = await searchAlbums(query);
+
+                  // Post-filter: require the result's artist credit
+                  // to match our requested artist (case + punctuation
+                  // insensitive, substring-in-either-direction so
+                  // "Incubus (US)" vs "Incubus" is accepted). Lucene
+                  // is still fuzzy enough to slip past field scoping
+                  // on common words. Drop the result if nothing
+                  // matches — better to show a music-note fallback
+                  // than a confidently wrong cover.
+                  const norm = (s: string) =>
+                    s.toLowerCase().replace(/[^a-z0-9]/g, '');
+                  const target = norm(a.artist);
+                  const matched = mbResults.filter((r) => {
+                    const cand = norm(r.artist);
+                    return (
+                      cand.length > 0 &&
+                      (cand === target ||
+                        cand.includes(target) ||
+                        target.includes(cand))
+                    );
+                  });
+                  const best = matched[0];
+                  if (best) {
+                    enrichedMbid = enrichedMbid || best.mbid;
+                    enrichedImage = enrichedImage || best.coverArtUrl;
                   }
                 } catch (err) {
                   console.warn(`[mb] similar-album enrichment failed for "${a.artist} - ${a.title}":`, (err as Error).message);

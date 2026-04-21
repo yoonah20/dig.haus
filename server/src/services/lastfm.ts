@@ -24,11 +24,25 @@ function buildParams(method: string, extra: Record<string, string> = {}): Record
 // extralarge(300), mega(variable, often 500+). Pick the largest non-empty URL
 // so we don't cache a tiny 174px cover when a larger one is available.
 const LFM_IMAGE_SIZE_ORDER = ['mega', 'extralarge', 'large', 'medium', 'small'] as const;
+// Last.fm's "no image" placeholder — a generic star graphic served on
+// every album / artist record that lacks real artwork. When callers
+// treat this URL as valid artwork, the album page ends up showing the
+// same cosmic-star PNG as a similar-album cover, or (worse) the
+// downstream MusicBrainz enrichment step skips because imageUrl is
+// already non-empty. Hash is stable across all Last.fm size variants
+// (34s / 64s / 174s / 300x300 / ar0 / …) so substring-match on the
+// core hash is enough.
+const LFM_PLACEHOLDER_HASH = '2a96cbd8b46e442fc41c2b86b821562f';
+
+function isLastfmPlaceholder(url: string): boolean {
+  return url.includes(LFM_PLACEHOLDER_HASH);
+}
+
 function pickLargestImage(images: any): string {
   if (!Array.isArray(images)) return '';
   for (const size of LFM_IMAGE_SIZE_ORDER) {
     const url = images.find((img: any) => img?.size === size)?.['#text'];
-    if (url) return url;
+    if (url && !isLastfmPlaceholder(url)) return url;
   }
   return '';
 }
