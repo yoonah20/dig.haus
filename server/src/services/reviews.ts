@@ -262,6 +262,19 @@ export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
   // The path is /soundoff.php, separate from the /review/ editorial
   // URLs. soundoff pages list user scores and one-liners only.
   /\/soundoff\.php\b/i,
+  // Sputnikmusic band/artist directory page (not a review). Format is
+  // /bands/<slug>/<numeric-id>/, distinct from /review/<id>/... which
+  // is the editorial URL shape. The band page lists user-submitted
+  // scores per album with no editorial prose. The alphanumeric slug +
+  // numeric ID combo is specific enough that non-sputnik hosts with
+  // similar paths are unlikely false positives.
+  /^\/bands\/[^/]+\/\d+/i,
+  // "Top albums of 20XX" style listicles on otherwise reputable
+  // editorial sites (toiletovhell.com /top-albums-ov-2025-w-…/ was the
+  // trigger). Each album gets a one-paragraph blurb inside the roundup
+  // — same not-a-single-album-focus problem as the year-end / roundup
+  // patterns above. Covers "top-albums", "top-records", "top-releases".
+  /\btop[-_](?:albums?|records?|releases?)\b/i,
 ];
 
 // Normalize a URL for duplicate-detection only — what we STORE is still
@@ -975,7 +988,7 @@ Return ONLY JSON, no prose:
   "score": 85,
   "scoreMax": 100,
   "excerpt": "One or two sentences quoted or paraphrased from the review body, in the original language.",
-  "excerptKo": "한국어 요약. 매체명 언급 금지, 평론가 시점. **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
+  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** '~다'체 평서문으로 작성 ('리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지). **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
 }
 
 Score: find the review's explicit rating and convert to a /100 integer. Follow these rules in order:
@@ -1041,6 +1054,18 @@ Refusal format is STRICT: when the page is about OTHER albums entirely (a roundu
       /no review (?:of|for)\s+(?:this|the)/i,
       /this page (?:does not|doesn't)\s+(?:contain|include|have)/i,
       /(?:page|article|text)\s+is\s+(?:about|covering)\s+(?:other|different|another)\s+albums?/i,
+      // Error-page / downtime guards. stormbringer.at once served a
+      // "데이터베이스 연결 오류로 리뷰 내용을 확인할 수 없습니다" page and
+      // that text ended up stored as an excerpt. The detector fires on
+      // either the English or Korean side — whichever language the LLM
+      // echoed the error message in.
+      /데이터베이스\s*연결\s*오류/,
+      /잠시\s*후\s*다시\s*시도/,
+      /연결\s*오류로\s*(?:리뷰|내용|페이지)/,
+      /database\s*connection\s*(?:error|failed|unavailable)/i,
+      /(?:server|site|page)\s*is\s*(?:temporarily\s*)?unavailable/i,
+      /(?:site|page|service)\s*(?:is\s*)?under\s*maintenance/i,
+      /please\s*try\s*again\s*(?:later|in a)/i,
     ];
     const prose = `${parsed.excerpt ?? ''}\n${parsed.excerptKo ?? ''}`;
     if (rejectionPatterns.some((re) => re.test(prose))) {
@@ -1112,7 +1137,7 @@ Return ONLY JSON, no prose:
   "score": 85,
   "scoreMax": 100,
   "excerpt": "One or two sentences quoted or paraphrased from the article body, original language.",
-  "excerptKo": "한국어 요약. 매체명 언급 금지, 평론가 시점. **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
+  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** '~다'체 평서문으로 작성 ('리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지). **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
 }
 
 Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). If no explicit score in the text, set null.

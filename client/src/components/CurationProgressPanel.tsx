@@ -30,7 +30,13 @@ export default function CurationProgressPanel() {
   return (
     <div
       className="fixed bottom-4 right-4 z-50 bg-[#120c05]/95 backdrop-blur-sm border border-[#e8a020]/40 rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.6)] text-xs overflow-hidden"
-      style={{ width: minimized ? 260 : 420 }}
+      style={{
+        width: minimized ? 260 : 420,
+        // Cap at viewport minus the bottom-4 right-4 padding so the
+        // panel never overflows the left edge on narrow phones
+        // (420px default vs ~360px iPhone mini width).
+        maxWidth: 'calc(100vw - 2rem)',
+      }}
     >
       {/* Header bar with status + minimize/close */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-[#1a1108]">

@@ -141,7 +141,9 @@ export async function generateKoreanSummary(
         role: 'user',
         content:
           `'${albumTitle}' by ${artist} 리뷰 3-4문장 한국어 요약. ` +
-          `매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술. ` +
+          `매체명 금지. **리뷰어 본인이 직접 말하는 1인칭 시점**으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 '~다'체 평서문으로 서술. ` +
+          `'리뷰어는/평론가는/필자는/그는' 같은 3인칭 주어 금지. ` +
+          `'~라고 평가한다/~라고 말한다/~라고 지적한다' 같은 전달체 금지 — 리뷰어가 자기 말을 그대로 하듯 서술. ` +
           `출력 규칙: 요약 본문만 작성. 앨범 제목이나 아티스트명을 헤더로 넣지 말 것. ` +
           `마크다운(#, **, *, -) 사용하지 말고 순수 문장으로만.\n${reviewsText}`,
       }],
@@ -200,6 +202,14 @@ const KO_TERM_REPLACEMENTS: Array<[RegExp, string]> = [
   [/운명\s*금속/g, '둠 메탈'],
   [/속도\s*금속/g, '스피드 메탈'],
   [/전투\s*금속/g, '배틀 메탈'],
+  // Funeral doom — "장례 둠" is a literal mistranslation, and 페너럴
+  // / 펀럴 are common transliteration misspellings. Normalize to the
+  // vernacular "퓨너럴 둠". The shorter "장례 둠" pattern also covers
+  // "장례 둠 메탈" automatically (the 메탈 suffix survives unchanged).
+  [/장례\s*둠/g, '퓨너럴 둠'],
+  [/장송\s*둠/g, '퓨너럴 둠'],
+  [/페너럴\s*둠/g, '퓨너럴 둠'],
+  [/펀럴\s*둠/g, '퓨너럴 둠'],
   // Other genre names that get literal-translated.
   [/신발\s*응시/g, '슈게이즈'],
   [/후기\s*펑크/g, '포스트 펑크'],
