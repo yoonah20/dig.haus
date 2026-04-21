@@ -250,6 +250,9 @@ export const EXCLUDED_URL_DOMAINS = [
   // Musicboard — user-review social network (Letterboxd for albums).
   // Every page is a user's take, not an editorial review.
   'musicboard.app',
+  // Metal Hammer Germany — full article body behind a paid subscriber
+  // wall. Public previews are just the intro + login prompt.
+  'metal-hammer.de',
   // Aggregator (user ratings + collected editorial snippets) rather
   // than an editorial site in its own right. Same reasoning as
   // metal-archives and rockreport.
@@ -323,6 +326,15 @@ export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
   // — same not-a-single-album-focus problem as the year-end / roundup
   // patterns above. Covers "top-albums", "top-records", "top-releases".
   /\btop[-_](?:albums?|records?|releases?)\b/i,
+  // Interview / announcement / talk-to-artist content — the scraper
+  // keeps mistaking these for reviews when they mention the album
+  // by name. Common URL slugs:
+  //   loudersound/features/…-interview
+  //   alterock/…-announce-new-album-…-talk-new-music-direction
+  //   …/band-talks-about-new-record
+  /\binterview(?:s|ed)?\b/i,
+  /\bannounce[sd]?\b/i,
+  /\btalks?[-_](?:to|with|about|new|album|record)\b/i,
 ];
 
 // Normalize a URL for duplicate-detection only — what we STORE is still
@@ -907,6 +919,23 @@ function detectExplicitNumericScore(html: string): number | null {
     }
   }
 
+  // (3b) "Score of X: N%" — the label carries a qualifier before the
+  // colon, which rule (3) can't match because its regex only allows
+  // whitespace between the label word and the colon. Man Of Much
+  // Metal signs off with "The Score of Much Metal: 94%"; other sites
+  // use similar "Score of <section>" headers (e.g. "Score of the
+  // Day: …"). Bounded non-colon run so we don't accidentally jump
+  // across paragraphs to the next numeric %.
+  const qualifiedScore = text.match(
+    /\bScore\s+of\s+[A-Za-z ]{1,30}[:：]\s*(\d{1,3})\s*%/i
+  );
+  if (qualifiedScore) {
+    const n = parseInt(qualifiedScore[1], 10);
+    if (n >= 0 && n <= 100) {
+      return n;
+    }
+  }
+
   // (4) "Album Rating: 4.0" — Sputnikmusic and similar sites list the
   // reviewer rating without a visible denominator. Convention is /5
   // (0.0 to 5.0 scale), and taking the FIRST match grabs the
@@ -1396,9 +1425,18 @@ Language: the review may be in English, Dutch, German, French, Spanish, Italian,
 
 Excerpt: pick whatever prose about the album you can find. Evaluative sentences first, but if the page only has descriptive prose (release context, band history, track-by-track discussion) include that instead. Skip pure navigation text, ads, and tracklists-only pages. "[Read more...]" preview links or aggregator-style listings with a short paragraph still count — extract what's there.
 
-Be AGGRESSIVE about extracting. The cost of returning a weak excerpt + null score is low (admin can delete the row if useless). The cost of refusing ("not a review") when there was extractable content is much higher — it means we lose real coverage. Only return {"error":"not a review"} when the page text is truly unrelated: 404 pages, completely unrelated albums, pure navigation with zero descriptive prose about THIS album. When in ANY doubt, extract.
+Be AGGRESSIVE about extracting when the page IS an album review. The cost of refusing a genuine review is higher than saving a weak excerpt.
 
-Refusal format is STRICT: when the page is about OTHER albums entirely (a roundup of different records, a different album's review page, etc.), you MUST return {"error":"not a review of this album"} and nothing else. Do NOT put the refusal as prose into the excerpt / excerptKo fields. Do NOT list the other albums that ARE on the page. Just the error key.`;
+BUT: strictly refuse the following non-review page types, even when they mention the album by name. Return {"error":"not an album review"} with no prose:
+ - Live / concert / gig / tour review or report (the page is about a specific live show, not the studio album). Signals: specific date + venue at the top, prose about "tonight", "stage", "audience", "setlist", "encore".
+ - Interview or Q&A with the artist (even if the album is discussed). Signals: question/answer format, "we spoke with", "told us", "said".
+ - Release announcement / news piece with no evaluative content. Signals: press-release-style phrasing about an upcoming record, tour announcement, single premiere.
+ - Roundup / year-end / best-of / "X albums you should hear" list covering multiple albums.
+ - Track-by-track preview / analysis published BEFORE the album (a listening diary from embargo, not a review).
+ - A different album's review page (the page is about an unrelated record).
+ - 404 / error / no-results / under-maintenance page.
+
+Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refusal as prose into the excerpt / excerptKo fields. When in doubt between "weak album review" and "non-review content about the album", pick the refusal — admin can paste the URL manually via the 수동 입력 tab if they disagree.`;
 
   try {
     const rawText = await extractJsonWithFallback('scrape_review', prompt, 2000);
@@ -1467,6 +1505,14 @@ Refusal format is STRICT: when the page is about OTHER albums entirely (a roundu
       // phrasing straight into the excerpt.
       /검색\s*결과(?:가|를)?\s*(?:없|찾을 수 없|존재하지 않)/,
       /no\s+(?:search\s+)?results?\s+(?:found|for)/i,
+      // Meta-commentary where Claude admits the page is an interview
+      // / live report / announcement but still writes a summary
+      // instead of returning the error key. Only matches the "this
+      // page IS an X" shape so that a review which happens to mention
+      // an interview or live show in prose doesn't get rejected.
+      /(?:this\s+is|this\s+page\s+is|the\s+(?:page|article|content)\s+is)\s+(?:an?\s+)?(?:interview|live\s+(?:show\s+)?review|concert\s+(?:review|report)|tour\s+report|announcement|press\s+release)/i,
+      /(?:이\s*(?:페이지|글|기사)(?:는|가)?)\s*(?:인터뷰|라이브\s*공연|콘서트\s*(?:리뷰|리포트)|발매\s*소식|보도\s*자료)/,
+      /(?:the\s+article|this\s+piece)\s+(?:is\s+)?(?:not\s+)?(?:an\s+)?album\s+review\s*[,.;]/i,
     ];
     const prose = `${parsed.excerpt ?? ''}\n${parsed.excerptKo ?? ''}`;
     if (rejectionPatterns.some((re) => re.test(prose))) {
