@@ -432,11 +432,18 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   }, [albumId, artistKoInput, titleKoInput, titleMeaningInput, queryClient]);
 
   const startEditCover = useCallback(() => {
-    // Field opens empty so the admin can paste a fresh URL straight away —
-    // pre-filling the existing one just adds a Select-All step.
-    setCoverInput('');
+    // Pre-fill with the Spotify 640x640 cover when we have one cached
+    // on the album. That URL is the most common manual swap target
+    // (Spotify's cover art is consistently well-composed and high-res,
+    // and coverArtFallbacks already holds it from first-load). Input
+    // text is auto-selected on focus below, so if admin has a different
+    // URL ready they just Ctrl+V to replace. If no Spotify URL is
+    // cached, field opens empty.
+    const fallbacks = album.coverArtFallbacks ?? [];
+    const spotifyUrl = fallbacks.find((u) => u.includes('i.scdn.co/image/'));
+    setCoverInput(spotifyUrl ?? '');
     setEditingCover(true);
-  }, []);
+  }, [album.coverArtFallbacks]);
 
   const cancelEditCover = useCallback(() => {
     if (updatingCover) return;
@@ -748,6 +755,11 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   if (e.key === 'Enter' && !updatingCover) saveEditCover();
                   if (e.key === 'Escape') cancelEditCover();
                 }}
+                // Auto-select the pre-filled value so Ctrl+V / ⌘V
+                // immediately replaces it when admin has a different
+                // URL on the clipboard. Harmless when the field is
+                // empty (select() on empty is a no-op).
+                onFocus={(e) => e.currentTarget.select()}
                 disabled={updatingCover}
                 placeholder="https://..."
                 autoFocus
