@@ -218,6 +218,21 @@ const KO_TERM_REPLACEMENTS: Array<[RegExp, string]> = [
   [/후기\s*펑크/g, '포스트 펑크'],
   [/새로운\s*물결/g, '뉴 웨이브'],
   [/진보(?:적)?\s*(?:록|로큰롤)/g, '프로그레시브 록'],
+  // "alternative" — standard vernacular is "얼터너티브", but literal
+  // translation comes back as "대안" (lit. "alternative choice"). The
+  // vinyl-listener audience expects the transliterated form.
+  [/대안\s*메탈/g, '얼터너티브 메탈'],
+  [/대안\s*록/g, '얼터너티브 록'],
+  // Genre "scene" → vernacular "씬", not literal "장면" ("scene" in
+  // the film/moment sense) or "현장" ("field/site"). Covers the
+  // common case "{genre} scene". Whitelist of trigger words instead
+  // of a generic wildcard so we don't accidentally rewrite "마지막
+  // 장면" ("final scene" of a concept album's closing track) or
+  // similar non-scene prose.
+  [
+    /(메탈|하드코어|펑크|록|그라인드코어|재즈|일렉트로닉|앰비언트|슈게이즈|인디|하드록|코어|웨이브|둠|블랙|스래시|데스|프로그|포스트|힙합|포크)\s*(?:장면|현장)/g,
+    '$1 씬',
+  ],
 ];
 
 export function normaliseKoreanTerms(text: string | null | undefined): string {

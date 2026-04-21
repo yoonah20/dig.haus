@@ -1187,6 +1187,20 @@ Refusal format is STRICT: when the page is about OTHER albums entirely (a roundu
       /(?:server|site|page)\s*is\s*(?:temporarily\s*)?unavailable/i,
       /(?:site|page|service)\s*(?:is\s*)?under\s*maintenance/i,
       /please\s*try\s*again\s*(?:later|in a)/i,
+      // "Metadata / tracklist page, not an actual review" style
+      // meta-commentary. The LLM occasionally describes the page's
+      // contents ("이 페이지는 트랙리스트, 발매 정보, … 앨범 세부 정보를
+      // 제공하지만, 앨범의 내용이나 품질에 대한 명시적인 리뷰 텍스트나
+      // 평가적 문장은 포함되어 있지 않습니다") instead of returning the
+      // error key. Any of these phrases indicates the excerpt is meta-
+      // commentary about missing review content, not review content.
+      /평가적\s*(?:문장|표현|내용|서술)[은는이가]?\s*(?:포함되[^가-힣]*않|없|찾을 수 없|부재)/,
+      /(?:명시적인?|구체적인?|직접적인?)\s*(?:리뷰\s*텍스트|평가\s*문장|평가적\s*문장|리뷰\s*내용)/,
+      /(?:리뷰|평론)\s*(?:텍스트|내용|본문)[은는이가]?\s*(?:포함되[^가-힣]*않|없)/,
+      /앨범\s*세부\s*정보[을를은는이가]?\s*제공/,
+      /트랙리스트[\s\S]{0,50}(?:발매\s*정보|세부\s*정보|메타데이터)/,
+      /(?:page|article)\s+(?:provides|offers|shows)\s+(?:only\s+)?(?:tracklist|metadata|release\s+info)/i,
+      /no\s+(?:explicit|specific|actual)\s+review\s+(?:text|content|prose)/i,
     ];
     const prose = `${parsed.excerpt ?? ''}\n${parsed.excerptKo ?? ''}`;
     if (rejectionPatterns.some((re) => re.test(prose))) {
