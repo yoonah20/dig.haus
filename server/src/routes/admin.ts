@@ -875,8 +875,12 @@ router.get('/scrape-failures', (req, res) => {
 // ─── POST /api/admin/curation-runs ────────────────────────────────────
 // Client (CurationProgressContext) pings this once per album as the
 // pipeline finishes — one row per album per run. Cost_usd is computed
-// client-side from the API-usage delta so we keep the write-path
-// simple; the server just stores what it's told.
+// HERE from claude_usage_log rows that fell within the album's
+// processing window (albumStartedAt..albumEndedAt), instead of the
+// old approach where the client snapshotted /api/admin/stats twice
+// per album just to get a delta. That was 2 extra HTTP round-trips
+// per album; this is one SQL aggregation on the write we were doing
+// anyway.
 router.post('/curation-runs', (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   const runId = typeof body.runId === 'string' ? body.runId : null;
@@ -884,11 +888,44 @@ router.post('/curation-runs', (req, res) => {
   const albumTitle = typeof body.albumTitle === 'string' ? body.albumTitle : null;
   const triggerKind = typeof body.triggerKind === 'string' ? body.triggerKind : 'oneclick';
   const startedAt = typeof body.startedAt === 'string' ? body.startedAt : null;
+  const albumStartedAt =
+    typeof body.albumStartedAt === 'string' ? body.albumStartedAt : startedAt;
+  const albumEndedAt =
+    typeof body.albumEndedAt === 'string' ? body.albumEndedAt : null;
   if (!runId || !albumMbid || !albumTitle || !startedAt) {
     return res.status(400).json({ error: 'runId, albumMbid, albumTitle, startedAt required' });
   }
   const toInt = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : 0);
-  const toFloat = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+  // Cost aggregation over the album's processing window. Matches both
+  // the ISO-with-'T' timestamps the client sends and SQLite's
+  // datetime('now') 'YYYY-MM-DD HH:MM:SS' default format by running
+  // both sides through datetime() for normalisation. Web-search dollars
+  // price per 1000 calls (see PRICING_PER_1M comments).
+  let costUsd = 0;
+  try {
+    const windowEnd = albumEndedAt ?? new Date().toISOString();
+    const usageRows = queryAll(
+      `SELECT model, input_tokens, output_tokens, web_search_count
+         FROM claude_usage_log
+         WHERE datetime(created_at) >= datetime(?)
+           AND datetime(created_at) <= datetime(?)`,
+      [albumStartedAt, windowEnd]
+    ) as Array<{
+      model: string;
+      input_tokens: number;
+      output_tokens: number;
+      web_search_count: number;
+    }>;
+    for (const r of usageRows) {
+      const p = pricingFor(r.model);
+      costUsd += (r.input_tokens * p.input + r.output_tokens * p.output) / 1_000_000;
+      costUsd += (r.web_search_count * WEB_SEARCH_PER_1000) / 1000;
+    }
+  } catch (err) {
+    console.warn('[curation-runs] cost aggregation failed:', (err as Error).message);
+  }
+
   try {
     execute(
       `INSERT INTO curation_runs
@@ -906,12 +943,12 @@ router.post('/curation-runs', (req, res) => {
         toInt(body.duplicates),
         toInt(body.failures),
         body.summaryGenerated ? 1 : 0,
-        toFloat(body.costUsd),
+        costUsd,
         typeof body.status === 'string' ? body.status : 'done',
         startedAt,
       ]
     );
-    res.json({ ok: true });
+    res.json({ ok: true, costUsd });
   } catch (err) {
     console.error('[curation-runs] insert failed:', err);
     res.status(500).json({ error: 'failed to record curation run' });

@@ -26,7 +26,12 @@ import { useQueryClient } from '@tanstack/react-query';
 // shouldn't sink the batch. Admin reads the log in the floating panel
 // and can re-run missing pieces manually from the album page.
 
-const CHUNK_SIZE = 5;
+// Bumped 5 → 8 (2026-04-21). 15-save target hits in 2 chunks instead
+// of 3; DeepSeek's free-tier rate allowance (~60 RPM observed) has
+// plenty of headroom at 8 concurrent, and Jina Reader is unrate-
+// limited. The chunk still waits on its slowest URL, so net speedup
+// is roughly (n-1)×(avg chunk time) across the run.
+const CHUNK_SIZE = 8;
 
 // Auto-curation targets *successful* saves (15) rather than just
 // slicing the first 15 URLs — if some fail (403, Cloudflare, not-a-
@@ -191,22 +196,6 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
     []
   );
 
-  // Snapshot the admin's Claude-usage tally before and after each album
-  // so we can compute an approximate per-album cost for the curation log.
-  // GET /api/admin/stats is already polled by the Admin page via React
-  // Query so this should hit cache most of the time; worst case it's
-  // one extra light request per album.
-  const fetchTotalUsd = useCallback(async (): Promise<number> => {
-    try {
-      const { data } = await axios.get('/api/admin/stats');
-      return typeof data?.claudeUsage?.month?.usd === 'number'
-        ? data.claudeUsage.month.usd
-        : 0;
-    } catch {
-      return 0;
-    }
-  }, []);
-
   const processAlbum = useCallback(
     async (
       album: CurationAlbumResult,
@@ -216,7 +205,13 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
       triggerKind: 'oneclick' | 'batch'
     ) => {
       const { albumMbid, albumTitle } = album;
-      const costBefore = await fetchTotalUsd();
+      // Window bounds for the server-side cost aggregation in the
+      // curation-runs POST below. Server reads claude_usage_log rows
+      // whose created_at falls inside [albumStartedAt, albumEndedAt]
+      // and sums the dollar cost off PRICING_PER_1M — no need for
+      // the old two-shot /api/admin/stats snapshot (was 2 HTTP round-
+      // trips per album just to compute a delta).
+      const albumStartedAt = new Date().toISOString();
 
       updateAlbum(index, { status: 'running' });
       appendLog(albumMbid, albumTitle, 'URL 자동 검색 시작', 'info');
@@ -365,12 +360,13 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
       qc.invalidateQueries({ queryKey: ['album-list'] });
       qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
 
-      // Persist a curation-history row. Cost is the Claude-usage
-      // delta over the album's processing window. Fire-and-forget
-      // since a failed insert shouldn't break the run — the ledger
-      // is observability, not critical state.
-      const costAfter = await fetchTotalUsd();
-      const costDelta = Math.max(0, costAfter - costBefore);
+      // Persist a curation-history row. Fire-and-forget — a failed
+      // insert shouldn't break the run, and the server computes
+      // cost_usd itself from claude_usage_log within the window we
+      // pass here. Captures albumEndedAt BEFORE the POST so the
+      // window doesn't accidentally include next-album calls if the
+      // loop moves on before this POST reaches the server.
+      const albumEndedAt = new Date().toISOString();
       axios
         .post('/api/admin/curation-runs', {
           runId,
@@ -382,15 +378,16 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
           duplicates: dup,
           failures: failed,
           summaryGenerated: summaryOk,
-          costUsd: costDelta,
           status: 'done',
           startedAt,
+          albumStartedAt,
+          albumEndedAt,
         })
         .catch(() => {
           // Best-effort — already logged the work in the panel.
         });
     },
-    [appendLog, qc, updateAlbum, fetchTotalUsd]
+    [appendLog, qc, updateAlbum]
   );
 
   const startRun = useCallback(
