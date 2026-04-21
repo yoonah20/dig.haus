@@ -4,6 +4,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useRequestSearch } from '../hooks/useSearch';
 import { useSubmitAlbumRequest } from '../hooks/useAlbumRequests';
+import { useAuth } from '../contexts/AuthContext';
+import { useCurationProgress } from '../contexts/CurationProgressContext';
 import type { AlbumSearchResult } from '../types';
 
 interface Props {
@@ -35,6 +37,9 @@ export default function RegisterAlbumModal({ open, onClose, initialQuery = '' }:
   const navigate = useNavigate();
   const qc = useQueryClient();
   const submit = useSubmitAlbumRequest();
+  const { user } = useAuth();
+  const isAdmin = !!user?.isAdmin;
+  const curation = useCurationProgress();
 
   const search = useRequestSearch(query, open);
 
@@ -113,7 +118,10 @@ export default function RegisterAlbumModal({ open, onClose, initialQuery = '' }:
     }
   }
 
-  async function handleSubmit(album: AlbumSearchResult) {
+  async function handleSubmit(
+    album: AlbumSearchResult,
+    opts: { autoCurate?: boolean } = {}
+  ) {
     if (pending) return;
     setError(null);
     setPending(album.mbid);
@@ -131,6 +139,15 @@ export default function RegisterAlbumModal({ open, onClose, initialQuery = '' }:
       // servers or cache misses).
       const target = (result?.slug as string | undefined) || album.mbid;
       onClose();
+      // Admin "등록 + 큐레이션" path: kick off discover → add-url →
+      // summary before navigating. startRun is fire-and-forget (the
+      // curation panel tracks progress globally), so the navigate
+      // below happens immediately and the admin watches the floating
+      // panel on the new album page. Safe even if another run is
+      // active — startRun appends to the queue.
+      if (opts.autoCurate && isAdmin) {
+        curation.startRun([{ mbid: album.mbid, title: album.title }]);
+      }
       navigate(`/album/${target}`);
     } catch (e: any) {
       const apiMessage = e?.response?.data?.error;
@@ -256,45 +273,72 @@ export default function RegisterAlbumModal({ open, onClose, initialQuery = '' }:
             <div className="mt-4 max-h-[60vh] overflow-y-auto -mx-1">
               {albums.map((album) => {
                 const isSubmitting = pending === album.mbid;
+                const rowDisabled = !!pending && !isSubmitting;
                 return (
-                  <button
+                  <div
                     key={album.mbid}
-                    onClick={() => handleSubmit(album)}
-                    disabled={!!pending && !isSubmitting}
-                    className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-lg transition-colors text-left disabled:opacity-40"
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 rounded-lg transition-colors ${
+                      rowDisabled ? 'opacity-40' : ''
+                    }`}
                   >
-                    <div className="w-10 h-10 flex-shrink-0 bg-[#252525] rounded-md overflow-hidden">
-                      {album.coverArtUrl ? (
-                        <img
-                          src={album.coverArtUrl}
-                          alt={album.title}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      ) : null}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-base font-semibold text-gray-100 truncate">
-                        {album.title}
-                      </p>
-                      <p className="text-sm text-gray-400 truncate">
-                        {album.artist}
-                        {album.year && (
-                          <span className="text-gray-500"> ({album.year})</span>
-                        )}
-                        {album.label && (
-                          <span className="text-gray-500"> · {album.label}</span>
-                        )}
-                      </p>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleSubmit(album)}
+                      disabled={rowDisabled}
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <div className="w-10 h-10 flex-shrink-0 bg-[#252525] rounded-md overflow-hidden">
+                        {album.coverArtUrl ? (
+                          <img
+                            src={album.coverArtUrl}
+                            alt={album.title}
+                            loading="lazy"
+                            decoding="async"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-base font-semibold text-gray-100 truncate">
+                          {album.title}
+                        </p>
+                        <p className="text-sm text-gray-400 truncate">
+                          {album.artist}
+                          {album.year && (
+                            <span className="text-gray-500"> ({album.year})</span>
+                          )}
+                          {album.label && (
+                            <span className="text-gray-500"> · {album.label}</span>
+                          )}
+                        </p>
+                      </div>
+                    </button>
+                    {/* Admin shortcut: register AND immediately queue
+                        this album into the auto-curation pipeline.
+                        Meant for releases with known-stable review
+                        coverage where admin wants to skip the
+                        "register → click into page → click 자동 큐레이션"
+                        ritual. Hidden for non-admins; the normal row
+                        click still registers-only for everyone. */}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleSubmit(album, { autoCurate: true })}
+                        disabled={rowDisabled}
+                        title="등록 후 자동 큐레이션까지 한 번에 실행"
+                        aria-label="등록 후 자동 큐레이션"
+                        className="shrink-0 px-2.5 py-1 text-xs font-medium border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020]/15 rounded-md cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap"
+                      >
+                        ⚡ 큐레이션까지
+                      </button>
+                    )}
                     {isSubmitting && (
                       <div className="shrink-0 w-4 h-4 border-2 border-gray-600 border-t-[#e8a020] rounded-full animate-spin" />
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
