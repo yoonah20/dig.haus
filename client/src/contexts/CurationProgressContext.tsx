@@ -155,6 +155,11 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
   const qc = useQueryClient();
   const [run, setRun] = useState<CurationRunState | null>(null);
   const isRunningRef = useRef(false);
+  // Ref-backed queue that the running loop iterates against so late
+  // appends (admin clicks "자동 큐레이션" on another album while one is
+  // already in flight) get picked up without having to race React's
+  // state updates. Kept in sync with run.albums but read synchronously.
+  const queueRef = useRef<CurationAlbumResult[]>([]);
 
   const appendLog = useCallback(
     (albumMbid: string, albumTitle: string, message: string, kind: CurationLogLine['kind'] = 'info') => {
@@ -393,42 +398,88 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
       albums: Array<{ mbid: string; title: string }>,
       triggerKindArg?: 'oneclick' | 'batch'
     ) => {
-      if (isRunningRef.current) return;
       if (albums.length === 0) return;
+
+      const newItems: CurationAlbumResult[] = albums.map((a) => ({
+        albumMbid: a.mbid,
+        albumTitle: a.title,
+        urlsFound: 0,
+        urlsSaved: 0,
+        duplicates: 0,
+        failures: 0,
+        summaryGenerated: false,
+        status: 'pending',
+      }));
+
+      // Append path: a run is already active, so extend its queue
+      // instead of rejecting the click. The loop below re-reads
+      // queueRef on every iteration so appended albums slot in
+      // naturally behind whatever's currently processing.
+      if (isRunningRef.current) {
+        // De-dupe against already-queued or currently-processing albums
+        // so repeated clicks on the same album page don't stack multiple
+        // copies into the queue. Status-agnostic: even finished albums
+        // count (admin can still clear + restart if they want a redo).
+        const existingMbids = new Set(
+          queueRef.current.map((a) => a.albumMbid)
+        );
+        const deduped = newItems.filter((a) => !existingMbids.has(a.albumMbid));
+        if (deduped.length === 0) return;
+
+        queueRef.current.push(...deduped);
+        const appendedLogs: CurationLogLine[] = deduped.map((a) => ({
+          id: `l-${nextLogId++}`,
+          albumMbid: a.albumMbid,
+          albumTitle: a.albumTitle,
+          message: '대기열에 추가됨',
+          kind: 'info',
+          at: Date.now(),
+        }));
+        setRun((prev) =>
+          prev
+            ? {
+                ...prev,
+                albums: [...prev.albums, ...deduped],
+                log: [...prev.log, ...appendedLogs],
+              }
+            : prev
+        );
+        return;
+      }
+
+      // Fresh-run path: initialise queue + state and enter the loop.
       isRunningRef.current = true;
+      queueRef.current = [...newItems];
 
       const runId = `r-${Date.now()}`;
       const startedAtIso = new Date().toISOString();
       const triggerKind =
         triggerKindArg ?? (albums.length === 1 ? 'oneclick' : 'batch');
 
-      const initial: CurationRunState = {
+      setRun({
         runId,
-        albums: albums.map((a) => ({
-          albumMbid: a.mbid,
-          albumTitle: a.title,
-          urlsFound: 0,
-          urlsSaved: 0,
-          duplicates: 0,
-          failures: 0,
-          summaryGenerated: false,
-          status: 'pending',
-        })),
+        albums: [...newItems],
         currentIndex: 0,
         log: [],
         startedAt: Date.now(),
         finished: false,
-      };
-      setRun(initial);
+      });
 
       try {
-        for (let i = 0; i < initial.albums.length; i++) {
+        // Index-based while loop (not for-of) so we re-check the
+        // queue length after each album — late appends via the
+        // isRunningRef branch above extend queueRef mid-run.
+        let i = 0;
+        while (i < queueRef.current.length) {
+          const album = queueRef.current[i];
           setRun((prev) => (prev ? { ...prev, currentIndex: i } : prev));
-          await processAlbum(initial.albums[i], i, runId, startedAtIso, triggerKind);
+          await processAlbum(album, i, runId, startedAtIso, triggerKind);
+          i++;
         }
       } finally {
         setRun((prev) => (prev ? { ...prev, finished: true } : prev));
         isRunningRef.current = false;
+        queueRef.current = [];
         // Admin-facing stats refresh so the 데이터 미완 panel reflects
         // the albums that just got summaries, and the new curation-run
         // rows show in the 큐레이션 이력 panel.

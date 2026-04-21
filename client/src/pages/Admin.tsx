@@ -1218,12 +1218,16 @@ function IncompletePanel({
   const clearSelection = () => setSelected(new Map());
 
   const startBatch = () => {
-    if (curation.isRunning || selected.size === 0) return;
+    if (selected.size === 0) return;
     const albums = Array.from(selected.values()).map((a) => ({
       mbid: a.mbid,
       title: a.title,
     }));
     clearSelection();
+    // startRun auto-appends to the active run's queue when one is
+    // already in flight (CurationProgressContext), so no guard on
+    // isRunning needed here — admin can queue further batches while
+    // an earlier one is still processing.
     curation.startRun(albums);
   };
 
@@ -1245,14 +1249,14 @@ function IncompletePanel({
             </button>
             <button
               onClick={startBatch}
-              disabled={curation.isRunning}
-              className="text-[11px] text-[#e8a020]/90 hover:text-[#e8a020] border border-[#e8a020]/50 hover:border-[#e8a020]/80 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1.5"
-              title="선택한 앨범들에 대해 URL 검색 → 리뷰 수집 → 요약까지 배치 실행"
+              className="text-[11px] text-[#e8a020]/90 hover:text-[#e8a020] border border-[#e8a020]/50 hover:border-[#e8a020]/80 rounded-md px-2 py-0.5 cursor-pointer transition-colors inline-flex items-center gap-1.5"
+              title={
+                curation.isRunning
+                  ? '현재 큐레이션 실행 중 — 클릭하면 대기열 뒤에 추가됩니다'
+                  : '선택한 앨범들에 대해 URL 검색 → 리뷰 수집 → 요약까지 배치 실행'
+              }
             >
-              {curation.isRunning && (
-                <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
-              )}
-              🔍 {selected.size}개 큐레이션
+              🔍 {selected.size}개 {curation.isRunning ? '큐에 추가' : '큐레이션'}
             </button>
           </div>
         ) : null

@@ -184,26 +184,53 @@ export default function Album() {
                   ? (
                       <div className="rounded-xl border border-[#e8a020]/25 bg-[#1a1a1a]/80 px-4 sm:px-5 py-3">
                         <div className="flex items-center justify-center gap-2 flex-wrap">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (curation.isRunning) return;
-                              curation.startRun([{ mbid: slug!, title: album.title }]);
-                            }}
-                            disabled={
-                              curation.isRunning ||
+                          {(() => {
+                            // Three visual states:
+                            //   idle         → "🔍 자동 큐레이션"
+                            //   already queued/running/done for THIS album
+                            //                → spinner + "큐레이션 중…" (disabled)
+                            //   running but THIS album not queued yet
+                            //                → "🔍 큐에 추가" (click appends)
+                            const thisInQueue =
+                              !!curation.run?.albums.some(
+                                (a) => a.albumMbid === slug
+                              );
+                            const otherInProgress =
+                              curation.isRunning && !thisInQueue;
+                            const lockedOut =
+                              thisInQueue ||
                               generateSummary.isPending ||
                               markNoReviews.isPending ||
-                              deleteAllReviews.isPending
-                            }
-                            className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/15 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5"
-                            title="URL 자동 검색 → 리뷰 수집 → 한국어 요약까지 한 번에 실행"
-                          >
-                            {curation.isRunning && (
-                              <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
-                            )}
-                            {curation.isRunning ? '큐레이션 중…' : '🔍 자동 큐레이션'}
-                          </button>
+                              deleteAllReviews.isPending;
+                            const label = thisInQueue
+                              ? '큐레이션 중…'
+                              : otherInProgress
+                                ? '🔍 큐에 추가'
+                                : '🔍 자동 큐레이션';
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (lockedOut) return;
+                                  curation.startRun([
+                                    { mbid: slug!, title: album.title },
+                                  ]);
+                                }}
+                                disabled={lockedOut}
+                                className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/15 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5"
+                                title={
+                                  otherInProgress
+                                    ? '다른 앨범이 처리 중 — 클릭하면 대기열 뒤에 추가됩니다'
+                                    : 'URL 자동 검색 → 리뷰 수집 → 한국어 요약까지 한 번에 실행'
+                                }
+                              >
+                                {thisInQueue && (
+                                  <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+                                )}
+                                {label}
+                              </button>
+                            );
+                          })()}
                           <button
                             type="button"
                             onClick={async () => {
