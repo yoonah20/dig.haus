@@ -8,12 +8,18 @@ interface SearchBarProps {
   initialQuery?: string;
   autoFocus?: boolean;
   onSelect?: () => void;
+  /** Admin-only: clicking the empty-result "+ 추가" affordance calls
+   *  this with the current search keyword, so the parent can open
+   *  the RegisterAlbumModal pre-filled. When omitted the message
+   *  stays as read-only text (legacy behaviour for non-nav uses). */
+  onRegisterRequest?: (query: string) => void;
 }
 
 export default function SearchBar({
   initialQuery = '',
   autoFocus = false,
   onSelect,
+  onRegisterRequest,
 }: SearchBarProps) {
   const [input, setInput] = useState(initialQuery);
   const [query, setQuery] = useState(initialQuery);
@@ -77,10 +83,36 @@ export default function SearchBar({
       </div>
 
       {showDropdown && !isLoading && albums.length === 0 && (
-        <div className="absolute z-50 mt-2 w-full bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl px-5 py-4 text-sm text-gray-400">
-          {isAdmin
-            ? '아직 등록되지 않았습니다. + 버튼으로 추가하세요'
-            : '아직 등록되지 않은 앨범입니다'}
+        <div className="absolute z-50 mt-2 w-full bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl px-5 py-4 text-sm">
+          {isAdmin && onRegisterRequest ? (
+            <button
+              type="button"
+              onClick={() => onRegisterRequest(query)}
+              className="w-full text-left text-gray-300 hover:text-[#e8a020] transition-colors cursor-pointer flex items-center justify-between gap-3"
+            >
+              <span>
+                아직 등록되지 않았습니다.{' '}
+                <span className="text-[#e8a020] font-medium">
+                  "{query}"
+                </span>{' '}
+                로 바로 등록 시작
+              </span>
+              <span
+                aria-hidden
+                className="shrink-0 w-6 h-6 rounded-full border border-[#e8a020]/60 text-[#e8a020] flex items-center justify-center text-base leading-none"
+              >
+                +
+              </span>
+            </button>
+          ) : isAdmin ? (
+            <span className="text-gray-400">
+              아직 등록되지 않았습니다. + 버튼으로 추가하세요
+            </span>
+          ) : (
+            <span className="text-gray-400">
+              아직 등록되지 않은 앨범입니다
+            </span>
+          )}
         </div>
       )}
 

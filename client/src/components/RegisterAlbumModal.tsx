@@ -9,6 +9,10 @@ import type { AlbumSearchResult } from '../types';
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Pre-fill the search input when the modal opens. Used by the nav
+   *  search bar's empty-result hand-off: admin typed a keyword, got
+   *  no hit, clicked "+ 추가" — we don't want them to retype. */
+  initialQuery?: string;
 }
 
 // Unified album-registration modal. Admin and non-admin now take the
@@ -17,9 +21,9 @@ interface Props {
 // page (pending state). Admin does not get automatic review
 // collection anymore; that's a separate explicit action on the album
 // page (🔍 리뷰 모아오기).
-export default function RegisterAlbumModal({ open, onClose }: Props) {
-  const [input, setInput] = useState('');
-  const [query, setQuery] = useState('');
+export default function RegisterAlbumModal({ open, onClose, initialQuery = '' }: Props) {
+  const [input, setInput] = useState(initialQuery);
+  const [query, setQuery] = useState(initialQuery);
   const [urlInput, setUrlInput] = useState('');
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
@@ -36,8 +40,12 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    setInput('');
-    setQuery('');
+    // When the nav search hands off an initialQuery, pre-fill both
+    // input (controls the field) and query (drives the debounced
+    // external search) so the user sees results immediately without
+    // the 300ms debounce from input → query.
+    setInput(initialQuery);
+    setQuery(initialQuery);
     setUrlInput('');
     setExtractError(null);
     setExtracting(false);
@@ -51,7 +59,7 @@ export default function RegisterAlbumModal({ open, onClose }: Props) {
     qc.removeQueries({ queryKey: ['album-request-search'] });
     const t = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(t);
-  }, [open, qc]);
+  }, [open, qc, initialQuery]);
 
   useEffect(() => {
     const timer = setTimeout(() => setQuery(input.trim()), 300);

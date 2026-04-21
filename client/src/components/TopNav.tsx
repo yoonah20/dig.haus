@@ -12,6 +12,11 @@ import { useHomeState } from '../contexts/HomeStateContext';
 export default function TopNav() {
   const { user } = useAuth();
   const [registerOpen, setRegisterOpen] = useState(false);
+  // Pre-fill source for the register modal. Set when admin triggers
+  // registration from the search overlay's empty-result hand-off;
+  // reset to '' when the + button in the nav (no keyword context) is
+  // used, so each flow gets the intended starting state.
+  const [registerInitialQuery, setRegisterInitialQuery] = useState('');
   const [usernameModalOpen, setUsernameModalOpen] = useState(false);
   const { open: searchOpen, initialQuery, openOverlay, closeOverlay } = useSearchOverlay();
   const navigate = useNavigate();
@@ -99,7 +104,10 @@ export default function TopNav() {
                 that admin approves later. Hidden for guests. */}
             {user && (
               <button
-                onClick={() => setRegisterOpen(true)}
+                onClick={() => {
+                  setRegisterInitialQuery('');
+                  setRegisterOpen(true);
+                }}
                 className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
                 title="앨범 등록"
                 aria-label="앨범 등록"
@@ -161,6 +169,11 @@ export default function TopNav() {
               initialQuery={initialQuery}
               autoFocus
               onSelect={closeOverlay}
+              onRegisterRequest={(q) => {
+                closeOverlay();
+                setRegisterInitialQuery(q);
+                setRegisterOpen(true);
+              }}
             />
           </div>
         )}
@@ -175,6 +188,7 @@ export default function TopNav() {
         <RegisterAlbumModal
           open={registerOpen}
           onClose={() => setRegisterOpen(false)}
+          initialQuery={registerInitialQuery}
         />
       )}
       <UsernameModal
