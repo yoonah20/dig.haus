@@ -207,6 +207,12 @@ export const EXCLUDED_URL_DOMAINS = [
   'myglobalmind.com',
   'brooklynvegan.com',
   'grande-rock.com',
+  'wallofsoundau.com',
+  'sonicperspectives.com',
+  'metalinjection.net',
+  'alreadyheard.com',
+  'metalwani.com',
+  'metalcrypt.com',
   // Aggregator (user ratings + collected editorial snippets) rather
   // than an editorial site in its own right. Same reasoning as
   // metal-archives and rockreport.
