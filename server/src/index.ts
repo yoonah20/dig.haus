@@ -13,11 +13,11 @@ dotenv.config();
 import { initDb, closeDb, getDb } from './db/index.js';
 import { configurePassport } from './auth/passport.js';
 import { startRankScheduler } from './jobs/rankScheduler.js';
-import { startRequestNotifier } from './jobs/requestNotifier.js';
 import { startLabelFeedPoller } from './jobs/labelFeedPoller.js';
 import { warmExchangeRates } from './services/exchangeRates.js';
 import searchRouter from './routes/search.js';
 import albumsRouter from './routes/albums.js';
+import albumReviewsRouter from './routes/albumReviews.js';
 import labelsRouter from './routes/labels.js';
 import authRouter from './routes/auth.js';
 import votesRouter from './routes/votes.js';
@@ -110,6 +110,12 @@ async function start() {
   app.use('/api/stats', publicStatsRouter);
   app.use('/api/avatars', avatarsRouter);
   app.use('/api/albums', albumsRouter);
+  // Second router at the same prefix for the review pipeline (discover,
+  // add-url, manual, generate-summary, mark-none) + per-review admin
+  // actions (score, excerpt, retranslate) + GET /:id/reviews. Express
+  // walks routers in registration order and each only handles its own
+  // paths — no conflict with albumsRouter above.
+  app.use('/api/albums', albumReviewsRouter);
   app.use('/api/labels', labelsRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/admin', labelFeedRouter);
@@ -120,7 +126,6 @@ async function start() {
   app.use(sitemapRouter);
 
   startRankScheduler();
-  startRequestNotifier();
   startLabelFeedPoller();
   warmExchangeRates();
 

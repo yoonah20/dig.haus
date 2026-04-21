@@ -507,32 +507,6 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
-  // Logged-in users can request an album they want added — admin
-  // reviews later, either approving (which triggers the normal Claude
-  // pipeline) or discarding. No UNIQUE(mbid) on purpose: multiple users
-  // can request the same album and the admin surface counts them as a
-  // social-proof signal. user_id is SET NULL so account deletion keeps
-  // pending requests alive for admin follow-through.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS album_requests (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      mbid TEXT NOT NULL,
-      title TEXT NOT NULL,
-      artist_name TEXT NOT NULL,
-      release_year INTEGER,
-      cover_art_url TEXT,
-      notes TEXT,
-      status TEXT NOT NULL DEFAULT 'pending'
-        CHECK(status IN ('pending','approved','discarded')),
-      created_at TEXT DEFAULT (datetime('now')),
-      decided_at TEXT
-    )
-  `);
-  db.exec('CREATE INDEX IF NOT EXISTS idx_album_requests_status ON album_requests(status)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_album_requests_mbid ON album_requests(mbid)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_album_requests_user_id ON album_requests(user_id)');
-
   // One row per Claude API call so the admin dashboard can show a
   // rolling token / web-search / cost breakdown without hitting the
   // Anthropic console. `operation` is a free-form string the call
@@ -723,11 +697,6 @@ export function initializeDatabase(db: Database.Database): void {
      ON label_feed_items(release_date DESC)`
   );
 
-  // Admin digest email tracking — see jobs/requestNotifier.ts. NULL =
-  // request hasn't been rolled into an admin email yet; populated with
-  // the send timestamp once the 5-minute batch job emails it out.
-  migrateTable(db, 'album_requests', ['admin_notified_at TEXT']);
-
   // Format-aware collections + wants — one row per (user, album, format).
   // v1 of the ownership feature keyed on (user, album) only and
   // collections had no UNIQUE at all; this migration recreates both
@@ -808,26 +777,16 @@ export function initializeDatabase(db: Database.Database): void {
     try { db.exec('PRAGMA foreign_keys = ON'); } catch {}
   }
 
-  // One-time backfill for requests that existed BEFORE the notifier
-  // shipped — treat them as already-notified so the first post-deploy
-  // tick doesn't flood the admin inbox with a huge digest of historic
-  // requests. Idempotent via schema_migrations.
-  try {
-    const row = db
-      .prepare(`SELECT name FROM schema_migrations WHERE name = ?`)
-      .get('backfill-admin-notified-at-2026-04-17') as { name: string } | undefined;
-    if (!row) {
-      db.exec(
-        `UPDATE album_requests SET admin_notified_at = datetime('now') WHERE admin_notified_at IS NULL`
-      );
-      db.prepare(`INSERT INTO schema_migrations (name) VALUES (?)`).run(
-        'backfill-admin-notified-at-2026-04-17'
-      );
-      console.log('[migration] backfilled admin_notified_at on existing album_requests');
-    }
-  } catch (err) {
-    console.error('[migration] backfill admin_notified_at failed:', err);
-  }
+  // Drop the legacy album_requests table. User submissions have been
+  // stored directly on `albums` via `requested_by_user_id` since the
+  // pipeline split, and the notifier cron that was the last consumer
+  // of this table has been removed. Kept in a runOnce block so local
+  // databases that still hold the table get cleaned up on next boot;
+  // production already lost the cron reader at the same deploy.
+  runOnce(db, 'drop-legacy-album-requests-2026-04-21', () => {
+    db.exec('DROP TABLE IF EXISTS album_requests');
+    console.log('[migration] dropped legacy album_requests table');
+  });
 
   // Backfill: pre-existing sold-out rows lose no fidelity when we swap to the
   // `status` enum. Idempotent — admins who later edit the row can only do so
