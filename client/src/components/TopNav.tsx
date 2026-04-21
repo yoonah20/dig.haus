@@ -149,13 +149,41 @@ export default function TopNav() {
                 reads as one group; login pill (with any admin
                 pending-badge) anchors the right edge. */}
             {isHome && <SortMenu />}
-            {/* "내 가게" entry point is paused — Phase 3 (mydig storefront)
-                is still in visual iteration, and admin doesn't want to
-                see the half-baked preview in the nav while other work is
-                ongoing. Route to /my/:username still lives (Claude Design
-                storefront preview + the Phase 3a skeleton are both
-                reachable directly), just no nav affordance. Restore this
-                button when the scene is ready to ship. */}
+            {/* 🏠 마이딕 entry. First click (no username set yet) opens
+                the UsernameModal; on save the modal navigates to
+                /my/:username. Subsequent clicks go straight to the
+                user's page. Hidden for guests — mydig is a logged-in-
+                only feature. Sits right of the search magnifier per
+                the Phase 3 kickoff spec. */}
+            {user && (
+              <button
+                onClick={() => {
+                  if (user.mydigUsername) {
+                    navigate(`/my/${user.mydigUsername}`);
+                  } else {
+                    setUsernameModalOpen(true);
+                  }
+                }}
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
+                title="내 가게"
+                aria-label="내 가게"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-[18px] h-[18px]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
+                  />
+                </svg>
+              </button>
+            )}
             <LoginButton />
           </div>
         </div>
