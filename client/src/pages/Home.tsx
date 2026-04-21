@@ -15,7 +15,7 @@ import {
   useUserReviewsFeed,
   type UserReviewFeedItem,
 } from '../hooks/useUserReviewsFeed';
-import { useHomeState } from '../contexts/HomeStateContext';
+import { useHomeState, type DensityValue } from '../contexts/HomeStateContext';
 import type { AlbumSearchResult } from '../types';
 import { type SortValue, SORT_OPTIONS } from '../lib/homeSort';
 
@@ -191,7 +191,7 @@ export default function Home() {
   // so the address bar stays at '/'. See contexts/HomeStateContext.tsx
   // for the persistence rules (localStorage for sort, in-memory for
   // page + seed).
-  const { sort, page, setPage, seed } = useHomeState();
+  const { sort, page, setPage, seed, density, setDensity } = useHomeState();
 
   useDocumentHead({
     title: 'Home | dig.haus',
@@ -335,16 +335,37 @@ export default function Home() {
   const currentSortLabel =
     SORT_OPTIONS.find((o) => o.value === sort)?.label ?? '';
 
+  // Density → grid-cols map. Every class listed here is present as
+  // a literal string so Tailwind v4's JIT picks them up. Mobile
+  // (default) always stays at 2 cols regardless of density because
+  // any tighter packs the covers under a usable size on a phone —
+  // dense/ultra lift density at sm+ instead.
+  const DESKTOP_GRID_CLASSES: Record<DensityValue, string> = {
+    comfortable:
+      'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
+    dense:
+      'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8',
+    ultra:
+      'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12',
+  };
+  const desktopGridCols = DESKTOP_GRID_CLASSES[density];
+
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
-        {/* Thin sort-state strip above the grid. The SortMenu nav
-            icon no longer carries a label — that keeps the nav row
-            compact and the state visible here instead, where the
-            user is actually looking when they're browsing. */}
+        {/* Thin sort + density strip above the grid. The SortMenu nav
+            icon no longer carries a label, so the current sort lives
+            here next to a 3-step density switcher that lets the user
+            pack more covers per row when they want to skim faster. */}
         {albums.length > 0 && (
-          <div className="mb-3 text-[11px] text-gray-500 tabular-nums">
-            정렬: <span className="text-gray-300">{currentSortLabel}</span>
+          <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-gray-500">
+            <span className="tabular-nums">
+              정렬:{' '}
+              <span className="text-gray-300">{currentSortLabel}</span>
+            </span>
+            {!isMobile && (
+              <DensitySwitcher density={density} onChange={setDensity} />
+            )}
           </div>
         )}
         {isLoading && albums.length === 0 ? (
@@ -391,7 +412,7 @@ export default function Home() {
           // play on the stale page just before it got replaced.
           <div
             key={`desktop-${albums.length}-${albums[0]?.mbid ?? ''}-${albums[albums.length - 1]?.mbid ?? ''}`}
-            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5"
+            className={`grid ${desktopGridCols} gap-5`}
           >
             {albums.map((album, i) => (
               <div
@@ -464,6 +485,66 @@ export default function Home() {
         {/* Desktop-only comment ticker below pagination. */}
         {!isMobile && albums.length > 0 && <CommentTicker />}
       </section>
+    </div>
+  );
+}
+
+// 3-step density toggle: comfortable / dense / ultra. Each button
+// renders a simple dot matrix whose dot count reflects the density
+// level so the control reads at-a-glance. Selected step is filled
+// amber; inactive steps are muted. Lives above the desktop grid
+// only — mobile density is fixed at 2 cols, adjusting it would pack
+// covers too small to tap.
+function DensitySwitcher({
+  density,
+  onChange,
+}: {
+  density: DensityValue;
+  onChange: (v: DensityValue) => void;
+}) {
+  const steps: Array<{ value: DensityValue; title: string; dots: number }> = [
+    { value: 'comfortable', title: '넉넉하게', dots: 2 },
+    { value: 'dense', title: '빽빽하게', dots: 3 },
+    { value: 'ultra', title: '더 빽빽하게', dots: 4 },
+  ];
+  return (
+    <div className="inline-flex items-center gap-1 border border-white/10 rounded-md p-0.5 bg-[#0f0f0f]">
+      {steps.map((s) => {
+        const active = density === s.value;
+        return (
+          <button
+            key={s.value}
+            type="button"
+            onClick={() => onChange(s.value)}
+            title={`크기: ${s.title}`}
+            aria-label={`크기: ${s.title}`}
+            aria-pressed={active}
+            className={`h-6 px-2 flex items-center justify-center rounded-sm transition-colors cursor-pointer ${
+              active
+                ? 'bg-[#e8a020]/15 text-[#e8a020]'
+                : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            <span
+              className="inline-grid gap-[2px]"
+              style={{
+                gridTemplateColumns: `repeat(${s.dots}, 3px)`,
+                gridTemplateRows: `repeat(${s.dots}, 3px)`,
+              }}
+              aria-hidden
+            >
+              {Array.from({ length: s.dots * s.dots }).map((_, i) => (
+                <span
+                  key={i}
+                  className={`w-[3px] h-[3px] rounded-sm ${
+                    active ? 'bg-[#e8a020]' : 'bg-gray-500'
+                  }`}
+                />
+              ))}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

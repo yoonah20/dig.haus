@@ -25,12 +25,32 @@ import {
 // Trade-off: no shareable "sort=X" URLs. The user said they'd rather
 // have a clean bar.
 
+// Grid density — how tightly packed the album cards render. Each
+// level maps to a grid-cols class at every breakpoint (see Home.tsx's
+// GRID_COLS_BY_DENSITY). State lives here so the choice survives
+// navigation between home and album pages without needing URL state.
+export type DensityValue = 'comfortable' | 'dense' | 'ultra';
+export const DEFAULT_DENSITY: DensityValue = 'comfortable';
+const DENSITY_STORAGE_KEY = 'dig.haus:homeDensity';
+
+function readStoredDensity(): DensityValue | null {
+  try {
+    const raw = localStorage.getItem(DENSITY_STORAGE_KEY);
+    if (raw === 'comfortable' || raw === 'dense' || raw === 'ultra') return raw;
+  } catch {
+    /* private mode etc. */
+  }
+  return null;
+}
+
 interface HomeStateContextValue {
   sort: SortValue;
   setSort: (v: SortValue) => void;
   page: number;
   setPage: (p: number) => void;
   seed: number | undefined;
+  density: DensityValue;
+  setDensity: (v: DensityValue) => void;
 }
 
 const HomeStateContext = createContext<HomeStateContextValue | undefined>(
@@ -49,6 +69,9 @@ export function HomeStateProvider({ children }: { children: ReactNode }) {
   const [seed, setSeed] = useState<number | undefined>(() =>
     (readStoredSort() ?? DEFAULT_SORT) === 'random' ? freshSeed() : undefined
   );
+  const [density, setDensityState] = useState<DensityValue>(
+    () => readStoredDensity() ?? DEFAULT_DENSITY
+  );
 
   const setSort = useCallback((v: SortValue) => {
     setSortState(v);
@@ -62,8 +85,20 @@ export function HomeStateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const setDensity = useCallback((v: DensityValue) => {
+    setDensityState(v);
+    try {
+      if (v === DEFAULT_DENSITY) localStorage.removeItem(DENSITY_STORAGE_KEY);
+      else localStorage.setItem(DENSITY_STORAGE_KEY, v);
+    } catch {
+      // private mode — choice still applies for this session
+    }
+  }, []);
+
   return (
-    <HomeStateContext.Provider value={{ sort, setSort, page, setPage, seed }}>
+    <HomeStateContext.Provider
+      value={{ sort, setSort, page, setPage, seed, density, setDensity }}
+    >
       {children}
     </HomeStateContext.Provider>
   );
