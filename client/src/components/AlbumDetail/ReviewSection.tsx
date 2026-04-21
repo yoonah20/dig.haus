@@ -463,10 +463,12 @@ export default function ReviewSection({
     const newIds: number[] = [];
     // Concurrent chunks instead of strict sequential processing. Each
     // add-url call takes 5-10s (Jina fetch + DeepSeek extract + Korean
-    // translate), so sequential 20+ URL batches used to run 2-3 minutes.
-    // Chunks of 5 finish in ~30s while staying well under the upstream
-    // rate limits (Jina/DeepSeek) and the server-side admin limiter.
-    const CHUNK_SIZE = 5;
+    // translate). Matches CurationProgressContext's chunk size (8)
+    // so the manual + batch flows share the same parallelism profile
+    // — previously manual was at 5 and ran noticeably slower than
+    // auto-curation on the same album. DeepSeek free-tier rate
+    // allowance and Jina Reader both handle 8 concurrent comfortably.
+    const CHUNK_SIZE = 8;
     let completed = 0;
     try {
       for (let start = 0; start < urls.length; start += CHUNK_SIZE) {
