@@ -35,62 +35,48 @@ dig.haus is a **digital record store**, not an algorithmic music feed. The core 
 
 **URL**: `dig.haus/my/:username`
 
-### Layout — real-record-shop mapping
+For the reasoning behind the pivots from the original four-tier plan (why Crate went away, why the shelf genre preset was dropped, why the scene went dark), see `docs/phase3-storefront-decisions.md`.
 
-Three vertical tiers modelled on a physical shop (see `prototypes/` for source reference image), then ambience. The three tiers stack top-down and their widths align: one shelf bin width = one crate width, so the whole storefront reads as a unified furniture piece.
+### Layout — two tiers plus deferred ambience
+
+Modelled on a Hongdae record shop at dusk: records on the wall, an open shelf unit on the floor below, warm pooled lamp light from upper-left. Two tiers the user actually populates, plus a Now-Playing strip parked for later.
 
 ```
 ┌─────────────────────────────────────────────────┐
 │ Vinyl Wall — 22 curated (5-5-6-6)               │   Tier 1
 ├───────┬───────┬───────┬───────┬───────┬───────┤
 │ Shelf │ Shelf │ Shelf │ Shelf │ Shelf │ Shelf │   Tier 2
-│ bin 0 │ bin 1 │ bin 2 │ bin 3 │ bin 4 │ bin 5 │
-├───────┼───────┼───────┼───────┼───────┼───────┤
-│ Crate │ Crate │ Crate │ Crate │ Crate │ Crate │   Tier 3 (0–6, variable)
-├─────────────────────────────────────────────────┤
-│ Now Playing strip                               │   Ambience
-└─────────────────────────────────────────────────┘
+│ slot0 │ slot1 │ slot2 │ slot3 │ slot4 │ slot5 │
+└───────┴───────┴───────┴───────┴───────┴───────┘
+(Now Playing strip — deferred to 3e)
 ```
 
-### Four layers
+### Tier roles
 
 | Layer | Metaphor | Content | Fixed slots | Interaction |
 |-------|----------|---------|-------------|-------------|
-| Vinyl Wall | front wall display | 22 user-picked favourites | 22 (5-5-6-6, covers identical size) | drag-drop to rearrange, click → album page |
-| Shelf | mid-store flip-through bins | each bin = one admin-defined genre | 6 fixed bins, manually filled by user | click bin → flip-through one album at a time (swipe / ← → / click edge) |
-| Crate | milk-crate floor stack | user-defined themed playlists with freeform labels | 0–6 visible (positions 0-5), extras kept server-side | click crate → pops out, flip-through same as Shelf |
-| Now Playing | store ambience | optional Spotify/YouTube/Bandcamp embed | single slot | iframe, low priority |
+| Vinyl Wall | front wall display on wooden rails | 22 user-picked favourites | 22 (5-5-6-6, covers identical size) | drag-drop to rearrange, click → album page |
+| Shelf | floor unit of flip-through cubbies | each slot = single album OR a crate | 6 fixed slots, user-labelled (freeform) | click slot → flip-through the crate inside (swipe / ← → / click-edge / keyboard), or navigate to the single album |
 
-Spine view was considered for Shelf and **explicitly rejected**: physical spines get their presence from depth, texture, and lighting, none of which CSS tricks reproduce convincingly (the rendered "spines" read as paper strips, not LPs). The flip-through UX is the actual "digging" motion — covers forward, one at a time, stack edges peeking — and maps to the mid-store bins in the reference photo where browsing actually happens. Spine-out storage in the reference is the overflow tier (shop has thousands of records; we don't), so it has no analog here.
+Shelf slots are **polymorphic**: a slot holds either one album (static front cover, clicks through to album page) or one crate (a user-built named collection, clicks pop the flip-through). The user decides per slot whether they want to feature a single record or a themed stack.
+
+Crate is still a first-class data entity — user-named, freeform collection of albums — but lives in the user's private library rather than as its own tier on the public storefront. In edit mode the user drags a crate from the library picker onto a shelf slot (or builds a slot album-by-album); the same crate can stay in the library without being featured.
+
+Spine view was considered for Shelf and **explicitly rejected**: physical spines get their presence from depth, texture, and lighting, none of which CSS tricks reproduce convincingly (the rendered "spines" read as paper strips, not LPs). The flip-through UX is the actual "digging" motion — covers forward, one at a time, stack edges peeking — and is what real record-shop bins look like too.
 
 ### Core principles
 
-- **Empty-is-OK aesthetic** — Wall slots render as empty picture frames, Shelf bins render as empty bin furniture with only the genre label, Crate row just shows whatever crates the user has made. No "drag albums here!" CTA, no collapsing-when-empty. The furniture is the page; albums populate it over time.
-- **Duplicates allowed** — same album can sit in multiple Wall positions (event-day motif: 22 copies of one album), multiple Shelf bins, multiple crates. Schema enforces `UNIQUE(container, position)` only, never `UNIQUE(user, album)`.
+- **Empty-is-OK aesthetic** — Wall empty slots render as bare wall + rail (no ghost frames, no "drop here" text). Empty shelf slots render as dark cubby interiors with no label. The furniture is the page; albums populate it over time.
+- **Duplicates allowed** — same album can sit in multiple Wall positions (event-day motif: 22 copies of one album), multiple Shelf slots, multiple crates. Schema enforces `UNIQUE(container, position)` only, never `UNIQUE(user, album)`.
 - **샀음 ≠ mydig candidates**. 샀음 represents real-world physical ownership. mydig is an identity-expression canvas — users should feature albums they love even when they don't own them. Edit-mode search is always over the full `albums` table; 샀음 / 살거 / 내 Crate exposures are optional filters in the picker panel, not the default pool.
-- **Tier widths aligned** — Wall last-row column count (6) = Shelf bin count (6) = Crate visible max (6). The three tiers read as one storefront instead of three unrelated grids.
-
-### Shelf genre system
-
-Admin-curated preset list, shared across all users. Avoids the tag-mess of Last.fm data and keeps Shelf distinct from Crate (genres vs freeform themes).
-
-Initial seed (16, tuned to dig.haus audience — metal-forward with adjacent digger-vinyl niches):
-
-```
-Death Metal, Black Metal, Thrash, Doom & Stoner,
-Grindcore & Powerviolence, Hardcore & Crust,
-Post-Metal & Sludge, Progressive, Traditional Heavy Metal,
-Punk & Post-Punk, Shoegaze & Dreampop, Indie Rock,
-Ambient & Drone, Jazz, Hip-Hop, Electronic
-```
-
-Admin CRUD for this list lives under /admin. Users pick 6 from the list to fill their Shelf bins. No free-form shelf names (that's what Crate is for).
+- **Tier widths aligned** — Wall last-row column count (6) = Shelf slot count (6). The two tiers read as one storefront rather than unrelated grids.
+- **Records are the same size everywhere** — a 12" LP is a 12" LP. Wall LPs and shelf-slot front covers render at identical pixel dimensions; the furniture they sit on is what differs, not the records.
 
 ### Edit mode — 80/20 split
 
 ```
 ┌──────────────────────────────────┬────────────┐
-│  Wall / Shelf / Crate preview    │ 🔍 search  │
+│  Wall / Shelf preview            │ 🔍 search  │
 │                                  │ [tabs: 전체│
 │  edit-mode shows empty slots +   │  | 내Crate│
 │  × remove chips on filled ones   │  | 샀음 | │
@@ -102,10 +88,24 @@ Admin CRUD for this list lives under /admin. Users pick 6 from the list to fill 
 └──────────────────────────────────┴────────────┘
 ```
 
-Desktop uses native HTML5 drag-drop. Touch uses tap-to-select then tap-to-place (drag on touch devices is too finicky for grid targets; skipping react-dnd because 100KB+ bundle isn't worth a cross-device abstraction we'd only use on one page). Candidate cards show a small badge indicating existing placements ("Wall×2 · Shelf(Death Metal)") so admin can see current state without blocking deliberate duplication.
+Desktop uses native HTML5 drag-drop. Touch uses tap-to-select then tap-to-place (drag on touch devices is too finicky for grid targets; skipping react-dnd because 100KB+ bundle isn't worth a cross-device abstraction we'd only use on one page). Candidate cards show a small badge indicating existing placements ("Wall×2 · Shelf slot 3") so the user can see current state without blocking deliberate duplication.
+
+The **내 Crate** tab doubles as the library — crates the user has already built show as stacks here, draggable onto shelf slots. Crates that live only in the library (not placed on any shelf slot) stay private; the public storefront only surfaces what's been placed.
+
+### Visual direction — Hongdae basement at dusk
+
+- **Dark-mode primary**. The storefront is a warm shop interior seen from the site's darker chrome, not a bright island. Wall is painted-panel dark brown, floor is walnut, furniture wood reads lighter against both so it visibly belongs to the scene rather than to the walls.
+- **Single pooled lamp source from upper-left** drives depth — records under the pendant glow; records at the edges fade into shadow. Uniform ambient brightness is the failure mode to avoid; lighting carries the sense of distance-from-center.
+- **No picture frames** on wall records — just bare 12" sleeves leaning back against plaster on wooden rails with a small gap-shadow under each sleeve. Any framed presentation reads as art gallery, which is exactly the not-a-record-shop mistake the earlier Claude Design iterations kept making.
+- **Perfect grid alignment on the wall** — zero per-slot rotation. Real record shops mount wall displays flush; the only imperfection up there is the gap-shadow from the lean-back angle.
+- **Wear and imperfection live on Tier 2**. Masking-tape labels go ±5–8° (tape is human-placed), shelf cubbies can tilt slightly from implied browsing wear, records inside cubbies lean casually. Gallery-straightness stays on the wall; shop-browsing-chaos stays on the shelf.
+- **Shelf unit is free-standing floor furniture** — no top board (open cubbies, not a cabinet), visible trestle-style end-panel legs underneath, a soft cast shadow spilling onto the floor behind it.
+
+CSS + `perspective` / `rotateY` / box-shadow tricks, same as the existing album flip card. No WebGL. Framer Motion is allowed but optional. Mobile parity is mandatory — every interaction needs a touch equivalent.
 
 ### Ancillary layers
 
+- **Now Playing** — turntable strip with optional Spotify/YouTube/Bandcamp embed. Currently deferred — Wall + Shelf covers the primary personal-expression need, Now Playing is ambient nice-to-have that we'd rather design right than fit into the MVP.
 - **Guestbook** — notebook/clipboard in a corner. Visitor one-liners. Defer until 3e.
 - **Visitor counter** — 싸이월드-style "오늘 방문 / 전체" in a corner. Defer until 3e.
 - **Private mode** — page shows an "under construction" visual: fabric drape over the storefront + an A4 notice taped on. NOT an error page. The private state must preserve the shop aesthetic.
@@ -120,11 +120,18 @@ Desktop uses native HTML5 drag-drop. Touch uses tap-to-select then tap-to-place 
 
 ### Sub-phases
 
-- **3a** — skeleton: schema (genres + wall/shelf/crate tables), `/my/:username` route, username onboarding, empty-furniture placeholder render, private-mode "under construction" screen, admin genre CRUD
-- **3b** — Vinyl Wall: 22-slot 5-5-6-6 layout, edit-mode 80/20 with drag-drop, candidate picker with 전체 / 내 Crate / 샀음 / 살거 tabs
-- **3c** — Shelf: 6-bin horizontal row, flip-through interaction (swipe / ← → / click-edge / keyboard), per-bin genre assignment, edit-mode shares 80/20 with Wall
-- **3d** — Crate: 0-6 visible variable layout, milk-crate visual (grid pattern + label tape), CRUD for crate boxes, flip-through interaction reuses 3c component, 살거 dropped as default system crate (user creates manually if desired)
+- **3a** — skeleton: schema (wall + shelf + crate tables), `/my/:username` route, username onboarding, empty-furniture placeholder render, private-mode "under construction" screen
+- **3b** — Vinyl Wall: 22-slot 5-5-6-6 layout, bare LPs on rails, edit-mode 80/20 with drag-drop, candidate picker with 전체 / 내 Crate / 샀음 / 살거 tabs
+- **3c** — Shelf + Crate: 6 polymorphic slots, flip-through inside cubbies, slot-holds-crate-or-album semantics, user-labelled masking tape, crate library management inside the edit-mode picker (no separate floor tier)
 - **3e** — ambience: Now Playing, guestbook, visitor counter, private-mode per-layer toggles if needed
+
+The earlier sub-phase 3d (Crate as separate tier with floor milk-crates) collapsed into 3c — the milk-crate visual moves to the edit-mode picker panel where the user's crate library lives.
+
+### Current implementation status
+
+- `client/src/components/MyDig/storefront/` holds the ported primitives (WallRail, WallLP, TapeLabel, ShelfUnit, Cubby) + Room / Storefront composition + FakeCover placeholders + palettes (dark Hongdae Dusk).
+- `/my-preview` route renders the scene with fake data for design iteration. Not wired to the mydig API — that swap happens when the visual is final.
+- `/my/:username` still runs the earlier Phase 3a skeleton (dashed borders on grid slots) while the storefront iterates at /my-preview.
 
 ### Data model deltas (refined at 3a)
 
@@ -133,39 +140,32 @@ Desktop uses native HTML5 drag-drop. Touch uses tap-to-select then tap-to-place 
 users.username TEXT UNIQUE
 users.mydig_public INTEGER DEFAULT 1
 
--- Admin-curated genre taxonomy for Shelf bins
-genres (
-  id, slug,
-  name_ko, name_en,
-  position, is_active
-)
-
 -- Vinyl Wall — 22 slots, duplicates allowed
 vinyl_wall_items (
   id, user_id, album_id, position INT (0-21),
   UNIQUE(user_id, position)
 )
 
--- Shelf — 6 fixed bins per user, each bin scoped to one genre
-shelf_slots (
-  id, user_id, position INT (0-5),
-  genre_id,
-  UNIQUE(user_id, position)
-)
-shelf_items (
-  id, slot_id, album_id, position,
-  UNIQUE(slot_id, position)
-)
-
--- Crate — variable count, positions 0-5 front-page visible, 6+ hidden
-crate_boxes (
-  id, user_id, position INT,
-  title, description,
-  UNIQUE(user_id, position)
+-- Crates — user-named collections. First-class data entity.
+-- Visibility on the public storefront comes from placement in a
+-- shelf_slot, not from being "featured" on a separate tier.
+crates (
+  id, user_id, title, description, created_at,
+  UNIQUE(user_id, title)
 )
 crate_items (
   id, crate_id, album_id, position,
   UNIQUE(crate_id, position)
+)
+
+-- Shelf — 6 polymorphic slots per user. Each slot holds either a
+-- single album or a crate reference, decided per slot.
+shelf_slots (
+  id, user_id, position INT (0-5),
+  label TEXT,                       -- masking-tape text, freeform
+  target_type TEXT CHECK(target_type IN ('album','crate')),
+  target_id INTEGER,                -- album_id or crate_id per target_type
+  UNIQUE(user_id, position)
 )
 
 -- Deferred to 3e
@@ -174,7 +174,11 @@ mydig_guestbook (id, page_user_id, author_user_id, body, created_at)
 mydig_visits (user_id, day, count)
 ```
 
-Dropped from the original plan: `albums.cover_dominant_color` — spine view is out, so dominant-color extraction is no longer needed.
+Dropped from the original plan:
+- `genres` table + admin CRUD — shelf labels are freeform per slot now; no admin taxonomy needed
+- `shelf_items` separate table — replaced by the polymorphic `shelf_slots.target_type` + `target_id`; `crate_items` is the authoritative item list when a slot points at a crate
+- `crate_boxes` (position-indexed) — crates no longer live on a floor tier, they live in the user's private library and get placed onto shelf slots
+- `albums.cover_dominant_color` — spine view is out, so dominant-color extraction is unneeded
 
 ### Visual implementation philosophy
 
