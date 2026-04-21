@@ -135,24 +135,14 @@ export async function generateKoreanSummary(
       .join('\n');
 
     const promptText =
-      `'${albumTitle}' by ${artist} 리뷰 **5문장 내외** 한국어 요약 (허용 범위 4-6문장, 가능하면 5문장). ` +
-      `매체명 금지. **리뷰어 본인이 직접 말하는 1인칭 시점**으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술. ` +
-      `**톤 엄수 — 건조하고 담담하게**: 메탈 리뷰는 원문에서 과장된 수사 ("masterpiece", "transcendent", "flawless", "god-tier")가 많이 쓰이는데, 한국어 요약에서는 그걸 그대로 증폭하지 말 것. 사실을 담담히 전달하는 음반 해설 톤으로. 다음 표현은 **금지**: '걸작', '승화시키다', '흠잡을 데 없(다/는)', '경지에 이른', '신의 경지', '장엄하다', '서사적 완성', '최상급 반열', '자랑한다', '단독으로 ~을 끌어올리다', '최고 걸작', '진지한 음악적 모험', '완성했다'. 대신 '좋다/훌륭하다/인상적이다/탄탄하다/주목할 만하다' 정도의 절제된 수식어를 쓸 것. 평가는 담백하게 — "A급", "S급", "최상급" 같은 등급 표현도 금지. ` +
-      `**문체 엄수**: 모든 문장은 오직 '~다 / ~한다' 형태의 문어체 평서문으로 끝낼 것. 존댓말('~합니다', '~입니다', '~습니다', '~군요' 등) **절대 금지**, 반말('~해', '~어', '~아', '~야' 등) **절대 금지**. ` +
-      `'리뷰어는/평론가는/필자는/그는' 같은 3인칭 주어 금지. ` +
-      `'~라고 평가한다/~라고 말한다/~라고 지적한다' 같은 전달체 금지 — 리뷰어가 자기 말을 그대로 하듯 서술. ` +
-      `**간결함보다 충실성 우선**: 각 문장이 앨범의 서로 다른 측면(전체 분위기, 사운드/톤·프로덕션, 대표 트랙·하이라이트, 컬렉팅 가치·소장 이유 등)을 다루도록. 약점·아쉬운 점은 **원 리뷰에서 실제로 언급됐을 때만** 포함 — 없으면 억지로 찾아 넣지 말 것. 한두 문장으로 뭉뚱그리지 말 것. ` +
+      `'${albumTitle}' by ${artist} 리뷰 3-4문장 한국어 요약. ` +
+      `매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술. ` +
       `출력 규칙: 요약 본문만 작성. 앨범 제목이나 아티스트명을 헤더로 넣지 말 것. ` +
       `마크다운(#, **, *, -) 사용하지 말고 순수 문장으로만.\n${reviewsText}`;
     const result = await invokeLlm({
       operation: 'summary_fallback',
       prompt: promptText,
-      // Bumped 700 → 900 along with the 5-7 sentence target above.
-      // Korean tokenises ~1 token per 2 chars, so 7 detailed sentences
-      // can approach ~700 tokens; 900 leaves headroom so the response
-      // doesn't get truncated mid-sentence, especially on DeepSeek
-      // which tends to write slightly longer Korean prose than Sonnet.
-      maxTokens: 900,
+      maxTokens: 500,
       defaultModel: SONNET,
       albumTitle: `${artist} - ${albumTitle}`,
     });
@@ -320,16 +310,8 @@ async function _generateSimilarDescriptions(
   const list = similarAlbums.map((a, i) => `${i + 1}. "${a.title}" by ${a.artist}`).join('\n');
 
   try {
-    const promptText = `"${baseAlbum}" by ${baseArtist}를 좋아하는 사람에게 추천할 만한 비슷한 앨범들을, 음반점 매대에 꽂힌 손글씨 추천 카드 톤으로 각 2-3문장 한국어로 소개.
-
-**문체 엄수**: 모든 문장은 오직 '~다 / ~한다' 형태의 문어체 평서문으로 끝낼 것. 존댓말('~합니다', '~입니다', '~네요', '~군요') **절대 금지**, 반말('~해', '~어', '~아', '~야') **절대 금지**.
-
-**매 앨범마다 진입 각도와 문장 구조를 다르게 변주**할 것. 모든 설명이 "X의 ~이 이 앨범에서도…" 같은 획일적인 패턴으로 시작하지 않도록. 어떤 건 앨범 전체 분위기로, 어떤 건 대표 트랙이나 특정 리프, 어떤 건 보컬 톤이나 프로덕션 질감, 어떤 건 시대·씬 배경이나 가사 테마로 들어가도 좋음 — 연결점을 드러내는 방식을 다양하게.
-
-**호명 규칙**: 설명 안에서 "${baseAlbum}" 또는 "${baseArtist}" 중 **하나만** 자연스럽게 언급 (둘 다 넣지 말 것). '기준 앨범', '이 앨범', '해당 작품', '앞서 소개한 앨범' 같은 지시어 금지.
-
+    const promptText = `"${baseAlbum}" by ${baseArtist} 팬을 위한 비슷한 앨범 설명. 각 1-2문장 한국어.
 ${list}
-
 JSON array only: [{"title":"","artist":"","descriptionKo":""}]`;
     const result = await invokeLlm({
       operation: 'similar_descriptions',
