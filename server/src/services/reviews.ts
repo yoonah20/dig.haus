@@ -579,6 +579,49 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
     }
   }
 
+  // Pitchfork — publishes the editorial score as a 0.0-10.0 decimal,
+  // but the visible number on the page is deliberately blurred
+  // (masked with a CSS filter until hover). Generic detectors can't
+  // see it, and schema.org's ratingValue is set to null in their
+  // JSON-LD. The score lives in the article's page-state JSON
+  // embedded in the HTML: `"isBestNewMusic":…,"isBestNewReissue":…,
+  // "score":8.6`. Host-specific to avoid a generic `"score":N` from
+  // some other site's unrelated JSON.
+  if (host === 'pitchfork.com') {
+    const m = html.match(/"score"\s*:\s*(\d+(?:\.\d+)?)/);
+    if (m) {
+      const score = parseFloat(m[1]);
+      if (score >= 0 && score <= 10) return Math.round(score * 10);
+    }
+  }
+
+  // The Guardian — DCR renders the star rating as a row of two
+  // different obfuscated dcr-* span classes (one filled, one empty),
+  // distinguished only by their CSS background — var(--star-rating-
+  // background) is the yellow filled state, var(--star-rating-empty-
+  // background) is grey. Class names change every deploy, so we
+  // can't just allow-list them. Instead, read the CSS to figure out
+  // which class is which, then count occurrences as `class="dcr-…"`
+  // attributes in the body. Always a /5 scale.
+  if (host === 'theguardian.com') {
+    const fillClass = html.match(
+      /\.(dcr-[a-z0-9]+)\s*\{[^}]*var\(--star-rating-background\)/i
+    );
+    const emptyClass = html.match(
+      /\.(dcr-[a-z0-9]+)\s*\{[^}]*var\(--star-rating-empty-background\)/i
+    );
+    if (fillClass && emptyClass && fillClass[1] !== emptyClass[1]) {
+      const fillRe = new RegExp(`class\\s*=\\s*"${fillClass[1]}"`, 'g');
+      const emptyRe = new RegExp(`class\\s*=\\s*"${emptyClass[1]}"`, 'g');
+      const full = (html.match(fillRe) || []).length;
+      const empty = (html.match(emptyRe) || []).length;
+      const total = full + empty;
+      if (total >= 3 && total <= 5) {
+        return Math.round((full / 5) * 100);
+      }
+    }
+  }
+
   // Sea of Tranquility — uses filename images for stars:
   //   star_whole.gif = filled, star_half.gif = half, star_empty.gif = empty
   // The generic detectFilenameRatingImage only matches Rating_N.png
