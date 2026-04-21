@@ -161,10 +161,18 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
               title={`${statusTitle}${link.format ? link.format + ' · ' : ''}${link.storeName}`}
               className="flex items-center justify-center select-none hover:brightness-95 transition"
               style={{
-                padding: '8px 6px 6px 6px',
-                minWidth: '41px',
+                // Price tag scales with the AlbumCard container query
+                // — see AlbumCard's containerType: inline-size. Floor
+                // at 7px font so the price stays readable on ultra-
+                // density ~90px covers; max matches the previous
+                // tuned comfortable-density value. Padding / minWidth
+                // track the same cqw scale so the tag silhouette
+                // stays proportional at any size.
+                padding:
+                  'clamp(4px, 4cqw, 8px) clamp(3px, 3cqw, 6px) clamp(3px, 3cqw, 6px) clamp(3px, 3cqw, 6px)',
+                minWidth: 'clamp(24px, 20cqw, 41px)',
                 fontFamily: "'Courier New', 'Courier', ui-monospace, monospace",
-                fontSize: '11px',
+                fontSize: 'clamp(7px, 5.5cqw, 11px)',
                 fontWeight: theme.heavy ? 900 : 700,
                 letterSpacing: '0.03em',
                 lineHeight: 1,
@@ -198,7 +206,13 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
         );
       })}
       {showOverflow && overflow > 0 && (
-        <div className="pointer-events-auto bg-black/80 text-white text-[10px] leading-none font-semibold px-2.5 py-1.5 rounded-sm shadow ring-1 ring-white/10">
+        <div
+          className="pointer-events-auto bg-black/80 text-white leading-none font-semibold rounded-sm shadow ring-1 ring-white/10"
+          style={{
+            fontSize: 'clamp(7px, 5cqw, 10px)',
+            padding: 'clamp(3px, 3cqw, 6px) clamp(4px, 4cqw, 10px)',
+          }}
+        >
           +{overflow}
         </div>
       )}

@@ -42,7 +42,7 @@ const MOBILE_QUERY = '(max-width: 767px)';
 const DESKTOP_PAGE_SIZE_BY_DENSITY: Record<string, number> = {
   comfortable: 18,
   dense: 32,
-  ultra: 40,
+  ultra: 50,
 };
 const MOBILE_PAGE_SIZE = 10;
 
@@ -383,7 +383,7 @@ export default function Home() {
             albums" cluster; this header owns everything about how
             the feed itself is arranged. */}
         {albums.length > 0 && (
-          <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-gray-500">
+          <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
             <SortTrigger
               sort={sort}
               onChange={setSort}
@@ -596,7 +596,7 @@ function SortTrigger({
                   onChange(opt.value as SortValue);
                   setOpen(false);
                 }}
-                className={`block w-full text-left px-4 py-2 text-xs cursor-pointer hover:bg-white/5 transition-colors ${
+                className={`block w-full text-left px-4 py-2 text-sm cursor-pointer hover:bg-white/5 transition-colors ${
                   isCurrent
                     ? 'text-[#e8a020] font-semibold'
                     : opt.adminOnly
