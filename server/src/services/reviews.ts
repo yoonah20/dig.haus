@@ -523,6 +523,22 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
   // entirely — "one" alone is too generic to add to the global list
   // without false-positiving on totally unrelated UI elements. Counted
   // here site-locally: numerator = `one` count, scale = one+empty total.
+  // powerofmetal.dk — score encoded in an image filename under a
+  // /rating/ subdirectory: <img src="…/rating/rating_82.jpg">. The
+  // generic detectFilenameRatingImage only captures a single digit
+  // (0-5 range for /5 scale), so "rating_82.jpg" never matched it;
+  // meanwhile the page's "Artwork rating: 88/100" sub-rating on a
+  // side widget is what detectExplicitNumericScore grabbed, landing
+  // on the wrong number. Site-specific here: rating_NN.jpg with NN
+  // read directly as a /100 score.
+  if (host === 'powerofmetal.dk') {
+    const m = html.match(/\/rating\/rating_(\d{1,3})\.(?:png|jpe?g|webp|svg)\b/i);
+    if (m) {
+      const score = parseInt(m[1], 10);
+      if (score >= 0 && score <= 100) return score;
+    }
+  }
+
   if (host === 'chaoszine.net') {
     // Scan a 500-char window after the container open to count the
     // filled/empty slot divs. 5 slots × ~30 chars per slot = ~150,
@@ -570,14 +586,24 @@ function detectWpProductReviewRating(html: string): number | null {
 // grabs the last "10/10" from the user block instead of the editorial
 // 9/10. Matching the width-as-percentage style attribute pins us to
 // the editorial half. Used by gbhbl.com and friends.
+//
+// Caveat: metalexpressradio.com's pages have ONLY the user-rating
+// widget (no editorial width widget) with "width:0%" when no one has
+// voted, which would otherwise return a spurious 0. The user-rating
+// widget's wrapper always carries a data-originalrating attribute;
+// the editorial widget doesn't. Skip any match whose preceding 300
+// chars contain that attribute.
 function detectWpReviewPluginRating(html: string): number | null {
-  const m = html.match(
-    /class\s*=\s*"review-result"[^>]*style\s*=\s*"[^"]*width\s*:\s*(\d{1,3})%/i
-  );
-  if (!m) return null;
-  const n = parseInt(m[1], 10);
-  if (n < 0 || n > 100) return null;
-  return n;
+  const re = /class\s*=\s*"review-result"[^>]*style\s*=\s*"[^"]*width\s*:\s*(\d{1,3})%/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const n = parseInt(m[1], 10);
+    if (n < 0 || n > 100) continue;
+    const preceding = html.slice(Math.max(0, m.index - 300), m.index);
+    if (/data-originalrating\s*=/i.test(preceding)) continue;
+    return n;
+  }
+  return null;
 }
 
 // A11y-first rating widgets draw the visual with pure CSS (no child
@@ -1155,7 +1181,7 @@ Return ONLY JSON, no prose:
   "score": 85,
   "scoreMax": 100,
   "excerpt": "One or two sentences quoted or paraphrased from the review body, in the original language.",
-  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** '~다'체 평서문으로 작성 ('리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지). **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
+  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** 오직 '~다 / ~한다' 문어체 평서문으로 작성. 존댓말('~합니다', '~입니다', '~네요') 절대 금지, 반말('~해', '~어', '~아') 절대 금지. '리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지. **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
 }
 
 Score: find the review's explicit rating and convert to a /100 integer. Follow these rules in order:
@@ -1318,7 +1344,7 @@ Return ONLY JSON, no prose:
   "score": 85,
   "scoreMax": 100,
   "excerpt": "One or two sentences quoted or paraphrased from the article body, original language.",
-  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** '~다'체 평서문으로 작성 ('리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지). **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
+  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** 오직 '~다 / ~한다' 문어체 평서문으로 작성. 존댓말('~합니다', '~입니다', '~네요') 절대 금지, 반말('~해', '~어', '~아') 절대 금지. '리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지. **총 길이 130자 이내, 최대 2문장**. 카드 UI에 들어가는 발췌문이라 4-5줄을 넘기면 레이아웃이 깨짐 — 길면 핵심 한 문장으로 압축하세요."
 }
 
 Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). If no explicit score in the text, set null.
