@@ -544,6 +544,33 @@ function detectWpReviewPluginRating(html: string): number | null {
 // stripHtml drops the attribute text when it removes the tag, so
 // detectExplicitNumericScore can't see it either. This detector reads
 // the attributes directly off the rating container before any strip.
+// Detects schema.org Rating / AggregateRating microdata:
+//   <meta itemprop="ratingValue" content="4">
+//   <meta itemprop="bestRating" content="5">
+// Highest-authority signal when present — the page explicitly declares
+// its own rating for search-engine consumption, so it's immune to
+// confusion between the actual review and related-article teasers
+// that rendered star icons near the top of the document (the ramzine
+// case: multiple <span class="entry-review-stars"> blocks with
+// DIFFERENT scores, only the last was the current review; star
+// detector grabbed the first). If bestRating is missing, falls back
+// to 5 (the only common default for star-system reviews).
+function detectSchemaOrgRating(html: string): number | null {
+  const vm = html.match(
+    /<meta[^>]*itemprop\s*=\s*"ratingValue"[^>]*content\s*=\s*"([^"]+)"/i
+  );
+  if (!vm) return null;
+  const value = parseFloat(vm[1].replace(',', '.'));
+  if (!Number.isFinite(value)) return null;
+  const bm = html.match(
+    /<meta[^>]*itemprop\s*=\s*"bestRating"[^>]*content\s*=\s*"([^"]+)"/i
+  );
+  const scale = bm ? parseFloat(bm[1]) : 5;
+  if (![5, 10, 20, 100].includes(scale)) return null;
+  if (value < 0 || value > scale) return null;
+  return Math.max(0, Math.min(100, Math.round((value / scale) * 100)));
+}
+
 function detectAriaLabelRating(html: string): number | null {
   const containerRe =
     /<[a-z]+\b[^>]*class\s*=\s*"[^"]*(?:rating|stars|score)[^"]*"[^>]*>/gi;
@@ -955,20 +982,36 @@ export async function scrapeReviewFromUrl(
     // config, etc.) that would otherwise be shadowed by a generic
     // detector landing on the wrong number.
     const siteScore = detectSiteSpecificScore(html, url);
-    const starScore = siteScore === null ? detectStarRating(html) : null;
+    // Schema.org microdata next — when a page declares its own rating
+    // via <meta itemprop="ratingValue"> that's the author's explicit
+    // statement of the score for search engines, higher trust than any
+    // visual-element guessing. ramzine's multiple star-icon widgets
+    // (related-review teasers, then the actual review's overall stars)
+    // would otherwise land on the wrong one in document order.
+    const schemaScore = siteScore === null ? detectSchemaOrgRating(html) : null;
+    const starScore =
+      siteScore === null && schemaScore === null
+        ? detectStarRating(html)
+        : null;
     const ariaScore =
-      siteScore === null && starScore === null ? detectAriaLabelRating(html) : null;
+      siteScore === null && schemaScore === null && starScore === null
+        ? detectAriaLabelRating(html)
+        : null;
     // Widget-specific detectors run ahead of the filename/numeric
     // detectors because these pages often ALSO have sidebar widgets
     // or user-review blocks with X/10 markup — explicit-numeric would
     // grab the last X/10 match and land on the wrong album or user
     // rating.
     const wpprScore =
-      siteScore === null && starScore === null && ariaScore === null
+      siteScore === null &&
+      schemaScore === null &&
+      starScore === null &&
+      ariaScore === null
         ? detectWpProductReviewRating(html)
         : null;
     const wpReviewScore =
       siteScore === null &&
+      schemaScore === null &&
       starScore === null &&
       ariaScore === null &&
       wpprScore === null
@@ -976,6 +1019,7 @@ export async function scrapeReviewFromUrl(
         : null;
     const filenameRatingScore =
       siteScore === null &&
+      schemaScore === null &&
       starScore === null &&
       ariaScore === null &&
       wpprScore === null &&
@@ -984,6 +1028,7 @@ export async function scrapeReviewFromUrl(
         : null;
     const numericScore =
       siteScore === null &&
+      schemaScore === null &&
       starScore === null &&
       ariaScore === null &&
       wpprScore === null &&
@@ -993,6 +1038,7 @@ export async function scrapeReviewFromUrl(
         : null;
     detectedScore =
       siteScore ??
+      schemaScore ??
       starScore ??
       ariaScore ??
       wpprScore ??
@@ -1003,17 +1049,19 @@ export async function scrapeReviewFromUrl(
       const source =
         siteScore !== null
           ? 'site-specific'
-          : starScore !== null
-            ? 'star'
-            : ariaScore !== null
-              ? 'aria-label'
-              : wpprScore !== null
-                ? 'wppr'
-                : wpReviewScore !== null
-                  ? 'wp-review'
-                  : filenameRatingScore !== null
-                    ? 'filename-image'
-                    : 'explicit-numeric';
+          : schemaScore !== null
+            ? 'schema-org'
+            : starScore !== null
+              ? 'star'
+              : ariaScore !== null
+                ? 'aria-label'
+                : wpprScore !== null
+                  ? 'wppr'
+                  : wpReviewScore !== null
+                    ? 'wp-review'
+                    : filenameRatingScore !== null
+                      ? 'filename-image'
+                      : 'explicit-numeric';
       console.log(`[reviews] detected ${source} score ${detectedScore}/100 for ${url}`);
     }
   }
