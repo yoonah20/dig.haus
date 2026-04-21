@@ -28,12 +28,21 @@ interface AlbumListResponse {
 }
 
 // Mobile/desktop split: desktop sticks with classic numbered pagination
-// (18 per page — 3 rows × 6 cols at lg; leaves room under the grid for
+// Per-density page sizes. Comfortable stays at 18 (~3 rows on the
+// old 6-col grid). Dense and ultra ask for more per page so the user
+// can see the payoff of the tighter layout — otherwise packing tiny
+// covers just reveals more empty space below. Pages scale roughly
+// with density × 4 rows so a dense wall feels full without a ton of
+// scrolling before the next page.
 // the comment ticker). Mobile uses infinite scroll in 10-item batches.
 // Tailwind `md` breakpoint = 768px, so anything below counts as mobile
 // here.
 const MOBILE_QUERY = '(max-width: 767px)';
-const DESKTOP_PAGE_SIZE = 18;
+const DESKTOP_PAGE_SIZE_BY_DENSITY: Record<string, number> = {
+  comfortable: 18,
+  dense: 32,
+  ultra: 40,
+};
 const MOBILE_PAGE_SIZE = 10;
 
 function useIsMobile() {
@@ -65,12 +74,13 @@ async function fetchAlbumPage(
 function useDesktopAlbumList(
   sort: SortValue,
   page: number,
+  pageSize: number,
   enabled: boolean,
   seed?: number
 ) {
   return useQuery<AlbumListResponse>({
-    queryKey: ['album-list', sort, page, DESKTOP_PAGE_SIZE, seed ?? null],
-    queryFn: () => fetchAlbumPage(sort, page, DESKTOP_PAGE_SIZE, seed),
+    queryKey: ['album-list', sort, page, pageSize, seed ?? null],
+    queryFn: () => fetchAlbumPage(sort, page, pageSize, seed),
     staleTime: 1000 * 60 * 5,
     // Always refetch when the user lands on Home, not just when the
     // cache is past staleTime. Without this, returning to / via
@@ -220,10 +230,13 @@ export default function Home() {
   // finishes its first render (which it has by the time Home's
   // effects run).
   const seedReady = sort !== 'random' || seed !== undefined;
+  const desktopPageSize =
+    DESKTOP_PAGE_SIZE_BY_DENSITY[density] ?? DESKTOP_PAGE_SIZE_BY_DENSITY.comfortable;
 
   const desktopQuery = useDesktopAlbumList(
     sort,
     page,
+    desktopPageSize,
     !isMobile && seedReady,
     seed
   );
@@ -266,7 +279,7 @@ export default function Home() {
   // lively, not laggy.
   const DESKTOP_STAGGER_MS = 22;
   const desktopRevealDelays = useMemo(() => {
-    const arr = Array.from({ length: DESKTOP_PAGE_SIZE }, (_, i) => i);
+    const arr = Array.from({ length: desktopPageSize }, (_, i) => i);
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -274,7 +287,9 @@ export default function Home() {
     return arr;
     // Reshuffle whenever the rendered page changes. seed is also a dep
     // so a "random" sort's successive refreshes each reveal differently.
-  }, [sort, page, seed]);
+    // desktopPageSize is a dep so density changes regenerate a delay
+    // map of the right length.
+  }, [sort, page, seed, desktopPageSize]);
 
 
   // Mobile: bottom sentinel that pulls the next page in when it scrolls into
@@ -335,20 +350,28 @@ export default function Home() {
   const currentSortLabel =
     SORT_OPTIONS.find((o) => o.value === sort)?.label ?? '';
 
-  // Density → grid-cols map. Every class listed here is present as
-  // a literal string so Tailwind v4's JIT picks them up. Mobile
-  // (default) always stays at 2 cols regardless of density because
-  // any tighter packs the covers under a usable size on a phone —
-  // dense/ultra lift density at sm+ instead.
+  // Density → grid-cols + gap map. Every class listed here is a
+  // literal string so Tailwind v4's JIT picks them up. Mobile default
+  // always stays at 2 cols regardless of density — anything tighter
+  // packs covers below comfortable tap-target size on a phone. Ultra
+  // caps at 10 cols at xl (user-confirmed upper bound; 12 was too
+  // much). Gaps shrink with density so the grid doesn't look sparse
+  // when the covers themselves are smaller.
   const DESKTOP_GRID_CLASSES: Record<DensityValue, string> = {
     comfortable:
       'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
     dense:
       'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8',
     ultra:
-      'grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12',
+      'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10',
+  };
+  const DESKTOP_GAP_CLASSES: Record<DensityValue, string> = {
+    comfortable: 'gap-5',
+    dense: 'gap-3',
+    ultra: 'gap-2',
   };
   const desktopGridCols = DESKTOP_GRID_CLASSES[density];
+  const desktopGap = DESKTOP_GAP_CLASSES[density];
 
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
@@ -412,7 +435,7 @@ export default function Home() {
           // play on the stale page just before it got replaced.
           <div
             key={`desktop-${albums.length}-${albums[0]?.mbid ?? ''}-${albums[albums.length - 1]?.mbid ?? ''}`}
-            className={`grid ${desktopGridCols} gap-5`}
+            className={`grid ${desktopGridCols} ${desktopGap}`}
           >
             {albums.map((album, i) => (
               <div

@@ -151,9 +151,15 @@ function CoverStickerBadge({
         background: palette.bg,
         color: palette.fg,
         fontFamily: "'Syne', 'Inter', sans-serif",
-        fontSize: palette.fontSize ?? '8.3px',
+        // Scale the sticker with the card container (see containerType:
+        // inline-size on the Link root). Floor at 6px so labels stay
+        // legible on the tightest ultra-density tier; max at the
+        // original tuned values so wide comfortable-density covers
+        // look exactly as before.
+        fontSize:
+          palette.fontSize ?? `clamp(6px, 4.2cqw, 8.3px)`,
         letterSpacing: palette.letterSpacing ?? '0.06em',
-        padding: palette.padding ?? '2.2px 5.4px',
+        padding: palette.padding ?? 'clamp(1px, 1.1cqw, 2.2px) clamp(3px, 2.7cqw, 5.4px)',
         lineHeight: palette.lineHeight ?? 1,
         minWidth: palette.minWidth,
         // Tabular numerals keep the countdown digits from jiggling as
@@ -324,6 +330,16 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
     <Link
       to={`/album/${album.mbid}`}
       className={`block album-card-outer relative${isActive ? ' is-active' : ''}`}
+      // containerType: inline-size makes the card a container query
+      // root — every `cqw` unit below resolves to 1% of THIS card's
+      // width, not the viewport. Everything that used to be fixed
+      // px (title / artist / sticker / padding) now scales with the
+      // grid density automatically. containerName lets us scope the
+      // queries without leaking to nested cards.
+      style={{
+        containerType: 'inline-size',
+        containerName: 'album-card',
+      }}
       onClick={handleClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -374,7 +390,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 className="album-front-decor absolute top-1 right-1.5 leading-none select-none"
                 aria-label="리뷰 수집 대기"
                 title="리뷰 수집 대기 — 이 앨범 페이지에서 🔍 리뷰 모아오기 실행"
-                style={{ fontSize: '15px' }}
+                style={{ fontSize: 'clamp(10px, 7.5cqw, 15px)' }}
               >
                 ⚠️
               </div>
@@ -429,25 +445,45 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
             )}
 
             <div className="absolute inset-0 flex flex-col">
-              {/* Info — title / artist / score stacked tightly at the top */}
-              <div style={{ padding: '18px 14px 0' }}>
+              {/* Info — title / artist / score stacked tightly at the top.
+                  Every px value is a clamp() driven by cqw so the
+                  text shrinks with the cover at high density. Ranges
+                  are tuned so the comfortable tier (~200px+ covers)
+                  hits the previous fixed values, and the ultra tier
+                  (~90-100px) still has legible baseline minimums. */}
+              <div
+                style={{
+                  padding:
+                    'clamp(8px, 9cqw, 18px) clamp(6px, 7cqw, 14px) 0',
+                }}
+              >
                 <h3
                   className="text-white line-clamp-2"
-                  style={{ fontSize: '16px', fontWeight: 700, lineHeight: 1.2 }}
+                  style={{
+                    fontSize: 'clamp(10px, 8cqw, 16px)',
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                  }}
                 >
                   {album.title}
                 </h3>
                 <p
                   className="text-gray-300 line-clamp-1"
-                  style={{ fontSize: '12px', marginTop: '4px' }}
+                  style={{
+                    fontSize: 'clamp(8px, 6cqw, 12px)',
+                    marginTop: 'clamp(2px, 2cqw, 4px)',
+                  }}
                 >
                   {album.artist}
                   {album.year && <> · {album.year}</>}
                 </p>
                 {(showAvg || up > 0 || down > 0 || userReviewCount > 0) && (
                   <div
-                    className="flex items-center gap-2 tabular-nums"
-                    style={{ marginTop: '6px', fontSize: '12px' }}
+                    className="flex items-center gap-2 tabular-nums flex-wrap"
+                    style={{
+                      marginTop: 'clamp(3px, 3cqw, 6px)',
+                      fontSize: 'clamp(8px, 6cqw, 12px)',
+                    }}
                   >
                     {showAvg && (
                       <span className={`font-semibold ${getScoreColor(album.averageScore!)}`}>
@@ -469,8 +505,11 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 )}
                 {((album.ownedCount ?? 0) > 0 || (album.wantedCount ?? 0) > 0) && (
                   <div
-                    className="flex items-center gap-2 tabular-nums text-gray-300"
-                    style={{ marginTop: '4px', fontSize: '12px' }}
+                    className="flex items-center gap-2 tabular-nums text-gray-300 flex-wrap"
+                    style={{
+                      marginTop: 'clamp(2px, 2cqw, 4px)',
+                      fontSize: 'clamp(8px, 6cqw, 12px)',
+                    }}
                   >
                     {(album.ownedCount ?? 0) > 0 && (
                       <span>
@@ -488,20 +527,27 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
 
               <div style={{ flex: 1 }} />
 
-              {/* "자세히 보기" CTA — compact outlined button, symmetric
-                  bottom padding to the top title spacing. */}
+              {/* "자세히 보기" CTA — button + surrounding padding both
+                  shrink with container. Hidden on the tightest tier
+                  (<110px, roughly ultra density) so the back face isn't
+                  dominated by the CTA when there's barely room for the
+                  title. Whole card is the <Link>, so the flip-navigate
+                  behaviour still works without the button. */}
               <div
-                className="flex items-center justify-center"
-                style={{ padding: '0 16px 18px' }}
+                className="flex items-center justify-center album-cta"
+                style={{
+                  padding:
+                    '0 clamp(6px, 8cqw, 16px) clamp(8px, 9cqw, 18px)',
+                }}
               >
                 <div
                   className="flex items-center justify-center transition-colors hover:bg-white/5"
                   style={{
                     width: '58%',
-                    padding: '4px 0',
+                    padding: 'clamp(2px, 2cqw, 4px) 0',
                     border: `1px solid ${ctaColor}`,
                     color: ctaColor,
-                    fontSize: '12px',
+                    fontSize: 'clamp(8px, 6cqw, 12px)',
                     fontWeight: 600,
                     letterSpacing: '0.02em',
                   }}
