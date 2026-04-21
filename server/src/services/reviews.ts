@@ -240,6 +240,10 @@ export const EXCLUDED_URL_DOMAINS = [
   'bsky.app',
   't.me',
   'reddit.com',
+  // Ultimate Metal Forum — /threads/ URLs are community discussion,
+  // not editorial. Scraper sees "Review: xxx" in thread titles and
+  // lands on pages with nothing but back-and-forth user posts.
+  'ultimatemetal.com',
   // Aggregator (user ratings + collected editorial snippets) rather
   // than an editorial site in its own right. Same reasoning as
   // metal-archives and rockreport.
@@ -536,6 +540,30 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
     if (m) {
       const score = parseInt(m[1], 10);
       if (score >= 0 && score <= 100) return score;
+    }
+  }
+
+  // steenjepsen.dk / Revelationz Magazine — editorial score is labelled
+  // with the reviewer's first name rather than "Score" or "Rating"
+  // (<strong>Steen: 9/10</strong>). The generic detectExplicitNumericScore
+  // skips it (no matching label word) and then lands on the individual
+  // member comment block further down the page — <strong>Rating:
+  // 8/10</strong> for the first user who voted — returning the wrong
+  // number. Grab the first <strong>Name: N/10</strong> on the page and
+  // reject known non-editorial labels so the byline name wins.
+  if (host === 'steenjepsen.dk') {
+    const m = html.match(
+      /<strong[^>]*>(?:<[^>]*>)?\s*([A-Z][a-zA-Z]+)\s*:\s*(\d{1,2})\s*\/\s*10/
+    );
+    if (m) {
+      const name = m[1];
+      // Reject the site's meta labels so "Members:" (user aggregate)
+      // and "Rating:" (individual comment) don't hijack the byline
+      // capture.
+      if (!/^(Members?|Rating|Score|Overall|Verdict|Final|Summary)$/i.test(name)) {
+        const score = parseInt(m[2], 10);
+        if (score >= 0 && score <= 10) return score * 10;
+      }
     }
   }
 

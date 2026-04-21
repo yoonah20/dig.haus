@@ -198,8 +198,11 @@ const KO_TERM_REPLACEMENTS: Array<[RegExp, string]> = [
   [/구곡\s*스타일/g, '올드 스쿨'],
   [/구식\s*학교/g, '올드 스쿨'],
   [/구(?:식|형)\s*학파/g, '올드 스쿨'],
-  // Genre-name "metal" literally translated as 금속.
-  [/죽음의\s*금속/g, '데스 메탈'],
+  // Genre-name "metal" literally translated as 금속, plus the common
+  // half-translated form "죽음 메탈" (의 dropped) that DeepSeek slips
+  // into when it transliterates 메탈 but still translates 'death'.
+  [/죽음의?\s*금속/g, '데스 메탈'],
+  [/죽음의?\s*메탈/g, '데스 메탈'],
   [/검은\s*금속/g, '블랙 메탈'],
   [/무거운\s*금속/g, '헤비 메탈'],
   [/파멸\s*금속/g, '둠 메탈'],
