@@ -355,8 +355,16 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
       updateAlbum(index, { status: 'done' });
 
       // Keep the album page and home grid in sync once this album is done.
-      qc.invalidateQueries({ queryKey: ['album', albumMbid] });
-      qc.invalidateQueries({ queryKey: ['album-reviews', albumMbid] });
+      // Uses partial-key invalidation (React Query v5's default prefix
+      // match) so both slug-keyed and mbid-keyed queries refetch —
+      // useAlbumBase / useAlbumReviews / useAlbumSimilar all key on
+      // Album.tsx's albumId (slug when available, mbid otherwise), so
+      // a ['album', mbid] exact match would miss the slug-keyed copy
+      // and leave the album page showing stale "pending" state even
+      // though the curation finished.
+      qc.invalidateQueries({ queryKey: ['album'] });
+      qc.invalidateQueries({ queryKey: ['album-reviews'] });
+      qc.invalidateQueries({ queryKey: ['album-similar'] });
       qc.invalidateQueries({ queryKey: ['album-list'] });
       qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
 

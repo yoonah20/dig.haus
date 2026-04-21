@@ -357,6 +357,14 @@ export default function ReviewSection({
   const [addingReview, setAddingReview] = useState(false);
   const [addMode, setAddMode] = useState<'url' | 'manual'>('url');
   const [addUrl, setAddUrl] = useState('');
+  // URL 자동 검색 results surface as a checklist below the textarea:
+  // each returned URL gets a checkbox (default on). Admin can uncheck
+  // ones they don't want scraped. Saved = textarea lines + ticked
+  // discovered URLs, de-duped before POST. Separate from addUrl so the
+  // admin can still paste manual URLs without clobbering the list.
+  const [discoveredUrls, setDiscoveredUrls] = useState<
+    Array<{ url: string; selected: boolean }>
+  >([]);
   const [savingReview, setSavingReview] = useState(false);
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   // Ring-glow marker for reviews added during this session — helps
@@ -403,6 +411,7 @@ export default function ReviewSection({
 
   const startAddReview = () => {
     setAddUrl('');
+    setDiscoveredUrls([]);
     setManualSource(defaultManualSource());
     setManualUrl('');
     setManualScore('');
@@ -415,6 +424,7 @@ export default function ReviewSection({
     if (savingReview) return;
     setAddingReview(false);
     setAddUrl('');
+    setDiscoveredUrls([]);
     setManualSource(defaultManualSource());
     setManualUrl('');
     setManualScore('');
@@ -424,14 +434,20 @@ export default function ReviewSection({
 
   const saveAddReview = async () => {
     if (!slug) return;
-    // Split on any newline, trim, drop empties. Lets admin paste a
-    // list of URLs (one per line) or a single URL interchangeably.
-    const urls = addUrl
+    // Combine two sources: textarea (manually pasted URLs, one per
+    // line) and the discoveredUrls checklist (ticked entries only).
+    // De-dupe in case admin both pasted and discovered the same URL
+    // — scraping the same URL twice burns a Claude call for nothing.
+    const pastedUrls = addUrl
       .split(/\r?\n/)
       .map((u) => u.trim())
       .filter((u) => u.length > 0);
+    const tickedDiscovered = discoveredUrls
+      .filter((d) => d.selected)
+      .map((d) => d.url);
+    const urls = Array.from(new Set([...pastedUrls, ...tickedDiscovered]));
     if (urls.length === 0) {
-      alert('URL을 최소 한 개 입력해주세요.');
+      alert('URL을 최소 한 개 입력하거나 자동 검색 결과에서 선택해주세요.');
       return;
     }
     const invalid = urls.find((u) => !/^https?:\/\//i.test(u));
@@ -487,6 +503,7 @@ export default function ReviewSection({
         // Single-URL success path stays quiet, matching the pre-batch UX.
         setAddingReview(false);
         setAddUrl('');
+        setDiscoveredUrls([]);
       } else {
         const summary = [
           `추가: ${added}`,
@@ -501,6 +518,7 @@ export default function ReviewSection({
         alert(summary + detail);
         setAddingReview(false);
         setAddUrl('');
+        setDiscoveredUrls([]);
       }
     } finally {
       setSavingReview(false);
@@ -908,12 +926,17 @@ export default function ReviewSection({
                                 alert('찾은 후보가 모두 이미 등록된 리뷰예요.');
                                 return;
                               }
-                              // Append, preserving anything admin already typed.
-                              setAddUrl((prev) => {
-                                const current = prev.trim();
-                                return [current, ...fresh]
-                                  .filter((s) => s.length > 0)
-                                  .join('\n');
+                              // Merge into the checklist — keep any
+                              // existing entries (and their checked
+                              // state) so repeated clicks layer new
+                              // results on top without wiping admin's
+                              // prior selections.
+                              setDiscoveredUrls((prev) => {
+                                const seen = new Set(prev.map((p) => p.url));
+                                const additions = fresh
+                                  .filter((u) => !seen.has(u))
+                                  .map((u) => ({ url: u, selected: true }));
+                                return [...prev, ...additions];
                               });
                             } catch (err: any) {
                               alert(
@@ -947,9 +970,102 @@ export default function ReviewSection({
                         rows={4}
                         className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 font-mono"
                       />
+                      {/* URL 자동 검색 결과 체크리스트. Each row is an
+                          individual URL with a checkbox — admin unticks
+                          unwanted sources before saving. Header strip
+                          carries a summary + "모두 선택/해제" toggle so
+                          large lists stay manageable without clicking
+                          each row. The whole block only renders after
+                          the first discover call returns. */}
+                      {discoveredUrls.length > 0 && (
+                        <div className="border border-white/10 rounded-md bg-[#0a0703] overflow-hidden">
+                          <div className="flex items-center justify-between px-3 py-2 bg-[#141008] border-b border-white/5">
+                            <span className="text-[11px] text-gray-400">
+                              자동 검색 결과{' '}
+                              <span className="text-gray-500">
+                                ({discoveredUrls.filter((d) => d.selected).length} / {discoveredUrls.length})
+                              </span>
+                            </span>
+                            <div className="flex items-center gap-2 text-[11px]">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDiscoveredUrls((prev) => {
+                                    const allSelected = prev.every((d) => d.selected);
+                                    return prev.map((d) => ({
+                                      ...d,
+                                      selected: !allSelected,
+                                    }));
+                                  })
+                                }
+                                disabled={savingReview}
+                                className="text-gray-400 hover:text-[#e8a020] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {discoveredUrls.every((d) => d.selected) ? '전체 해제' : '전체 선택'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDiscoveredUrls([])}
+                                disabled={savingReview}
+                                className="text-gray-500 hover:text-red-400 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                title="검색 결과 지우기"
+                              >
+                                지우기
+                              </button>
+                            </div>
+                          </div>
+                          <ul className="max-h-52 overflow-y-auto divide-y divide-white/5">
+                            {discoveredUrls.map((item, idx) => (
+                              <li
+                                key={item.url}
+                                className="flex items-center gap-2 px-3 py-1.5 text-[12px] hover:bg-white/5"
+                              >
+                                <input
+                                  type="checkbox"
+                                  id={`discovered-${idx}`}
+                                  checked={item.selected}
+                                  onChange={(e) => {
+                                    const next = e.target.checked;
+                                    setDiscoveredUrls((prev) =>
+                                      prev.map((d, i) =>
+                                        i === idx ? { ...d, selected: next } : d
+                                      )
+                                    );
+                                  }}
+                                  disabled={savingReview}
+                                  className="accent-[#e8a020] shrink-0 w-3.5 h-3.5 cursor-pointer"
+                                />
+                                <label
+                                  htmlFor={`discovered-${idx}`}
+                                  className={`flex-1 min-w-0 truncate font-mono cursor-pointer ${
+                                    item.selected ? 'text-gray-200' : 'text-gray-500 line-through'
+                                  }`}
+                                  title={item.url}
+                                >
+                                  {item.url}
+                                </label>
+                                <a
+                                  href={item.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="shrink-0 text-gray-500 hover:text-[#e8a020] px-1"
+                                  title="새 탭에서 열기"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  ↗
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       <button
                         onClick={saveAddReview}
-                        disabled={savingReview || !addUrl.trim()}
+                        disabled={
+                          savingReview ||
+                          (!addUrl.trim() &&
+                            !discoveredUrls.some((d) => d.selected))
+                        }
                         className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
                       >
                         {savingReview && (

@@ -865,6 +865,21 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // Re-sweep for sputnikmusic soundoff URLs that slipped through after
+  // the first 2026-04-21 purge. A new one was reported after the add-
+  // url path started going through the manual-paste flow (which
+  // bypassed the discover-level EXCLUDED_URL_PATH_PATTERNS check
+  // until the scrape-level guard landed). New runOnce key because the
+  // earlier one is already marked done on production.
+  runOnce(db, 'purge-soundoff-review-urls-2026-04-22b', () => {
+    const info = db
+      .prepare("DELETE FROM reviews WHERE full_review_url LIKE ?")
+      .run('%sputnikmusic.com/soundoff.php%');
+    if ((info.changes as number) > 0) {
+      console.log(`[migration] purged ${info.changes} soundoff review rows`);
+    }
+  });
+
   // Backfill: pre-existing sold-out rows lose no fidelity when we swap to the
   // `status` enum. Idempotent — admins who later edit the row can only do so
   // via `status`, so once it's set this WHERE clause no longer matches.

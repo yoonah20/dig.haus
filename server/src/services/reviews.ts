@@ -1098,6 +1098,30 @@ export async function scrapeReviewFromUrl(
 ): Promise<ScrapeOutcome> {
   console.log(`[reviews] scrapeReviewFromUrl: ${url}`);
 
+  // Defensive path-pattern guard for callers that bypass the discover
+  // pipeline — the manual add-url / batch-scrape path feeds URLs
+  // straight into this function without the path filter that the
+  // discover endpoint applies. Without this check, admin pasting a
+  // sputnikmusic.com/soundoff.php link (user-rating aggregator) or a
+  // "best-of-2025" roundup URL would scrape normally. Domain
+  // blacklist check is here too for symmetry with the discover flow.
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    if (EXCLUDED_URL_DOMAINS.some((d) => host.includes(d))) {
+      recordScrapeFailure(url, albumMbid, 'not-a-review', 'blacklisted domain');
+      return { kind: 'fail', reason: 'not-a-review', message: 'blacklisted domain' };
+    }
+    const pathKey = parsed.pathname + parsed.search;
+    if (EXCLUDED_URL_PATH_PATTERNS.some((re) => re.test(pathKey))) {
+      recordScrapeFailure(url, albumMbid, 'not-a-review', 'excluded path pattern');
+      return { kind: 'fail', reason: 'not-a-review', message: 'excluded path pattern' };
+    }
+  } catch {
+    // Invalid URL — let the fetch step handle it (it'll return a
+    // fetch-failed reason with a clearer error message).
+  }
+
   // Two parallel fetches: raw HTML (for visual/encoded score detectors
   // that need the original markup) and Jina Reader (for Claude's text
   // input — fewer tokens, JS-rendered content resolved, some bot walls
