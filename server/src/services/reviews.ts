@@ -494,6 +494,31 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
     }
   }
 
+  // Chaoszine — custom star-widget markup where each slot is a
+  // <div class="one"> (filled) or <div class="empty"> (empty) inside
+  // a <div class="rating"> container. Neither "one" nor "empty" match
+  // the generic star detector's class allow-list (fa-star / icon-star
+  // / bi-star / standalone "star"), so generic counting misses it
+  // entirely — "one" alone is too generic to add to the global list
+  // without false-positiving on totally unrelated UI elements. Counted
+  // here site-locally: numerator = `one` count, scale = one+empty total.
+  if (host === 'chaoszine.net') {
+    // Scan a 500-char window after the container open to count the
+    // filled/empty slot divs. 5 slots × ~30 chars per slot = ~150,
+    // so 500 leaves plenty of headroom without risking bleed into
+    // a different rating block lower on the page.
+    const open = html.search(/<div\s+class\s*=\s*"rating"\s*>/i);
+    if (open >= 0) {
+      const window = html.slice(open, open + 500);
+      const full = (window.match(/class\s*=\s*"one"/gi) || []).length;
+      const empty = (window.match(/class\s*=\s*"empty"/gi) || []).length;
+      const total = full + empty;
+      if (total >= 3 && total <= 10) {
+        return Math.round((full / total) * 100);
+      }
+    }
+  }
+
   return null;
 }
 
