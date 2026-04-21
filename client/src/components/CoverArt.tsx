@@ -88,6 +88,15 @@ export default function CoverArt({ src, fallbacks = [], alt, className = '', onL
       alt={alt}
       loading="lazy"
       decoding="async"
+      // Without this the browser's native image-drag hijacks any
+      // parent-level HTML5 drag — e.g. the VinylWall editor couldn't
+      // initiate drag-from-candidates because the <img> started a
+      // "copy image" drag on mousedown and the parent's onDragStart
+      // (which sets our application/x-mydig-album dataTransfer)
+      // never ran. No page in dig.haus actually wants native image
+      // drag, so disabling globally here is safer than wrapping
+      // every caller.
+      draggable={false}
       className={className}
       onLoad={(e) => {
         if (!onLoad) return;
