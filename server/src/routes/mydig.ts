@@ -36,9 +36,19 @@ function resolveUserByUsername(username: string): ResolvedUser | null {
   ) as ResolvedUser | null;
 }
 
-router.get('/mydig/:username', (req, res) => {
+// Sub-paths that must reach their dedicated handlers further down
+// the file rather than be captured by :username. Without this
+// guard, Express matches by registration order — GET /mydig/candidates
+// hit this handler first with username="candidates" and returned 404,
+// so the picker search silently failed. Listing them explicitly is
+// more defensive than relying on file ordering; future routes can
+// add themselves here.
+const MYDIG_RESERVED_SUBPATHS = new Set(['candidates', 'vinyl-wall']);
+
+router.get('/mydig/:username', (req, res, next) => {
   const raw = String(req.params.username || '').trim();
   if (!raw) return res.status(400).json({ error: '사용자명이 필요합니다.' });
+  if (MYDIG_RESERVED_SUBPATHS.has(raw)) return next();
 
   const user = resolveUserByUsername(raw);
   if (!user) return res.status(404).json({ error: '사용자를 찾을 수 없어요.' });
