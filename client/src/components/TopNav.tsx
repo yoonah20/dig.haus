@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import LoginButton from './LoginButton';
 import UsernameModal from './UsernameModal';
 import SearchBar from './SearchBar';
-import SortMenu from './Home/SortMenu';
 import { useAuth } from '../contexts/AuthContext';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useHomeState } from '../contexts/HomeStateContext';
@@ -14,11 +13,7 @@ export default function TopNav() {
   const { open: searchOpen, initialQuery, openOverlay, closeOverlay } = useSearchOverlay();
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
-  // Sort only makes sense on the home album list, so the trigger is
-  // gated on path. Anywhere else (album/artist/profile/admin) it's
-  // hidden so it doesn't suggest controls that don't apply.
   const location = useLocation();
-  const isHome = location.pathname === '/';
   const { setPage } = useHomeState();
 
   // Clicking the logo always sends the user to the home page's
@@ -118,10 +113,10 @@ export default function TopNav() {
                 />
               </svg>
             </button>
-            {/* Sort sits next to search so the whole "find" cluster
-                reads as one group; login pill (with any admin
-                pending-badge) anchors the right edge. */}
-            {isHome && <SortMenu />}
+            {/* Sort trigger lives inline above the album grid now
+                (Home.tsx's SortTrigger). Keeping the nav cluster
+                down to "find / my store / login" — everything about
+                how the feed is arranged belongs to the feed itself. */}
             {/* 내 가게 entry. Storefront icon (awning + shop body)
                 instead of a house — the house glyph read as "go home"
                 and collided with the logo's behaviour. First click

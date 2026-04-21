@@ -16,6 +16,7 @@ import {
   type UserReviewFeedItem,
 } from '../hooks/useUserReviewsFeed';
 import { useHomeState, type DensityValue } from '../contexts/HomeStateContext';
+import { useAuth } from '../contexts/AuthContext';
 import type { AlbumSearchResult } from '../types';
 import { type SortValue, SORT_OPTIONS } from '../lib/homeSort';
 
@@ -201,7 +202,8 @@ export default function Home() {
   // so the address bar stays at '/'. See contexts/HomeStateContext.tsx
   // for the persistence rules (localStorage for sort, in-memory for
   // page + seed).
-  const { sort, page, setPage, seed, density, setDensity } = useHomeState();
+  const { sort, setSort, page, setPage, seed, density, setDensity } =
+    useHomeState();
 
   useDocumentHead({
     title: 'Home | dig.haus',
@@ -376,16 +378,17 @@ export default function Home() {
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
-        {/* Thin sort + density strip above the grid. The SortMenu nav
-            icon no longer carries a label, so the current sort lives
-            here next to a 3-step density switcher that lets the user
-            pack more covers per row when they want to skim faster. */}
+        {/* Grid header — sort trigger + density switcher. Sort moved
+            out of the nav bar so the top strip stays a pure "find
+            albums" cluster; this header owns everything about how
+            the feed itself is arranged. */}
         {albums.length > 0 && (
           <div className="mb-3 flex items-center justify-between gap-3 text-[11px] text-gray-500">
-            <span className="tabular-nums">
-              정렬:{' '}
-              <span className="text-gray-300">{currentSortLabel}</span>
-            </span>
+            <SortTrigger
+              sort={sort}
+              onChange={setSort}
+              label={currentSortLabel}
+            />
             {!isMobile && (
               <DensitySwitcher density={density} onChange={setDensity} />
             )}
@@ -508,6 +511,105 @@ export default function Home() {
         {/* Desktop-only comment ticker below pagination. */}
         {!isMobile && albums.length > 0 && <CommentTicker />}
       </section>
+    </div>
+  );
+}
+
+// Inline sort trigger — text-style ("정렬: 발매 최신순 ▾") with an
+// overlay dropdown of SORT_OPTIONS. Lives above the album grid
+// instead of in the nav, so discovery of "how is this feed ordered"
+// and the mechanism to change it sit together where the user is
+// looking. Admin-only sort options (e.g. "등록 요청작") are filtered
+// out for non-admins so the dropdown stays clean.
+function SortTrigger({
+  sort,
+  onChange,
+  label,
+}: {
+  sort: SortValue;
+  onChange: (v: SortValue) => void;
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const isAdmin = !!user?.isAdmin;
+
+  const visibleOptions = useMemo(
+    () => SORT_OPTIONS.filter((o) => !o.adminOnly || isAdmin),
+    [isAdmin]
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 tabular-nums text-gray-500 hover:text-gray-200 transition-colors cursor-pointer"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        정렬: <span className="text-gray-300">{label}</span>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-3 h-3 opacity-70"
+          fill="none"
+          viewBox="0 0 24 24"
+          strokeWidth={2.5}
+          stroke="currentColor"
+          aria-hidden
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 mt-1 w-44 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl py-1 z-50"
+        >
+          {visibleOptions.map((opt) => {
+            const isCurrent = opt.value === sort;
+            return (
+              <button
+                key={opt.value}
+                role="menuitemradio"
+                aria-checked={isCurrent}
+                onClick={() => {
+                  onChange(opt.value as SortValue);
+                  setOpen(false);
+                }}
+                className={`block w-full text-left px-4 py-2 text-xs cursor-pointer hover:bg-white/5 transition-colors ${
+                  isCurrent
+                    ? 'text-[#e8a020] font-semibold'
+                    : opt.adminOnly
+                      ? 'text-[#e8a020]/80 italic'
+                      : 'text-gray-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
