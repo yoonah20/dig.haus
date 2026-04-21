@@ -55,18 +55,46 @@ export interface InvokeLlmOpts {
 
 // One-call-does-it-all wrapper. Use this instead of hand-rolling an
 // Anthropic SDK call at the site — it gives you env-driven model
-// flipping + shadow comparison for free, and the return shape is
-// provider-agnostic so caller code doesn't need to know whether it
-// just talked to Claude or DeepSeek.
+// flipping + shadow comparison + automatic fallback for free, and
+// the return shape is provider-agnostic so caller code doesn't need
+// to know whether it just talked to Claude or DeepSeek.
+//
+// Fallback behaviour: when an env override pushes primary to a
+// non-default model (e.g. LLM_PRIMARY_MODEL=deepseek-chat) and the
+// primary call fails (network error, 429, timeout), we retry ONCE
+// with the caller's built-in defaultModel. This means the code-level
+// defaults act as a safety net — admin can flip everything to
+// DeepSeek via env and know that a DeepSeek outage gracefully
+// degrades to Haiku/Sonnet rather than surfacing errors to users.
+// Set LLM_FALLBACK=off to disable the retry (for debugging which
+// provider is actually failing).
 export async function invokeLlm(opts: InvokeLlmOpts): Promise<LlmResult> {
-  const model = resolvePrimaryModel(opts.operation, opts.defaultModel);
-  const result = await callLlmByModel({
-    operation: opts.operation,
-    model,
-    prompt: opts.prompt,
-    maxTokens: opts.maxTokens,
-    jsonMode: opts.jsonMode,
-  });
+  const primaryModel = resolvePrimaryModel(opts.operation, opts.defaultModel);
+  let result: LlmResult;
+  try {
+    result = await callLlmByModel({
+      operation: opts.operation,
+      model: primaryModel,
+      prompt: opts.prompt,
+      maxTokens: opts.maxTokens,
+      jsonMode: opts.jsonMode,
+    });
+  } catch (err) {
+    const fallbackDisabled = process.env.LLM_FALLBACK === 'off';
+    const canFallback =
+      !fallbackDisabled && primaryModel !== opts.defaultModel;
+    if (!canFallback) throw err;
+    console.warn(
+      `[llm-router] primary ${primaryModel} failed for ${opts.operation}, retrying with default ${opts.defaultModel}: ${(err as Error).message}`
+    );
+    result = await callLlmByModel({
+      operation: `${opts.operation}__fallback`,
+      model: opts.defaultModel,
+      prompt: opts.prompt,
+      maxTokens: opts.maxTokens,
+      jsonMode: opts.jsonMode,
+    });
+  }
 
   // Detached shadow — doesn't block the caller. Internally resolves
   // LLM_SHADOW_MODEL / LLM_SHADOW_MODEL_<OP> / LLM_COMPARE; if nothing
