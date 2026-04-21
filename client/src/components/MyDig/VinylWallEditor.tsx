@@ -172,15 +172,21 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="max-w-[900px] mx-auto flex flex-col gap-3 sm:gap-4">
             {rows.map((positions, rowIdx) => (
-              <div key={rowIdx} className="grid grid-cols-6 gap-3 sm:gap-4">
-                {positions.map((position, colIdx) => {
-                  const colStart =
-                    positions.length === 5 && colIdx === 0 ? 'col-start-1 sm:ml-[8.5%]' : '';
+              <div
+                key={rowIdx}
+                // Inline grid declaration — see MyDig.tsx's VinylWallGrid
+                // for why we stopped relying on Tailwind's grid-cols-6
+                // utility (a few renders were collapsing to a single
+                // vertical column).
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+                }}
+                className="gap-3 sm:gap-4"
+              >
+                {positions.map((position) => {
                   return (
-                    <div
-                      key={position}
-                      className={`${colStart} aspect-square`}
-                    >
+                    <div key={position} className="w-full aspect-square">
                       <EditWallSlot
                         position={position}
                         album={draft[position]}

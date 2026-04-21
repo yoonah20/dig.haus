@@ -82,14 +82,23 @@ export default function MyDig() {
   return (
     <div className="flex-1">
       <main className="max-w-[1120px] mx-auto px-4 py-8 space-y-10">
-        {/* Header — username, display name, owner badge. */}
+        {/* Header — display name (or username), owner badge. The
+            URL already carries /my/:username, so duplicating the
+            handle in the title ended up reading as "fpp @fpp" /
+            "Yoonah @yoonah" — redundant either way. Only show the
+            @handle when display name is set AND differs from the
+            username so the two pieces aren't saying the same thing. */}
         <header className="flex items-center gap-3 flex-wrap">
           <h1 className="text-2xl sm:text-3xl font-bold text-white font-serif">
             {data.user.displayName || data.user.username}
-            <span className="text-gray-500 font-normal text-lg sm:text-xl ml-2">
-              @{data.user.username}
-            </span>
           </h1>
+          {data.user.displayName &&
+            data.user.displayName.toLowerCase() !==
+              data.user.username.toLowerCase() && (
+              <span className="text-gray-500 text-base sm:text-lg">
+                @{data.user.username}
+              </span>
+            )}
           {ownerBadge}
         </header>
 
@@ -124,30 +133,11 @@ export default function MyDig() {
           />
         )}
 
-        {/* Tier 2 — Shelf. 6 bins, each with a genre label. Empty
-            bins render as furniture outlines with the label only
-            (or an "unset" label if admin hasn't picked a genre). */}
-        <section>
-          <h2 className="text-sm uppercase tracking-wider text-gray-500 mb-4">
-            Shelf
-          </h2>
-          <ShelfRow
-            shelfByPosition={shelfByPosition}
-            isOwner={data.user.isOwner}
-          />
-        </section>
-
-        {/* Tier 3 — Crate. Variable count, 0-6 shown. Renders only
-            what user has defined; no placeholder for missing
-            positions (the empty-is-OK aesthetic differs from Wall
-            and Shelf here — crates are items-on-the-floor, not
-            structural furniture). */}
-        <section>
-          <h2 className="text-sm uppercase tracking-wider text-gray-500 mb-4">
-            Crate
-          </h2>
-          <CrateRow crates={data.crates} isOwner={data.user.isOwner} />
-        </section>
+        {/* Shelf + Crate tiers temporarily hidden while we focus on
+            getting Vinyl Wall right. Server routes + schema are
+            untouched; the tier renders just don't mount. Restore
+            when the design + interaction for those tiers is worth
+            showing. */}
       </main>
     </div>
   );
@@ -173,27 +163,24 @@ function VinylWallGrid({
       {rows.map((positions, rowIdx) => (
         <div
           key={rowIdx}
-          // Grid of 6 tracks so every cover is the SAME width across
-          // all rows. The 5-count rows sit centred by starting at
-          // col-start-1 and ending naturally at col-end-6 (skipping
-          // col 7), which leaves balanced gutters on both ends.
-          className="grid grid-cols-6 gap-3 sm:gap-4"
+          // 6-column grid so every cover sits at the same width across
+          // all rows — 5-count rows just render 5 cells and leave one
+          // empty column on the right (asymmetric by design; could be
+          // centred later). Inline style instead of grid-cols-6 so we
+          // don't rely on Tailwind v4's JIT having emitted the utility
+          // class — a few earlier renders reportedly collapsed to a
+          // single-column stack of 22 items, which is what happens
+          // when the grid declaration doesn't take.
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+          }}
+          className="gap-3 sm:gap-4"
         >
-          {positions.map((position, colIdx) => {
-            const colStart =
-              positions.length === 5 ? 'col-start-1' : undefined;
-            // For 5-rows, the first cell starts at col 1 and each
-            // subsequent cell takes the next col — no explicit
-            // col-span needed since default is 1. The leftover col
-            // 6 stays empty, which gives the centered-shrunk look.
-            const offsetClass =
-              positions.length === 5 && colIdx === 0 ? 'sm:ml-[8.5%]' : '';
+          {positions.map((position) => {
             const item = wallByPosition.get(position);
             return (
-              <div
-                key={position}
-                className={`${colStart ?? ''} ${offsetClass} aspect-square`}
-              >
+              <div key={position} className="w-full aspect-square">
                 <WallSlot item={item} isOwner={isOwner} />
               </div>
             );
