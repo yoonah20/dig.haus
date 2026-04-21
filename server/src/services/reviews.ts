@@ -384,6 +384,16 @@ export function normalizeReviewUrl(raw: string): string {
 // can't map confidently).
 function detectStarRating(html: string): number | null {
   const containerRe = /class\s*=\s*"[^"]*(?:rating|stars|score)[^"]*"/gi;
+  // Reject containers that are user-rating INPUT widgets rather than
+  // editorial-score DISPLAYS. WP Review plugin renders a 5-star
+  // picker for visitors as a "wp-review-user-rating-star" container
+  // — each <i class="fa fa-star"> is an input control, not a filled
+  // star of the reviewer's verdict. Counting those would always land
+  // on 5/5 = 100 and shadow the real score (gbhbl editorial 90 was
+  // being overridden this way). Any "user-rating" / "rating-input" /
+  // "user-review" token in the container's class attribute flags it
+  // as an input widget and skips the counter pass.
+  const userInputMarker = /\b(?:user-rating|rating-input|user-review)\b/i;
   // Broadened from <i>-only to <i|svg|span|img>. Real-world sites use
   // any of these for their star icons:
   //   FontAwesome:                  <i class="fas fa-star">
@@ -395,6 +405,7 @@ function detectStarRating(html: string): number | null {
   const ICON_RE = /<(?:i|svg|span|img)\b[^>]*class\s*=\s*"([^"]*)"[^>]*>/gi;
   let m: RegExpExecArray | null;
   while ((m = containerRe.exec(html)) !== null) {
+    if (userInputMarker.test(m[0])) continue;
     const window = html.slice(m.index, m.index + 2000);
     let full = 0,
       half = 0,
