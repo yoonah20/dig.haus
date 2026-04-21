@@ -268,6 +268,11 @@ export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
   // The path is /soundoff.php, separate from the /review/ editorial
   // URLs. soundoff pages list user scores and one-liners only.
   /\/soundoff\.php\b/i,
+  // WordPress-style tag/category index pages for 'spotify'. These
+  // aggregate streaming-link posts / playlist announcements rather
+  // than individual editorial reviews. Covers /tag/spotify/,
+  // /tags/spotify/, /category/spotify/.
+  /\/(?:tag|tags|category)\/spotify\b/i,
   // Sputnikmusic band/artist directory page (not a review). Format is
   // /bands/<slug>/<numeric-id>/, distinct from /review/<id>/... which
   // is the editorial URL shape. The band page lists user-submitted
@@ -342,7 +347,15 @@ export function normalizeReviewUrl(raw: string): string {
 // can't map confidently).
 function detectStarRating(html: string): number | null {
   const containerRe = /class\s*=\s*"[^"]*(?:rating|stars|score)[^"]*"/gi;
-  const ICON_RE = /<i\b[^>]*class\s*=\s*"([^"]*)"[^>]*>/gi;
+  // Broadened from <i>-only to <i|svg|span|img>. Real-world sites use
+  // any of these for their star icons:
+  //   FontAwesome:                  <i class="fas fa-star">
+  //   loudersound (custom icon):    <span class="icon icon-star">
+  //   themusic.com.au (inline svg): <svg class="icon star ">
+  //   Bootstrap icons:              <i class="bi bi-star-fill">
+  // The ICON_RE captures the class attribute; star-vs-half-vs-empty
+  // is classified from the class tokens below.
+  const ICON_RE = /<(?:i|svg|span|img)\b[^>]*class\s*=\s*"([^"]*)"[^>]*>/gi;
   let m: RegExpExecArray | null;
   while ((m = containerRe.exec(html)) !== null) {
     const window = html.slice(m.index, m.index + 2000);
@@ -354,13 +367,28 @@ function detectStarRating(html: string): number | null {
     ICON_RE.lastIndex = 0;
     while ((icon = ICON_RE.exec(window)) !== null) {
       const classes = icon[1];
-      if (!/\bfa-star/.test(classes)) continue;
-      const isHalf = /\bfa-star-half/.test(classes);
-      // `far` (FontAwesome "regular" style) = outline-only = empty slot.
-      // `fas` (solid) = filled. Anything else (fa-star with no style
-      // prefix, or newer fa-solid / fa-regular forms) falls through to
-      // "full" — safer default than dropping the icon silently.
-      const isOutline = /\bfa-regular\b|\bfar\b/.test(classes);
+      // Star-class detection: named prefixed variants (fa-star*,
+      // icon-star*, bi-star*, glyphicon-star) OR a standalone "star"
+      // class. The standalone match requires whitespace / end on both
+      // sides so "startup-icon" and "star-chart" don't slip through
+      // — we only want "star" as a dedicated class-name token.
+      const isStar =
+        /\b(?:fa-star|icon-star|bi-star|glyphicon-star)\b/i.test(classes) ||
+        /(?:^|\s)star(?:\s|$)/i.test(classes);
+      if (!isStar) continue;
+      // Half-star: explicit "half" token or FA/bootstrap half variants.
+      const isHalf =
+        /(?:^|\s|-)half(?:$|\s|-)/i.test(classes) ||
+        /\b(?:fa-star-half|bi-star-half|icon-star-half)\b/i.test(classes);
+      // Empty/outline star:
+      //   `far` / `fa-regular` — FontAwesome regular (outline) style
+      //   `fa-star-o` — FA v4 outline variant
+      //   `bi-star` (not fill/half) handled by not-full fallback
+      //   generic "empty"/"outline" — ad-hoc blog CSS
+      const isOutline =
+        /(?:^|\s)(?:fa-regular|far|fa-star-o|empty|outline)(?:$|\s|-)/i.test(
+          classes
+        );
       if (isHalf) half++;
       else if (isOutline) empty++;
       else full++;
@@ -693,6 +721,27 @@ function detectFilenameRatingImage(html: string): number | null {
   return null;
 }
 
+// Detects when the page's own tag / category metadata marks it as
+// "spotify" content. Reviews that are genuinely about the album
+// shouldn't be tagged with Spotify (it's a streaming service, not a
+// genre/descriptor) — when they are, the post is almost always a
+// playlist announcement, streaming-links roundup, or press release,
+// not editorial criticism. Checks three common tag conventions:
+//   WordPress core:     <a rel="tag">Spotify</a>
+//   Custom tag themes:  <a class="post-tag|tag-link|tag">Spotify</a>
+//   OpenGraph article:  <meta property="article:tag" content="Spotify">
+function hasSpotifyTag(html: string): boolean {
+  const patterns: RegExp[] = [
+    /<a[^>]*\brel\s*=\s*"[^"]*\btag\b[^"]*"[^>]*>\s*spotify\b/i,
+    /<a[^>]*\bclass\s*=\s*"[^"]*\b(?:post-tag|tag-link|tag-cloud-link|entry-tag)\b[^"]*"[^>]*>\s*spotify\b/i,
+    /<meta[^>]*property\s*=\s*"article:tag"[^>]*content\s*=\s*"[^"]*\bspotify\b/i,
+  ];
+  // keyword meta is deliberately NOT checked — many outlets keyword-
+  // stuff "spotify" into review pages for SEO even when the review
+  // itself is editorial. Only structured tag markup counts.
+  return patterns.some((re) => re.test(html));
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -874,6 +923,18 @@ export async function scrapeReviewFromUrl(
     const reason = rawResult.reason;
     recordScrapeFailure(url, albumMbid, reason, rawResult.message);
     return { kind: 'fail', reason, message: rawResult.message };
+  }
+
+  // Tag-based exclusion: pages whose own tag / category metadata
+  // includes "spotify" are almost always streaming-link posts,
+  // playlist roundups, or press-release-style announcements rather
+  // than editorial album reviews. Catching this in raw HTML is cheap
+  // and short-circuits both the score-detector pass and the Claude
+  // extraction call. Checks WordPress rel="tag" anchors, generic
+  // post-tag/tag-link class anchors, and OpenGraph article:tag meta.
+  if (rawResult.ok && hasSpotifyTag(html)) {
+    recordScrapeFailure(url, albumMbid, 'not-a-review', 'page tagged "spotify"');
+    return { kind: 'fail', reason: 'not-a-review', message: 'page tagged "spotify"' };
   }
 
   // Run score detectors on raw HTML when available. These need the

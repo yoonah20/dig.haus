@@ -135,16 +135,21 @@ export async function generateKoreanSummary(
       .join('\n');
 
     const promptText =
-      `'${albumTitle}' by ${artist} 리뷰 3-4문장 한국어 요약. ` +
+      `'${albumTitle}' by ${artist} 리뷰 **4-6문장** 한국어 요약. ` +
       `매체명 금지. **리뷰어 본인이 직접 말하는 1인칭 시점**으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 '~다'체 평서문으로 서술. ` +
       `'리뷰어는/평론가는/필자는/그는' 같은 3인칭 주어 금지. ` +
       `'~라고 평가한다/~라고 말한다/~라고 지적한다' 같은 전달체 금지 — 리뷰어가 자기 말을 그대로 하듯 서술. ` +
+      `**간결함보다 충실성 우선**: 각 문장이 앨범의 서로 다른 측면(전체 분위기, 사운드/톤, 대표 트랙·하이라이트, 약점, 컬렉팅 가치 등)을 다루도록. 4문장 미만으로 압축 금지. ` +
       `출력 규칙: 요약 본문만 작성. 앨범 제목이나 아티스트명을 헤더로 넣지 말 것. ` +
       `마크다운(#, **, *, -) 사용하지 말고 순수 문장으로만.\n${reviewsText}`;
     const result = await invokeLlm({
       operation: 'summary_fallback',
       prompt: promptText,
-      maxTokens: 500,
+      // Bumped 500 → 700 to accommodate the wider 4-6 sentence target
+      // above. Korean characters tokenise roughly 1 token per 2 chars,
+      // so 6 detailed sentences can approach ~500 tokens; 700 leaves
+      // headroom so the response doesn't get truncated mid-sentence.
+      maxTokens: 700,
       defaultModel: SONNET,
       albumTitle: `${artist} - ${albumTitle}`,
     });
