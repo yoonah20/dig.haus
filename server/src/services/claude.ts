@@ -299,9 +299,13 @@ async function _generateSimilarDescriptions(
   const list = similarAlbums.map((a, i) => `${i + 1}. "${a.title}" by ${a.artist}`).join('\n');
 
   try {
-    const promptText = `기준 앨범: "${baseAlbum}" by ${baseArtist}
+    const promptText = `"${baseAlbum}" (${baseArtist})와 아래 앨범들이 어떻게 닮았는지 각 1-2문장 한국어로 설명해주세요.
 
-아래 앨범들이 기준 앨범과 어떻게 닮았는지 각 1-2문장 한국어로 설명해주세요. **기준 앨범의 어떤 면(사운드·분위기·장르·구조·보컬·프로덕션 등)이 공통되는지 반드시 언급**할 것. 개별 앨범을 단순 기술하지 말고 항상 "${baseAlbum}"과의 연결점을 중심으로 서술.
+**규칙**:
+- 설명 안에서 앨범 제목 "${baseAlbum}" 또는 아티스트명 "${baseArtist}"를 **직접 호명하며** 비교할 것. 예: "${baseAlbum}의 어두운 드론 질감이 이 앨범에서도…", "${baseArtist}의 보컬 접근법과 유사하게…".
+- '기준 앨범', '이 앨범', '해당 작품', '앞서 소개한 앨범' 같은 지시어 **금지** — 어색하게 읽힘.
+- 사운드·분위기·장르·구조·보컬·프로덕션 중 **구체적으로 어떤 면**이 공통되는지 명시.
+- 개별 앨범을 단순 기술 금지. 항상 "${baseAlbum}"과의 연결점 중심 서술.
 
 ${list}
 
