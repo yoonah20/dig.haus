@@ -5,6 +5,7 @@ import axios from '../../lib/axios';
 import type { SimilarAlbum } from '../../types';
 import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
+import CardOverlayButton from '../CardOverlayButton';
 
 function SpotifyIcon() {
   return (
@@ -289,36 +290,26 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
         </div>
       </div>
       {isAdmin && (
-        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity">
+        <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
           {album.mbid && (
-            <button
+            <CardOverlayButton
               onClick={registerAlbum}
               disabled={registering || registered}
-              className={`w-6 h-6 flex items-center justify-center text-xs bg-black/70 rounded hover:!opacity-100 disabled:cursor-not-allowed ${
-                registered ? 'text-green-400' : 'text-[#e8a020]'
-              }`}
               title={registered ? '등록됨' : '이 앨범 등록'}
-              aria-label={registered ? '등록됨' : '이 앨범 등록'}
             >
               {registering ? '…' : registered ? '✓' : '+'}
-            </button>
+            </CardOverlayButton>
           )}
-          <button
-            onClick={startEdit}
-            className="w-6 h-6 flex items-center justify-center text-xs bg-black/70 text-gray-200 rounded hover:!opacity-100"
-            title="수정"
-            aria-label="수정"
-          >
-            ✏️
-          </button>
-          <button
+          <CardOverlayButton onClick={startEdit} title="수정">
+            ✎
+          </CardOverlayButton>
+          <CardOverlayButton
+            variant="danger"
             onClick={deleteEntry}
-            className="w-6 h-6 flex items-center justify-center text-xs bg-black/70 text-gray-200 rounded hover:!opacity-100 hover:text-red-400"
             title="이 추천 삭제"
-            aria-label="이 추천 삭제"
           >
-            🗑️
-          </button>
+            ×
+          </CardOverlayButton>
         </div>
       )}
     </a>

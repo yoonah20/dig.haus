@@ -290,6 +290,8 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [savingAlbum, setSavingAlbum] = useState(false);
   const [refreshingDiscogs, setRefreshingDiscogs] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
+  const [resettingReviews, setResettingReviews] = useState(false);
+  const [regeneratingSimilar, setRegeneratingSimilar] = useState(false);
   const adminMenuRef = useRef<HTMLDivElement>(null);
   const [titleInput, setTitleInput] = useState('');
   const [artistInput, setArtistInput] = useState('');
@@ -325,6 +327,39 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       setRefreshingDiscogs(false);
     }
   }, [albumId, queryClient, refreshingDiscogs]);
+
+  const handleResetReviews = useCallback(async () => {
+    if (resettingReviews) return;
+    if (!confirm('이 앨범의 모든 리뷰와 요약을 삭제하고 "리뷰 없음" 상태로 되돌릴까요?')) return;
+    setResettingReviews(true);
+    try {
+      await axios.delete(`/api/reviews/album/${albumId}`);
+      await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
+      await queryClient.invalidateQueries({ queryKey: ['album-reviews', albumId] });
+    } catch (err) {
+      console.error('Reset reviews error:', err);
+      alert('리뷰 리셋에 실패했습니다.');
+    } finally {
+      setResettingReviews(false);
+    }
+  }, [albumId, queryClient, resettingReviews]);
+
+  const handleRegenerateSimilar = useCallback(async () => {
+    if (regeneratingSimilar) return;
+    if (!confirm('비슷한 앨범 목록을 초기화하고 다시 찾을까요? (Last.fm + Claude 호출)')) return;
+    setRegeneratingSimilar(true);
+    try {
+      await axios.post(`/api/albums/${albumId}/similar/regenerate`);
+      // Invalidate triggers GET /similar which now re-runs the first-
+      // visit auto-fetch path with similar_albums_lastfm = NULL.
+      await queryClient.invalidateQueries({ queryKey: ['album-similar', albumId] });
+    } catch (err) {
+      console.error('Regenerate similar error:', err);
+      alert('비슷한 앨범 재생성에 실패했습니다.');
+    } finally {
+      setRegeneratingSimilar(false);
+    }
+  }, [albumId, queryClient, regeneratingSimilar]);
 
   // Reset cached cover dimensions when the source URL changes, so the badge
   // doesn't briefly display the previous image's resolution while the new
@@ -605,6 +640,18 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 disabled={refreshingDiscogs}
               >
                 {refreshingDiscogs ? '갱신 중...' : '💰 시세 갱신'}
+              </AdminMenuItem>
+              <AdminMenuItem
+                onClick={() => { setAdminMenuOpen(false); void handleRegenerateSimilar(); }}
+                disabled={regeneratingSimilar}
+              >
+                {regeneratingSimilar ? '재생성 중...' : '🎯 비슷한 앨범 재생성'}
+              </AdminMenuItem>
+              <AdminMenuItem
+                onClick={() => { setAdminMenuOpen(false); void handleResetReviews(); }}
+                disabled={resettingReviews}
+              >
+                {resettingReviews ? '리셋 중...' : '🔄 전체 리뷰 리셋'}
               </AdminMenuItem>
               <div className="my-1 border-t border-white/10" />
               <AdminMenuItem

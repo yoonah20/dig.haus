@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { AiSummaryBadge } from './SimilarAlbums';
 import { useGenerateReviewSummary, useDiscoverReviewUrls } from '../../hooks/useAlbum';
 import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
+import CardOverlayButton from '../CardOverlayButton';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -187,33 +188,25 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
   return (
     <Wrapper {...wrapperProps} className={`relative block bg-[#1a1a1a] rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-[#252525] cursor-pointer'} ${justAdded ? 'ring-2 ring-[#e8a020]/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
       {isAdmin && !editing && (
-        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/card:opacity-60 hover:!opacity-100 transition-opacity">
-          <button
-            onClick={startEditExcerpt}
-            className="text-xs text-gray-400 hover:text-white"
-            title="본문 수정"
-            aria-label="본문 수정"
-          >
-            ✏️
-          </button>
-          <button
+        <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
+          <CardOverlayButton onClick={startEditExcerpt} title="본문 수정">
+            ✎
+          </CardOverlayButton>
+          <CardOverlayButton
             onClick={handleRetranslate}
             disabled={retranslating}
-            className="text-xs text-gray-400 hover:text-white disabled:opacity-40"
             title="재번역"
-            aria-label="재번역"
           >
-            {retranslating ? '...' : '🔄'}
-          </button>
-          <button
+            {retranslating ? '…' : '↻'}
+          </CardOverlayButton>
+          <CardOverlayButton
+            variant="danger"
             onClick={handleDelete}
             disabled={deleting}
-            className="text-xs text-gray-400 hover:text-red-400 disabled:opacity-40"
             title="리뷰 삭제"
-            aria-label="리뷰 삭제"
           >
-            {deleting ? '...' : '🗑️'}
-          </button>
+            ×
+          </CardOverlayButton>
         </div>
       )}
 

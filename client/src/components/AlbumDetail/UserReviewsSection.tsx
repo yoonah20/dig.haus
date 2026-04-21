@@ -611,11 +611,13 @@ export default function UserReviewsSection({
   };
 
   const heading = (
-    <div className="flex items-baseline justify-between mb-4">
-      <h2 className="text-xl md:text-2xl font-serif text-white">
+    <div className="flex items-baseline justify-between mb-6">
+      <h2 className="text-2xl font-bold text-white font-serif flex items-baseline gap-2">
         고객 50자 평
         {reviews.length > 0 && (
-          <span className="ml-2 text-sm text-gray-500 font-sans">{reviews.length}</span>
+          <span className="text-sm text-gray-500 font-sans font-normal">
+            {reviews.length}
+          </span>
         )}
       </h2>
     </div>

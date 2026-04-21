@@ -2345,6 +2345,34 @@ router.delete('/:id/similar/:index', requireAdmin, (req, res) => {
   }
 });
 
+// ─── POST /api/albums/:id/similar/regenerate — admin wipe + refetch ────
+//
+// Clears similar_albums_lastfm so the GET /:id/similar handler's
+// "first visit" path fires again — Last.fm fetch + Claude descriptions
+// + MusicBrainz enrichment. Used when the initial Last.fm pick batch
+// was weak (wrong era / wrong genre) and admin wants a fresh
+// round-trip instead of curating one entry at a time. Client is
+// expected to invalidate the ['album-similar', id] query immediately
+// after this returns, which triggers the GET endpoint to repopulate.
+
+router.post('/:id/similar/regenerate', requireAdmin, (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const cached = getCachedAlbum(mbid);
+  if (!cached) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  try {
+    updateAlbumFields(mbid, { similar_albums_lastfm: null });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Regenerate similar albums error:', error);
+    res.status(500).json({ error: 'Failed to regenerate similar albums' });
+  }
+});
+
 // ─── POST /api/albums/:id/similar — admin manually add a similar album ──────
 //
 // Accepts { artist, title } and enriches with cover art, streaming links,

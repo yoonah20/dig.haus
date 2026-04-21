@@ -213,6 +213,7 @@ export const EXCLUDED_URL_DOMAINS = [
   'alreadyheard.com',
   'metalwani.com',
   'metalcrypt.com',
+  'metalkingdom.net',
   // iHeart podcast "review" pages are audio/podcast episode scripts,
   // not editorial text reviews — the scraper gets episode-description
   // boilerplate with no prose to extract. iheart.com also hosts radio

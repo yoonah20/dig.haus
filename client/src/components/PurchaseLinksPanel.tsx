@@ -11,6 +11,7 @@ import {
 } from '../hooks/usePurchaseLinks';
 import type { PurchaseLink, FormatPrice, PurchaseLinkStatus } from '../types';
 import { formatRelativeKo } from '../utils/relativeTime';
+import CardOverlayButton from './CardOverlayButton';
 
 const CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'KRW'] as const;
 type Currency = (typeof CURRENCIES)[number];
@@ -79,37 +80,6 @@ function Subline({ parts }: { parts: Array<string | null | undefined> }) {
         </span>
       ))}
     </div>
-  );
-}
-
-// Small overlay button for the three card actions (report/edit/delete).
-// Styles kept uniform so the overhang reads as one group, not three
-// different control families.
-function OverlayButton({
-  onClick,
-  title,
-  children,
-  variant = 'neutral',
-}: {
-  onClick: (e: React.MouseEvent) => void;
-  title: string;
-  children: React.ReactNode;
-  variant?: 'neutral' | 'danger';
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-label={title}
-      className={`w-6 h-6 rounded-full border flex items-center justify-center text-[13px] leading-none shadow-[0_2px_4px_rgba(0,0,0,0.4)] cursor-pointer transition-colors ${
-        variant === 'danger'
-          ? 'bg-[#1a1a1a] border-white/10 text-red-500 hover:text-red-300 hover:border-red-500/40'
-          : 'bg-[#1a1a1a] border-white/10 text-gray-300 hover:text-[#e8a020] hover:border-[#e8a020]/50'
-      }`}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -289,7 +259,7 @@ function LinkButton({
       {hasAnyOverlay && (
         <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
           {canReport && (
-            <OverlayButton
+            <CardOverlayButton
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -298,10 +268,10 @@ function LinkButton({
               title="신고"
             >
               ⚑
-            </OverlayButton>
+            </CardOverlayButton>
           )}
           {canEdit && (
-            <OverlayButton
+            <CardOverlayButton
               onClick={(e) => {
                 e.preventDefault();
                 onEdit();
@@ -309,10 +279,10 @@ function LinkButton({
               title="수정"
             >
               ✎
-            </OverlayButton>
+            </CardOverlayButton>
           )}
           {canDelete && (
-            <OverlayButton
+            <CardOverlayButton
               variant="danger"
               onClick={(e) => {
                 e.preventDefault();
@@ -321,7 +291,7 @@ function LinkButton({
               title="삭제"
             >
               ×
-            </OverlayButton>
+            </CardOverlayButton>
           )}
         </div>
       )}
