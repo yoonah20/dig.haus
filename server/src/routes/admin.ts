@@ -944,4 +944,78 @@ router.get('/curation-runs', (_req, res) => {
   }
 });
 
+// ─── GET /api/admin/llm-comparisons ───────────────────────────────────
+// Feed for the /admin/compare page. Returns recent shadow-comparison
+// rows newest first. Optional ?operation= filter narrows to one op.
+// limit/offset paginate. Response is the raw rows — cost math and
+// per-row formatting live on the client so we can iterate on the
+// display without touching this endpoint.
+router.get('/llm-comparisons', (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+    const offset = Math.max(0, parseInt(String(req.query.offset || '0'), 10) || 0);
+    const operation = typeof req.query.operation === 'string' && req.query.operation.trim()
+      ? req.query.operation.trim()
+      : null;
+
+    const whereClauses: string[] = [];
+    const params: unknown[] = [];
+    if (operation) {
+      whereClauses.push('operation = ?');
+      params.push(operation);
+    }
+    const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    const rows = queryAll(
+      `SELECT id, operation, album_mbid, album_title, prompt_preview,
+              primary_model, primary_output,
+              primary_input_tokens, primary_output_tokens, primary_latency_ms,
+              shadow_model, shadow_output,
+              shadow_input_tokens, shadow_output_tokens, shadow_latency_ms,
+              shadow_error, created_at
+         FROM llm_comparison_log
+         ${where}
+         ORDER BY created_at DESC, id DESC
+         LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    const countRow = queryAll(
+      `SELECT COUNT(*) AS n FROM llm_comparison_log ${where}`,
+      params
+    ) as Array<{ n: number }>;
+    const total = countRow[0]?.n ?? 0;
+
+    const opsRows = queryAll(
+      `SELECT operation, COUNT(*) AS n
+         FROM llm_comparison_log
+         GROUP BY operation
+         ORDER BY n DESC`
+    ) as Array<{ operation: string; n: number }>;
+
+    res.json({
+      rows,
+      total,
+      operations: opsRows,
+      enabled: process.env.LLM_COMPARE === '1',
+    });
+  } catch (err) {
+    console.error('[llm-comparisons] list failed:', err);
+    res.status(500).json({ error: 'failed to list llm comparisons' });
+  }
+});
+
+// ─── DELETE /api/admin/llm-comparisons ────────────────────────────────
+// Wipe the log. Used from the /admin/compare page when admin wants to
+// start a clean test run without stale rows drowning out new results.
+router.delete('/llm-comparisons', (_req, res) => {
+  try {
+    execute('DELETE FROM llm_comparison_log');
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[llm-comparisons] delete failed:', err);
+    res.status(500).json({ error: 'failed to clear llm comparisons' });
+  }
+});
+
 export default router;

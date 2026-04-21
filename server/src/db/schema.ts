@@ -553,6 +553,39 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_claude_usage_created_at ON claude_usage_log(created_at DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_claude_usage_operation ON claude_usage_log(operation, created_at DESC)');
 
+  // Shadow-comparison log. Populated only when LLM_COMPARE=1 is set in
+  // the environment — each row pairs the primary LLM response (Haiku
+  // or Sonnet) with a DeepSeek shadow response for the SAME prompt, so
+  // admin can eyeball output quality and cost side-by-side before
+  // deciding to switch providers. Fire-and-forget from the hot path
+  // (the primary response is returned immediately; shadow runs in the
+  // background and inserts when it resolves). prompt_preview is capped
+  // at 500 chars — enough to identify the call, not enough to balloon
+  // the table with full prompts.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS llm_comparison_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      operation TEXT NOT NULL,
+      album_mbid TEXT,
+      album_title TEXT,
+      prompt_preview TEXT,
+      primary_model TEXT NOT NULL,
+      primary_output TEXT,
+      primary_input_tokens INTEGER DEFAULT 0,
+      primary_output_tokens INTEGER DEFAULT 0,
+      primary_latency_ms INTEGER DEFAULT 0,
+      shadow_model TEXT NOT NULL,
+      shadow_output TEXT,
+      shadow_input_tokens INTEGER DEFAULT 0,
+      shadow_output_tokens INTEGER DEFAULT 0,
+      shadow_latency_ms INTEGER DEFAULT 0,
+      shadow_error TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_llm_comparison_created_at ON llm_comparison_log(created_at DESC)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_llm_comparison_operation ON llm_comparison_log(operation, created_at DESC)');
+
   // Auto-migrate
   migrateTable(db, 'albums', [
     'release_date TEXT',

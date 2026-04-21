@@ -15,6 +15,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const MyDig = lazy(() => import('./pages/MyDig'));
 const MyDigPreview = lazy(() => import('./pages/MyDigPreview'));
 const ApiConsole = lazy(() => import('./pages/ApiConsole'));
+const LlmCompare = lazy(() => import('./pages/LlmCompare'));
 
 function RouteFallback() {
   return (
@@ -80,6 +81,7 @@ export default function App() {
                   <Route path="/my-preview" element={<MyDigPreview />} />
                   <Route path="/my/:username" element={<MyDig />} />
                   <Route path="/admin/api-console" element={<ApiConsole />} />
+                  <Route path="/admin/compare" element={<LlmCompare />} />
                 </Routes>
               </Suspense>
               <SiteFooter />

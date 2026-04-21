@@ -317,6 +317,15 @@ function ClaudeUsageCard({
           >
             🖥 콘솔
           </Link>
+          <Link
+            to="/admin/compare"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-gray-500 hover:text-[#e8a020] underline-offset-2 hover:underline cursor-pointer"
+            title="LLM 섀도우 비교: Haiku/Sonnet vs DeepSeek (LLM_COMPARE=1 필요)"
+          >
+            🔀 비교
+          </Link>
           <button
             type="button"
             onClick={handleReset}
