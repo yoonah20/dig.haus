@@ -633,6 +633,24 @@ export default function ReviewSection({
     }
   };
 
+  const handleDeleteSummary = async () => {
+    if (!slug) return;
+    if (!confirm('요약을 삭제할까요? 리뷰는 그대로 남아 있으며, 재생성 버튼으로 다시 만들 수 있습니다.')) return;
+    setSavingSummary(true);
+    try {
+      await axios.patch(`/api/albums/${slug}/korean-summary`, {
+        korean_summary: null,
+      });
+      await queryClient.invalidateQueries({ queryKey: ['album', slug] });
+      await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+    } catch (err) {
+      console.error('Delete korean summary error:', err);
+      alert('요약 삭제에 실패했습니다.');
+    } finally {
+      setSavingSummary(false);
+    }
+  };
+
   const sortedReviews = [...reviews].sort((a, b) => {
     if (a.score === null && b.score === null) return 0;
     if (a.score === null) return 1;
@@ -706,7 +724,29 @@ export default function ReviewSection({
         )}
 
         {koreanSummary && (
-            <div className="bg-[#1a1a1a] rounded-xl p-5 border-l-4 border-[#e8a020]">
+            <div className="relative group/summary bg-[#1a1a1a] rounded-xl p-5 border-l-4 border-[#e8a020]">
+              {isAdmin && !editingSummary && (
+                <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/summary:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
+                  <CardOverlayButton onClick={startEditSummary} title="요약 수정">
+                    ✎
+                  </CardOverlayButton>
+                  <CardOverlayButton
+                    onClick={handleRegenerateSummary}
+                    disabled={regenSummary.isPending}
+                    title="요약 재생성 (리뷰 2개 이상 필요, ~$0.01)"
+                  >
+                    {regenSummary.isPending ? '…' : '↻'}
+                  </CardOverlayButton>
+                  <CardOverlayButton
+                    variant="danger"
+                    onClick={handleDeleteSummary}
+                    disabled={savingSummary}
+                    title="요약 삭제"
+                  >
+                    ×
+                  </CardOverlayButton>
+                </div>
+              )}
               {editingSummary ? (
                 <div className="space-y-2">
                   <textarea
@@ -739,27 +779,6 @@ export default function ReviewSection({
               ) : (
                 <p className="text-gray-300 leading-relaxed">
                   {koreanSummary || <span className="italic text-gray-600">요약 없음</span>}
-                  {isAdmin && (
-                    <>
-                      <button
-                        onClick={startEditSummary}
-                        className="ml-2 text-xs text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer align-middle"
-                        title="요약 수정"
-                        aria-label="요약 수정"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={handleRegenerateSummary}
-                        disabled={regenSummary.isPending}
-                        className="ml-1 text-xs text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer align-middle disabled:opacity-50 disabled:cursor-wait"
-                        title="요약 재생성 (캐시된 리뷰로 다시 Sonnet 호출, ~$0.01)"
-                        aria-label="요약 재생성"
-                      >
-                        {regenSummary.isPending ? '...' : '🔄'}
-                      </button>
-                    </>
-                  )}
                 </p>
               )}
             </div>

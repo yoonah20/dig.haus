@@ -8,6 +8,7 @@ import {
 } from '../../hooks/useUserReviews';
 import { resolveApiUrl } from '../../utils/apiUrl';
 import UserHoverCard from '../UserHoverCard';
+import CardOverlayButton from '../CardOverlayButton';
 
 const MAX_CHARS = 50;
 const MIN_CHARS = 5;
@@ -120,6 +121,18 @@ function SpeechBubble({
           pull shorter cards up to match. When the row is all-display
           (no editor), short reviews stay compact instead of carrying
           the old fixed 180px of dead whitespace. */}
+      {(canOwnerEdit || canAdminDelete) && (
+        <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
+          {canOwnerEdit && (
+            <CardOverlayButton onClick={onEdit} title="수정">
+              ✎
+            </CardOverlayButton>
+          )}
+          <CardOverlayButton variant="danger" onClick={onDelete} title="삭제">
+            ×
+          </CardOverlayButton>
+        </div>
+      )}
       <div className="bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 flex flex-col min-w-0 h-full">
         {/* Body + emoji stamps. The rating/feeling emojis ride at the
             end of the text (separated by a single space) rather than
@@ -167,28 +180,6 @@ function SpeechBubble({
           ) : (
             <div className="flex items-center gap-3 flex-1 min-w-0">
               {speakerInner}
-            </div>
-          )}
-          {(canOwnerEdit || canAdminDelete) && (
-            <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-              {canOwnerEdit && (
-                <button
-                  onClick={onEdit}
-                  title="수정"
-                  aria-label="수정"
-                  className="text-xs text-gray-500 hover:text-[#e8a020] px-1 cursor-pointer"
-                >
-                  ✏️
-                </button>
-              )}
-              <button
-                onClick={onDelete}
-                title="삭제"
-                aria-label="삭제"
-                className="text-xs text-gray-500 hover:text-red-400 px-1 cursor-pointer"
-              >
-                🗑️
-              </button>
             </div>
           )}
         </div>
