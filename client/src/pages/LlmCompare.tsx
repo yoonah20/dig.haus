@@ -125,8 +125,14 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
       return data;
     },
     enabled: !!user?.isAdmin,
-    refetchInterval: 10_000,
+    // Standalone /admin/compare: pinned-tab live view, polls every
+    // 10s. Embedded inside /admin/api: relies on staleTime + re-entry
+    // instead — shadow-comparison rows only land when primary Claude
+    // calls happen, so a 10s poll while admin is just glancing at
+    // the tab was wasteful.
+    refetchInterval: embedded ? false : 10_000,
     refetchIntervalInBackground: false,
+    staleTime: 30_000,
   });
 
   const clearMutation = useMutation({

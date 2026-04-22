@@ -60,8 +60,14 @@ export default function ApiConsole({ embedded = false }: { embedded?: boolean } 
       return data;
     },
     enabled: !!user?.isAdmin,
-    refetchInterval: 15_000, // 15s poll — frequent enough to feel live, cheap enough to leave pinned
-    refetchIntervalInBackground: true,
+    // Standalone /admin/api-console: live pinned-tab view, polls every
+    // 15s even in the background. Embedded inside /admin/api: the tab
+    // is for occasional checking, not continuous monitoring, so drop
+    // the interval and rely on staleTime — admin can refetch by
+    // re-entering the tab.
+    refetchInterval: embedded ? false : 15_000,
+    refetchIntervalInBackground: embedded ? false : true,
+    staleTime: 30_000,
   });
 
   if (loading || !user?.isAdmin) return null;

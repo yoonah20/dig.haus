@@ -664,17 +664,24 @@ export default function Admin() {
     if (user?.isAdmin) markPendingSeen();
   }, [user?.isAdmin]);
 
+  // Dashboard-only data. Gated on activeTab so switching to Curation
+  // or API tabs doesn't fire these unused fetches — the payloads are
+  // large (stats includes recent-album samples + incomplete-album
+  // samples) and the renderers are already conditional on
+  // activeTab === 'dashboard', so enabling the fetch on other tabs
+  // was pure waste.
+  const dashboardActive = activeTab === 'dashboard';
   const { data, isLoading, isError } = useQuery<AdminStats>({
     queryKey: ['admin-stats'],
     queryFn: async () => {
       const { data } = await axios.get('/api/admin/stats');
       return data;
     },
-    enabled: !!user?.isAdmin,
+    enabled: !!user?.isAdmin && dashboardActive,
     staleTime: 30_000,
   });
 
-  const reportsQuery = useReportedPurchaseLinks(!!user?.isAdmin);
+  const reportsQuery = useReportedPurchaseLinks(!!user?.isAdmin && dashboardActive);
   const dismissReport = useDismissPurchaseLinkReport();
   const adminDeleteLink = useAdminDeletePurchaseLink();
 
