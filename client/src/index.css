@@ -410,3 +410,34 @@ select:focus-visible {
   box-shadow: 0 0 0 3px rgba(232, 160, 32, 0.35);
 }
 
+/* Floating dust motes for the /my/:username scene.
+   Each particle drifts diagonally upward-and-across very slowly,
+   fading in/out so it doesn't "teleport" when the animation loops.
+   Offsets (--dx, --dy) and duration come from inline style props
+   on each particle so motion never feels synchronised across the
+   swarm. Uses translate3d to opt into compositor-layer rendering
+   and avoid layout thrash. */
+@keyframes dustDrift {
+  0% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: var(--dust-alpha, 0.5);
+  }
+  50% {
+    transform: translate3d(
+      calc(var(--dust-dx, 4vw) * 0.5),
+      calc(var(--dust-dy, -10vh) * 0.5),
+      0
+    );
+  }
+  88% {
+    opacity: var(--dust-alpha, 0.5);
+  }
+  100% {
+    transform: translate3d(var(--dust-dx, 4vw), var(--dust-dy, -10vh), 0);
+    opacity: 0;
+  }
+}
+

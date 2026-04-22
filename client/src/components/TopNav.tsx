@@ -117,16 +117,16 @@ export default function TopNav() {
                 (Home.tsx's SortTrigger). Keeping the nav cluster
                 down to "find / my store / login" — everything about
                 how the feed is arranged belongs to the feed itself. */}
-            {/* mydig entry. A record crate — box outline with four
-                vertical record spines inside. Crate digging is the
-                literal referent of 'dig' in record-collector speak,
-                and this glyph reads unambiguously as a box of
-                records even at 18px. Earlier iterations went
-                through shopfront (too retail), vinyl disc (too
-                overlapping with the wall's motif), and a shovel
-                (didn't read as shovel at small size). First click
-                with no username opens the UsernameModal; later
-                clicks go to /my/:username. Hidden for guests. */}
+            {/* mydig entry. A pickaxe — curved horizontal head +
+                diagonal handle. Pickaxe reads unambiguously as
+                "digging" at 18px (better than the shovel glyph
+                that got mistaken for generic spade shapes), and it
+                keeps the crate-digger metaphor intact. Earlier
+                iterations ran through shopfront, vinyl disc,
+                shovel, and crate; pickaxe wins on legibility per
+                this round's feedback. First click with no username
+                opens the UsernameModal; later clicks go to
+                /my/:username. Hidden for guests. */}
             {user && (
               <button
                 onClick={() => {
@@ -145,18 +145,15 @@ export default function TopNav() {
                   className="w-[18px] h-[18px]"
                   fill="none"
                   viewBox="0 0 24 24"
-                  strokeWidth={1.6}
+                  strokeWidth={1.7}
                   stroke="currentColor"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  {/* Crate outline */}
-                  <rect x="3.5" y="6" width="17" height="13" rx="0.5" />
-                  {/* Record spines inside — four thin verticals */}
-                  <path d="M7 9 V17" />
-                  <path d="M11 9 V17" />
-                  <path d="M15 9 V17" />
-                  <path d="M19 9 V17" />
+                  {/* Pickaxe head — curved horizontal bar */}
+                  <path d="M3 6 Q12 2 21 6" />
+                  {/* Handle — diagonal from head center to lower-left */}
+                  <path d="M12 4.2 L6 20" />
                 </svg>
               </button>
             )}

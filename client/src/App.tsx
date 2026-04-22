@@ -26,6 +26,66 @@ function RouteFallback() {
   );
 }
 
+// Floating dust motes — decorative particles that drift over the
+// mydig painted-wall scene. Each spec is a hand-seeded layout
+// point so positions stay deterministic across renders (no jarring
+// re-randomisation). The animation itself (drift vector + alpha
+// envelope) lives in index.css `@keyframes dustDrift`; here we
+// just feed per-particle offsets via CSS custom properties.
+const DUST_MOTES: Array<{
+  left: string;
+  top: string;
+  size: number;
+  duration: number; // seconds per drift cycle
+  delay: number;
+  dx: string;
+  dy: string;
+  alpha: number;
+}> = [
+  { left: '12%', top: '82%', size: 2, duration: 32, delay: 0, dx: '6vw', dy: '-70vh', alpha: 0.55 },
+  { left: '28%', top: '68%', size: 1.5, duration: 40, delay: 4, dx: '-3vw', dy: '-55vh', alpha: 0.4 },
+  { left: '42%', top: '88%', size: 2.5, duration: 28, delay: 8, dx: '5vw', dy: '-80vh', alpha: 0.6 },
+  { left: '58%', top: '74%', size: 1.5, duration: 36, delay: 2, dx: '-4vw', dy: '-60vh', alpha: 0.45 },
+  { left: '72%', top: '90%', size: 2, duration: 30, delay: 10, dx: '3vw', dy: '-75vh', alpha: 0.5 },
+  { left: '84%', top: '62%', size: 1.2, duration: 44, delay: 6, dx: '-5vw', dy: '-50vh', alpha: 0.35 },
+  { left: '18%', top: '54%', size: 1.8, duration: 38, delay: 12, dx: '7vw', dy: '-40vh', alpha: 0.4 },
+  { left: '66%', top: '46%', size: 1.5, duration: 42, delay: 14, dx: '-6vw', dy: '-35vh', alpha: 0.38 },
+  { left: '36%', top: '40%', size: 1.3, duration: 46, delay: 3, dx: '4vw', dy: '-30vh', alpha: 0.3 },
+  { left: '92%', top: '78%', size: 2, duration: 34, delay: 18, dx: '-8vw', dy: '-65vh', alpha: 0.5 },
+];
+
+function DustMotes() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 overflow-hidden"
+      style={{ zIndex: -1 }}
+    >
+      {DUST_MOTES.map((m, i) => (
+        <div
+          key={i}
+          className="absolute rounded-full"
+          style={{
+            left: m.left,
+            top: m.top,
+            width: m.size,
+            height: m.size,
+            background: 'radial-gradient(circle, rgba(255, 224, 170, 0.9) 0%, rgba(255, 210, 150, 0.5) 45%, transparent 75%)',
+            opacity: 0,
+            animation: `dustDrift ${m.duration}s ${m.delay}s infinite ease-in-out`,
+            // Custom properties consumed by the keyframe — per-
+            // particle drift direction and alpha so motion feels
+            // varied across the swarm.
+            ['--dust-dx' as any]: m.dx,
+            ['--dust-dy' as any]: m.dy,
+            ['--dust-alpha' as any]: m.alpha,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 // Noise params we never want lingering in the address bar:
 //   - auth=ok / auth=failed / auth=not_configured — OAuth callback
 //     lands here; the redirect happens, AuthContext fetches /auth/me,
@@ -106,35 +166,44 @@ export default function App() {
                       filter: 'brightness(0.45) saturate(0.85)',
                     }}
                   />
-                  {/* Warm lamp pool — a soft radial from upper-left
+                  {/* Warm lamp pool — soft radial from upper-right
                       biased over the darkened backdrop, blended via
                       `screen` so it only lightens (never darkens)
-                      whatever's beneath. Gives the scene a "pendant
-                      lamp is on" focal point; previously the page
-                      read as uniformly dim ("밋밋"). Kept at low
-                      alpha so it doesn't wash out the wall texture. */}
+                      whatever's beneath. Direction was flipped from
+                      upper-left so the lamp sits on the opposite
+                      side of the baked wall-glow, creating a small
+                      cross-light instead of piling on the same
+                      corner. */}
                   <div
                     aria-hidden
                     className="absolute inset-0 pointer-events-none"
                     style={{
                       zIndex: -1,
                       background:
-                        'radial-gradient(ellipse 70% 60% at 25% 15%, rgba(255, 200, 130, 0.28) 0%, rgba(255, 180, 110, 0.10) 40%, transparent 70%)',
+                        'radial-gradient(ellipse 70% 60% at 75% 15%, rgba(255, 200, 130, 0.28) 0%, rgba(255, 180, 110, 0.10) 40%, transparent 70%)',
                       mixBlendMode: 'screen',
                     }}
                   />
-                  {/* Bottom-right ambient lift so the opposite corner
-                      from the lamp doesn't sink into pure black. */}
+                  {/* Bottom-left ambient lift — counter-balance to
+                      the upper-right lamp, keeps the opposite corner
+                      from sinking into pure black. */}
                   <div
                     aria-hidden
                     className="absolute inset-0 pointer-events-none"
                     style={{
                       zIndex: -1,
                       background:
-                        'radial-gradient(ellipse 50% 40% at 80% 85%, rgba(232, 160, 80, 0.14) 0%, transparent 65%)',
+                        'radial-gradient(ellipse 50% 40% at 20% 85%, rgba(232, 160, 80, 0.14) 0%, transparent 65%)',
                       mixBlendMode: 'screen',
                     }}
                   />
+                  {/* Floating dust motes — slow-drifting warm
+                      specks that add life to the scene. Each
+                      particle has its own position, size, and
+                      animation offset so motion never feels
+                      synchronised. Pointer-events none keeps
+                      clicks flowing through. */}
+                  <DustMotes />
                 </>
               )}
               <TopNav />
