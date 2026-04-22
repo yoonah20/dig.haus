@@ -34,15 +34,20 @@ export default function SnapshotList({
   const trackRef = useRef<HTMLDivElement>(null);
   const [canLeft, setCanLeft] = useState(false);
   const [canRight, setCanRight] = useState(false);
+  const [isOverflowing, setIsOverflowing] = useState(false);
 
   // Recompute arrow enablement on mount, scroll, and resize. The
   // "can scroll further" flags drive opacity on the arrow buttons
   // so hitting an edge feels closed-off rather than silently dead.
+  // isOverflowing is the truth source for whether to mount the
+  // arrows at all — count-based thresholds break when card width
+  // or viewport changes.
   useEffect(() => {
     const el = trackRef.current;
     if (!el) return;
     const measure = () => {
       const max = el.scrollWidth - el.clientWidth;
+      setIsOverflowing(max > 4);
       setCanLeft(el.scrollLeft > 4);
       setCanRight(el.scrollLeft < max - 4);
     };
@@ -66,7 +71,7 @@ export default function SnapshotList({
     el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' });
   };
 
-  const showArrows = snapshots.length > 4;
+  const showArrows = isOverflowing;
 
   return (
     <section className="relative">
@@ -174,7 +179,12 @@ function SnapshotCard({
   return (
     <Link
       to={`/my/${encodeURIComponent(username)}/snap/${encodeURIComponent(snapshot.slug)}`}
-      className="group block shrink-0 w-[180px] p-3 rounded-lg bg-[#14120d] border border-white/5 hover:border-[#e8a020]/40 transition-colors"
+      // w-[280px]: roughly 3.5 cards visible in the max-w-1120
+      // content column (previously 180 showed ~5.5). bg at /40 so
+      // the painted wall reads through the card the same way the
+      // header action pills do now — quieter chrome against the
+      // scene.
+      className="group block shrink-0 w-[280px] p-3 rounded-lg bg-[#14120d]/40 border border-white/5 hover:border-[#e8a020]/40 transition-colors"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
