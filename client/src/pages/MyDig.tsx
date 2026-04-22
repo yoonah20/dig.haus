@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMyDig, type MyDigWallItem, type MyDigShelfSlot, type MyDigCrate } from '../hooks/useMyDig';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
-import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 import { resolveApiUrl } from '../utils/apiUrl';
 
 // Phase 3a skeleton — the four-layer placeholder scaffold described
@@ -78,32 +77,34 @@ export default function MyDig() {
   const shelfByPosition = new Map<number, MyDigShelfSlot>();
   for (const s of data.shelf) shelfByPosition.set(s.position, s);
 
+  const filledCount = wallByPosition.size;
+
   return (
-    <div className="flex-1" style={{ background: '#0a0503' }}>
-      <main className="max-w-[1120px] mx-auto px-4 py-8 space-y-6">
-        {/* Hybrid profile header: avatar block + display name block.
-            Sits OUTSIDE the shop scene below — lets visitors see who
-            they're visiting before the scene's late-night immersion
-            takes over. Kept to a single quiet row so the header
-            doesn't fight the lamp-pool drama. */}
-        <ProfileHeader
+    <div
+      className="flex-1"
+      style={{
+        background: '#0a0705',
+        // Ultra-subtle radial warmth across the whole page — not a
+        // simulated light pool, just a tone shift so the background
+        // isn't a flat expanse. Strength low enough that it reads as
+        // "warm paper" ambient, not "something is lit over there."
+        backgroundImage:
+          'radial-gradient(ellipse 90% 60% at 50% 0%, rgba(70, 44, 20, 0.35) 0%, transparent 60%)',
+      }}
+    >
+      <main className="max-w-[980px] mx-auto px-5 sm:px-8 py-10 sm:py-14">
+        <MastHead
           username={data.user.username}
           displayName={data.user.displayName}
           avatarUrl={data.user.avatarUrl}
           isOwner={data.user.isOwner}
+          filledCount={filledCount}
           onEdit={() => setEditingWall(true)}
         />
 
-        {/* Tier 1 — Vinyl Wall inside a late-night shop scene. Dark
-            warm wall, pendant lamp pool upper-center-left, floor +
-            baseboard below. Records glow where the pool hits;
-            edges fade into warm shadow. */}
-        <ShopScene>
-          <VinylWallGrid
-            wallByPosition={wallByPosition}
-            isOwner={data.user.isOwner}
-          />
-        </ShopScene>
+        <SectionDivider />
+
+        <WallGrid wallByPosition={wallByPosition} />
 
         {editingWall && username && (
           <VinylWallEditor
@@ -113,81 +114,190 @@ export default function MyDig() {
           />
         )}
 
-        {/* Shelf + Crate tiers temporarily hidden while we focus on
-            getting Vinyl Wall right. Server routes + schema are
-            untouched; the tier renders just don't mount. Restore
-            when the design + interaction for those tiers is worth
-            showing. */}
+        {/* Shelf + Crate tiers temporarily hidden while Vinyl Wall
+            finds its final look. Data flow + schema intact; components
+            below remain in the file for 3c. */}
       </main>
     </div>
   );
 }
 
-// ─── Profile header ────────────────────────────────────────────
-// Avatar + name block that sits above the shop scene. Avatar is a
-// circle portrait; right column stacks the @username breadcrumb,
-// the italic-serif display name, and a warm amber "open" indicator
-// that matches the dig.haus accent colour elsewhere.
-function ProfileHeader({
+// ─── Vinyl avatar ──────────────────────────────────────────────
+// Circular black vinyl disk with a colored centre label. If the
+// user has a real avatar photo, the photo becomes the label; if
+// not, their initial sits on an amber label. Single small design
+// call-out that ties the identity chrome to the page's subject
+// matter (records) without leaning on a literal record-shop scene
+// simulation. The concentric groove lines are drawn with a
+// repeating radial gradient so they stay crisp at any size.
+function VinylAvatar({
+  avatarUrl,
+  initial,
+  size = 128,
+}: {
+  avatarUrl: string | null;
+  initial: string;
+  size?: number;
+}) {
+  const resolved = resolveApiUrl(avatarUrl);
+  const labelSize = size * 0.42;
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width: size,
+        height: size,
+        borderRadius: '50%',
+        // Deep black vinyl with a whisper of warm reflection on the
+        // upper-left quadrant so it doesn't read as a flat disc.
+        background: `
+          radial-gradient(circle at 30% 30%, #2a1a10 0%, #120805 30%, #050301 70%),
+          #0a0503
+        `,
+        boxShadow:
+          '0 6px 18px rgba(0,0,0,0.55), 0 0 0 1px rgba(232, 160, 32, 0.1) inset',
+        flexShrink: 0,
+      }}
+    >
+      {/* Concentric grooves — repeating radial gradient with a
+          very faint warm stroke so they imply etched surface
+          without screaming "there are lines on me." */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: '6%',
+          borderRadius: '50%',
+          background:
+            'repeating-radial-gradient(circle at 50% 50%, rgba(255, 218, 175, 0.035) 0px, rgba(255, 218, 175, 0.035) 0.5px, transparent 0.5px, transparent 2.5px)',
+        }}
+      />
+      {/* Center label — avatar photo if we have one, initial if
+          not. Amber ring around the label edge echoes dig.haus's
+          accent without making the whole page amber. */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: labelSize,
+          height: labelSize,
+          borderRadius: '50%',
+          overflow: 'hidden',
+          background: resolved ? '#1a1108' : '#e8a020',
+          boxShadow:
+            '0 0 0 1px rgba(0,0,0,0.5), inset 0 0 0 2px rgba(232, 160, 32, 0.9)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {resolved ? (
+          <img
+            src={resolved}
+            alt=""
+            aria-hidden
+            referrerPolicy="no-referrer"
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        ) : (
+          <span
+            style={{
+              color: '#0a0503',
+              fontFamily: '"Fraunces", Georgia, serif',
+              fontSize: labelSize * 0.5,
+              fontWeight: 600,
+              lineHeight: 1,
+            }}
+          >
+            {initial}
+          </span>
+        )}
+      </div>
+      {/* Spindle hole */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: size * 0.05,
+          height: size * 0.05,
+          borderRadius: '50%',
+          background: '#050301',
+          boxShadow: '0 0 0 1px rgba(255, 218, 175, 0.15)',
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── Masthead ──────────────────────────────────────────────────
+// Editorial-grade header: vinyl avatar left, stacked display name
+// block right. @username sits as a tiny eyebrow above the big
+// display name so the page reads as a magazine spread rather than
+// a social media card. The meta row carries the status indicator
+// + record count + (owner-only) edit trigger.
+function MastHead({
   username,
   displayName,
   avatarUrl,
   isOwner,
+  filledCount,
   onEdit,
 }: {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
   isOwner: boolean;
+  filledCount: number;
   onEdit: () => void;
 }) {
-  const initial = (displayName || username).charAt(0).toUpperCase();
-  const resolvedAvatar = resolveApiUrl(avatarUrl);
   const name = displayName || username;
+  const initial = name.charAt(0).toUpperCase();
   const showHandle =
     !!displayName && displayName.toLowerCase() !== username.toLowerCase();
   return (
-    <header className="flex items-center gap-4 pt-2 pb-4">
-      <div className="shrink-0">
-        {resolvedAvatar ? (
-          <img
-            src={resolvedAvatar}
-            alt=""
-            aria-hidden
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-white/10"
-            referrerPolicy="no-referrer"
-          />
-        ) : (
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
-            <span className="text-2xl sm:text-3xl text-[#e8a020]/70 font-serif italic">
-              {initial}
-            </span>
-          </div>
-        )}
-      </div>
+    <header className="flex items-center gap-6 sm:gap-8">
+      <VinylAvatar avatarUrl={avatarUrl} initial={initial} size={112} />
       <div className="flex-1 min-w-0">
         {showHandle && (
-          <div className="text-[11px] text-gray-500 tracking-wider">
+          <div
+            className="text-[11px] uppercase tracking-[0.28em] text-[#a88a60] mb-1.5"
+          >
             @{username}
           </div>
         )}
         <h1
-          className="text-2xl sm:text-4xl font-serif italic text-[#f5e8c8] leading-tight truncate"
+          className="font-serif text-[#f5e8c8] leading-[1.05] truncate"
+          style={{
+            fontSize: 'clamp(2rem, 6vw, 3.4rem)',
+            fontWeight: 500,
+            letterSpacing: '-0.01em',
+          }}
           title={name}
         >
           {name}
         </h1>
-        <div className="flex items-center gap-3 mt-1.5">
-          <span className="text-[11px] uppercase tracking-[0.2em] text-[#e8a020]">
-            · open ·
+        <div className="flex items-center gap-3 mt-3 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-[#e8a020]">
+            <span
+              aria-hidden
+              className="w-1.5 h-1.5 rounded-full bg-[#e8a020]"
+              style={{ boxShadow: '0 0 6px rgba(232, 160, 32, 0.6)' }}
+            />
+            open
+          </span>
+          <span className="text-[11px] text-[#7a6650] tabular-nums">
+            · {filledCount} / 15 on the wall
           </span>
           {isOwner && (
             <button
               type="button"
               onClick={onEdit}
-              className="text-[11px] text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+              className="ml-auto text-[11px] text-[#a88a60] hover:text-[#e8a020] border border-[#a88a60]/30 hover:border-[#e8a020]/60 rounded-full px-3 py-1 cursor-pointer transition-colors"
             >
-              ✏️ 편집
+              벽 편집
             </button>
           )}
         </div>
@@ -196,329 +306,121 @@ function ProfileHeader({
   );
 }
 
-// ─── Shop scene ────────────────────────────────────────────────
-// Immersive dark-mode container that wraps whatever tier is
-// rendered as "the view" — right now just Vinyl Wall. Composition
-// (bottom-to-top layers):
-//   1. Near-black scene base (#0a0503)
-//   2. Wall panel with subtle vertical plank seams + grain noise
-//   3. The tier content (records on rails)
-//   4. Baseboard band + floor strip at the bottom
-//   5. Pendant lamp "darkening" overlay (multiply) — vignettes the
-//      corners toward near-black
-//   6. Pendant lamp "warmth" overlay (screen) — paints the tungsten
-//      pool over the upper-center-left, brightening what's under it
-//   7. A few dust motes inside the pool for atmosphere
-// The two lamp overlays together produce the "lighting provides
-// depth" behaviour the brief asked for: records at edges fade,
-// records under the pool glow. No per-slot lighting logic needed
-// at the WallLP level.
-function ShopScene({ children }: { children: React.ReactNode }) {
+// ─── Section divider ───────────────────────────────────────────
+// Thin warm-gold hairline flanked by an uppercase label. Pulls
+// the editorial vocabulary through the page — the record covers
+// themselves carry most of the visual weight, so dividers need to
+// be quiet.
+function SectionDivider() {
   return (
-    <section
-      style={{
-        position: 'relative',
-        borderRadius: 10,
-        overflow: 'hidden',
-        background: '#0a0503',
-        minHeight: 420,
-      }}
-    >
-      {/* 1. Wall backdrop — matte dark warm paint on wood paneling,
-          subtle radial warmth centred under the lamp so the wall
-          reads lighter where the pool lands and nearly-black in
-          the corners. */}
+    <div className="flex items-center gap-4 my-10 sm:my-14">
+      <span className="text-[10px] uppercase tracking-[0.32em] text-[#a88a60] shrink-0">
+        Vinyl Wall
+      </span>
       <div
+        className="flex-1 h-px"
         style={{
-          position: 'absolute',
-          inset: 0,
-          bottom: '16%',
-          background: `
-            radial-gradient(ellipse 75% 60% at 38% 35%, #3a2818 0%, #241a0f 55%, #130c06 100%)
-          `,
-        }}
-      />
-
-      {/* 2. Vertical plank seams — 6 seams across the wall, thin
-          dark lines with a faint cream highlight on one side
-          (where the lamp catches the bevel). */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          bottom: '16%',
-          pointerEvents: 'none',
-          opacity: 0.6,
-        }}
-      >
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: `${((i + 1) * 100) / 7}%`,
-              top: 0,
-              bottom: 0,
-              width: 1,
-              background:
-                'linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.25))',
-              boxShadow: '1px 0 0 rgba(255, 220, 160, 0.04)',
-            }}
-          />
-        ))}
-      </div>
-
-      {/* 3. Tier content — records on rails. Rendered BEFORE the
-          lamp overlays so the lighting layer stacks on top of the
-          covers and attenuates the edges / lifts the centre. */}
-      <div style={{ position: 'relative', zIndex: 1, padding: '32px 16px 0' }}>
-        {children}
-      </div>
-
-      {/* 4. Baseboard — thin almost-black band where wall meets
-          floor; top edge catches a sliver of lamp light. */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: '16%',
-          height: 5,
-          background: '#050301',
-          boxShadow: 'inset 0 1px 0 rgba(232, 160, 32, 0.18)',
-          zIndex: 2,
-        }}
-      />
-
-      {/* 5. Floor — dark stained walnut with horizontal plank seams
-          and a warm spill where the lamp falls. */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: '16%',
-          background: `
-            radial-gradient(ellipse 55% 140% at 38% 0%, rgba(90, 55, 22, 0.5) 0%, transparent 60%),
-            linear-gradient(180deg, #1a0f08, #0a0503)
-          `,
-          zIndex: 2,
-        }}
-      >
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: `${(i + 1) * 25}%`,
-              height: 1,
-              background:
-                'linear-gradient(90deg, transparent, rgba(0,0,0,0.55), transparent)',
-            }}
-          />
-        ))}
-      </div>
-
-      {/* 6. Lamp pool — DARKENING layer. Multiply blend so dim
-          areas (edges) push the scene toward near-black while the
-          bright centre (nearly white in the gradient) passes the
-          underlying colour through unchanged. */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
           background:
-            'radial-gradient(ellipse 70% 55% at 38% 32%, rgba(255,255,255,0.98) 0%, rgba(60,40,20,0.85) 45%, rgba(10,5,3,1) 90%)',
-          mixBlendMode: 'multiply',
-          zIndex: 5,
+            'linear-gradient(90deg, rgba(232, 160, 32, 0.4), transparent)',
         }}
       />
-
-      {/* 7. Lamp pool — WARMTH layer. Screen blend with a warm
-          tungsten colour so what's inside the pool gets lifted
-          toward cream/amber while outside gets no additive effect. */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          background:
-            'radial-gradient(ellipse 55% 45% at 38% 30%, rgba(255, 208, 138, 0.32) 0%, rgba(255, 196, 110, 0.12) 40%, transparent 75%)',
-          mixBlendMode: 'screen',
-          zIndex: 6,
-        }}
-      />
-
-      {/* 8. Dust motes — a handful of tiny specks scattered across
-          the lit area, each a pinprick of warm light. Absolute
-          pixel positions work here because the scene width is
-          bounded by the surrounding layout (max-w-[1120px]). */}
-      <svg
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          zIndex: 7,
-          opacity: 0.6,
-        }}
-      >
-        {[
-          { x: 180, y: 80, r: 0.8 },
-          { x: 260, y: 140, r: 0.5 },
-          { x: 340, y: 110, r: 0.6 },
-          { x: 420, y: 170, r: 0.5 },
-          { x: 200, y: 220, r: 0.7 },
-          { x: 370, y: 240, r: 0.5 },
-        ].map((d, i) => (
-          <circle
-            key={i}
-            cx={d.x}
-            cy={d.y}
-            r={d.r}
-            fill="#ffd08a"
-            opacity="0.7"
-          />
-        ))}
-      </svg>
-    </section>
+    </div>
   );
 }
 
-// Layout reused from the /my-preview Storefront Wall. Four rows
-// (5/5/6/6), all LPs the same pixel size, per-row wooden rail sized
-// to that row's width, shorter rows centered under the widest row.
-// The live mydig page differs from the preview in two ways:
-//  (1) content is real album data (CoverArt) instead of FakeCover
-//      seeded sleeves, and
-//  (2) filled slots are clickable Links to the album page.
-// WallLP takes a `children` prop so this component can inject its
-// own cover node without forking the primitive.
-function VinylWallGrid({
+// ─── Wall grid ─────────────────────────────────────────────────
+// Five-column grid of 15 square cells. Filled cells carry the
+// album cover with a subtle warm-black halo drop shadow; empty
+// cells render as nothing — the grid's structure is implied by
+// the filled tiles, not by visible placeholders. Hover lifts the
+// cover slightly and reveals the album title below the grid cell.
+// Clicking navigates to the album page.
+function WallGrid({
   wallByPosition,
-  isOwner,
 }: {
   wallByPosition: Map<number, MyDigWallItem>;
-  isOwner: boolean;
 }) {
-  // Responsive LP size. Desktop matches the preview's 170px so the
-  // wall reads "crafted wall" instead of "small thumbnails."
-  // Mobile compresses to 96px so a 6-row still fits inside a 375px
-  // viewport (6×96 + 5×8 gap = 616 > 375 — mobile 6-row rows will
-  // overflow slightly; the outer container scrolls horizontally on
-  // phones which is acceptable given the 3a scope). Measured here
-  // on mount via matchMedia so hydration matches first paint.
-  const [mobile, setMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 640px)');
-    const sync = () => setMobile(mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
-  }, []);
-  const lpSize = mobile ? 64 : 140;
-  const gapX = mobile ? 6 : 14;
-  const rowSpacing = mobile ? 14 : 22;
-
-  let cursor = 0;
-  const rows = WALL_ROW_SIZES.map((count) => {
-    const positions = Array.from({ length: count }, (_, i) => cursor + i);
-    cursor += count;
-    return { count, positions };
-  });
-
-  // Compute the widest row's width so narrower rows can center
-  // under it. All rows go in a position:relative container whose
-  // width locks to the widest-row pixel width.
-  const maxCols = Math.max(...WALL_ROW_SIZES);
-  const maxRowW = maxCols * lpSize + (maxCols - 1) * gapX;
-
+  const positions = Array.from({ length: 15 }, (_, i) => i);
+  const hasAny = wallByPosition.size > 0;
   return (
-    <div
-      style={{
-        position: 'relative',
-        width: maxRowW,
-        maxWidth: '100%',
-        margin: '0 auto',
-        paddingTop: 12,
-      }}
-    >
-      {rows.map(({ count, positions }, ri) => {
-        const rowW = count * lpSize + (count - 1) * gapX;
-        return (
-          <div
-            key={ri}
-            style={{ position: 'relative', marginBottom: rowSpacing }}
-          >
-            {/* LP row */}
-            <div
-              style={{
-                display: 'flex',
-                gap: gapX,
-                justifyContent: 'center',
-                alignItems: 'flex-end',
-              }}
-            >
-              {positions.map((position, ci) => {
-                const item = wallByPosition.get(position);
-                const lampBias =
-                  1 - Math.min(1, (ri * maxCols + ci) / (WALL_ROW_SIZES.length * maxCols));
-                if (!item) {
-                  return <WallLP key={position} size={lpSize} seed={position} empty lampBias={lampBias} />;
-                }
-                const { album } = item;
-                const target = album.slug || album.mbid;
-                return (
-                  <Link
-                    key={position}
-                    to={`/album/${target}`}
-                    title={`${album.artist} — ${album.title}`}
-                    style={{
-                      display: 'block',
-                      width: lpSize,
-                      height: lpSize,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <WallLP size={lpSize} seed={position} lampBias={lampBias}>
-                      <CoverArt
-                        src={album.coverArtUrl}
-                        fallbacks={album.coverArtFallbacks}
-                        alt={album.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </WallLP>
-                  </Link>
-                );
-              })}
-            </div>
-            {/* Per-row rail — same sizing rule as the preview: row
-                pixel width plus a ~10px overhang each side. Centered
-                via margin auto within the outer container. */}
-            <div style={{ position: 'relative', marginTop: -1 }}>
-              <WallRail
-                width={rowW + 20}
-                seed={ri * 37 + 13}
-                style={{ margin: '0 auto' }}
-              />
-            </div>
-          </div>
-        );
-      })}
-      {wallByPosition.size === 0 && (
-        <p className="text-center text-xs text-gray-600 pt-2">
-          {isOwner
-            ? '아직 벽이 비어 있어요. 편집 버튼으로 앨범을 걸어보세요.'
-            : '이 벽은 아직 비어 있어요.'}
+    <div>
+      <div className="grid grid-cols-5 gap-3 sm:gap-5">
+        {positions.map((pos) => {
+          const item = wallByPosition.get(pos);
+          if (!item) return <EmptyCell key={pos} />;
+          return <WallCell key={pos} item={item} />;
+        })}
+      </div>
+      {!hasAny && (
+        <p className="text-center text-[11px] text-[#7a6650] mt-6 tracking-wider">
+          아직 벽이 비어 있어요
         </p>
       )}
     </div>
   );
 }
+
+function EmptyCell() {
+  // Barely-there dotted outline so the grid structure is legible
+  // when the wall is mostly empty, without the cell reading as
+  // "drop your record here." Disappears entirely at extreme zooms.
+  return (
+    <div
+      className="aspect-square rounded-sm"
+      style={{
+        border: '1px dashed rgba(232, 160, 32, 0.08)',
+      }}
+    />
+  );
+}
+
+function WallCell({ item }: { item: MyDigWallItem }) {
+  const { album } = item;
+  const target = album.slug || album.mbid;
+  return (
+    <Link
+      to={`/album/${target}`}
+      className="group relative block aspect-square"
+      title={`${album.artist} — ${album.title}`}
+    >
+      {/* Shadow layer — sits behind the cover, stays in place on
+          hover so the lift reads as the cover rising off its
+          shadow rather than everything moving together. */}
+      <div
+        className="absolute inset-0 rounded-sm transition-transform duration-200"
+        style={{
+          background: '#0a0503',
+          boxShadow:
+            '0 8px 20px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.4)',
+        }}
+      />
+      {/* Cover — lifts 2px on hover, picks up a faint amber ring
+          so the hovered record reads as "warm under attention." */}
+      <div
+        className="absolute inset-0 rounded-sm overflow-hidden transition-all duration-200 group-hover:-translate-y-0.5 group-hover:ring-1 group-hover:ring-[#e8a020]/40"
+        style={{
+          boxShadow: 'inset 0 0 0 0.5px rgba(0, 0, 0, 0.4)',
+        }}
+      >
+        <CoverArt
+          src={album.coverArtUrl}
+          fallbacks={album.coverArtFallbacks}
+          alt={album.title}
+          className="w-full h-full object-cover"
+        />
+      </div>
+      {/* Title ghost — appears below the cell on hover. Absolutely
+          positioned so neighbouring cells don't shift. */}
+      <div
+        className="absolute left-0 right-0 -bottom-5 text-center text-[10px] text-[#f5e8c8]/80 opacity-0 group-hover:opacity-100 transition-opacity duration-150 truncate pointer-events-none"
+        style={{ fontFamily: '"Fraunces", Georgia, serif' }}
+      >
+        {album.title}
+      </div>
+    </Link>
+  );
+}
+
 
 function ShelfRow({
   shelfByPosition,
