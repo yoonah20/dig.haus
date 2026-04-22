@@ -968,3 +968,474 @@ export function WoodenCrate({
   );
 }
 
+// ─── Turntable Console ────────────────────────────────────────
+// A low wooden console against the wall, holding the user's
+// turntable and bookshelf speakers. Sits between the Vinyl Wall
+// (above) and the floor crates (below). For S1 this is static
+// decoration — no hover, no playback; the LP on the platter is
+// just a visible "currently spinning" placeholder. Interactive
+// pop-out / click-to-play behavior lands in S4 (per the phase-3
+// decisions log).
+//
+// Composition, left to right:
+//   Bookshelf speaker — Turntable — Small amp / plant — Bookshelf speaker
+//
+// The console top is slightly tilted so we can see its surface
+// (same fake-perspective trick as WoodenCrate: clip-path trapezoid,
+// no true 3D transforms). Everything on top of it renders in the
+// top-face space.
+export function TurntableConsole({
+  width,
+  spinningCoverSeed,
+}: {
+  /** Total console width. Should be 70–80% of the Room width per
+   *  the design spec — caller handles the outer centering. */
+  width: number;
+  /** Seed used to pick the fake cover currently sitting on the
+   *  platter. Pass undefined to show an empty platter (no LP). */
+  spinningCoverSeed?: number;
+}) {
+  // Console dimensions. Height is modest — a console is a piece of
+  // low furniture; most of its visual weight is from the gear on
+  // top, not the carcass itself.
+  const topH = Math.round(width * 0.06);
+  const frontH = Math.round(width * 0.13);
+  const legH = Math.round(width * 0.035);
+  const gearH = Math.round(width * 0.22);
+  const totalH = gearH + topH + frontH + legH + 8;
+
+  // Gear placements along the width. Speakers flank both ends,
+  // turntable takes the center, small amp + plant fill the middle
+  // right between turntable and right speaker.
+  const speakerW = Math.round(width * 0.13);
+  const turntableW = Math.round(width * 0.32);
+  const speakerY = 0;
+  const speakerLeftX = Math.round(width * 0.02);
+  const speakerRightX = width - speakerW - Math.round(width * 0.02);
+  const turntableX = Math.round((width - turntableW) / 2);
+  const ampW = Math.round(width * 0.09);
+  const ampX = speakerRightX - ampW - Math.round(width * 0.02);
+  const plantW = Math.round(width * 0.05);
+  const plantX = ampX + ampW + Math.round(width * 0.01);
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width,
+        height: totalH,
+        margin: '0 auto',
+      }}
+    >
+      {/* Ground shadow under the whole console, falling to the right
+          to match the upper-left lamp. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 8,
+          right: -16,
+          bottom: -4,
+          height: 18,
+          background:
+            'radial-gradient(ellipse at 40% 40%, rgba(0,0,0,0.55), transparent 75%)',
+          filter: 'blur(5px)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* GEAR on top — rendered BEFORE the console carcass so the
+          gear sits visually in front of the back edge. The gear
+          row's vertical placement puts its bottom at the top edge
+          of the console surface. */}
+      <div style={{ position: 'absolute', left: 0, top: 0, width, height: gearH }}>
+        <Speaker x={speakerLeftX} y={speakerY} w={speakerW} h={gearH} />
+        <Turntable
+          x={turntableX}
+          y={Math.round(gearH * 0.08)}
+          w={turntableW}
+          h={Math.round(gearH * 0.85)}
+          spinningCoverSeed={spinningCoverSeed}
+        />
+        <Amp x={ampX} y={Math.round(gearH * 0.35)} w={ampW} h={Math.round(gearH * 0.5)} />
+        <Plant x={plantX} y={Math.round(gearH * 0.2)} w={plantW} h={Math.round(gearH * 0.6)} />
+        <Speaker x={speakerRightX} y={speakerY} w={speakerW} h={gearH} />
+      </div>
+
+      {/* CONSOLE TOP — slim tilted surface the gear sits on. Visible
+          as a thin trapezoid just under the gear baseline. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: gearH,
+          width,
+          height: topH,
+          background: `linear-gradient(180deg, ${ROOM.woodTop}, ${ROOM.woodFace})`,
+          clipPath: `polygon(${topH * 0.6}px 0, ${width - topH * 0.6}px 0, 100% 100%, 0 100%)`,
+          boxShadow: `inset 0 1px 0 ${ROOM.woodHi}`,
+        }}
+      />
+
+      {/* CONSOLE FRONT — vertical wood panel. Wood grain vertical,
+          inset shadow at top/bottom for depth. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: gearH + topH,
+          width,
+          height: frontH,
+          background: `linear-gradient(180deg, ${ROOM.woodFace}, ${ROOM.woodBot})`,
+          boxShadow: `inset 0 2px 4px rgba(0,0,0,0.35), inset 0 -2px 3px rgba(0,0,0,0.4)`,
+        }}
+      >
+        <svg
+          width={width}
+          height={frontH}
+          style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+        >
+          {Array.from({ length: Math.floor(width / 28) }).map((_, i) => (
+            <line
+              key={i}
+              x1={12 + i * 28}
+              y1={2}
+              x2={14 + i * 28}
+              y2={frontH - 2}
+              stroke={ROOM.woodGrain}
+              strokeWidth="0.4"
+              opacity="0.35"
+            />
+          ))}
+        </svg>
+      </div>
+
+      {/* LEGS — two small feet under the front corners so the
+          console reads as freestanding furniture, not built-in. */}
+      {[
+        Math.round(width * 0.06),
+        width - Math.round(width * 0.06) - Math.round(width * 0.03),
+      ].map((lx, i) => (
+        <div
+          key={i}
+          style={{
+            position: 'absolute',
+            left: lx,
+            top: gearH + topH + frontH,
+            width: Math.round(width * 0.03),
+            height: legH,
+            background: `linear-gradient(180deg, ${ROOM.woodBot}, ${ROOM.woodFace})`,
+            boxShadow: `inset 1px 0 0 ${ROOM.woodHi}`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Speaker (bookshelf, static) ──────────────────────────────
+function Speaker({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
+  const cabinetColor = '#2a1f16';
+  const grilleColor = '#3a2f24';
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        width: w,
+        height: h,
+        background: `linear-gradient(180deg, ${cabinetColor}, #1a120a)`,
+        borderRadius: 2,
+        boxShadow: `0 2px 4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,220,170,0.15), inset 0 -2px 3px rgba(0,0,0,0.5)`,
+      }}
+    >
+      {/* Grille cloth front */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 4,
+          background: grilleColor,
+          borderRadius: 1,
+          backgroundImage:
+            'radial-gradient(circle at 50% 50%, rgba(255,230,180,0.06) 0.5px, transparent 1px)',
+          backgroundSize: '4px 4px',
+        }}
+      >
+        {/* Woofer circle */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            bottom: '18%',
+            width: w * 0.55,
+            height: w * 0.55,
+            marginLeft: -w * 0.275,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 40% 40%, #1a120a, #0a0503 60%, #000)',
+            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.8), 0 0 1px rgba(255,220,170,0.15)',
+          }}
+        />
+        {/* Tweeter dome */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '14%',
+            width: w * 0.25,
+            height: w * 0.25,
+            marginLeft: -w * 0.125,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle at 40% 40%, #2a1f16, #0a0503)',
+            boxShadow: 'inset 0 1px 1px rgba(0,0,0,0.6)',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Turntable (static, decorative) ────────────────────────────
+// Flat-ish top-down view of a vinyl turntable. Platter rendered as
+// an ellipse so it reads as viewed from a slight angle. Tonearm
+// resting on the LP if one is present, otherwise parked.
+function Turntable({
+  x,
+  y,
+  w,
+  h,
+  spinningCoverSeed,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  spinningCoverSeed?: number;
+}) {
+  const plinthH = h;
+  const platterR = Math.min(w, h) * 0.42;
+  const cx = w / 2;
+  const cy = h * 0.48;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        width: w,
+        height: plinthH,
+        background: `linear-gradient(180deg, #2a1f16, #1a120a)`,
+        borderRadius: 3,
+        boxShadow: `0 2px 4px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,220,170,0.15), inset 0 -2px 3px rgba(0,0,0,0.5)`,
+      }}
+    >
+      <svg
+        width={w}
+        height={plinthH}
+        viewBox={`0 0 ${w} ${plinthH}`}
+        style={{ position: 'absolute', inset: 0 }}
+      >
+        {/* Platter — dark disc with a slight ellipse from viewing angle */}
+        <ellipse
+          cx={cx}
+          cy={cy}
+          rx={platterR}
+          ry={platterR * 0.82}
+          fill="#0f0a05"
+          stroke="#1a120a"
+          strokeWidth="1"
+        />
+        {/* Inner platter rim highlight */}
+        <ellipse
+          cx={cx}
+          cy={cy - 1}
+          rx={platterR * 0.98}
+          ry={platterR * 0.82 * 0.98}
+          fill="none"
+          stroke="rgba(255,220,170,0.18)"
+          strokeWidth="0.6"
+        />
+        {/* Vinyl on platter — if seed provided, show LP with label */}
+        {spinningCoverSeed !== undefined && (
+          <>
+            <ellipse
+              cx={cx}
+              cy={cy}
+              rx={platterR * 0.95}
+              ry={platterR * 0.82 * 0.95}
+              fill="#0a0503"
+            />
+            {/* Concentric grooves */}
+            {[0.85, 0.72, 0.58, 0.44].map((r, i) => (
+              <ellipse
+                key={i}
+                cx={cx}
+                cy={cy}
+                rx={platterR * r}
+                ry={platterR * 0.82 * r}
+                fill="none"
+                stroke="rgba(255,220,170,0.1)"
+                strokeWidth="0.3"
+              />
+            ))}
+            {/* LP label center — amber to match dig.haus accent */}
+            <ellipse
+              cx={cx}
+              cy={cy}
+              rx={platterR * 0.32}
+              ry={platterR * 0.82 * 0.32}
+              fill="#c87a2a"
+            />
+            <ellipse
+              cx={cx}
+              cy={cy}
+              rx={platterR * 0.03}
+              ry={platterR * 0.82 * 0.03}
+              fill="#1a120a"
+            />
+          </>
+        )}
+        {/* Tonearm — a thin bar from right side down to the LP edge */}
+        <g transform={`translate(${cx + platterR * 0.9}, ${cy - platterR * 0.7})`}>
+          <circle cx="0" cy="0" r={Math.max(2, w * 0.015)} fill="#1a120a" stroke="rgba(255,220,170,0.2)" strokeWidth="0.5" />
+          <line
+            x1="0"
+            y1="0"
+            x2={-platterR * 0.75}
+            y2={platterR * 0.65}
+            stroke="#2a1f16"
+            strokeWidth={Math.max(1.5, w * 0.012)}
+            strokeLinecap="round"
+          />
+          {/* Headshell at the end of the tonearm */}
+          <rect
+            x={-platterR * 0.82}
+            y={platterR * 0.62}
+            width={Math.max(3, w * 0.02)}
+            height={Math.max(2, w * 0.012)}
+            fill="#1a120a"
+            transform={`rotate(-40, ${-platterR * 0.82}, ${platterR * 0.62})`}
+          />
+        </g>
+        {/* Control dot on plinth (on/off LED) */}
+        <circle
+          cx={w - 8}
+          cy={plinthH - 8}
+          r="1.5"
+          fill="#c87a2a"
+          opacity="0.85"
+        />
+      </svg>
+    </div>
+  );
+}
+
+// ─── Small Amp (VU meters) ────────────────────────────────────
+function Amp({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        width: w,
+        height: h,
+        background: 'linear-gradient(180deg, #3a2f24, #1f1812)',
+        borderRadius: 2,
+        boxShadow: `0 2px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,220,170,0.2)`,
+        padding: '3px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+      }}
+    >
+      {/* VU meter pair */}
+      <div style={{ display: 'flex', gap: 2, flex: 1 }}>
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              background:
+                'linear-gradient(180deg, #2a1f16, #0a0503)',
+              border: '0.5px solid rgba(0,0,0,0.6)',
+              borderRadius: 1,
+              position: 'relative',
+            }}
+          >
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                bottom: 2,
+                width: 1,
+                height: '60%',
+                background: '#e8a020',
+                transformOrigin: 'bottom',
+                transform: i === 0 ? 'rotate(-18deg)' : 'rotate(12deg)',
+              }}
+            />
+          </div>
+        ))}
+      </div>
+      {/* Knob row */}
+      <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              width: Math.max(3, w * 0.12),
+              height: Math.max(3, w * 0.12),
+              borderRadius: '50%',
+              background: '#2a1f16',
+              boxShadow: 'inset 0 0.5px 0 rgba(255,220,170,0.2), inset 0 -0.5px 0 rgba(0,0,0,0.4)',
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Small Plant (potted, decorative) ─────────────────────────
+function Plant({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
+  const potH = h * 0.4;
+  const foliageH = h * 0.6;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        width: w,
+        height: h,
+      }}
+    >
+      {/* Foliage — a few overlapping rounded leaves */}
+      <svg
+        width={w}
+        height={foliageH}
+        viewBox={`0 0 ${w} ${foliageH}`}
+        style={{ position: 'absolute', inset: 0 }}
+      >
+        <ellipse cx={w * 0.5} cy={foliageH * 0.7} rx={w * 0.4} ry={foliageH * 0.45} fill="#4a6a3a" />
+        <ellipse cx={w * 0.3} cy={foliageH * 0.5} rx={w * 0.25} ry={foliageH * 0.35} fill="#5a7a45" />
+        <ellipse cx={w * 0.7} cy={foliageH * 0.4} rx={w * 0.22} ry={foliageH * 0.4} fill="#3a5a2a" />
+        <ellipse cx={w * 0.45} cy={foliageH * 0.25} rx={w * 0.18} ry={foliageH * 0.3} fill="#5a7a45" />
+      </svg>
+      {/* Pot — terracotta */}
+      <div
+        style={{
+          position: 'absolute',
+          left: w * 0.15,
+          top: foliageH,
+          width: w * 0.7,
+          height: potH,
+          background: 'linear-gradient(180deg, #8a4a2a, #5a2f18)',
+          borderRadius: '2px 2px 4px 4px',
+          boxShadow: 'inset 0 1px 0 rgba(255,220,170,0.2), inset 0 -1px 2px rgba(0,0,0,0.4)',
+        }}
+      />
+    </div>
+  );
+}
+
