@@ -74,7 +74,12 @@ export default function SnapshotList({
   const showArrows = isOverflowing;
 
   return (
-    <section className="relative">
+    // max-w-[720px]: ≈ 75% of the wall rail's 960px cap, so the
+    // snapshot strip sits visibly narrower than the rails above
+    // it. Earlier the strip inherited the full 1120px content
+    // column width, which made it read wider than the wall
+    // itself. mx-auto centers the strip under the rail.
+    <section className="relative max-w-[720px] mx-auto">
       {/* Strip header compressed — just a muted count on the right
           of the first card to save vertical space. The "Snapshots"
           label fell out because the cards themselves obviously are
