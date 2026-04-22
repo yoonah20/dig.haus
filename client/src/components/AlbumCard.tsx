@@ -384,8 +384,13 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 the flip-backface behaviour. The `album-front-decor`
                 class fades the badge out in sync with the first
                 half of the card flip so it doesn't bleed through
-                onto the back face (see index.css). */}
-            {isAdmin && reviewsPending && (
+                onto the back face (see index.css).
+                Suppressed on upcoming releases — "no reviews" is
+                the expected state before the album is out, so
+                flagging it reads as noise. The badge reappears the
+                day the release date arrives (isSoon flips false
+                via daysUntilRelease). */}
+            {isAdmin && reviewsPending && !isSoon && (
               <div
                 className="album-front-decor absolute top-1 right-1.5 leading-none select-none"
                 aria-label="리뷰 수집 대기"
