@@ -152,13 +152,24 @@ function clampScore(raw: unknown): number | null {
 // discovery pipeline (primary filter on search results). Substring
 // match over the hostname — covers amazon.com/.co.jp/.de etc. Exported
 // so services/serper.ts can apply the same allowlist definition.
+// Structural baseline blacklist — categories that will NEVER carry
+// editorial album reviews no matter what admin curates. Kept in code
+// (not the DB) because they're platform shapes rather than editorial
+// decisions: a shop URL stays a shop URL, a streaming link stays a
+// streaming link. The DB-side source_blacklist table layers on top
+// for operational additions (aggregators, paywalls, bot-walled sites,
+// podcast outlets, user-review communities) — those are trust
+// decisions that can be re-evaluated per site and benefit from the
+// admin UI's one-click add/remove. See schema.ts's seed migration
+// `seed-source-blacklist-from-hardcoded-2026-04-22` for the list of
+// entries that moved from here to the DB.
 export const EXCLUDED_URL_DOMAINS = [
+  // Shops / retailers. Store pages (buy button, tracklist, occasional
+  // editor blurb) don't contain substantive reviews, and even when
+  // they do the saved URL would nag readers to buy the record.
   'discogs.com',
   'amazon.',
   'ebay.',
-  'rateyourmusic.com',
-  'albumoftheyear.org',
-  'metacritic.com',
   'apple.com',
   'music.apple.com',
   'spotify.com',
@@ -172,59 +183,6 @@ export const EXCLUDED_URL_DOMAINS = [
   'yesasia.com',
   'cdjapan.co.jp',
   'barnesandnoble.com',
-  // Encyclopaedia Metallum — user-submitted review aggregator. Multiple
-  // user reviews per album confuse the "one editorial take per source"
-  // model we're building around. Admin can still hand-pick a specific
-  // reviewer's take via the manual paste-in tab when a notable reviewer's
-  // opinion is worth preserving.
-  'metal-archives.com',
-  // RockReport — Belgian aggregator that re-posts reviews from other
-  // outlets rather than writing its own editorial. Same "one editorial
-  // take per source" reasoning as metal-archives.
-  'rockreport.be',
-  // Medium — paywalls the body after a teaser unless you sign in, so
-  // Jina/raw scrape sees only the intro paragraphs and the extractor
-  // has nothing to score or excerpt from.
-  'medium.com',
-  // Rock Hard Germany — subscriber-only paywall on the review body.
-  // Public pages show only the score and a headline teaser, which
-  // doesn't give the extractor enough prose to work with and would
-  // save a link ordinary readers can't read either.
-  'rockhard.de',
-  // Sites that consistently block our scrape (raw fetch 403/Cloudflare)
-  // and that our "scrape fails if raw is bot-blocked even when Jina
-  // bypassed" guard rails would otherwise log as a noisy failure per
-  // album. Readers hitting the saved URL would see the same wall, so
-  // there's no point attempting them in the first place. Observed in
-  // the curation logs over several batches.
-  'newnoisemagazine.com',
-  'metalstorm.net',
-  'ghostcultmag.com',
-  'theprogspace.com',
-  'headbangerslifestyle.com',
-  'progarchives.com',
-  'treblezine.com',
-  'myglobalmind.com',
-  'brooklynvegan.com',
-  'grande-rock.com',
-  'wallofsoundau.com',
-  'sonicperspectives.com',
-  'metalinjection.net',
-  'alreadyheard.com',
-  'metalwani.com',
-  'metalcrypt.com',
-  'metalkingdom.net',
-  // iHeart podcast "review" pages are audio/podcast episode scripts,
-  // not editorial text reviews — the scraper gets episode-description
-  // boilerplate with no prose to extract. iheart.com also hosts radio
-  // / playlist content that isn't review material either.
-  'iheart.com',
-  // Metal Epidemic — all "reviews" are podcast-episode landing pages:
-  // a one-line intro + metadata (release date, label, bandcamp link)
-  // + two star ratings from the hosts, no written review prose. Same
-  // shape as iHeart; scraper captures a score but the excerpt is
-  // useless ("Join Dave & Duncan as they review…").
-  'metalepidemic.com',
   // Social media — never an editorial album review source. Tweets,
   // Facebook posts, TikToks, threads, Bluesky, Telegram, Reddit posts
   // may LINK to reviews but are themselves social noise that Jina
@@ -240,45 +198,11 @@ export const EXCLUDED_URL_DOMAINS = [
   'bsky.app',
   't.me',
   'reddit.com',
-  // Ultimate Metal Forum — /threads/ URLs are community discussion,
-  // not editorial. Scraper sees "Review: xxx" in thread titles and
-  // lands on pages with nothing but back-and-forth user posts.
-  'ultimatemetal.com',
-  // Any Decent Music — meta-aggregator that collects review scores
-  // from other outlets. Not editorial content of its own.
-  'anydecentmusic.com',
-  // Musicboard — user-review social network (Letterboxd for albums).
-  // Every page is a user's take, not an editorial review.
-  'musicboard.app',
-  // Metal Hammer Germany — full article body behind a paid subscriber
-  // wall. Public previews are just the intro + login prompt.
-  'metal-hammer.de',
-  // Aggregator (user ratings + collected editorial snippets) rather
-  // than an editorial site in its own right. Same reasoning as
-  // metal-archives and rockreport.
-  'metalmusicarchives.com',
-  // AllMusic — has both editorial (AMG staff) and user reviews, but for
-  // a large chunk of albums only the user-submitted blurbs are present
-  // and the extractor picks one of those as if it were editorial. The
-  // genres dig.haus focuses on (underground metal / niche) are exactly
-  // the ones most likely to fall into the no-editorial bucket on
-  // AllMusic. Losing the occasional real staff review is cheaper than
-  // laundering user reviews as editorial.
-  'allmusic.com',
   // YouTube — occasionally indexed as a review target but overwhelmingly
   // just playback / music video / reaction content. Any legitimate video
   // review (e.g. Fenriz-style channel takes) admin can paste manually.
   'youtube.com',
   'youtu.be',
-  // DeBaser (Italian user-review community). Layout mirrors Rate Your
-  // Music / musicboard: per-album pages collect user-written reviews
-  // with usernames, avatars, edit/delete/report controls. The English
-  // mirror (en.debaser.it) is the same user content auto-translated,
-  // and the scraper had already laundered seven of them into prod as
-  // if they were editorial — excerpts kept reading "the review
-  // evaluates…", the 3rd-person narrator being Claude summarising a
-  // single user's post. Same reasoning as musicboard.app above.
-  'debaser.it',
 ];
 
 // Admin-managed blacklist / whitelist caches. Loaded lazily from the

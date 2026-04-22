@@ -1218,62 +1218,63 @@ function SourcesPanel() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-white/5">
           {/* Success accumulation — hosts that have landed at least one
               saved review. Primary discovery path: admin scans the top
-              count, clicks 화이트로 for ones they trust. */}
+              count, clicks 화이트로 for ones they trust. Entries that
+              have already been promoted to the whitelist OR the
+              blacklist are filtered out so the column only surfaces
+              hosts that still need a curation decision. */}
           <HostList
             header="✓ 성공 누적"
-            subheader="저장된 리뷰 기준"
+            subheader="저장된 리뷰 기준 (미등록만)"
             emptyText="아직 없음"
-            items={(data?.successHosts ?? []).map((h) => ({
-              host: h.host,
-              badge: `×${h.hits}`,
-              sub: null,
-              title: h.lastUrl,
-            }))}
-            renderAction={(host) =>
-              whitelistSet.has(host) ? (
-                <span className="text-[10px] text-emerald-400/70">화이트 ✓</span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => addWhitelist.mutate({ host })}
-                  disabled={addWhitelist.isPending}
-                  className="text-[11px] text-emerald-400/70 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400/60 rounded px-1.5 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
-                  title="화이트리스트 추가"
-                >
-                  + 화이트
-                </button>
-              )
-            }
+            items={(data?.successHosts ?? [])
+              .filter((h) => !whitelistSet.has(h.host) && !blacklistSet.has(h.host))
+              .map((h) => ({
+                host: h.host,
+                badge: `×${h.hits}`,
+                sub: null,
+                title: h.lastUrl,
+              }))}
+            renderAction={(host) => (
+              <button
+                type="button"
+                onClick={() => addWhitelist.mutate({ host })}
+                disabled={addWhitelist.isPending}
+                className="text-[11px] text-emerald-400/70 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400/60 rounded px-1.5 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
+                title="화이트리스트 추가"
+              >
+                + 화이트
+              </button>
+            )}
           />
 
           {/* Failure accumulation — hosts the scraper has given up on.
               Promote to blacklist with one click so the hardcoded list
-              stays lean (DB-driven entries carry a reason field). */}
+              stays lean (DB-driven entries carry a reason field).
+              Already-curated hosts filtered out for the same reason as
+              the success column. */}
           <HostList
             header="✗ 실패 누적"
-            subheader="scrape_failures 전체 기간"
+            subheader="scrape_failures 전체 기간 (미등록만)"
             emptyText="실패 기록 없음"
-            items={(data?.failureHosts ?? []).map((h) => ({
-              host: h.host,
-              badge: `×${h.hits}`,
-              sub: formatRelativeKo(h.lastFailedAt),
-              title: h.lastFailedAt,
-            }))}
-            renderAction={(host) =>
-              blacklistSet.has(host) ? (
-                <span className="text-[10px] text-red-400/70">블랙 ✓</span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => addBlacklist.mutate({ host })}
-                  disabled={addBlacklist.isPending}
-                  className="text-[11px] text-red-400/70 hover:text-red-300 border border-red-500/30 hover:border-red-400/60 rounded px-1.5 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
-                  title="블랙리스트 추가"
-                >
-                  + 블랙
-                </button>
-              )
-            }
+            items={(data?.failureHosts ?? [])
+              .filter((h) => !whitelistSet.has(h.host) && !blacklistSet.has(h.host))
+              .map((h) => ({
+                host: h.host,
+                badge: `×${h.hits}`,
+                sub: formatRelativeKo(h.lastFailedAt),
+                title: h.lastFailedAt,
+              }))}
+            renderAction={(host) => (
+              <button
+                type="button"
+                onClick={() => addBlacklist.mutate({ host })}
+                disabled={addBlacklist.isPending}
+                className="text-[11px] text-red-400/70 hover:text-red-300 border border-red-500/30 hover:border-red-400/60 rounded px-1.5 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
+                title="블랙리스트 추가"
+              >
+                + 블랙
+              </button>
+            )}
           />
 
           {/* Whitelist — curated trust list. Re-ranks /reviews/discover

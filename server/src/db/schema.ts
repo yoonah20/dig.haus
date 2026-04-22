@@ -912,6 +912,76 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // Move hosts out of the code-level EXCLUDED_URL_DOMAINS into the DB
+  // source_blacklist. The hardcoded baseline keeps shops / SNS /
+  // streaming / YouTube (platform shapes that will never carry
+  // editorial reviews); these 33 were all trust-decisions — admin-
+  // overridable calls about aggregators, paywalled outlets, reliably
+  // bot-blocked sites, podcast landing pages, and user-review
+  // communities — so they belong in the editable layer. Entries use
+  // INSERT OR IGNORE so re-seeding doesn't clobber admin edits to
+  // reason fields; the added_at timestamp is set to the migration run
+  // time via the DEFAULT column default.
+  runOnce(db, 'seed-source-blacklist-from-hardcoded-2026-04-22', () => {
+    const rows: Array<[string, string]> = [
+      // Score aggregators — user ratings or meta-rollups of other
+      // outlets, not editorial criticism on their own merit.
+      ['rateyourmusic.com', 'aggregator (user ratings)'],
+      ['albumoftheyear.org', 'aggregator (user ratings)'],
+      ['metacritic.com', 'aggregator (score rollup)'],
+      ['metal-archives.com', 'aggregator (user-submitted reviews)'],
+      ['rockreport.be', 'aggregator (re-posts other outlets)'],
+      ['anydecentmusic.com', 'aggregator (meta score collection)'],
+      ['metalmusicarchives.com', 'aggregator (user ratings + snippets)'],
+      // Paywalled outlets where only the teaser is publicly visible,
+      // so the scraper has nothing usable to excerpt.
+      ['medium.com', 'paywall (body behind sign-in)'],
+      ['rockhard.de', 'paywall (subscriber-only body)'],
+      ['metal-hammer.de', 'paywall (subscriber-only body)'],
+      // Reliably bot-blocked / Cloudflare-walled sites. Even when Jina
+      // bypasses, ordinary readers clicking the saved URL would hit
+      // the same wall.
+      ['newnoisemagazine.com', 'bot-blocked (Cloudflare 403)'],
+      ['metalstorm.net', 'bot-blocked / reader wall'],
+      ['ghostcultmag.com', 'bot-blocked / reader wall'],
+      ['theprogspace.com', 'bot-blocked / reader wall'],
+      ['headbangerslifestyle.com', 'bot-blocked / reader wall'],
+      ['progarchives.com', 'bot-blocked / reader wall'],
+      ['treblezine.com', 'bot-blocked / reader wall'],
+      ['myglobalmind.com', 'bot-blocked / reader wall'],
+      ['brooklynvegan.com', 'bot-blocked / reader wall'],
+      ['grande-rock.com', 'bot-blocked / reader wall'],
+      ['wallofsoundau.com', 'bot-blocked / reader wall'],
+      ['sonicperspectives.com', 'bot-blocked / reader wall'],
+      ['metalinjection.net', 'bot-blocked / reader wall'],
+      ['alreadyheard.com', 'bot-blocked / reader wall'],
+      ['metalwani.com', 'bot-blocked / reader wall'],
+      ['metalcrypt.com', 'bot-blocked / reader wall'],
+      ['metalkingdom.net', 'bot-blocked / reader wall'],
+      // Podcast outlets — episode description pages, not editorial
+      // text reviews.
+      ['iheart.com', 'podcast (episode description, not review)'],
+      ['metalepidemic.com', 'podcast (episode landing page)'],
+      // User-review community sites — each page is a single user's
+      // take, not editorial. Scraper launders them as editorial.
+      ['ultimatemetal.com', 'forum / user-generated posts'],
+      ['musicboard.app', 'user-review community (Letterboxd-style)'],
+      ['allmusic.com', 'user blurbs dominate niche-genre pages'],
+      ['debaser.it', 'user-review community (Italian, RYM-style)'],
+    ];
+    const stmt = db.prepare(
+      `INSERT OR IGNORE INTO source_blacklist (host, reason) VALUES (?, ?)`
+    );
+    let inserted = 0;
+    for (const [host, reason] of rows) {
+      const r = stmt.run(host, reason);
+      if ((r.changes as number) > 0) inserted++;
+    }
+    console.log(
+      `[migration] seeded source_blacklist with ${inserted}/${rows.length} new hosts`
+    );
+  });
+
   // Backfill: pre-existing sold-out rows lose no fidelity when we swap to the
   // `status` enum. Idempotent — admins who later edit the row can only do so
   // via `status`, so once it's set this WHERE clause no longer matches.
