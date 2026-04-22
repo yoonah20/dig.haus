@@ -260,11 +260,15 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
       // "추출하지 못했습니다". Status 502 specifically for upstream
       // network/bot-wall problems (bot-blocked, fetch-failed) so
       // monitoring treats them differently from "page processed but
-      // unusable" (422).
+      // unusable" (422). 'blacklisted-domain' / 'excluded-path' are
+      // admin-policy refusals and stay 422 — the URL made it through
+      // network-level fine, we just refused to process it.
       const friendly: Record<string, string> = {
         'bot-blocked': '봇 차단 (Cloudflare 등). 수동 입력 탭을 사용하세요.',
         'fetch-failed': '페이지를 가져오지 못했습니다 (네트워크/타임아웃).',
         'text-too-short': '페이지 본문이 너무 짧습니다 (JS 렌더링 가능). 수동 입력 탭을 사용하세요.',
+        'blacklisted-domain': '도메인 블랙리스트에 등록돼 거부됐습니다 (봇 차단/aggregator/페이월 등). 관리자 → 리뷰 큐레이션에서 해제 가능.',
+        'excluded-path': 'URL 슬러그가 제외 패턴(인터뷰/프리미어/roundup 등)에 걸려 거부됐습니다.',
         'not-a-review': '리뷰 페이지가 아닌 것으로 판단됐습니다.',
         'claude-no-text': 'AI 분석 응답이 비어있었습니다.',
         'claude-error': 'AI 분석 중 오류가 발생했습니다.',

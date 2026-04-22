@@ -78,6 +78,16 @@ export type ScrapeFailureReason =
   | 'bot-blocked'
   | 'fetch-failed'
   | 'text-too-short'
+  // Domain is on the admin blacklist (hardcoded EXCLUDED_URL_DOMAINS
+  // or DB source_blacklist). Split out from 'not-a-review' so admin
+  // sees "this host is blocked" instead of the misleading "this page
+  // isn't a review" message — many blacklist entries are bot-walled
+  // sites, not content judgements.
+  | 'blacklisted-domain'
+  // URL slug matched EXCLUDED_URL_PATH_PATTERNS (interview/roundup/
+  // press-release verbs / etc.). Different from 'not-a-review' in the
+  // sense that we refused based on the URL shape alone, before fetching.
+  | 'excluded-path'
   | 'not-a-review'
   | 'claude-no-text'
   | 'claude-error'
@@ -1294,13 +1304,13 @@ export async function scrapeReviewFromUrl(
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
     if (isHostBlacklisted(host)) {
-      recordScrapeFailure(url, albumMbid, 'not-a-review', 'blacklisted domain');
-      return { kind: 'fail', reason: 'not-a-review', message: 'blacklisted domain' };
+      recordScrapeFailure(url, albumMbid, 'blacklisted-domain', 'blacklisted domain');
+      return { kind: 'fail', reason: 'blacklisted-domain', message: 'blacklisted domain' };
     }
     const pathKey = parsed.pathname + parsed.search;
     if (EXCLUDED_URL_PATH_PATTERNS.some((re) => re.test(pathKey))) {
-      recordScrapeFailure(url, albumMbid, 'not-a-review', 'excluded path pattern');
-      return { kind: 'fail', reason: 'not-a-review', message: 'excluded path pattern' };
+      recordScrapeFailure(url, albumMbid, 'excluded-path', 'excluded path pattern');
+      return { kind: 'fail', reason: 'excluded-path', message: 'excluded path pattern' };
     }
   } catch {
     // Invalid URL — let the fetch step handle it (it'll return a
