@@ -270,6 +270,15 @@ export const EXCLUDED_URL_DOMAINS = [
   // review (e.g. Fenriz-style channel takes) admin can paste manually.
   'youtube.com',
   'youtu.be',
+  // DeBaser (Italian user-review community). Layout mirrors Rate Your
+  // Music / musicboard: per-album pages collect user-written reviews
+  // with usernames, avatars, edit/delete/report controls. The English
+  // mirror (en.debaser.it) is the same user content auto-translated,
+  // and the scraper had already laundered seven of them into prod as
+  // if they were editorial — excerpts kept reading "the review
+  // evaluates…", the 3rd-person narrator being Claude summarising a
+  // single user's post. Same reasoning as musicboard.app above.
+  'debaser.it',
 ];
 
 // URL path / filename patterns that signal the target page is a multi-
@@ -335,6 +344,24 @@ export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
   /\binterview(?:s|ed)?\b/i,
   /\bannounce[sd]?\b/i,
   /\btalks?[-_](?:to|with|about|new|album|record)\b/i,
+  // Press-release / news-post slugs. metalshockfinland's "Avralize
+  // unleash new album liminal with brand new music video for focus
+  // track fading faster" was a video-release announcement that got
+  // scored 60/100 despite containing no rating or evaluative prose —
+  // these verbs are near-universal in press-release copy and rarely
+  // appear in editorial review slugs. "music-video-for" is the video-
+  // release post shape specifically (anchored with "for" so a review
+  // that happens to mention a music video in passing doesn't hit).
+  // "drops/shares/stream new X" are the canonical "here's a new
+  // track" news slugs on brooklynvegan, theprp, etc.
+  /\bunleash(?:es|ed|ing)?\b/i,
+  /\bpremier(?:e|es|ed|ing)\b/i,
+  /\breveal(?:s|ed|ing)?\b/i,
+  /\bdrops?[-_](?:new|single|album|video|track|ep|song)\b/i,
+  /\bshares?[-_]new[-_](?:single|video|track|song|ep|album)\b/i,
+  /\b(?:new|brand[-_]new)[-_]music[-_]video\b/i,
+  /\bmusic[-_]video[-_]for\b/i,
+  /\bstream[-_]new[-_](?:single|track|video|song|ep|album)\b/i,
 ];
 
 // Normalize a URL for duplicate-detection only — what we STORE is still
@@ -1004,6 +1031,14 @@ function detectFilenameRatingImage(html: string): number | null {
   const patterns = [
     /\/(?:Rating|Ratings|Stars?|Score)[-_]?(\d)(?:[-_.](\d))?\.(?:png|jpe?g|webp|svg)\b/gi,
     /\/stars\/[a-z_-]*?(\d)(?:[-_.](\d))?\.(?:png|jpe?g|webp|svg)\b/gi,
+    // Digit-first variant: "4-5-stars.png", "4_5_stars.jpg", "3-stars.png".
+    // The other two patterns cover the Stars4-5.png convention; this one
+    // covers the opposite shape common on WordPress uploads (e.g.
+    // nosuchthingasnirvana.wordpress.com/.../4-5-stars.png). Without
+    // this, Claude fell back to the alt text "4.5 stars" to derive the
+    // score, which made the attribution look invented even though it
+    // wasn't — the detector now owns this case explicitly.
+    /\/(\d)(?:[-_.](\d))?[-_]?stars?\.(?:png|jpe?g|webp|svg)\b/gi,
   ];
   for (const re of patterns) {
     let m: RegExpExecArray | null;
@@ -1144,6 +1179,55 @@ async function fetchRawHtml(
         : 'fetch-failed';
     return { ok: false, reason, status, message: axiosErr.message ?? String(err) };
   }
+}
+
+// Interview / Q&A structure detector. Runs on Jina markdown before
+// the Claude extraction call. Catches interview pages whose URL slug
+// can't be matched by EXCLUDED_URL_PATH_PATTERNS — the trigger case
+// was highwiredaze.com/2025/11/11/avralizeint1/, whose slug ("int1")
+// is too short to regex safely but whose body is an unmistakable Q&A
+// transcript: 16 `**Bastian:**` / `**Severin:**` speaker tags and 15
+// italic-bold question lines.
+//
+// Two independent signals, either triggers a refusal:
+//   (1) Speaker-attribution: the same `**Name:**` token repeating 4+
+//       times. Reviews that quote the artist once or twice pass
+//       through; an actual interview has the speaker tag before every
+//       answer and crosses the threshold easily.
+//   (2) Italic-bold questions: `_**...?**_` appearing 3+ times.
+//       Reviews almost never use this markup; interviewers use it for
+//       every question line.
+//
+// A small label whitelist (Verdict, Rating, Score, Producer, …) is
+// excluded from the speaker-name count so review metadata blocks
+// ("**Verdict:** 85/100") don't trip the detector.
+const NON_SPEAKER_LABELS = new Set([
+  'Verdict', 'Rating', 'Score', 'Scores', 'Label', 'Producer',
+  'Release', 'Tracklist', 'Personnel', 'Lineup', 'Genre', 'Style',
+  'Length', 'Duration', 'Artist', 'Album', 'Title', 'Track', 'Tracks',
+  'Highlights', 'Recommended', 'Conclusion', 'Summary', 'Overview',
+  'Standouts', 'Pros', 'Cons', 'Band', 'Format', 'Country', 'Year',
+  'Review', 'Reviewed', 'Written', 'Author', 'Date', 'Published',
+  'Note', 'Notes', 'Credits', 'Recording', 'Mixed', 'Mastered',
+  'Released', 'Buy',
+]);
+
+function detectInterviewStructure(text: string): boolean {
+  const nameCount = new Map<string, number>();
+  const nameRe = /\*\*([A-Z][a-zA-Z]{1,15}):\*\*/g;
+  let m: RegExpExecArray | null;
+  while ((m = nameRe.exec(text)) !== null) {
+    const name = m[1];
+    if (NON_SPEAKER_LABELS.has(name)) continue;
+    nameCount.set(name, (nameCount.get(name) ?? 0) + 1);
+  }
+  for (const count of nameCount.values()) {
+    if (count >= 4) return true;
+  }
+  const questionRe = /_\*\*[^*]{8,300}\?\*\*_/g;
+  const questionMatches = text.match(questionRe);
+  if (questionMatches && questionMatches.length >= 3) return true;
+  return false;
 }
 
 // Jina Reader renders the whole page, including nav, sidebar, cookie
@@ -1377,6 +1461,17 @@ export async function scrapeReviewFromUrl(
     return { kind: 'fail', reason: 'text-too-short' };
   }
 
+  // Q&A structure guard. Catches interview pages whose URL slug
+  // couldn't be regex'd (cryptic shorthand like /avralizeint1/). The
+  // editorial-refusal rule in the Claude prompt does flag interviews,
+  // but Haiku occasionally extracts a paraphrased "excerpt" and makes
+  // up a score instead of returning the error key — refusing here
+  // avoids both the cost and the laundered-interview storage.
+  if (detectInterviewStructure(pageText)) {
+    recordScrapeFailure(url, albumMbid, 'not-a-review', 'interview/Q&A structure');
+    return { kind: 'fail', reason: 'not-a-review', message: 'interview/Q&A structure' };
+  }
+
   let hostname = '';
   try {
     hostname = new URL(url).hostname.replace(/^www\./, '');
@@ -1434,7 +1529,9 @@ BUT: strictly refuse the following non-review page types, even when they mention
  - Roundup / year-end / best-of / "X albums you should hear" list covering multiple albums.
  - Track-by-track preview / analysis published BEFORE the album (a listening diary from embargo, not a review).
  - A different album's review page (the page is about an unrelated record).
+ - Artist discography / recommendation catalogue covering multiple albums by the same artist (e.g. "Big Black Album Recommendations" with Atomizer, Racer-X, Bulldozer, Lungs sections and per-album ratings). Even if the target album "${album}" has its own section, refuse — the scraper tends to leak prose from adjacent sections into the excerpt. Admin can still add via the per-album subpage URL if one exists.
  - 404 / error / no-results / under-maintenance page.
+ - User-generated community review site the domain blacklist missed (visible signals: "edit this review", username/avatar beside the review body, "report abuse" link, sign-up CTA, "Write a review" buttons).
 
 Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refusal as prose into the excerpt / excerptKo fields. When in doubt between "weak album review" and "non-review content about the album", pick the refusal — admin can paste the URL manually via the 수동 입력 tab if they disagree.`;
 

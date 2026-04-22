@@ -373,11 +373,18 @@ ${list}
 
 기본 원칙: **recall 우선, precision은 admin이 저장 전 수동 확인**. 애매하면 포함하세요 — 최종 editorial 판단은 admin이 함.
 
-앨범 매칭: 제목/요약에 이 앨범 "${album}"이 언급된 것처럼 보이면 포함. 제목에 **다른 앨범명이 명시적으로 보이는 경우만** 거부 (예: "Dodsrit – Spirit Crusher Review"에서 "Spirit Crusher"가 찾는 앨범 아니면 거부). 아티스트 페이지/디스코그래피 페이지(앨범 특정 안 된)도 리뷰일 수 있으니 일단 포함.
+앨범 매칭: 제목/요약에 이 앨범 "${album}"이 언급된 것처럼 보이면 포함. 제목에 **다른 앨범명이 명시적으로 보이는 경우만** 거부 (예: "Dodsrit – Spirit Crusher Review"에서 "Spirit Crusher"가 찾는 앨범 아니면 거부).
 
-포함: 전문 음악 매체, 음악 블로그, 잡지, 개인 리뷰 사이트 — writer byline 없어도 평가적 문장이 있으면 포함. 다국어 (네덜란드어/독일어/프랑스어/스페인어/이탈리아어/스웨덴어/일본어/한국어 등) 전부 포함. Interview 기사도 리뷰적 발언 포함하면 OK.
+아티스트 레벨 페이지 / 디스코그래피 / 추천 리스트도 제외하세요. URL이 아티스트 슬러그에서 끝나고 (예: /artist/big-black/) 개별 앨범 슬러그까지 내려가지 않는 경우, 또는 제목이 "X album recommendations", "X albums ranked", "X discography", "best of X" 형태인 경우 — 타겟 앨범 "${album}"이 페이지에 있더라도 그 섹션이 전체 중 일부에 불과해서 스크레이퍼가 다른 앨범 내용을 이 앨범으로 섞어 저장하는 문제가 반복되고 있어요. 제목/URL에 이 앨범 이름이 명시적으로 들어가 있어야 포함.
 
-제외: 쇼핑몰 (Amazon, Discogs store, Bandcamp store, HMV, Tower Records), 스트리밍 플랫폼 (Spotify, Apple Music), score aggregator (Metacritic, albumoftheyear, rateyourmusic, metal-archives), 포럼/Reddit, 아티스트 공식 홈페이지, Wikipedia, 단순 뉴스 공지나 발매 announcement (평가 없음), 트랙리스트만 있는 페이지.
+포함: 전문 음악 매체, 음악 블로그, 잡지, 개인 리뷰 사이트 — writer byline 없어도 평가적 문장이 있으면 포함. 다국어 (네덜란드어/독일어/프랑스어/스페인어/이탈리아어/스웨덴어/일본어/한국어 등) 전부 포함.
+
+제외: 쇼핑몰 (Amazon, Discogs store, Bandcamp store, HMV, Tower Records), 스트리밍 플랫폼 (Spotify, Apple Music), score aggregator (Metacritic, albumoftheyear, rateyourmusic, metal-archives), 포럼/Reddit, 아티스트 공식 홈페이지, Wikipedia, 트랙리스트만 있는 페이지.
+
+인터뷰/뉴스도 제외 — 이 두 유형은 리뷰와 외형이 비슷해서 잘 섞이는데, 제목/URL/요약에 다음 신호 중 하나라도 보이면 거부하세요:
+- interview, Q&A, "talks to/with", "sat down with/to talk", "in conversation (with)", "chat(s) with", "X tells us", "speaks with/to" → 인터뷰
+- premiere(s), unleash(es), drops new (single/album/video/track), shares new (video/single), reveals (new tracklist/single/video), stream new (song/video), "music video for", "announces new album/tour", tour announcement → 발매/뮤비/공연 뉴스 공지
+- 평가 문장이 섞여 있더라도 페이지의 주목적이 인터뷰나 공지면 제외. 리뷰 여부가 애매하면 "제목에 review 단어가 있거나 평론 톤의 제목인가?"로 판단하세요.
 
 최대 25개까지. 명확한 제외 사유가 없으면 포함. Return ONLY a JSON array of the chosen URLs (원문 그대로).`;
     // 25 URLs × ~100 chars + JSON overhead ≈ 700–900 tokens; 1200 leaves
