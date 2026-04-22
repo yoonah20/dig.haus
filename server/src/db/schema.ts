@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { deriveUsernameFromEmail } from '../utils/username.js';
 
 /**
  * Auto-migration: compare schema-defined columns with actual DB columns
@@ -979,6 +980,46 @@ export function initializeDatabase(db: Database.Database): void {
     }
     console.log(
       `[migration] seeded source_blacklist with ${inserted}/${rows.length} new hosts`
+    );
+  });
+
+  // Rewrite legacy email-shaped usernames. Phase 1 stored the full
+  // email as users.username because the NOT NULL column existed from
+  // day one and OAuth didn't yet need a URL-safe slug. Phase 3 mydig
+  // surfaces usernames in /my/:username, so /my/fpp@dig.haus was
+  // showing up when we want /my/fpp. Rewrite every row whose
+  // username contains '@' to the sanitised local part, respecting
+  // already-clean usernames as "taken" so collisions get a numeric
+  // suffix. Deterministic order (id ASC) so admin sees stable
+  // results on re-runs if the runOnce marker got cleared for any
+  // reason.
+  runOnce(db, 'rewrite-email-shaped-usernames-2026-04-22', () => {
+    const affected = db
+      .prepare(
+        `SELECT id, email, username FROM users
+         WHERE username IS NOT NULL AND instr(username, '@') > 0
+         ORDER BY id`
+      )
+      .all() as Array<{ id: number; email: string; username: string }>;
+    if (affected.length === 0) return;
+
+    const clean = db
+      .prepare(
+        `SELECT LOWER(username) AS username FROM users
+         WHERE username IS NOT NULL AND instr(username, '@') = 0`
+      )
+      .all() as Array<{ username: string }>;
+    const taken = new Set(clean.map((r) => r.username));
+
+    const updateStmt = db.prepare('UPDATE users SET username = ? WHERE id = ?');
+    for (const row of affected) {
+      const source = row.email || row.username;
+      const next = deriveUsernameFromEmail(source, taken);
+      updateStmt.run(next, row.id);
+      taken.add(next.toLowerCase());
+    }
+    console.log(
+      `[migration] rewrote ${affected.length} email-shaped usernames to URL-safe slugs`
     );
   });
 

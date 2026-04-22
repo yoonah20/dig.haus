@@ -5,6 +5,7 @@ import path from 'path';
 import { queryGet, queryAll, execute, transaction } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { hostAvatarFromBuffer, AvatarError, AVATARS_DIR, AVATARS_ROUTE } from '../services/avatarHost.js';
+import { USERNAME_RE, RESERVED_USERNAMES } from '../utils/username.js';
 import type { AppUser } from '../auth/passport.js';
 
 const router = Router();
@@ -133,15 +134,9 @@ router.patch('/me/profile', requireAuth, (req, res) => {
 // a-z0-9 with _ and -, 3-20 chars, not-already-taken. The partial
 // unique index on LOWER(username) added in the 3a schema enforces
 // case-insensitive uniqueness at the DB level — we check up front
-// here for a friendlier error.
-const USERNAME_RE = /^[a-z0-9](?:[a-z0-9_-]{1,18}[a-z0-9])?$/;
-const RESERVED_USERNAMES = new Set([
-  'admin', 'api', 'about', 'help', 'login', 'logout', 'signup', 'signin',
-  'auth', 'settings', 'profile', 'me', 'my', 'we', 'us', 'they',
-  'home', 'explore', 'search', 'albums', 'album', 'artist', 'artists',
-  'dig', 'digger', 'diggers', 'dighaus', 'staff', 'support',
-  'terms', 'privacy', 'legal', 'contact', 'feedback',
-]);
+// here for a friendlier error. USERNAME_RE + RESERVED_USERNAMES come
+// from utils/username.ts so the OAuth upsert, the legacy-email
+// rewrite migration, and this endpoint share one source of truth.
 
 router.patch('/me/username', requireAuth, (req, res) => {
   const me = req.user as AppUser;

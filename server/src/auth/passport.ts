@@ -1,6 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
-import { queryGet, execute } from '../db/index.js';
+import { queryGet, queryAll, execute } from '../db/index.js';
+import { deriveUsernameFromEmail } from '../utils/username.js';
 
 export interface AppUser {
   id: number;
@@ -54,10 +55,22 @@ function upsertGoogleUser(profile: {
 
   // The legacy users table has NOT NULL username + password_hash from Phase 1.
   // Fill placeholders so new OAuth users satisfy those constraints.
+  //
+  // Username: derive a URL-safe slug from the email local part so
+  // /my/:username renders as /my/fpp instead of /my/fpp@dig.haus.
+  // Collision + reserved-word handling goes through
+  // deriveUsernameFromEmail. We pass in the current set of taken
+  // usernames so two signups with the same local part end up on
+  // distinct slugs (first "fpp", second "fpp2", ...).
+  const takenRows = queryAll(
+    `SELECT LOWER(username) AS username FROM users WHERE username IS NOT NULL`
+  ) as Array<{ username: string }>;
+  const taken = new Set(takenRows.map((r) => r.username));
+  const username = deriveUsernameFromEmail(profile.email, taken);
   execute(
     `INSERT INTO users (google_id, email, username, password_hash, name, avatar_url, is_admin)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [profile.id, profile.email, profile.email, '', profile.name, profile.avatarUrl, isAdmin]
+    [profile.id, profile.email, username, '', profile.name, profile.avatarUrl, isAdmin]
   );
   const row = queryGet(`SELECT * FROM users WHERE google_id = ?`, [profile.id]);
   return row as AppUser;
