@@ -117,14 +117,16 @@ export default function TopNav() {
                 (Home.tsx's SortTrigger). Keeping the nav cluster
                 down to "find / my store / login" — everything about
                 how the feed is arranged belongs to the feed itself. */}
-            {/* mydig entry. A shovel — 'dig' made literal, and it
-                echoes the site's crate-digger lexicon ("keep digging"
-                tagline, the 'mydig' namespace). Earlier iterations
-                used a shopfront (when the page was a store), then a
-                vinyl record; the shovel reads more uniquely and
-                dodges both collisions. First click with no username
-                opens the UsernameModal; later clicks go to
-                /my/:username. Hidden for guests. */}
+            {/* mydig entry. A record crate — box outline with four
+                vertical record spines inside. Crate digging is the
+                literal referent of 'dig' in record-collector speak,
+                and this glyph reads unambiguously as a box of
+                records even at 18px. Earlier iterations went
+                through shopfront (too retail), vinyl disc (too
+                overlapping with the wall's motif), and a shovel
+                (didn't read as shovel at small size). First click
+                with no username opens the UsernameModal; later
+                clicks go to /my/:username. Hidden for guests. */}
             {user && (
               <button
                 onClick={() => {
@@ -148,12 +150,13 @@ export default function TopNav() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  {/* T-handle */}
-                  <path d="M9 3 H15" />
-                  {/* Shaft */}
-                  <path d="M12 3 V13" />
-                  {/* Spade blade — triangular, pointed down */}
-                  <path d="M7 13 H17 L12 21 Z" />
+                  {/* Crate outline */}
+                  <rect x="3.5" y="6" width="17" height="13" rx="0.5" />
+                  {/* Record spines inside — four thin verticals */}
+                  <path d="M7 9 V17" />
+                  <path d="M11 9 V17" />
+                  <path d="M15 9 V17" />
+                  <path d="M19 9 V17" />
                 </svg>
               </button>
             )}

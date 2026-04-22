@@ -247,14 +247,14 @@ function ProfileHeader({
               <button
                 type="button"
                 onClick={onEdit}
-                className="text-[11px] text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+                className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/75 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
               >
                 ✏️ 편집
               </button>
               <button
                 type="button"
                 onClick={onSaveSnapshot}
-                className="text-[11px] text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+                className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/75 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
                 title="현재 벽을 스냅샷으로 저장"
               >
                 📸 스냅샷
