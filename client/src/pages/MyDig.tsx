@@ -24,7 +24,12 @@ import { resolveApiUrl } from '../utils/apiUrl';
 // scene reads cleaner with three symmetric rows framing the lamp
 // pool on all sides, and 22 slots squeezed covers narrower on
 // mobile than the shopfront aesthetic wanted.
-const WALL_ROW_SIZES = [5, 5, 5] as const;
+// Vinyl Wall rows: 5-5 = 10 slots, a "top-10 favourites" frame.
+// Two rows keep the pendant-scene proportions clean (third row was
+// getting clipped at the baseboard on mobile + landing into the
+// floor band on desktop). Also aligns with the preview scene's
+// 5-5 count after the lofi-bedroom pivot.
+const WALL_ROW_SIZES = [5, 5] as const;
 
 const SHELF_BIN_COUNT = 6;
 
@@ -69,7 +74,7 @@ export default function MyDig() {
   }
 
   // Wall items come back sparse (position → item). Build a dense
-  // 15-element array with nulls for the empty-frame render.
+  // 10-element array with nulls for the empty-frame render.
   const wallByPosition = new Map<number, MyDigWallItem>();
   for (const it of data.vinylWall) wallByPosition.set(it.position, it);
 

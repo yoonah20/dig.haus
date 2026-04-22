@@ -998,6 +998,21 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // Second trim: 15 → 10 slots (5/5). Third row of the wall was
+  // getting clipped at the baseboard on the pendant scene, and the
+  // "top-10 favourites" framing reads tighter than the earlier
+  // "15 favourites" did. Positions 10-14 dropped — users who had
+  // placed records in the third row will see those slots gone on
+  // next visit and can re-place the kept 10 via the edit modal.
+  runOnce(db, 'vinyl-wall-trim-to-10-2026-04-23', () => {
+    const info = db
+      .prepare('DELETE FROM vinyl_wall_items WHERE position >= 10')
+      .run();
+    if ((info.changes as number) > 0) {
+      console.log(`[migration] pruned ${info.changes} vinyl_wall_items with position >= 10`);
+    }
+  });
+
   // Rewrite legacy email-shaped usernames. Phase 1 stored the full
   // email as users.username because the NOT NULL column existed from
   // day one and OAuth didn't yet need a URL-safe slug. Phase 3 mydig
@@ -1151,7 +1166,7 @@ export function initializeDatabase(db: Database.Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL CHECK (position >= 0 AND position < 15),
+      position INTEGER NOT NULL CHECK (position >= 0 AND position < 10),
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(user_id, position)
     )
