@@ -356,6 +356,10 @@ router.get('/mydig/candidates', requireAuth, (req, res) => {
   const searchFilter = pattern
     ? `(LOWER(a.title) LIKE ? OR LOWER(a.artist_name) LIKE ?)`
     : null;
+  // a.id DESC == registration-recent first (AUTOINCREMENT PK is
+  // monotonic with insertion). Users find what they just added at
+  // the top of the picker. Release-date ordering would bury newly
+  // registered older albums — bad for the "add-then-place" flow.
   const limitClause = `ORDER BY a.id DESC LIMIT 30`;
 
   try {
@@ -373,6 +377,26 @@ router.get('/mydig/candidates', requireAuth, (req, res) => {
         `${selectClause}
          FROM albums a
          JOIN collections c ON c.album_id = a.id
+         WHERE ${where.join(' AND ')}
+         GROUP BY a.id
+         ${limitClause}`,
+        params
+      );
+    } else if (source === 'upvote') {
+      // Albums the user marked 굿굿. Mirror of 'collection' but
+      // against album_votes with vote='up'. GROUP BY a.id is a
+      // no-op here (album_votes has UNIQUE(user_id, album_id)) but
+      // kept for consistency with the other source branches.
+      const where = ['v.user_id = ?', "v.vote = 'up'"];
+      const params: any[] = [me.id];
+      if (searchFilter) {
+        where.push(searchFilter);
+        params.push(pattern, pattern);
+      }
+      rows = queryAll(
+        `${selectClause}
+         FROM albums a
+         JOIN album_votes v ON v.album_id = a.id
          WHERE ${where.join(' AND ')}
          GROUP BY a.id
          ${limitClause}`,

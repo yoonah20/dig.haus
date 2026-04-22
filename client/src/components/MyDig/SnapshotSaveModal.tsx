@@ -57,7 +57,7 @@ export default function SnapshotSaveModal({
           벽을 스냅샷으로 저장
         </h2>
         <p className="text-xs text-gray-500 mb-4">
-          지금 걸린 10장을 그대로 보관합니다. 편집해도 이 기록은 남아요.
+          지금 걸린 15장을 그대로 보관합니다. 편집해도 이 기록은 남아요.
         </p>
 
         <label className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">

@@ -1217,6 +1217,51 @@ export function initializeDatabase(db: Database.Database): void {
       UNIQUE(snapshot_id, position)
     )
   `);
+
+  // Existing DBs created the table with a stale `position < 10`
+  // CHECK from the brief 10-slot wall era. Wall is 15 slots again,
+  // so INSERTs for positions 10-14 fail that check and roll back
+  // the whole snapshot-create transaction — symptom: "스냅샷 저장
+  // 실패" with no snapshot row ever persisted. Rebuild the table
+  // with the current `< 15` check, copy existing rows across, and
+  // recreate the index.
+  runOnce(db, 'vinyl-wall-snapshot-items-position-lt15-2026-04-23', () => {
+    const row = db
+      .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='vinyl_wall_snapshot_items'`)
+      .get() as { sql?: string } | undefined;
+    if (!row?.sql) return;
+    if (!/position\s*<\s*10/.test(row.sql)) return; // already on < 15
+
+    db.exec('PRAGMA foreign_keys = OFF');
+    try {
+      db.exec('BEGIN');
+      db.exec('ALTER TABLE vinyl_wall_snapshot_items RENAME TO vinyl_wall_snapshot_items__legacy');
+      db.exec(`
+        CREATE TABLE vinyl_wall_snapshot_items (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          snapshot_id INTEGER NOT NULL REFERENCES vinyl_wall_snapshots(id) ON DELETE CASCADE,
+          album_id INTEGER NOT NULL REFERENCES albums(id),
+          position INTEGER NOT NULL CHECK (position >= 0 AND position < 15),
+          UNIQUE(snapshot_id, position)
+        )
+      `);
+      db.exec(
+        `INSERT INTO vinyl_wall_snapshot_items (id, snapshot_id, album_id, position)
+         SELECT id, snapshot_id, album_id, position FROM vinyl_wall_snapshot_items__legacy`
+      );
+      db.exec('DROP TABLE vinyl_wall_snapshot_items__legacy');
+      db.exec('COMMIT');
+      db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_vinyl_wall_snapshot_items_snapshot
+         ON vinyl_wall_snapshot_items(snapshot_id, position)`
+      );
+      console.log('[migration] vinyl_wall_snapshot_items: position CHECK rewritten from < 10 to < 15');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+    db.exec('PRAGMA foreign_keys = ON');
+  });
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_vinyl_wall_snapshot_items_snapshot
      ON vinyl_wall_snapshot_items(snapshot_id, position)`

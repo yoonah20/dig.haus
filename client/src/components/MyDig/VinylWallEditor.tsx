@@ -170,17 +170,17 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
           via flex-col reverse). Desktop gets the proper split. */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <div className="max-w-[900px] mx-auto flex flex-col gap-3 sm:gap-4">
+          <div className="max-w-[780px] mx-auto flex flex-col gap-3 sm:gap-4">
             {rows.map((positions, rowIdx) => (
               <div
                 key={rowIdx}
-                // Inline grid declaration — see MyDig.tsx's VinylWallGrid
-                // for why we stopped relying on Tailwind's grid-cols-6
-                // utility (a few renders were collapsing to a single
-                // vertical column).
+                // 5-column grid matches WALL_ROW_SIZES (5/5/5). An
+                // earlier iteration used 6 columns from the 5-5-6-6
+                // era, leaving an empty right-hand column that made
+                // the records look left-aligned instead of centered.
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+                  gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
                 }}
                 className="gap-3 sm:gap-4"
               >
@@ -206,13 +206,17 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
         </main>
 
         <aside className="w-full lg:w-80 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-white/5 bg-[#12100d] flex flex-col max-h-[50vh] lg:max-h-none">
-          {/* Source tabs */}
+          {/* Source tabs. 굿굿 first surfaces albums the user has
+              already endorsed — a natural starting point for wall
+              curation. 살거 was dropped: the wall is identity
+              expression, not shopping list. '내 상자' renames the
+              earlier '내 Crate' to match dig.haus's Korean lexicon. */}
           <div className="flex border-b border-white/5 text-xs">
             {([
-              { key: 'all', label: '전체' },
+              { key: 'upvote', label: '굿굿' },
               { key: 'collection', label: '샀음' },
-              { key: 'wantlist', label: '살거' },
-              { key: 'crate', label: '내 Crate' },
+              { key: 'crate', label: '내 상자' },
+              { key: 'all', label: '전체' },
             ] as const).map((t) => (
               <button
                 key={t.key}
@@ -237,9 +241,14 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
               placeholder="아티스트 / 앨범 검색"
               className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
             />
-            {selectedAlbum && (
+            {selectedAlbum ? (
               <div className="mt-2 text-[11px] text-[#e8a020]">
-                선택됨: {selectedAlbum.title} — 빈 슬롯을 탭해 배치하거나 ESC로 취소
+                선택됨: {selectedAlbum.title} — 빈 슬롯 클릭으로 배치
+              </div>
+            ) : (
+              <div className="mt-2 text-[10px] text-gray-600 leading-snug">
+                앨범을 <span className="text-gray-400">드래그</span>해서 벽에 놓거나,
+                클릭해서 선택 후 빈 슬롯을 탭하세요.
               </div>
             )}
           </div>
@@ -426,7 +435,9 @@ function CandidateRow({
       draggable
       onDragStart={handleDragStart}
       onClick={onSelect}
-      className={`p-2 flex items-center gap-2 cursor-pointer transition-colors ${
+      // cursor-grab signals the row is draggable; it flips to
+      // grabbing while the drag is in flight via active:cursor.
+      className={`p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing transition-colors ${
         isSelected ? 'bg-[#e8a020]/15' : 'hover:bg-white/5'
       }`}
     >

@@ -77,7 +77,12 @@ export function useMyDig(username: string | undefined) {
   });
 }
 
-export type MyDigCandidateSource = 'all' | 'collection' | 'wantlist' | 'crate';
+export type MyDigCandidateSource =
+  | 'all'
+  | 'collection'
+  | 'wantlist'
+  | 'crate'
+  | 'upvote';
 
 export interface MyDigCandidate {
   id: number;
