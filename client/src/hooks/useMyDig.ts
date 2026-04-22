@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import axios from '../lib/axios';
 
 export interface MyDigAlbum {
@@ -95,19 +100,31 @@ export interface MyDigCandidate {
   coverArtFallbacks?: string[];
 }
 
+interface CandidatePage {
+  albums: MyDigCandidate[];
+  // Server-supplied cursor for the next page; null = no more.
+  nextOffset: number | null;
+}
+
 export function useMyDigCandidates(
   source: MyDigCandidateSource,
   q: string,
   enabled: boolean
 ) {
-  return useQuery<{ albums: MyDigCandidate[] }>({
+  return useInfiniteQuery<CandidatePage>({
     queryKey: ['mydig-candidates', source, q],
-    queryFn: async () => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
       const { data } = await axios.get('/api/mydig/candidates', {
-        params: { source, q: q || undefined },
+        params: {
+          source,
+          q: q || undefined,
+          offset: pageParam ?? 0,
+        },
       });
       return data;
     },
+    getNextPageParam: (lastPage) => lastPage.nextOffset ?? undefined,
     enabled,
     staleTime: 15_000,
   });

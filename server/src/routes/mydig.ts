@@ -349,6 +349,13 @@ router.get('/mydig/candidates', requireAuth, (req, res) => {
   const source = String(req.query.source || 'all');
   const q = String(req.query.q || '').trim();
   const pattern = q ? `%${q.toLowerCase()}%` : null;
+  const LIMIT = 30;
+  // Offset for infinite-scroll pagination. Capped at a big-enough
+  // ceiling so a malformed client can't paginate forever.
+  const rawOffset = parseInt(String(req.query.offset || '0'), 10);
+  const offset = Number.isFinite(rawOffset) && rawOffset > 0
+    ? Math.min(rawOffset, 10_000)
+    : 0;
 
   const selectClause = `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name,
                                a.release_date, a.release_year,
@@ -360,7 +367,7 @@ router.get('/mydig/candidates', requireAuth, (req, res) => {
   // monotonic with insertion). Users find what they just added at
   // the top of the picker. Release-date ordering would bury newly
   // registered older albums — bad for the "add-then-place" flow.
-  const limitClause = `ORDER BY a.id DESC LIMIT 30`;
+  const limitClause = `ORDER BY a.id DESC LIMIT ${LIMIT} OFFSET ${offset}`;
 
   try {
     let rows: any[] = [];
@@ -452,6 +459,11 @@ router.get('/mydig/candidates', requireAuth, (req, res) => {
       );
     }
 
+    // `nextOffset` is the value the client should send as ?offset
+    // on the next page fetch — null signals "no more results" so
+    // the infinite-scroll hook can stop asking. We assume more
+    // pages remain whenever the current page came back full.
+    const nextOffset = rows.length === LIMIT ? offset + LIMIT : null;
     res.json({
       albums: rows.map((r: any) => ({
         id: r.id,
@@ -463,6 +475,7 @@ router.get('/mydig/candidates', requireAuth, (req, res) => {
         coverArtUrl: r.cover_art_url,
         coverArtFallbacks: r.cover_art_fallbacks ? JSON.parse(r.cover_art_fallbacks) : [],
       })),
+      nextOffset,
     });
   } catch (err) {
     console.error('[mydig/candidates] failed:', err);

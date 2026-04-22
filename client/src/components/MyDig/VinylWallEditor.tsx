@@ -253,29 +253,17 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-white/5">
-            {candidates.isLoading ? (
-              <div className="p-4 text-xs text-gray-500">로딩 중…</div>
-            ) : (candidates.data?.albums.length ?? 0) === 0 ? (
-              <div className="p-4 text-xs text-gray-500">
-                {debouncedQ ? '검색 결과 없음' : '항목 없음'}
-              </div>
-            ) : (
-              candidates.data!.albums.map((album) => (
-                <CandidateRow
-                  key={album.id}
-                  album={album}
-                  isSelected={selectedAlbum?.id === album.id}
-                  onSelect={() =>
-                    setSelectedAlbum((curr) =>
-                      curr?.id === album.id ? null : candidateToAlbum(album)
-                    )
-                  }
-                  dragSource={dragSource}
-                />
-              ))
-            )}
-          </div>
+          <CandidateList
+            candidates={candidates}
+            selectedAlbum={selectedAlbum}
+            onSelectAlbum={(album) =>
+              setSelectedAlbum((curr) =>
+                curr?.id === album.id ? null : candidateToAlbum(album)
+              )
+            }
+            dragSource={dragSource}
+            debouncedQ={debouncedQ}
+          />
         </aside>
       </div>
     </div>
@@ -320,16 +308,22 @@ function EditWallSlot({
     if (!album) return;
     dragSource.current = position;
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData(
-      'application/x-mydig-album',
-      JSON.stringify({ ...album, _sourcePosition: position })
-    );
+    const payload = JSON.stringify({ ...album, _sourcePosition: position });
+    e.dataTransfer.setData('application/x-mydig-album', payload);
+    // text/plain fallback — some browsers refuse to enter the
+    // drop phase unless a standard type is present.
+    e.dataTransfer.setData('text/plain', payload);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     if (dragSource.current === position) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+    // Match dropEffect to the source's effectAllowed. A copy-from-
+    // candidate (source = -1) must show dropEffect='copy' or the
+    // browser rejects the drop outright and onDrop never fires —
+    // the primary reason drag-from-right-to-left appeared broken.
+    // Slot-to-slot drags are semantically moves.
+    e.dataTransfer.dropEffect = dragSource.current === -1 ? 'copy' : 'move';
     setDragOver(true);
   };
 
@@ -338,7 +332,9 @@ function EditWallSlot({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const data = e.dataTransfer.getData('application/x-mydig-album');
+    const data =
+      e.dataTransfer.getData('application/x-mydig-album') ||
+      e.dataTransfer.getData('text/plain');
     if (!data) {
       dragSource.current = null;
       return;
@@ -410,6 +406,88 @@ function EditWallSlot({
   );
 }
 
+function CandidateList({
+  candidates,
+  selectedAlbum,
+  onSelectAlbum,
+  dragSource,
+  debouncedQ,
+}: {
+  candidates: ReturnType<typeof useMyDigCandidates>;
+  selectedAlbum: MyDigAlbum | null;
+  onSelectAlbum: (album: MyDigCandidate) => void;
+  dragSource: React.MutableRefObject<number | null>;
+  debouncedQ: string;
+}) {
+  const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = candidates;
+  // Flatten all pages into one sequence for rendering. React Query
+  // keeps pages across paginations so already-loaded rows don't
+  // re-render as the user scrolls.
+  const albums = data?.pages.flatMap((p) => p.albums) ?? [];
+
+  // Sentinel at the end of the list — when it intersects the
+  // scroll container, request the next page. Fetch is guarded by
+  // hasNextPage + isFetchingNextPage so we never over-request.
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !hasNextPage) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
+          }
+        }
+      },
+      { rootMargin: '120px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 text-xs text-gray-500">로딩 중…</div>
+      </div>
+    );
+  }
+  if (albums.length === 0) {
+    return (
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-4 text-xs text-gray-500">
+          {debouncedQ ? '검색 결과 없음' : '항목 없음'}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="flex-1 overflow-y-auto divide-y divide-white/5">
+      {albums.map((album) => (
+        <CandidateRow
+          key={album.id}
+          album={album}
+          isSelected={selectedAlbum?.id === album.id}
+          onSelect={() => onSelectAlbum(album)}
+          dragSource={dragSource}
+        />
+      ))}
+      {/* Sentinel row at the very bottom. Takes minimal space but
+          is tall enough for the IntersectionObserver to reliably
+          fire as it scrolls into view. */}
+      <div ref={sentinelRef} className="h-8 flex items-center justify-center">
+        {isFetchingNextPage && (
+          <span className="text-[10px] text-gray-600">더 불러오는 중…</span>
+        )}
+        {!hasNextPage && albums.length > 20 && (
+          <span className="text-[10px] text-gray-700">더 없음</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CandidateRow({
   album,
   isSelected,
@@ -424,10 +502,9 @@ function CandidateRow({
   const handleDragStart = (e: React.DragEvent) => {
     dragSource.current = -1;
     e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData(
-      'application/x-mydig-album',
-      JSON.stringify(candidateToAlbum(album))
-    );
+    const payload = JSON.stringify(candidateToAlbum(album));
+    e.dataTransfer.setData('application/x-mydig-album', payload);
+    e.dataTransfer.setData('text/plain', payload);
   };
 
   return (
