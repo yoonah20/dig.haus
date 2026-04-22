@@ -40,13 +40,18 @@ interface ApiConsoleData {
   recent: RecentCall[];
 }
 
-export default function ApiConsole() {
+// `embedded` renders the content without the outer <main> wrapper so
+// the API tab of the admin dashboard can host the same view alongside
+// other tabs. The standalone route (/admin/api-console) still gets
+// the wrapper for a pinned-tab / live-console context.
+export default function ApiConsole({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (embedded) return;
     if (!loading && (!user || !user.isAdmin)) navigate('/');
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, embedded]);
 
   const { data, isLoading, dataUpdatedAt } = useQuery<ApiConsoleData>({
     queryKey: ['admin-api-console'],
@@ -61,8 +66,8 @@ export default function ApiConsole() {
 
   if (loading || !user?.isAdmin) return null;
 
-  return (
-    <main className="flex-1 max-w-[1200px] mx-auto px-4 py-6 font-mono text-sm">
+  const body = (
+    <div className="font-mono text-sm">
       <header className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
         <h1 className="text-lg text-[#e8a020]">API Usage Console</h1>
         <div className="text-[11px] text-gray-500">
@@ -184,6 +189,13 @@ export default function ApiConsole() {
           </section>
         </>
       )}
+    </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <main className="flex-1 max-w-[1200px] mx-auto px-4 py-6">
+      {body}
     </main>
   );
 }

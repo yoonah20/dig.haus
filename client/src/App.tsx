@@ -77,6 +77,8 @@ export default function App() {
                   <Route path="/" element={<Home />} />
                   <Route path="/album/:slug" element={<Album />} />
                   <Route path="/admin" element={<Admin />} />
+                  <Route path="/admin/curation" element={<Admin />} />
+                  <Route path="/admin/api" element={<Admin />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/my-preview" element={<MyDigPreview />} />
                   <Route path="/my/:username" element={<MyDig />} />

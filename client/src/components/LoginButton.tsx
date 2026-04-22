@@ -191,11 +191,17 @@ export default function LoginButton() {
             🧑‍🎤 내 프로필
           </Link>
           {user.isAdmin && (
-            <button
-              onClick={() => {
-                setMenuOpen(false);
-                navigate('/admin');
-              }}
+            // Always open in a new tab — admin tends to reference the
+            // dashboard while also keeping the site browsing tab alive
+            // (copy a review URL from /admin, paste into a retry flow
+            // on /album/:slug, etc.). Anchor instead of a button with
+            // window.open so middle-click / ctrl-click still work and
+            // the accessible open-in-new-tab affordances are preserved.
+            <a
+              href="/admin"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMenuOpen(false)}
               className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-[#e8a020] hover:bg-white/5 cursor-pointer"
             >
               <span>🛠 관리자 대시보드</span>
@@ -204,7 +210,7 @@ export default function LoginButton() {
                   {pendingCount}
                 </span>
               )}
-            </button>
+            </a>
           )}
           <button
             onClick={async () => {

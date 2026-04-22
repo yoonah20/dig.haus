@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import ApiConsole from './ApiConsole';
+import LlmCompare from './LlmCompare';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -577,13 +579,70 @@ function MODEL_LABEL(model: string): string {
   return model;
 }
 
+// Admin routes: /admin (dashboard), /admin/curation, /admin/api. All
+// three render the same Admin component; the component reads the
+// pathname to decide which tab's sections to show. A single layout +
+// tab bar keeps the chrome consistent across tabs and lets admin
+// deep-link straight to the relevant workflow. Legacy standalone
+// routes /admin/api-console and /admin/compare still exist (see
+// App.tsx) for pinned-tab use; their content is also embedded in the
+// API tab.
+type AdminTab = 'dashboard' | 'curation' | 'api';
+
+function deriveTabFromPath(pathname: string): AdminTab {
+  if (pathname.startsWith('/admin/curation')) return 'curation';
+  if (pathname.startsWith('/admin/api')) return 'api';
+  return 'dashboard';
+}
+
+function AdminTabBar({ active }: { active: AdminTab }) {
+  const tabs: Array<{ id: AdminTab; to: string; label: string; icon: string }> = [
+    { id: 'dashboard', to: '/admin', label: '대시보드', icon: '📊' },
+    { id: 'curation', to: '/admin/curation', label: '리뷰 큐레이션', icon: '🔖' },
+    { id: 'api', to: '/admin/api', label: 'API & LLM', icon: '🪙' },
+  ];
+  return (
+    <nav
+      aria-label="관리자 섹션"
+      className="mb-6 border-b border-white/10 flex flex-wrap gap-1"
+    >
+      {tabs.map((t) => {
+        const isActive = t.id === active;
+        return (
+          <Link
+            key={t.id}
+            to={t.to}
+            className={`px-4 py-2 text-sm rounded-t-md -mb-px border-b-2 transition-colors ${
+              isActive
+                ? 'text-[#e8a020] border-[#e8a020] font-semibold'
+                : 'text-gray-400 border-transparent hover:text-white hover:border-white/20'
+            }`}
+            aria-current={isActive ? 'page' : undefined}
+          >
+            <span aria-hidden className="mr-1.5">{t.icon}</span>
+            {t.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 export default function Admin() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab = deriveTabFromPath(location.pathname);
 
   useEffect(() => {
-    document.title = 'Admin | dig.haus';
-  }, []);
+    const tabLabel =
+      activeTab === 'curation'
+        ? '리뷰 큐레이션 · '
+        : activeTab === 'api'
+          ? 'API & LLM · '
+          : '';
+    document.title = `${tabLabel}Admin | dig.haus`;
+  }, [activeTab]);
 
   useEffect(() => {
     if (loading) return;
@@ -623,14 +682,22 @@ export default function Admin() {
 
   return (
     <main className="max-w-[1280px] mx-auto px-4 py-8 overflow-x-hidden">
-      <h1 className="text-3xl font-bold text-white mb-8 font-serif">
+      <h1 className="text-3xl font-bold text-white mb-4 font-serif">
         🛠 레코드샵 관리
       </h1>
 
-      {isError && <div className="text-red-400 text-sm mb-4">통계를 불러오지 못했습니다.</div>}
-      {isLoading && <div className="text-gray-500 text-sm">로딩 중...</div>}
+      <AdminTabBar active={activeTab} />
 
-      {data && (
+      {/* Stats-dependent error/loading only applies to the dashboard
+          tab. Curation and API tabs work without /api/admin/stats. */}
+      {activeTab === 'dashboard' && isError && (
+        <div className="text-red-400 text-sm mb-4">통계를 불러오지 못했습니다.</div>
+      )}
+      {activeTab === 'dashboard' && isLoading && (
+        <div className="text-gray-500 text-sm">로딩 중...</div>
+      )}
+
+      {activeTab === 'dashboard' && data && (
         <>
           {/* Top area — split in two rows.
               Row A: 전체 / 오늘 counters + API 사용량 tile (cost signal).
@@ -942,6 +1009,11 @@ export default function Admin() {
             </div>
           </section>
 
+        </>
+      )}
+
+      {activeTab === 'curation' && (
+        <>
           {/* Source trust panel — cumulative success / failure lists
               beside the curated whitelist / blacklist so admin can
               promote proven hosts with a single click. Whitelisted
@@ -951,7 +1023,7 @@ export default function Admin() {
               deploy). Placed above the scrape-failure log because the
               curation workflow starts with "decide which sources to
               trust" before looking at per-URL failures. */}
-          <section className="mt-4">
+          <section>
             <SourcesPanel />
           </section>
 
@@ -973,7 +1045,25 @@ export default function Admin() {
           <section className="mt-4">
             <CurationRunsPanel />
           </section>
+        </>
+      )}
 
+      {activeTab === 'api' && (
+        <>
+          {/* Live usage console (polls /api/admin/api-console every
+              15s). Same view as /admin/api-console; the standalone
+              route stays available for pinned-tab workflows. */}
+          <section>
+            <ApiConsole embedded />
+          </section>
+
+          {/* LLM shadow-comparison grid (Haiku/Sonnet vs DeepSeek).
+              Same content as /admin/compare; embedded inline here so
+              the cost panel and the quality comparison live in one
+              scroll context. */}
+          <section className="mt-6">
+            <LlmCompare embedded />
+          </section>
         </>
       )}
     </main>

@@ -99,7 +99,11 @@ function formatTime(iso: string): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-export default function LlmCompare() {
+// `embedded` renders the content without the outer <main> wrapper so
+// the API tab of the admin dashboard can host the same view alongside
+// the usage console. The standalone route (/admin/compare) still gets
+// the wrapper when deep-linked.
+export default function LlmCompare({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -107,8 +111,9 @@ export default function LlmCompare() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
   useEffect(() => {
+    if (embedded) return;
     if (!loading && (!user || !user.isAdmin)) navigate('/');
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, embedded]);
 
   const { data, isLoading } = useQuery<CompareResponse>({
     queryKey: ['admin-llm-compare', operation],
@@ -161,8 +166,8 @@ export default function LlmCompare() {
     { primaryUsd: 0, shadowUsd: 0, primaryLatency: 0, shadowLatency: 0, count: 0, shadowErrors: 0 }
   );
 
-  return (
-    <main className="flex-1 max-w-[1400px] mx-auto px-4 py-6 font-mono text-sm">
+  const body = (
+    <div className="font-mono text-sm">
       <header className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
         <h1 className="text-lg text-[#e8a020]">LLM Shadow Comparison</h1>
         <div className="flex items-center gap-3 text-[11px] text-gray-500">
@@ -405,6 +410,13 @@ export default function LlmCompare() {
           })}
         </div>
       )}
+    </div>
+  );
+
+  if (embedded) return body;
+  return (
+    <main className="flex-1 max-w-[1400px] mx-auto px-4 py-6">
+      {body}
     </main>
   );
 }
