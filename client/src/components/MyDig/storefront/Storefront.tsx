@@ -1,42 +1,46 @@
 import { useEffect, useRef, useState } from 'react';
 import { CoverDefs } from './FakeCover';
-import { ShelfUnit, WallLP, WallRail, type CubbySpec } from './primitives';
+import {
+  TurntableConsole,
+  WallLP,
+  WallRail,
+  WoodenCrate,
+  type CrateSpec,
+} from './primitives';
 import { ROOM, FONT_HEAD, FONT_LABEL } from './palettes';
 
-// Wall fill pattern — 22 slots arranged as 5/5/6/6 per the Phase 3
-// spec (CLAUDE.md). 5-slot rows are centered against the 6-slot
-// width below them; all LPs share the same pixel size so the
-// alignment reads as "wider rows have two extra sleeves" rather
-// than "wider rows are scaled up." A few empties scattered around
-// so the preview doesn't read as suspiciously uniform.
+// Wall fill pattern — 10 slots arranged as 5/5 (two rows of five).
+// Reduced from the earlier 5-5-6-6 = 22 spec because the lofi-
+// bedroom mood pivot turned the page from "collector's shop wall"
+// into "my current favorites above the turntable" — 22 felt like
+// an archive; 10 reads as a curated room display. If a user wants
+// more space to showcase, we expand later; starting at 10 keeps
+// the onboarding curation bar low. A couple of empty slots
+// scattered so the preview doesn't read as suspiciously uniform.
 const WALL_PATTERN: readonly (readonly boolean[])[] = [
   [true, true, false, true, true],
   [true, true, true, false, true],
-  [false, true, true, true, true, true],
-  [true, true, false, true, true, true],
 ];
 
 // Deterministic per-slot seeds — stable across reloads so the same
-// slot always shows the same fake sleeve. One entry per cell in the
-// 5+5+6+6 = 22 grid, flattened row-by-row; zeros mark the empty
-// slots from WALL_PATTERN (kept in the array so index arithmetic
-// stays trivial).
+// slot always shows the same fake sleeve. Zero marks the empty
+// slot positions from WALL_PATTERN (kept in the array so index
+// arithmetic stays trivial).
 const WALL_SEEDS = [
   11, 42, 0, 67, 29,
   88, 5, 56, 0, 73,
-  0, 94, 18, 37, 61, 22,
-  8, 45, 0, 31, 76, 53,
 ];
 
-// Shelf cubby contents — covers the range we want the design to
-// demonstrate (empty / single / sparse / packed / dense) plus one
-// Korean-label case to verify Gaegu/Nanum Pen Script renders.
-const CUBBIES: CubbySpec[] = [
+// Floor crate contents — four wooden crates demonstrating the
+// range of populated states (packed / sparse / single / dense)
+// plus one Korean-label case to verify Hangul handwriting renders.
+// Max six per spec; four is a reasonable default for the preview
+// so the floor reads as "some crates out, some in the library"
+// rather than "everything the user owns."
+const CRATES: CrateSpec[] = [
   { label: 'BLACK METAL', count: 30, coverSeed: 3 },
   { label: '비 오는 일요일', count: 8, coverSeed: 13 },
   { label: '최애 ONE', count: 1, coverSeed: 9 },
-  { label: null, count: 0 },
-  { label: 'DEATH METAL', count: 15, coverSeed: 5 },
   { label: 'NEW ACQUISITIONS', count: 50, coverSeed: 7 },
 ];
 
@@ -409,17 +413,23 @@ export function Storefront({
   username?: string;
   mobile?: boolean;
 }) {
-  // CRITICAL: LP size is the SAME on both tiers. A 12" LP is a
-  // 12" LP regardless of whether it's mounted on the wall or
-  // sitting in a shelf cubby.
+  // LP size shared by the wall slots. The turntable console + floor
+  // crates derive their dimensions from the scene width independently
+  // — the "12 inch LP is 12 inch everywhere" rule still applies
+  // inside those primitives (crate interior, turntable platter) but
+  // the wall LP size doesn't need to match a crate's exterior box.
   const lpSize = mobile ? 96 : 170;
   const wallGapX = mobile ? 8 : 16;
   const wallRowSpacing = mobile ? 16 : 26;
-  const shelfCols = mobile ? 2 : 6;
-  const shelfRows = mobile ? 3 : 1;
+  // Console spans ~75% of the scene width, centered. Crates sit on
+  // the floor underneath, sized so four fit across with breathing
+  // room. Both scale with the scene width so mobile/desktop layouts
+  // share one set of ratios.
+  const consoleW = Math.round(width * 0.75);
+  const crateW = mobile ? Math.round(width * 0.22) : Math.round(width * 0.15);
 
   const contentRef = useRef<HTMLDivElement>(null);
-  const shelfRef = useRef<HTMLDivElement>(null);
+  const furnitureRef = useRef<HTMLDivElement>(null);
   // Initial guess — refined to actual measurement on mount. The
   // initial values are just enough to avoid a visible flash before
   // the useEffect settles the true dimensions.
@@ -428,16 +438,23 @@ export function Storefront({
 
   useEffect(() => {
     const content = contentRef.current;
-    const shelf = shelfRef.current;
-    if (!content || !shelf) return;
+    const furniture = furnitureRef.current;
+    if (!content || !furniture) return;
     const h = content.scrollHeight;
     if (h && Math.abs(h - height) > 2) setHeight(h);
-    // shelf.offsetTop is relative to contentRef's padding box since
-    // content is position:relative. That's exactly where the wall
-    // zone should end.
-    const wallEnd = shelf.offsetTop;
+    // furniture.offsetTop is where the floor zone begins — wall zone
+    // ends at that y. Before the pivot this was the shelf; now it's
+    // the stacked console-plus-crates block.
+    const wallEnd = furniture.offsetTop;
     if (wallEnd && Math.abs(wallEnd - wallH) > 2) setWallH(wallEnd);
   });
+
+  // Deterministic ±3-8° tilt per crate so they look casually placed
+  // on the floor rather than mechanically aligned.
+  const crateTilt = (i: number) => {
+    const hash = Math.abs(((i * 2654435761) >>> 0));
+    return ((hash % 10) - 5) * 0.7; // roughly ±3.5°
+  };
 
   return (
     <Room width={width} height={height} wallH={wallH}>
@@ -457,26 +474,50 @@ export function Storefront({
         {/* Tier 1 — Wall */}
         <Wall width={width} lpSize={lpSize} gapX={wallGapX} rowSpacing={wallRowSpacing} />
 
-        {/* Transition space between wall and shelf. 'shelfRef' is
-            the anchor Room uses to split its wall vs floor zones. */}
+        {/* Transition space between wall and the furniture block.
+            furnitureRef anchors the wall/floor boundary Room uses. */}
         <div style={{ height: mobile ? 18 : 26 }} />
 
-        {/* Tier 2 — Shelf (ref'd so Room can measure wall-zone end) */}
+        {/* Furniture block — turntable console on top, floor crates
+            in a row below. Sits in the floor zone; its top edge is
+            the wall/floor boundary. */}
         <div
-          ref={shelfRef}
+          ref={furnitureRef}
           style={{
-            display: 'flex',
-            justifyContent: 'center',
-            paddingBottom: mobile ? 20 : 28,
             position: 'relative',
+            width,
+            paddingBottom: mobile ? 20 : 28,
           }}
         >
-          <ShelfUnit
-            lpSize={lpSize}
-            cols={shelfCols}
-            rows={shelfRows}
-            cubbies={CUBBIES}
-          />
+          {/* Turntable console — centered, 75% width */}
+          <div style={{ display: 'flex', justifyContent: 'center' }}>
+            <TurntableConsole width={consoleW} spinningCoverSeed={42} />
+          </div>
+
+          {/* Floor crates — four wooden crates spaced across the
+              floor. Slight overlap with the console above (negative
+              margin pulls them up so the console back-edge reads as
+              behind them). */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-around',
+              alignItems: 'flex-end',
+              gap: mobile ? 6 : 12,
+              marginTop: mobile ? -20 : -30,
+              padding: `0 ${mobile ? 12 : 24}px`,
+            }}
+          >
+            {CRATES.map((spec, i) => (
+              <WoodenCrate
+                key={i}
+                width={crateW}
+                spec={spec}
+                seed={i * 11 + 3}
+                tilt={crateTilt(i)}
+              />
+            ))}
+          </div>
         </div>
       </div>
     </Room>
