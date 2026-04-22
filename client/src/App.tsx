@@ -32,6 +32,11 @@ function RouteFallback() {
 // re-randomisation). The animation itself (drift vector + alpha
 // envelope) lives in index.css `@keyframes dustDrift`; here we
 // just feed per-particle offsets via CSS custom properties.
+//
+// Two tiers: ~10 "foreground" motes (bigger, brighter, noticeable)
+// and ~10 "background" motes (smaller, fainter, for depth). Mix
+// makes the air look populated without every particle demanding
+// attention.
 const DUST_MOTES: Array<{
   left: string;
   top: string;
@@ -41,17 +46,29 @@ const DUST_MOTES: Array<{
   dx: string;
   dy: string;
   alpha: number;
+  glow?: boolean; // larger soft halo for the chunkier particles
 }> = [
-  { left: '12%', top: '82%', size: 2, duration: 32, delay: 0, dx: '6vw', dy: '-70vh', alpha: 0.55 },
-  { left: '28%', top: '68%', size: 1.5, duration: 40, delay: 4, dx: '-3vw', dy: '-55vh', alpha: 0.4 },
-  { left: '42%', top: '88%', size: 2.5, duration: 28, delay: 8, dx: '5vw', dy: '-80vh', alpha: 0.6 },
-  { left: '58%', top: '74%', size: 1.5, duration: 36, delay: 2, dx: '-4vw', dy: '-60vh', alpha: 0.45 },
-  { left: '72%', top: '90%', size: 2, duration: 30, delay: 10, dx: '3vw', dy: '-75vh', alpha: 0.5 },
-  { left: '84%', top: '62%', size: 1.2, duration: 44, delay: 6, dx: '-5vw', dy: '-50vh', alpha: 0.35 },
-  { left: '18%', top: '54%', size: 1.8, duration: 38, delay: 12, dx: '7vw', dy: '-40vh', alpha: 0.4 },
-  { left: '66%', top: '46%', size: 1.5, duration: 42, delay: 14, dx: '-6vw', dy: '-35vh', alpha: 0.38 },
-  { left: '36%', top: '40%', size: 1.3, duration: 46, delay: 3, dx: '4vw', dy: '-30vh', alpha: 0.3 },
-  { left: '92%', top: '78%', size: 2, duration: 34, delay: 18, dx: '-8vw', dy: '-65vh', alpha: 0.5 },
+  // Foreground — bigger, brighter
+  { left: '12%', top: '82%', size: 4, duration: 30, delay: 0, dx: '7vw', dy: '-70vh', alpha: 0.85, glow: true },
+  { left: '28%', top: '68%', size: 3, duration: 36, delay: 4, dx: '-3vw', dy: '-55vh', alpha: 0.75, glow: true },
+  { left: '42%', top: '88%', size: 5, duration: 26, delay: 8, dx: '5vw', dy: '-80vh', alpha: 0.9, glow: true },
+  { left: '58%', top: '74%', size: 3, duration: 34, delay: 2, dx: '-4vw', dy: '-60vh', alpha: 0.8, glow: true },
+  { left: '72%', top: '90%', size: 4, duration: 28, delay: 10, dx: '3vw', dy: '-75vh', alpha: 0.85, glow: true },
+  { left: '84%', top: '62%', size: 3, duration: 40, delay: 6, dx: '-5vw', dy: '-50vh', alpha: 0.7, glow: true },
+  { left: '18%', top: '54%', size: 3.5, duration: 34, delay: 12, dx: '7vw', dy: '-40vh', alpha: 0.75, glow: true },
+  { left: '66%', top: '46%', size: 3, duration: 38, delay: 14, dx: '-6vw', dy: '-35vh', alpha: 0.72, glow: true },
+  { left: '36%', top: '40%', size: 4, duration: 42, delay: 3, dx: '4vw', dy: '-30vh', alpha: 0.75, glow: true },
+  { left: '92%', top: '78%', size: 3.5, duration: 32, delay: 18, dx: '-8vw', dy: '-65vh', alpha: 0.8, glow: true },
+  // Background — smaller, fainter, different timings so the two
+  // tiers never pulse in unison
+  { left: '6%', top: '70%', size: 1.5, duration: 45, delay: 1, dx: '5vw', dy: '-60vh', alpha: 0.45 },
+  { left: '22%', top: '88%', size: 1.8, duration: 33, delay: 5, dx: '-2vw', dy: '-75vh', alpha: 0.5 },
+  { left: '48%', top: '60%', size: 1.5, duration: 50, delay: 9, dx: '6vw', dy: '-45vh', alpha: 0.42 },
+  { left: '62%', top: '82%', size: 2, duration: 36, delay: 13, dx: '-3vw', dy: '-70vh', alpha: 0.5 },
+  { left: '78%', top: '56%', size: 1.5, duration: 44, delay: 16, dx: '-7vw', dy: '-40vh', alpha: 0.45 },
+  { left: '88%', top: '86%', size: 1.8, duration: 30, delay: 7, dx: '-5vw', dy: '-72vh', alpha: 0.5 },
+  { left: '30%', top: '50%', size: 1.5, duration: 48, delay: 11, dx: '3vw', dy: '-35vh', alpha: 0.4 },
+  { left: '54%', top: '92%', size: 2, duration: 32, delay: 15, dx: '4vw', dy: '-80vh', alpha: 0.55 },
 ];
 
 function DustMotes() {
@@ -70,7 +87,15 @@ function DustMotes() {
             top: m.top,
             width: m.size,
             height: m.size,
-            background: 'radial-gradient(circle, rgba(255, 224, 170, 0.9) 0%, rgba(255, 210, 150, 0.5) 45%, transparent 75%)',
+            background:
+              'radial-gradient(circle, rgba(255, 235, 190, 1) 0%, rgba(255, 215, 160, 0.85) 35%, rgba(255, 200, 140, 0.4) 65%, transparent 90%)',
+            // Foreground particles get a soft warm halo so they
+            // read clearly against the wall without relying on
+            // the radial gradient alone to sell the "glowing
+            // speck" effect.
+            boxShadow: m.glow
+              ? '0 0 6px rgba(255, 220, 160, 0.55), 0 0 12px rgba(255, 200, 140, 0.3)'
+              : undefined,
             opacity: 0,
             animation: `dustDrift ${m.duration}s ${m.delay}s infinite ease-in-out`,
             // Custom properties consumed by the keyframe — per-
@@ -163,7 +188,7 @@ export default function App() {
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
                       backgroundRepeat: 'no-repeat',
-                      filter: 'brightness(0.45) saturate(0.85)',
+                      filter: 'brightness(0.55) saturate(0.85)',
                     }}
                   />
                   {/* Warm lamp pool — soft radial from upper-right
@@ -204,6 +229,43 @@ export default function App() {
                       synchronised. Pointer-events none keeps
                       clicks flowing through. */}
                   <DustMotes />
+                  {/* Vignette — dark edges fading toward the
+                      center. Subtle depth cue that makes the scene
+                      feel like it's lit from within rather than
+                      uniformly flat. */}
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      zIndex: -1,
+                      background:
+                        'radial-gradient(ellipse 110% 95% at center, transparent 45%, rgba(0,0,0,0.45) 100%)',
+                    }}
+                  />
+                  {/* Film grain — fine static noise pulled low via
+                      mix-blend-mode: overlay. Breaks the rendered
+                      backdrop out of its too-clean digital feel so
+                      covers + wall share a common "painted over
+                      coarse paper" texture. Kept subtle (opacity
+                      0.08) so it reads as atmosphere, not a filter
+                      on top of everything. */}
+                  <svg
+                    aria-hidden
+                    className="absolute inset-0 pointer-events-none w-full h-full"
+                    style={{
+                      zIndex: -1,
+                      opacity: 0.12,
+                      mixBlendMode: 'overlay',
+                    }}
+                  >
+                    <defs>
+                      <filter id="mydigFilmGrain">
+                        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="5" />
+                        <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 0.82  0 0 0 0 0.68  0 0 0 1 0" />
+                      </filter>
+                    </defs>
+                    <rect width="100%" height="100%" filter="url(#mydigFilmGrain)" />
+                  </svg>
                 </>
               )}
               <TopNav />
