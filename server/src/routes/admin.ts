@@ -1201,6 +1201,7 @@ router.get('/llm-comparisons', (req, res) => {
       { operation: 'similar_descriptions', defaultModel: 'claude-haiku-4-5-20251001' },
       { operation: 'serper_pick', defaultModel: 'claude-haiku-4-5-20251001' },
       { operation: 'summary_fallback', defaultModel: 'claude-sonnet-4-5' },
+      { operation: 'retranslate', defaultModel: 'claude-haiku-4-5-20251001' },
     ];
     const routes = describeOperationRoutes(KNOWN_OPS);
     const shadowConfigured = routes.some((r) => r.shadowModel !== null);

@@ -11,9 +11,10 @@ import {
 import { searchReviewUrls } from '../services/serper.js';
 import {
   generateKoreanSummary,
-  getClient as getAnthropicClient,
+  HAIKU,
   selectEditorialReviewUrls,
 } from '../services/claude.js';
+import { invokeLlm } from '../services/llmRouter.js';
 import {
   getCachedAlbum,
   updateAlbumFields,
@@ -639,24 +640,27 @@ router.post('/reviews/:reviewId/retranslate', adminClaudeLimiter, requireAdmin, 
       return res.status(404).json({ error: 'Review not found' });
     }
 
-    const client = getAnthropicClient();
-    const message = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 500,
-      messages: [{
-        role: 'user',
-        content: `다음 음악 리뷰 발췌문을 자연스러운 한국어로 번역해줘.
+    // Route through invokeLlm so LLM_PRIMARY_MODEL env overrides take
+    // effect here just like every other LLM call-site. Prior to this
+    // change the route called Anthropic directly, which meant
+    // retranslate bypassed the DeepSeek primary and kept costing
+    // Haiku pennies per click even when the rest of the pipeline had
+    // moved off Claude. defaultModel stays HAIKU so admin can fall
+    // back to Claude if DeepSeek misbehaves on Korean prose.
+    const prompt = `다음 음악 리뷰 발췌문을 자연스러운 한국어로 번역해줘.
 - 원문의 의미와 뉘앙스를 유지
 - 2-3문장으로 번역
 - 출처 언급 금지
 - 마크다운 문법 절대 사용 금지 (#, **, *, - 등 특수문자 없이 순수 텍스트로만)
 
-원문:\n${review.excerpt}`,
-      }],
+원문:\n${review.excerpt}`;
+    const result = await invokeLlm({
+      operation: 'retranslate',
+      prompt,
+      maxTokens: 500,
+      defaultModel: HAIKU,
     });
-
-    const textBlock = message.content.find((b: any) => b.type === 'text') as any;
-    const rawText = textBlock?.text?.trim() || null;
+    const rawText = result.text?.trim() || null;
     const excerptKo = rawText
       ? rawText.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/^-\s/gm, '').trim()
       : null;
