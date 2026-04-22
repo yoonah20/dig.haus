@@ -10,7 +10,7 @@ import {
   isDeepSeekConfigured,
   logDeepSeekUsage,
 } from './deepseek.js';
-import { execute } from '../db/index.js';
+import { execute, queryAll } from '../db/index.js';
 
 // Ask DeepSeek first for a JSON extraction, fall back to Haiku if
 // DeepSeek isn't configured, throws, or returns an unparseable body.
@@ -280,6 +280,66 @@ export const EXCLUDED_URL_DOMAINS = [
   // single user's post. Same reasoning as musicboard.app above.
   'debaser.it',
 ];
+
+// Admin-managed blacklist / whitelist caches. Loaded lazily from the
+// source_blacklist / source_whitelist tables with a 60-second TTL so
+// the discover pipeline doesn't hit SQLite on every URL it filters,
+// but edits through /api/admin/sources land in the filter within a
+// minute. bustSourceListCaches() is the hook the admin mutation
+// endpoints call to propagate a change immediately without waiting
+// for the TTL.
+type SourceCache = { hosts: Set<string>; expiresAt: number };
+const SOURCE_CACHE_TTL_MS = 60_000;
+let blacklistCache: SourceCache | null = null;
+let whitelistCache: SourceCache | null = null;
+
+function loadHostSet(tableName: 'source_blacklist' | 'source_whitelist'): Set<string> {
+  const rows = queryAll(`SELECT host FROM ${tableName}`) as Array<{ host: string }>;
+  return new Set(rows.map((r) => r.host.toLowerCase().replace(/^www\./, '')));
+}
+
+function getBlacklistedHostsFromDb(): Set<string> {
+  if (!blacklistCache || blacklistCache.expiresAt < Date.now()) {
+    blacklistCache = {
+      hosts: loadHostSet('source_blacklist'),
+      expiresAt: Date.now() + SOURCE_CACHE_TTL_MS,
+    };
+  }
+  return blacklistCache.hosts;
+}
+
+export function getWhitelistedHostsFromDb(): Set<string> {
+  if (!whitelistCache || whitelistCache.expiresAt < Date.now()) {
+    whitelistCache = {
+      hosts: loadHostSet('source_whitelist'),
+      expiresAt: Date.now() + SOURCE_CACHE_TTL_MS,
+    };
+  }
+  return whitelistCache.hosts;
+}
+
+export function bustSourceListCaches(): void {
+  blacklistCache = null;
+  whitelistCache = null;
+}
+
+// Single entry point for "should we refuse this host?" — combines the
+// hardcoded structural blacklist (EXCLUDED_URL_DOMAINS above) with the
+// admin-managed DB blacklist. Host comparison strips the "www." prefix
+// and lowercases so admin entering either form works.
+export function isHostBlacklisted(host: string): boolean {
+  const h = host.toLowerCase();
+  if (EXCLUDED_URL_DOMAINS.some((d) => h.includes(d))) return true;
+  const bare = h.replace(/^www\./, '');
+  const dbSet = getBlacklistedHostsFromDb();
+  if (dbSet.has(bare) || dbSet.has(h)) return true;
+  // Suffix match so a DB entry for "example.com" also covers
+  // "blog.example.com". Same shape as the EXCLUDED_URL_DOMAINS check.
+  for (const entry of dbSet) {
+    if (h === entry || h.endsWith(`.${entry}`)) return true;
+  }
+  return false;
+}
 
 // URL path / filename patterns that signal the target page is a multi-
 // album roundup rather than a dedicated review (year-end lists, staff
@@ -1309,7 +1369,7 @@ export async function scrapeReviewFromUrl(
   try {
     const parsed = new URL(url);
     const host = parsed.hostname.toLowerCase();
-    if (EXCLUDED_URL_DOMAINS.some((d) => host.includes(d))) {
+    if (isHostBlacklisted(host)) {
       recordScrapeFailure(url, albumMbid, 'not-a-review', 'blacklisted domain');
       return { kind: 'fail', reason: 'not-a-review', message: 'blacklisted domain' };
     }

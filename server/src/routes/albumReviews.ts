@@ -3,8 +3,9 @@ import { adminClaudeLimiter } from '../middleware/adminRateLimit.js';
 import {
   scrapeReviewFromUrl,
   extractFromPastedText,
-  EXCLUDED_URL_DOMAINS,
   EXCLUDED_URL_PATH_PATTERNS,
+  isHostBlacklisted,
+  getWhitelistedHostsFromDb,
   normalizeReviewUrl,
 } from '../services/reviews.js';
 import { searchReviewUrls } from '../services/serper.js';
@@ -77,7 +78,7 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
       try {
         const parsed = new URL(c.url);
         const host = parsed.hostname.toLowerCase();
-        if (EXCLUDED_URL_DOMAINS.some((d) => host.includes(d))) return false;
+        if (isHostBlacklisted(host)) return false;
         // Path-level roundup / multi-album post filter. We'd rather
         // miss an occasional single-album feature nested inside a
         // "best-of" post than let the LLM pay tokens to sift through
@@ -126,12 +127,36 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
       albumRow.title,
       filtered
     );
+    // Admin-curated whitelist re-rank: whitelisted hosts bubble to the
+    // top while preserving their relative order, and non-whitelisted
+    // hosts keep theirs too. NOT a gate — the long tail still surfaces,
+    // it just lands below proven sources. This way admin scans trusted
+    // outlets first when the picker returns 15-25 candidates for a new
+    // album and can commit to the top ones without doubting each host.
+    const whitelist = getWhitelistedHostsFromDb();
+    const isWhitelisted = (u: string): boolean => {
+      try {
+        const h = new URL(u).hostname.toLowerCase().replace(/^www\./, '');
+        if (whitelist.has(h)) return true;
+        for (const entry of whitelist) {
+          if (h === entry || h.endsWith(`.${entry}`)) return true;
+        }
+        return false;
+      } catch {
+        return false;
+      }
+    };
+    const reordered = [
+      ...picked.filter(isWhitelisted),
+      ...picked.filter((u) => !isWhitelisted(u)),
+    ];
+    const whitelistedCount = picked.length - picked.filter((u) => !isWhitelisted(u)).length;
     // Stage counts so we can see where candidates drop off when a known-
     // reviewed album comes back short.
     console.log(
-      `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=${picked.length}`
+      `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=${picked.length} (whitelisted=${whitelistedCount})`
     );
-    res.json({ urls: picked });
+    res.json({ urls: reordered });
   } catch (err) {
     console.error('[discover] failed:', err);
     res.status(500).json({ error: 'URL 검색에 실패했습니다.' });

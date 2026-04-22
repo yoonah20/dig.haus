@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
@@ -952,6 +952,17 @@ export default function Admin() {
             <ScrapeFailuresPanel />
           </section>
 
+          {/* Source trust panel — cumulative success / failure lists
+              beside the curated whitelist / blacklist so admin can
+              promote proven hosts with a single click. Whitelisted
+              hosts re-rank to the top of /reviews/discover; blacklisted
+              hosts are refused at scrape time (same runtime effect as
+              the hardcoded EXCLUDED_URL_DOMAINS, editable without a
+              deploy). */}
+          <section className="mt-4">
+            <SourcesPanel />
+          </section>
+
           {/* Per-album record of every curation pipeline run (one-click
               or batch). Written by the client from
               CurationProgressContext as each album finishes — gives
@@ -1134,6 +1145,332 @@ function ScrapeFailuresPanel() {
         })
       )}
     </Panel>
+  );
+}
+
+// ─── Source trust panel ────────────────────────────────────────────────
+//
+// Four cumulative columns — successHosts / failureHosts / whitelist /
+// blacklist — rendered side by side so admin can promote proven hosts
+// from the derived lists into the curated ones with one click. The
+// whitelist is a ranking hint (whitelisted hosts bubble to the top of
+// /reviews/discover results, non-whitelisted ones still appear
+// beneath) and the blacklist is a hard-fail at scrape time, same
+// effect as the hardcoded EXCLUDED_URL_DOMAINS in reviews.ts.
+
+interface SourcesResp {
+  successHosts: Array<{ host: string; hits: number; lastUrl: string }>;
+  failureHosts: Array<{ host: string; hits: number; lastFailedAt: string }>;
+  whitelist: Array<{ host: string; addedAt: string; note: string | null }>;
+  blacklist: Array<{ host: string; addedAt: string; reason: string | null }>;
+}
+
+function SourcesPanel() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useQuery<SourcesResp>({
+    queryKey: ['admin-sources'],
+    queryFn: async () => (await axios.get('/api/admin/sources')).data,
+    staleTime: 30_000,
+  });
+
+  const addWhitelist = useMutation({
+    mutationFn: async ({ host, note }: { host: string; note?: string | null }) => {
+      await axios.post('/api/admin/sources/whitelist', { host, note: note ?? null });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-sources'] }),
+  });
+  const removeWhitelist = useMutation({
+    mutationFn: async (host: string) => {
+      await axios.delete(`/api/admin/sources/whitelist/${encodeURIComponent(host)}`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-sources'] }),
+  });
+  const addBlacklist = useMutation({
+    mutationFn: async ({ host, reason }: { host: string; reason?: string | null }) => {
+      await axios.post('/api/admin/sources/blacklist', { host, reason: reason ?? null });
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-sources'] }),
+  });
+  const removeBlacklist = useMutation({
+    mutationFn: async (host: string) => {
+      await axios.delete(`/api/admin/sources/blacklist/${encodeURIComponent(host)}`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-sources'] }),
+  });
+
+  const whitelistSet = useMemo(
+    () => new Set((data?.whitelist ?? []).map((w) => w.host)),
+    [data]
+  );
+  const blacklistSet = useMemo(
+    () => new Set((data?.blacklist ?? []).map((b) => b.host)),
+    [data]
+  );
+  const totalCount = (data?.whitelist.length ?? 0) + (data?.blacklist.length ?? 0);
+
+  return (
+    <Panel title="리뷰 소스 트러스트 리스트" icon="🔖" count={totalCount}>
+      {isLoading ? (
+        <EmptyRow>로딩 중...</EmptyRow>
+      ) : isError ? (
+        <EmptyRow>불러오지 못했습니다.</EmptyRow>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-white/5">
+          {/* Success accumulation — hosts that have landed at least one
+              saved review. Primary discovery path: admin scans the top
+              count, clicks 화이트로 for ones they trust. */}
+          <HostList
+            header="✓ 성공 누적"
+            subheader="저장된 리뷰 기준"
+            emptyText="아직 없음"
+            items={(data?.successHosts ?? []).map((h) => ({
+              host: h.host,
+              badge: `×${h.hits}`,
+              sub: null,
+              title: h.lastUrl,
+            }))}
+            renderAction={(host) =>
+              whitelistSet.has(host) ? (
+                <span className="text-[10px] text-emerald-400/70">화이트 ✓</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => addWhitelist.mutate({ host })}
+                  disabled={addWhitelist.isPending}
+                  className="text-[11px] text-emerald-400/70 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-400/60 rounded px-1.5 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
+                  title="화이트리스트 추가"
+                >
+                  + 화이트
+                </button>
+              )
+            }
+          />
+
+          {/* Failure accumulation — hosts the scraper has given up on.
+              Promote to blacklist with one click so the hardcoded list
+              stays lean (DB-driven entries carry a reason field). */}
+          <HostList
+            header="✗ 실패 누적"
+            subheader="scrape_failures 전체 기간"
+            emptyText="실패 기록 없음"
+            items={(data?.failureHosts ?? []).map((h) => ({
+              host: h.host,
+              badge: `×${h.hits}`,
+              sub: formatRelativeKo(h.lastFailedAt),
+              title: h.lastFailedAt,
+            }))}
+            renderAction={(host) =>
+              blacklistSet.has(host) ? (
+                <span className="text-[10px] text-red-400/70">블랙 ✓</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => addBlacklist.mutate({ host })}
+                  disabled={addBlacklist.isPending}
+                  className="text-[11px] text-red-400/70 hover:text-red-300 border border-red-500/30 hover:border-red-400/60 rounded px-1.5 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
+                  title="블랙리스트 추가"
+                >
+                  + 블랙
+                </button>
+              )
+            }
+          />
+
+          {/* Whitelist — curated trust list. Re-ranks /reviews/discover
+              results so these hosts surface at the top. */}
+          <ManagedHostList
+            header="🏅 화이트리스트"
+            subheader="discover 결과에서 우선 정렬"
+            emptyText="비어 있음"
+            placeholder="예: pitchfork.com"
+            items={(data?.whitelist ?? []).map((w) => ({
+              host: w.host,
+              sub: w.note || null,
+              title: w.addedAt,
+            }))}
+            onAdd={(host) => addWhitelist.mutate({ host })}
+            onRemove={(host) => removeWhitelist.mutate(host)}
+            isBusy={addWhitelist.isPending || removeWhitelist.isPending}
+            accent="emerald"
+          />
+
+          {/* Blacklist — curated refusal list. Same runtime effect as
+              EXCLUDED_URL_DOMAINS (hard fail at scrape time) but
+              editable without a deploy. */}
+          <ManagedHostList
+            header="🚫 블랙리스트"
+            subheader="스크랩 단계에서 거부"
+            emptyText="비어 있음"
+            placeholder="예: somebadsite.com"
+            items={(data?.blacklist ?? []).map((b) => ({
+              host: b.host,
+              sub: b.reason || null,
+              title: b.addedAt,
+            }))}
+            onAdd={(host) => addBlacklist.mutate({ host })}
+            onRemove={(host) => removeBlacklist.mutate(host)}
+            isBusy={addBlacklist.isPending || removeBlacklist.isPending}
+            accent="red"
+          />
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+interface HostListItem {
+  host: string;
+  badge?: string;
+  sub?: string | null;
+  title?: string;
+}
+
+function HostList({
+  header,
+  subheader,
+  emptyText,
+  items,
+  renderAction,
+}: {
+  header: string;
+  subheader: string;
+  emptyText: string;
+  items: HostListItem[];
+  renderAction: (host: string) => ReactNode;
+}) {
+  return (
+    <div className="flex flex-col min-w-0">
+      <div className="px-3 py-2 bg-[#151515] border-b border-white/5">
+        <div className="text-xs font-semibold text-white">{header}</div>
+        <div className="text-[10px] text-gray-500">{subheader}</div>
+      </div>
+      <div className="divide-y divide-white/5 max-h-[420px] overflow-y-auto">
+        {items.length === 0 ? (
+          <div className="p-3 text-xs text-gray-600">{emptyText}</div>
+        ) : (
+          items.map((it) => (
+            <div key={it.host} className="px-3 py-2 flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span
+                    className="text-xs text-white truncate"
+                    title={it.title}
+                  >
+                    {it.host}
+                  </span>
+                  {it.badge && (
+                    <span className="text-[10px] text-gray-500 tabular-nums">
+                      {it.badge}
+                    </span>
+                  )}
+                </div>
+                {it.sub && (
+                  <div className="text-[10px] text-gray-600 truncate mt-0.5">
+                    {it.sub}
+                  </div>
+                )}
+              </div>
+              <div className="shrink-0">{renderAction(it.host)}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ManagedHostList({
+  header,
+  subheader,
+  emptyText,
+  placeholder,
+  items,
+  onAdd,
+  onRemove,
+  isBusy,
+  accent,
+}: {
+  header: string;
+  subheader: string;
+  emptyText: string;
+  placeholder: string;
+  items: HostListItem[];
+  onAdd: (host: string) => void;
+  onRemove: (host: string) => void;
+  isBusy: boolean;
+  accent: 'emerald' | 'red';
+}) {
+  const [input, setInput] = useState('');
+  const submit = () => {
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    onAdd(trimmed);
+    setInput('');
+  };
+  const accentClasses =
+    accent === 'emerald'
+      ? 'border-emerald-500/30 focus:border-emerald-400/60 placeholder:text-emerald-400/30'
+      : 'border-red-500/30 focus:border-red-400/60 placeholder:text-red-400/30';
+  return (
+    <div className="flex flex-col min-w-0">
+      <div className="px-3 py-2 bg-[#151515] border-b border-white/5">
+        <div className="text-xs font-semibold text-white">{header}</div>
+        <div className="text-[10px] text-gray-500">{subheader}</div>
+      </div>
+      <div className="px-3 py-2 border-b border-white/5 flex gap-1">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          placeholder={placeholder}
+          className={`flex-1 min-w-0 bg-[#0f0f0f] text-xs text-white px-2 py-1 rounded border outline-none transition-colors ${accentClasses}`}
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={isBusy || !input.trim()}
+          className="text-xs text-gray-400 hover:text-white border border-white/10 hover:border-white/30 rounded px-2 py-1 disabled:opacity-40 cursor-pointer transition-colors"
+        >
+          +
+        </button>
+      </div>
+      <div className="divide-y divide-white/5 max-h-[380px] overflow-y-auto">
+        {items.length === 0 ? (
+          <div className="p-3 text-xs text-gray-600">{emptyText}</div>
+        ) : (
+          items.map((it) => (
+            <div key={it.host} className="px-3 py-2 flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-white truncate" title={it.title}>
+                  {it.host}
+                </div>
+                {it.sub && (
+                  <div className="text-[10px] text-gray-600 truncate mt-0.5">
+                    {it.sub}
+                  </div>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => onRemove(it.host)}
+                disabled={isBusy}
+                className="text-xs text-gray-500 hover:text-red-400 disabled:opacity-40 px-1 cursor-pointer shrink-0"
+                aria-label={`${it.host} 제거`}
+                title="제거"
+              >
+                🗑️
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   );
 }
 

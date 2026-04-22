@@ -11,6 +11,7 @@ import {
   ROLLING_24H_USD_CAP,
 } from '../services/claudeBudget.js';
 import { describeOperationRoutes } from '../services/llmRouter.js';
+import { bustSourceListCaches } from '../services/reviews.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -869,6 +870,163 @@ router.get('/scrape-failures', (req, res) => {
   } catch (err) {
     console.error('[scrape-failures] query failed:', err);
     res.status(500).json({ error: 'failed to fetch scrape failures' });
+  }
+});
+
+// ─── Source whitelist / blacklist ────────────────────────────────────
+//
+// Admin-curated trust layer built up from the cumulative scrape log.
+// Four lists surfaced in one call so the admin page can render them
+// side-by-side:
+//
+//   successHosts: every hostname that has landed a saved row in
+//     `reviews`, with a count of how many times. Derived view, not a
+//     stored list — it reflects actual successful scrapes.
+//   failureHosts: every hostname that has landed in `scrape_failures`
+//     (lifetime, not windowed), with a count. Also derived.
+//   whitelist / blacklist: admin-curated explicit lists from the
+//     source_whitelist / source_blacklist tables. Whitelist hosts get
+//     re-ranked to the top of /reviews/discover results; blacklist
+//     hosts are refused at the scrape layer exactly like the
+//     hardcoded EXCLUDED_URL_DOMAINS list.
+//
+// Host normalisation: stored lowercase, www. stripped, so entering
+// "www.Example.Com" or "example.com" or "EXAMPLE.COM" all resolve to
+// the same record.
+function normaliseHost(raw: string): string {
+  return raw.trim().toLowerCase().replace(/^www\./, '').replace(/\/+$/, '');
+}
+
+router.get('/sources', requireAdmin, (_req, res) => {
+  try {
+    // Cumulative success rollup. derives from reviews.full_review_url
+    // via a hostname extract. SQLite doesn't have url_hostname() so we
+    // do it in JS after the query — small dataset, negligible cost.
+    const reviewRows = queryAll(
+      `SELECT full_review_url FROM reviews WHERE full_review_url IS NOT NULL AND full_review_url != ''`
+    ) as Array<{ full_review_url: string }>;
+    const successMap = new Map<string, { hits: number; lastUrl: string }>();
+    for (const row of reviewRows) {
+      try {
+        const host = new URL(row.full_review_url).hostname.toLowerCase().replace(/^www\./, '');
+        const prev = successMap.get(host);
+        if (prev) {
+          prev.hits += 1;
+          prev.lastUrl = row.full_review_url;
+        } else {
+          successMap.set(host, { hits: 1, lastUrl: row.full_review_url });
+        }
+      } catch {
+        // Malformed URL — ignore.
+      }
+    }
+    const successHosts = Array.from(successMap.entries())
+      .map(([host, v]) => ({ host, hits: v.hits, lastUrl: v.lastUrl }))
+      .sort((a, b) => b.hits - a.hits || a.host.localeCompare(b.host));
+
+    // Cumulative failure rollup (lifetime, not the 30-day window that
+    // /scrape-failures uses — this view is about deciding long-term
+    // trust, not spotting recent regressions).
+    const failureRows = queryAll(
+      `SELECT hostname, COUNT(*) AS hits, MAX(failed_at) AS last_failed_at
+       FROM scrape_failures
+       GROUP BY hostname
+       ORDER BY hits DESC, hostname ASC`
+    ) as Array<{ hostname: string; hits: number; last_failed_at: string }>;
+    const failureHosts = failureRows.map((r) => ({
+      host: r.hostname,
+      hits: r.hits,
+      lastFailedAt: r.last_failed_at,
+    }));
+
+    const whitelist = queryAll(
+      `SELECT host, added_at, note FROM source_whitelist ORDER BY host ASC`
+    ) as Array<{ host: string; added_at: string; note: string | null }>;
+    const blacklist = queryAll(
+      `SELECT host, added_at, reason FROM source_blacklist ORDER BY host ASC`
+    ) as Array<{ host: string; added_at: string; reason: string | null }>;
+
+    res.json({
+      successHosts,
+      failureHosts,
+      whitelist: whitelist.map((r) => ({ host: r.host, addedAt: r.added_at, note: r.note })),
+      blacklist: blacklist.map((r) => ({ host: r.host, addedAt: r.added_at, reason: r.reason })),
+    });
+  } catch (err) {
+    console.error('[sources] query failed:', err);
+    res.status(500).json({ error: 'failed to fetch sources' });
+  }
+});
+
+router.post('/sources/whitelist', requireAdmin, (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const rawHost = typeof body.host === 'string' ? body.host : '';
+  const note = typeof body.note === 'string' ? body.note.trim().slice(0, 500) : null;
+  const host = normaliseHost(rawHost);
+  if (!host || host.length < 3 || !/^[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}$/i.test(host)) {
+    return res.status(400).json({ error: '올바른 호스트명을 입력하세요 (예: example.com).' });
+  }
+  try {
+    execute(
+      `INSERT INTO source_whitelist (host, note) VALUES (?, ?)
+       ON CONFLICT(host) DO UPDATE SET note = excluded.note`,
+      [host, note]
+    );
+    bustSourceListCaches();
+    res.json({ ok: true, host });
+  } catch (err) {
+    console.error('[sources/whitelist] insert failed:', err);
+    res.status(500).json({ error: '저장 실패' });
+  }
+});
+
+router.delete('/sources/whitelist/:host', requireAdmin, (req, res) => {
+  const host = normaliseHost(String(req.params.host || ''));
+  if (!host) return res.status(400).json({ error: 'host required' });
+  try {
+    const result = execute(`DELETE FROM source_whitelist WHERE host = ?`, [host]);
+    bustSourceListCaches();
+    if (result.changes === 0) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[sources/whitelist] delete failed:', err);
+    res.status(500).json({ error: '삭제 실패' });
+  }
+});
+
+router.post('/sources/blacklist', requireAdmin, (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const rawHost = typeof body.host === 'string' ? body.host : '';
+  const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 500) : null;
+  const host = normaliseHost(rawHost);
+  if (!host || host.length < 3 || !/^[a-z0-9][a-z0-9.\-]*\.[a-z]{2,}$/i.test(host)) {
+    return res.status(400).json({ error: '올바른 호스트명을 입력하세요 (예: example.com).' });
+  }
+  try {
+    execute(
+      `INSERT INTO source_blacklist (host, reason) VALUES (?, ?)
+       ON CONFLICT(host) DO UPDATE SET reason = excluded.reason`,
+      [host, reason]
+    );
+    bustSourceListCaches();
+    res.json({ ok: true, host });
+  } catch (err) {
+    console.error('[sources/blacklist] insert failed:', err);
+    res.status(500).json({ error: '저장 실패' });
+  }
+});
+
+router.delete('/sources/blacklist/:host', requireAdmin, (req, res) => {
+  const host = normaliseHost(String(req.params.host || ''));
+  if (!host) return res.status(400).json({ error: 'host required' });
+  try {
+    const result = execute(`DELETE FROM source_blacklist WHERE host = ?`, [host]);
+    bustSourceListCaches();
+    if (result.changes === 0) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[sources/blacklist] delete failed:', err);
+    res.status(500).json({ error: '삭제 실패' });
   }
 });
 

@@ -301,6 +301,38 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_scrape_failures_hostname ON scrape_failures(hostname)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_scrape_failures_failed_at ON scrape_failures(failed_at)`);
 
+  // Admin-curated whitelist: hosts the admin trusts as editorial review
+  // sources. Does NOT act as a hard gate — the discover pipeline keeps
+  // collecting from all hosts — but the Haiku URL picker's result gets
+  // re-ordered so whitelist hosts surface first. This lets admin lean
+  // toward proven sources when scanning 15-25 discovery candidates
+  // without silently dropping long-tail editorial outlets that haven't
+  // earned the whitelist yet. Host normalisation matches the existing
+  // domain-blacklist check in reviews.ts (strip www., lowercase).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS source_whitelist (
+      host TEXT PRIMARY KEY,
+      added_at TEXT DEFAULT (datetime('now')),
+      note TEXT
+    )
+  `);
+
+  // Admin-curated blacklist: hosts that should be refused at the scrape
+  // layer, same effect as the hardcoded EXCLUDED_URL_DOMAINS list in
+  // services/reviews.ts. Two separate layers on purpose: the hardcoded
+  // list is baseline ("never, for structural reasons" — shops,
+  // aggregators, user-review communities) and survives server
+  // restarts even if the DB is wiped; this table is operational
+  // ("admin noticed a new bad source and wants it gone right now")
+  // with a reason field so future-admin knows why a host is here.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS source_blacklist (
+      host TEXT PRIMARY KEY,
+      added_at TEXT DEFAULT (datetime('now')),
+      reason TEXT
+    )
+  `);
+
   // Curation runs — one row per album processed by the admin one-click
   // or batch curation pipeline (discover → add-url × N → summary).
   // Used for the "큐레이션 이력" panel in /admin: shows per-album
