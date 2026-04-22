@@ -302,23 +302,38 @@ function WallSection({ children }: { children: React.ReactNode }) {
             'radial-gradient(ellipse 55% 50% at 32% 22%, rgba(255, 200, 120, 0.18) 0%, rgba(255, 185, 100, 0.06) 45%, transparent 75%)',
         }}
       />
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: -40,
+          pointerEvents: 'none',
+          background:
+            'radial-gradient(ellipse 40% 35% at 78% 80%, rgba(255, 180, 110, 0.11) 0%, rgba(255, 170, 100, 0.04) 45%, transparent 75%)',
+        }}
+      />
       <svg
         aria-hidden
         style={{
           position: 'absolute',
           inset: 0,
           pointerEvents: 'none',
-          opacity: 0.14,
+          opacity: 0.22,
           mixBlendMode: 'overlay',
         }}
       >
         <defs>
-          <filter id="mydigSnapWallNoise">
-            <feTurbulence baseFrequency="0.85" numOctaves="2" seed="7" />
-            <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 0.75  0 0 0 0 0.5  0 0 0 0.75 0" />
+          <filter id="mydigSnapWallConcrete">
+            <feTurbulence baseFrequency="0.5" numOctaves="3" seed="11" />
+            <feColorMatrix values="0 0 0 0 0.72  0 0 0 0 0.68  0 0 0 0 0.6  0 0 0 0.7 0" />
+          </filter>
+          <filter id="mydigSnapWallFleck">
+            <feTurbulence baseFrequency="0.9" numOctaves="2" seed="7" />
+            <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 0.78  0 0 0 0 0.55  0 0 0 0.6 0" />
           </filter>
         </defs>
-        <rect width="100%" height="100%" filter="url(#mydigSnapWallNoise)" />
+        <rect width="100%" height="100%" filter="url(#mydigSnapWallConcrete)" />
+        <rect width="100%" height="100%" filter="url(#mydigSnapWallFleck)" opacity="0.55" />
       </svg>
       <svg
         aria-hidden

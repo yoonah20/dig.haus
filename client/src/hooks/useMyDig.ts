@@ -24,6 +24,11 @@ export interface MyDigUser {
 export interface MyDigWallItem {
   position: number;
   album: MyDigAlbum;
+  // Emoji the page owner picked for their own 50자 평 on this
+  // album, or '💬' if they wrote one without an emoji. Null when
+  // they have no review. Drives the cartoon speech bubble badge
+  // on the wall cover.
+  userReviewEmoji?: string | null;
 }
 
 export interface MyDigGenre {

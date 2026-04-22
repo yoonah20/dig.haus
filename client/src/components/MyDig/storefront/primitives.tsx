@@ -247,6 +247,80 @@ export function WallRail({
 // Default 1 = full lamp (matches the original bright look). Wall
 // function passes a value that decreases from 1 at slot (0,0) to
 // near 0 at the bottom-right slot.
+// ─── Vinyl disc ────────────────────────────────────────────────
+// Black 12" LP record with amber centre label + pressed grooves,
+// sized to the same square as the cover sleeve. Mounted behind
+// the cover by the WallCell so a group-hover on the cell slides
+// it partway out to the right (the "peek" interaction the home
+// grid used to have at 3036c13^). No spin animation — that one
+// read as too flashy on the home grid and got removed; here the
+// peek happens for an instant on hover and a still-life disc is
+// plenty. Amber label text reads "dig" in the dig.haus accent.
+export function VinylDisc({ size }: { size: number }) {
+  return (
+    <svg
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      style={{
+        display: 'block',
+        filter: 'drop-shadow(2px 3px 6px rgba(0,0,0,0.55))',
+      }}
+      aria-hidden
+    >
+      <defs>
+        <radialGradient id="vinylSheen" cx="0.3" cy="0.3" r="0.8">
+          <stop offset="0" stopColor="#3a3a3a" />
+          <stop offset="0.3" stopColor="#1a1a1a" />
+          <stop offset="1" stopColor="#0a0a0a" />
+        </radialGradient>
+      </defs>
+      {/* Black disc */}
+      <circle cx="50" cy="50" r="50" fill="url(#vinylSheen)" />
+      {/* Pressed grooves — faint concentric rings */}
+      {[12, 18, 24, 30, 34, 38, 42, 46].map((r) => (
+        <circle
+          key={r}
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          stroke="#2a2a2a"
+          strokeWidth="0.35"
+        />
+      ))}
+      {/* Centre label — dig.haus amber */}
+      <circle cx="50" cy="50" r="14" fill="#e8a020" />
+      {/* Subtle inner circle for label print */}
+      <circle
+        cx="50"
+        cy="50"
+        r="13"
+        fill="none"
+        stroke="rgba(20,14,8,0.3)"
+        strokeWidth="0.4"
+      />
+      <text
+        x="50"
+        y="52"
+        textAnchor="middle"
+        dominantBaseline="central"
+        style={{
+          fontFamily: "'Fraunces', Georgia, serif",
+          fontWeight: 600,
+          fontStyle: 'italic',
+          fontSize: '10px',
+          fill: '#141008',
+        }}
+      >
+        dig
+      </text>
+      {/* Spindle hole */}
+      <circle cx="50" cy="50" r="1.6" fill="#0a0503" />
+    </svg>
+  );
+}
+
 export function WallLP({
   size,
   seed,

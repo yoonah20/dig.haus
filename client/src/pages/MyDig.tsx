@@ -14,7 +14,7 @@ import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
 import SnapshotList from '../components/MyDig/SnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
-import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
+import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 import { resolveApiUrl } from '../utils/apiUrl';
 
 // Phase 3a skeleton — the four-layer placeholder scaffold described
@@ -425,7 +425,7 @@ function WallSection({ children }: { children: React.ReactNode }) {
         }}
       />
 
-      {/* 2. Warm lamp pool — visible but not a spotlight. Upper-
+      {/* 2. Primary lamp pool — visible but not a spotlight. Upper-
           left biased so it agrees with each WallLP's per-slot
           lampBias direction. */}
       <div
@@ -439,29 +439,56 @@ function WallSection({ children }: { children: React.ReactNode }) {
         }}
       />
 
-      {/* 3. Painted-surface noise — cream-tinted feTurbulence flecks,
-          barely there, gives the flat background something to
-          catch rather than reading as paint-blank void. */}
+      {/* 3. Secondary ambient lift on the bottom-right. Earlier
+          version had the primary lamp upper-left with no counter-
+          light, which left the opposite corner reading as "too
+          dark, something's missing." A small weak warm pool here
+          balances the frame without introducing a competing
+          spotlight — strength tuned low enough that the upper-
+          left still reads as the dominant source. */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: -40,
+          pointerEvents: 'none',
+          background:
+            'radial-gradient(ellipse 40% 35% at 78% 80%, rgba(255, 180, 110, 0.11) 0%, rgba(255, 170, 100, 0.04) 45%, transparent 75%)',
+        }}
+      />
+
+      {/* 4. Concrete wall texture — porous mid-frequency noise
+          with a warm-gray tint sitting under a fine-grain cream
+          fleck overlay. Together they read as painted concrete /
+          stucco: bigger blotches from the 0.5-freq pass, tiny
+          flecks from the 0.9-freq pass. Overlay blend lets the
+          underlying warmth through instead of caking a flat color
+          on top. */}
       <svg
         aria-hidden
         style={{
           position: 'absolute',
           inset: 0,
           pointerEvents: 'none',
-          opacity: 0.14,
+          opacity: 0.22,
           mixBlendMode: 'overlay',
         }}
       >
         <defs>
-          <filter id="mydigWallNoise">
-            <feTurbulence baseFrequency="0.85" numOctaves="2" seed="7" />
-            <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 0.75  0 0 0 0 0.5  0 0 0 0.75 0" />
+          <filter id="mydigWallConcrete">
+            <feTurbulence baseFrequency="0.5" numOctaves="3" seed="11" />
+            <feColorMatrix values="0 0 0 0 0.72  0 0 0 0 0.68  0 0 0 0 0.6  0 0 0 0.7 0" />
+          </filter>
+          <filter id="mydigWallFleck">
+            <feTurbulence baseFrequency="0.9" numOctaves="2" seed="7" />
+            <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 0.78  0 0 0 0 0.55  0 0 0 0.6 0" />
           </filter>
         </defs>
-        <rect width="100%" height="100%" filter="url(#mydigWallNoise)" />
+        <rect width="100%" height="100%" filter="url(#mydigWallConcrete)" />
+        <rect width="100%" height="100%" filter="url(#mydigWallFleck)" opacity="0.55" />
       </svg>
 
-      {/* 4. Dust motes — tiny warm specks in the lit area. Low
+      {/* 5. Dust motes — tiny warm specks in the lit area. Low
           opacity so they read as ambient dust, not stars. */}
       <svg
         aria-hidden
@@ -596,29 +623,14 @@ function VinylWallGrid({
                     />
                   );
                 }
-                const { album } = item;
-                const target = album.slug || album.mbid;
                 return (
-                  <Link
+                  <WallCell
                     key={position}
-                    to={`/album/${target}`}
-                    title={`${album.artist} — ${album.title}`}
-                    style={{
-                      display: 'block',
-                      width: lpSize,
-                      height: lpSize,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <WallLP size={lpSize} seed={position} lampBias={lampBias}>
-                      <CoverArt
-                        src={album.coverArtUrl}
-                        fallbacks={album.coverArtFallbacks}
-                        alt={album.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </WallLP>
-                  </Link>
+                    item={item}
+                    position={position}
+                    lpSize={lpSize}
+                    lampBias={lampBias}
+                  />
                 );
               })}
             </div>
@@ -642,6 +654,128 @@ function VinylWallGrid({
             : '이 벽은 아직 비어 있어요.'}
         </p>
       )}
+    </div>
+  );
+}
+
+// ─── Wall cell ────────────────────────────────────────────────
+// One filled slot. Layout is a .group wrapper Link with three
+// layers stacked absolutely:
+//   1. VinylDisc — sits behind the cover, translates right + tilts
+//      + scales on group-hover. Ports the peek interaction we used
+//      to have on the home grid (pre-3036c13). No spin — it reads
+//      as overkill at this scale; the still disc is enough.
+//   2. WallLP + CoverArt — the cover itself. Scales up 1.04× on
+//      group-hover so the whole record rises a hair under the
+//      cursor.
+//   3. SpeechBubble — optional cartoon bubble on the top-right
+//      when the page owner has written a 50자 평 for this album.
+//
+// z-10 on the cell while hovered so the peeking vinyl + raised
+// cover don't get clipped by neighbouring grid cells.
+function WallCell({
+  item,
+  position,
+  lpSize,
+  lampBias,
+}: {
+  item: MyDigWallItem;
+  position: number;
+  lpSize: number;
+  lampBias: number;
+}) {
+  const { album, userReviewEmoji } = item;
+  const target = album.slug || album.mbid;
+  return (
+    <Link
+      to={`/album/${target}`}
+      title={`${album.artist} — ${album.title}`}
+      className="group relative block hover:z-10"
+      style={{
+        width: lpSize,
+        height: lpSize,
+        textDecoration: 'none',
+      }}
+    >
+      {/* Vinyl disc — behind the cover, slides right + tilts on
+          hover. Positioned at inset:0 but starts with the cover
+          exactly on top of it. transition-transform drives the
+          whole animation. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 z-0 transition-transform duration-[280ms] ease-out group-hover:translate-x-[55%] group-hover:rotate-[8deg] group-hover:scale-[1.02]"
+      >
+        <VinylDisc size={lpSize} />
+      </div>
+
+      {/* Cover — full-size, scales up a touch on hover. Wrapped in
+          its own transform layer so WallLP's internal transforms
+          (lean/perspective inside its sleeve div) don't conflict. */}
+      <div
+        className="absolute inset-0 z-10 transition-transform duration-[280ms] ease-out group-hover:scale-[1.04]"
+      >
+        <WallLP size={lpSize} seed={position} lampBias={lampBias}>
+          <CoverArt
+            src={album.coverArtUrl}
+            fallbacks={album.coverArtFallbacks}
+            alt={album.title}
+            className="w-full h-full object-cover"
+          />
+        </WallLP>
+      </div>
+
+      {/* Owner has written a 50자 평 — drop a cartoon speech bubble
+          on the top-right of the cover so visitors can see at a
+          glance which albums are annotated. */}
+      {userReviewEmoji && <SpeechBubble emoji={userReviewEmoji} />}
+    </Link>
+  );
+}
+
+function SpeechBubble({ emoji }: { emoji: string }) {
+  // Cartoon comment bubble — circular body with a small triangle
+  // tail pointing down-left toward the cover. Cream fill + warm
+  // ink text so it reads against dark covers. Pops up via a
+  // subtle scale animation on mount (keyframe in index.css's
+  // .mydig-bubble-pop; falls back to a static display if the
+  // animation is unsupported).
+  return (
+    <div
+      aria-hidden
+      className="absolute -top-2 -right-2 z-30 pointer-events-none mydig-bubble-pop"
+    >
+      <div className="relative">
+        <div
+          className="flex items-center justify-center rounded-full"
+          style={{
+            width: 26,
+            height: 26,
+            background: '#f5e8c8',
+            boxShadow:
+              '0 2px 6px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(20,14,8,0.28)',
+            fontSize: 14,
+            lineHeight: 1,
+          }}
+        >
+          <span>{emoji}</span>
+        </div>
+        {/* Tail — rotated square peeking from bottom-left of the
+            bubble. Positioned so it visually merges with the bubble
+            and points toward the cover's top-right corner. */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 3,
+            bottom: -2,
+            width: 7,
+            height: 7,
+            background: '#f5e8c8',
+            transform: 'rotate(45deg)',
+            boxShadow: '1px 1px 2px rgba(0,0,0,0.3)',
+            borderTopLeftRadius: 1,
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -76,17 +76,25 @@ router.get('/mydig/:username', (req, res, next) => {
     });
   }
 
-  // Vinyl Wall — up to 22 items by position. Server returns
-  // exactly what's saved (no padding to 22); the client is
-  // responsible for filling blanks when rendering the 5-5-6-6
-  // grid, so reorder / delete animations don't need server
-  // round trips.
+  // Vinyl Wall — items by position. Server returns exactly what's
+  // saved (no padding to 15); the client fills blanks when
+  // rendering. Additionally LEFT JOINs user_reviews for the page
+  // owner so each wall item can surface whether they've left a
+  // comment on that album — client renders a small speech-bubble
+  // badge on covers that have one. Joined user_review is the
+  // owner's own (vinyl_wall_items.user_id matches user_reviews.
+  // user_id), not the viewer's; the bubble tells visitors "fpp
+  // wrote about this one" rather than "you wrote about this one."
   const wallRows = queryAll(
     `SELECT vwi.position, a.id AS album_id, a.mbid, a.slug, a.title,
             a.artist_name, a.release_date, a.release_year,
-            a.cover_art_url, a.cover_art_fallbacks
+            a.cover_art_url, a.cover_art_fallbacks,
+            ur.emoji AS user_review_emoji,
+            ur.body AS user_review_body
      FROM vinyl_wall_items vwi
      JOIN albums a ON a.id = vwi.album_id
+     LEFT JOIN user_reviews ur
+       ON ur.album_id = a.id AND ur.user_id = vwi.user_id
      WHERE vwi.user_id = ?
      ORDER BY vwi.position ASC`,
     [user.id]
@@ -164,22 +172,32 @@ router.get('/mydig/:username', (req, res, next) => {
     },
     isPublic,
     vinylWallTheme: user.vinyl_wall_theme,
-    vinylWall: wallRows.map((r: any) => ({
-      position: r.position,
-      album: {
-        id: r.album_id,
-        mbid: r.mbid,
-        slug: r.slug,
-        title: r.title,
-        artist: r.artist_name,
-        releaseDate: r.release_date,
-        releaseYear: r.release_year,
-        coverArtUrl: r.cover_art_url,
-        coverArtFallbacks: r.cover_art_fallbacks
-          ? JSON.parse(r.cover_art_fallbacks)
-          : [],
-      },
-    })),
+    vinylWall: wallRows.map((r: any) => {
+      // userReviewEmoji: the emoji the page owner picked for their
+      // 50자 평 on this album, OR '💬' if they wrote one without an
+      // emoji. Null if no review. Client uses this flag to conditionally
+      // render the cartoon speech bubble on the cover.
+      let userReviewEmoji: string | null = null;
+      if (r.user_review_emoji) userReviewEmoji = String(r.user_review_emoji);
+      else if (r.user_review_body) userReviewEmoji = '💬';
+      return {
+        position: r.position,
+        album: {
+          id: r.album_id,
+          mbid: r.mbid,
+          slug: r.slug,
+          title: r.title,
+          artist: r.artist_name,
+          releaseDate: r.release_date,
+          releaseYear: r.release_year,
+          coverArtUrl: r.cover_art_url,
+          coverArtFallbacks: r.cover_art_fallbacks
+            ? JSON.parse(r.cover_art_fallbacks)
+            : [],
+        },
+        userReviewEmoji,
+      };
+    }),
     shelf: shelfRows.map((r: any) => ({
       slotId: r.slot_id,
       position: r.position,
