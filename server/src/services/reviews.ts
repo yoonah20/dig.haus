@@ -362,6 +362,18 @@ export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
   /\b(?:new|brand[-_]new)[-_]music[-_]video\b/i,
   /\bmusic[-_]video[-_]for\b/i,
   /\bstream[-_]new[-_](?:single|track|video|song|ep|album)\b/i,
+  // EPK (Electronic Press Kit) is a press-release packet that labels
+  // send to outlets — outlets re-publish the EPK verbatim as a news
+  // post, never as a review. "epk" almost never appears in editorial
+  // review slugs. Trigger: metalodyssey.net "hardline-danger-zone-
+  // official-epk-album-out-now-via-frontiers-records" labeled itself
+  // an EPK in the slug and still got laundered as a review.
+  /\bepk\b/i,
+  // "album out now" / "out now via X records" is the canonical
+  // release-day news headline — a factual "record is available,
+  // here's the streaming link" post rather than evaluative prose.
+  /\b(?:album|ep|single|video)[-_]?out[-_]now\b/i,
+  /\bout[-_]now[-_]via\b/i,
 ];
 
 // Normalize a URL for duplicate-detection only — what we STORE is still
@@ -1213,6 +1225,28 @@ const NON_SPEAKER_LABELS = new Set([
 ]);
 
 function detectInterviewStructure(text: string): boolean {
+  // Title-based check first — Jina puts "Title: ..." at the very top
+  // of its output and many interview pages declare themselves right
+  // there (e.g. "Title: Interview - Johnny Gioeli/Hardline ..." on
+  // sarkophag-rocks.com). This catches plain-text Q&A layouts where
+  // the interviewer asks questions as regular paragraphs ending in
+  // "?" — those have no speaker tags or bold-question markup for
+  // the structural signals below to latch onto. Scoped to the first
+  // 1000 chars because "Title:" can appear incidentally later in a
+  // review's body (e.g. quoted chapter titles from concept albums).
+  const head = text.slice(0, 1000);
+  const titleMatch = head.match(/(?:^|\n)Title:\s*([^\n]+)/i);
+  if (titleMatch) {
+    const title = titleMatch[1];
+    // Multi-language interview terms. "Mailinterview" is a single
+    // word on German sites. "Entrevista" / "Im Gespräch" / "En
+    // conversation" cover Spanish / German / French. Keep the list
+    // to terms that almost never appear in genuine review titles.
+    const interviewTerms =
+      /\b(interview|mailinterview|q[\s&]*a|q[\s-]and[\s-]a|entrevista|in conversation(?:\s+with)?|sat down (?:with|to talk)|im gespr(?:ä|ae)ch|en conversation)\b/i;
+    if (interviewTerms.test(title)) return true;
+  }
+
   const nameCount = new Map<string, number>();
   const nameRe = /\*\*([A-Z][a-zA-Z]{1,15}):\*\*/g;
   let m: RegExpExecArray | null;
