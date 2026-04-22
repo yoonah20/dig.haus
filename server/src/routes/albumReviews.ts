@@ -156,7 +156,14 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
     console.log(
       `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=${picked.length} (whitelisted=${whitelistedCount})`
     );
-    res.json({ urls: reordered });
+    // whitelistedCount tells the client how many of the returned URLs
+    // come from admin-trusted hosts. The auto-curation UI ("자동
+    // 큐레이션") used to compute this client-side against a hardcoded
+    // PRIORITY_REVIEW_DOMAINS list; moving it server-side means the
+    // single admin-managed source_whitelist is the only list of
+    // preferred hosts, matching the direction we took for the
+    // blacklist.
+    res.json({ urls: reordered, whitelistedCount });
   } catch (err) {
     console.error('[discover] failed:', err);
     res.status(500).json({ error: 'URL 검색에 실패했습니다.' });

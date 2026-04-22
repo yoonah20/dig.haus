@@ -52,62 +52,15 @@ const AUTO_CURATION_MAX_ATTEMPTS = 25;
 const SUMMARY_MAX_ATTEMPTS = 3;
 const SUMMARY_BACKOFF_MS = [0, 2000, 5000];
 
-// Soft priority list — outlets that reliably publish numeric scores,
-// clean editorial voice, and whose pages the scraper handles well.
-// When discover returns a mixed list, these get re-ordered to the
-// front of the candidate queue so they land in the first-15 success
-// slots whenever they're part of the result. No forced inclusion —
-// if Haiku didn't pick them (album genuinely outside their scope),
-// we don't add them. Within the priority bucket the original Haiku
-// ranking is preserved; same for the non-priority bucket.
-const PRIORITY_REVIEW_DOMAINS = [
-  'sputnikmusic.com',
-  'pitchfork.com',
-  'kerrang.com',
-  'loudersound.com',
-  'metalhammer.com',
-  'angrymetalguy.com',
-  'nocleansinging.com',
-  'metalsucks.net',
-  'blabbermouth.net',
-  'everythingisnoise.net',
-  'metalinjection.net',
-  'stereogum.com',
-  'consequence.net',
-  'exclaim.ca',
-  'rollingstone.com',
-  'thequietus.com',
-  'metalreviews.com',
-  'distortedsoundmag.com',
-];
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.toLowerCase().replace(/^www\./, '');
-  } catch {
-    return '';
-  }
-}
-
-function isPriorityDomain(url: string): boolean {
-  const host = hostOf(url);
-  if (!host) return false;
-  return PRIORITY_REVIEW_DOMAINS.some(
-    (d) => host === d || host.endsWith('.' + d)
-  );
-}
-
-// Stable-partition: priority URLs first (in their original relative
-// order), then everyone else (in their original relative order).
-function orderByPriority(urls: string[]): string[] {
-  const priority: string[] = [];
-  const rest: string[] = [];
-  for (const u of urls) {
-    if (isPriorityDomain(u)) priority.push(u);
-    else rest.push(u);
-  }
-  return [...priority, ...rest];
-}
+// The earlier hardcoded PRIORITY_REVIEW_DOMAINS list and the client-
+// side orderByPriority helper were removed once the admin-managed
+// source_whitelist table landed. The /reviews/discover endpoint now
+// returns URLs already re-ordered by that whitelist (whitelisted
+// hosts first, their relative order preserved) and reports a
+// whitelistedCount so this context can still surface "우선 도메인 N개
+// 발견" in the curation log without maintaining its own list. Admin
+// curates the whitelist manually through the SourcesPanel — there is
+// no baseline preferred list on the client anymore.
 
 export interface CurationLogLine {
   id: string;
@@ -218,9 +171,13 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
 
       // Step 1: discover URLs — keep the full list as the candidate
       // pool, so Step 2 can backfill from beyond the initial target
-      // when some attempts fail. Priority-domain URLs are re-ordered
-      // to the front of the queue so they land in the first success
-      // slots whenever Haiku picked them.
+      // when some attempts fail. The discover endpoint already re-
+      // orders its response by the admin-managed source_whitelist
+      // (whitelisted hosts first, relative order preserved within
+      // each bucket), so the first AUTO_CURATION_MAX_ATTEMPTS slice
+      // naturally concentrates trusted sources up front. The server
+      // also returns whitelistedCount so we can call it out in the
+      // log without maintaining a mirror list here.
       let candidates: string[] = [];
       let priorityCount = 0;
       try {
@@ -228,16 +185,22 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
           `/api/albums/${encodeURIComponent(albumMbid)}/reviews/discover`
         );
         const allUrls = Array.isArray(data?.urls) ? (data.urls as string[]) : [];
-        const ordered = orderByPriority(allUrls);
-        candidates = ordered.slice(0, AUTO_CURATION_MAX_ATTEMPTS);
-        priorityCount = candidates.filter(isPriorityDomain).length;
+        candidates = allUrls.slice(0, AUTO_CURATION_MAX_ATTEMPTS);
+        // whitelistedCount from the server counts the whole Haiku-
+        // picked pool; clamp to the sliced candidate count so the
+        // displayed number never exceeds the attempts we'll actually
+        // make. If a whitelisted URL fell past the slice boundary
+        // that's a concern for a future "expand attempts" flag, not
+        // for the log line that describes this run.
+        const serverWhitelisted = typeof data?.whitelistedCount === 'number' ? data.whitelistedCount : 0;
+        priorityCount = Math.min(serverWhitelisted, candidates.length);
         appendLog(
           albumMbid,
           albumTitle,
           candidates.length === 0
             ? `URL 없음 — ${data?.message ?? '검색 결과 없음'}`
             : priorityCount > 0
-              ? `URL ${candidates.length}개 발견 (우선 도메인 ${priorityCount}개) — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`
+              ? `URL ${candidates.length}개 발견 (화이트리스트 ${priorityCount}개) — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`
               : `URL ${candidates.length}개 발견 — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`,
           candidates.length === 0 ? 'warn' : 'info'
         );
