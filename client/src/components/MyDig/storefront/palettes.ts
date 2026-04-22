@@ -1,66 +1,75 @@
-// Hongdae Dusk palette — evening shop interior. Dark warm-brown
-// wall (painted wood panel feel) with a strong upper-left lamp wash
-// pooling warm light in the center of the scene. The palette's
-// rationale changed between versions: the original Claude Design
-// output landed on a *light* amber plaster wall, which read well
-// in isolation but made the /my-preview page jump brightness
-// against the rest of dig.haus's dark chrome. This revision pulls
-// walls down into dark wood-panel territory so the scene reads as
-// "a lit shop interior seen from a dim street" rather than
-// "suddenly a different website."
+// Lofi Bedroom palette — a Korean vinyl collector's bedroom at night.
+// Inspired by lofi hip hop radio stills (warm tungsten desk lamp from
+// upper-left + cool cyan-purple neon leaking from an off-screen window
+// on the right). Replaces the earlier "Hongdae Dusk" shop-interior
+// palette; rationale for the mood pivot is in
+// docs/phase3-storefront-decisions.md.
 //
-// Values that didn't need to flip (rails, shelf carcass, cubby
-// interior, fake cover sleeves, masking tape) are unchanged —
-// the lamp wash does enough work to make the warm wood feel
-// continuous with the old palette where it matters.
+// Two-source lighting is the palette's defining property: warm amber
+// on the left fading to cool cyan-purple on the right, meeting in a
+// horizontal gradient across the middle. The wall base color is a
+// warm grey-brown, lighter than the shop-interior revision so the
+// album covers pop without having to fight an already-dark ground.
 
 export const ROOM = {
-  // wall — dark warm-brown wood panel / matte paint
-  wallTop: '#3a2c1c',
-  wallMid: '#2e2214',
-  wallBot: '#241a0f',
-  wallShadow: 'rgba(0, 0, 0, 0.45)',
-  wallLight: 'rgba(255, 220, 150, 0.38)',
-  plasterGrain: 'rgba(90, 55, 25, 0.18)',
+  // wall — painted concrete/drywall bedroom wall, warm grey-brown
+  wallTop: '#4a3a2a',
+  wallMid: '#3a3028',
+  wallBot: '#2e2620',
+  wallShadow: 'rgba(0, 0, 0, 0.4)',
+  wallLight: 'rgba(255, 200, 130, 0.42)',
+  plasterGrain: 'rgba(255, 220, 170, 0.1)',
 
-  // floor — walnut stays (same wood it was, just slightly lighter
-  // than wall now, which reads as the lamp pool spilling onto it).
+  // neon leak — cool cyan-purple glow from the off-screen right-side
+  // window. Layered on top of the wall as a right-to-left gradient.
+  neonPeak: 'rgba(120, 180, 220, 0.22)',
+  neonPurple: 'rgba(180, 130, 220, 0.18)',
+  neonEdge: 'rgba(100, 200, 230, 0.32)',
+
+  // floor — warm walnut planks, one-point perspective
   floor: '#3a2614',
-  floorHi: '#4a311d',
+  floorHi: '#4a3020',
   floorLo: '#1a0f08',
   floorPlank: '#2a1a0d',
-  baseboard: '#120a04',
-  baseboardHi: '#4a311d',
+  baseboard: '#1a120a',
+  baseboardHi: '#5a3f2a',
 
-  // wood (rails, shelf carcass) — same mid-tone wood; now reads
-  // clearly against the darker wall behind it.
-  woodTop: '#7a5230',
-  woodFace: '#6b4628',
-  woodBot: '#4a311d',
-  woodGrain: 'rgba(20, 10, 5, 0.55)',
+  // wood (rails, console, crates) — warm mid-tone wood, lighter than
+  // floor so furniture pops against it
+  woodTop: '#8a5e36',
+  woodFace: '#7a5230',
+  woodBot: '#5a3a22',
+  woodGrain: 'rgba(30, 15, 5, 0.5)',
   woodHi: 'rgba(255, 218, 175, 0.45)',
   woodScuff: 'rgba(255, 220, 180, 0.35)',
 
-  // shelf cubby interior — still the darkest thing in the scene so
-  // records sitting at the front of a cubby pop against the void
-  // behind them.
-  cubbyTop: '#15090a',
-  cubbyBot: '#0a0503',
-  cubbyLip: '#3a2513',
+  // crate interior — dark void inside wooden record crates; keeps
+  // the LP top edges that sit inside from fading into the wood
+  crateInterior: '#1a0f08',
+  crateShadow: 'rgba(0, 0, 0, 0.55)',
 
-  // masking tape — still cream/beige; tape wraps warm under lamp.
+  // masking tape — cream/beige, warm under the lamp
   tapeTop: '#f5e8c8',
   tapeMid: '#e8d6a8',
   tapeBot: '#c9b488',
   tapeFiber: 'rgba(80, 60, 30, 0.5)',
   ink: '#2a1a0d',
 
-  // text — flipped for dark wall background
+  // text — light on the warm wall
   headingInk: '#f5e8c8',
   bodyInk: '#d9c4a0',
   mutedInk: '#a88a60',
   accentInk: '#e8a020',
   hairline: 'rgba(245, 232, 200, 0.12)',
+
+  // sticky notes — faded yellow, pinned to wall as lived-in detail
+  stickyBg: '#e8d898',
+  stickyInk: '#3a2c1c',
+  stickyShadow: 'rgba(0, 0, 0, 0.3)',
+
+  // polaroid — old photo tape-stuck to wall
+  polaroidBg: '#e8dcc4',
+  polaroidBorder: '#c4b494',
 } as const;
 
 // Korean handwriting first — Gaegu + Nanum Pen Script have Hangul
