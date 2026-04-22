@@ -77,7 +77,10 @@ export default function MyDig() {
   for (const it of data.vinylWall) wallByPosition.set(it.position, it);
 
   return (
-    <div className="flex-1" style={{ background: '#1c120a' }}>
+    // Transparent so the app-root backdrop (painted wall image +
+    // brightness/saturate filter) shows through behind the page
+    // content. See App.tsx for the backdrop layer.
+    <div className="flex-1">
       <main className="max-w-[1120px] mx-auto px-4 py-8 space-y-6">
         <ProfileHeader
           username={data.user.username}

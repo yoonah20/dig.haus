@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SearchOverlayProvider } from './contexts/SearchOverlayContext';
 import { HomeStateProvider } from './contexts/HomeStateContext';
@@ -66,12 +66,45 @@ function useStripUrlNoise() {
 
 export default function App() {
   useStripUrlNoise();
+  const location = useLocation();
+  // Routes under `/my/:username` (including snapshots) get the
+  // painted wall backdrop across the full page, nav to footer.
+  // `/my-preview` is a separate design-iteration route that does
+  // not share the backdrop.
+  const isMydig = location.pathname.startsWith('/my/');
   return (
     <AuthProvider>
       <SearchOverlayProvider>
         <HomeStateProvider>
           <CurationProgressProvider>
-            <div className="min-h-screen flex flex-col bg-[#0a0703] text-gray-100">
+            <div
+              className="min-h-screen flex flex-col bg-[#0a0703] text-gray-100 relative"
+              // isolation:isolate creates a fresh stacking context
+              // so the z-index:-1 backdrop layer stays behind this
+              // app tree's content without escaping to compete with
+              // anything rendered outside the app root.
+              style={{ isolation: 'isolate' }}
+            >
+              {isMydig && (
+                <div
+                  aria-hidden
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    // zIndex:-1 puts the backdrop behind the in-flow
+                    // content (nav + route + footer) without blocking
+                    // any of them. Filter is applied here so the
+                    // image's cream/beige tone is pulled into the
+                    // dark walnut range; filter stays scoped to this
+                    // div and doesn't cascade to page content.
+                    zIndex: -1,
+                    backgroundImage: "url('/backdrops/wall2.webp')",
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundRepeat: 'no-repeat',
+                    filter: 'brightness(0.45) saturate(0.85)',
+                  }}
+                />
+              )}
               <TopNav />
               <Suspense fallback={<RouteFallback />}>
                 <Routes>

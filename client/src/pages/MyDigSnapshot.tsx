@@ -54,7 +54,8 @@ export default function MyDigSnapshot() {
   for (const it of items) byPosition.set(it.position, it.album);
 
   return (
-    <div className="flex-1" style={{ background: '#1c120a' }}>
+    // Transparent — backdrop lives on the app-root. See App.tsx.
+    <div className="flex-1">
       <main className="max-w-[1120px] mx-auto px-4 py-8 space-y-6">
         <SnapshotHeader
           username={user.username}
