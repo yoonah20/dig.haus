@@ -81,7 +81,12 @@ function DustMotes() {
       // and any mydig modals (z-40/50) so clicks and overlays
       // work as before. pointer-events:none keeps everything
       // clickable underneath.
-      className="pointer-events-none absolute inset-0 overflow-hidden"
+      //
+      // hidden sm:block — motes tuned for desktop viewports; on
+      // a phone screen the same particle sizes read as oversized
+      // specks and crowd the already-tight scene. Gated via the
+      // 640px Tailwind sm breakpoint.
+      className="pointer-events-none absolute inset-0 overflow-hidden hidden sm:block"
       style={{ zIndex: 5 }}
     >
       {DUST_MOTES.map((m, i) => (

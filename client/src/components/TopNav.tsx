@@ -117,14 +117,15 @@ export default function TopNav() {
                 (Home.tsx's SortTrigger). Keeping the nav cluster
                 down to "find / my store / login" — everything about
                 how the feed is arranged belongs to the feed itself. */}
-            {/* mydig entry. Record crate — box outline with four
-                vertical record spines inside. Settled on this
-                after rotating through shopfront, vinyl disc,
-                shovel, and pickaxe; the crate reads most
-                consistently at 18px and maps directly to the
-                crate-digger idiom. First click with no username
-                opens the UsernameModal; later clicks go to
-                /my/:username. Hidden for guests. */}
+            {/* mydig entry. Shovel-in-a-mound — the flaticon
+                reference that finally read unambiguously as
+                "digging." Redrawn as inline SVG (rather than
+                using the flaticon image directly) so there's no
+                third-party licensing attached. D-grip circle at
+                top, diagonal shaft, small spade blade peeking
+                out of a gentle mound curve. First click with no
+                username opens the UsernameModal; later clicks go
+                to /my/:username. Hidden for guests. */}
             {user && (
               <button
                 onClick={() => {
@@ -148,13 +149,15 @@ export default function TopNav() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  {/* Crate outline */}
-                  <rect x="3.5" y="6" width="17" height="13" rx="0.5" />
-                  {/* Record spines — four thin verticals */}
-                  <path d="M7 9 V17" />
-                  <path d="M11 9 V17" />
-                  <path d="M15 9 V17" />
-                  <path d="M19 9 V17" />
+                  {/* D-grip at top of handle */}
+                  <circle cx="16" cy="4" r="2" />
+                  {/* Diagonal shaft */}
+                  <path d="M16 6 L10.5 14" />
+                  {/* Spade blade — small triangular tip peeking
+                      out of the mound on the left */}
+                  <path d="M8.5 12.5 L12 14 L11 17 Z" />
+                  {/* Mound of dirt — gentle arc across the base */}
+                  <path d="M3 19 Q12 15.5 21 19" />
                 </svg>
               </button>
             )}
