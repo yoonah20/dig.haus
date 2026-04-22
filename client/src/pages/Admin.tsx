@@ -622,7 +622,7 @@ export default function Admin() {
   if (loading || !user?.isAdmin) return null;
 
   return (
-    <main className="max-w-[1280px] mx-auto px-4 py-8">
+    <main className="max-w-[1280px] mx-auto px-4 py-8 overflow-x-hidden">
       <h1 className="text-3xl font-bold text-white mb-8 font-serif">
         🛠 레코드샵 관리
       </h1>
@@ -942,6 +942,19 @@ export default function Admin() {
             </div>
           </section>
 
+          {/* Source trust panel — cumulative success / failure lists
+              beside the curated whitelist / blacklist so admin can
+              promote proven hosts with a single click. Whitelisted
+              hosts re-rank to the top of /reviews/discover; blacklisted
+              hosts are refused at scrape time (same runtime effect as
+              the hardcoded EXCLUDED_URL_DOMAINS, editable without a
+              deploy). Placed above the scrape-failure log because the
+              curation workflow starts with "decide which sources to
+              trust" before looking at per-URL failures. */}
+          <section className="mt-4">
+            <SourcesPanel />
+          </section>
+
           {/* Scrape-failure log — surfaces hostnames that consistently
               fail URL scraping, so we can decide which need a
               site-specific parser vs. staying on the paste-in
@@ -950,17 +963,6 @@ export default function Admin() {
               (or giving up on) a site. */}
           <section className="mt-4">
             <ScrapeFailuresPanel />
-          </section>
-
-          {/* Source trust panel — cumulative success / failure lists
-              beside the curated whitelist / blacklist so admin can
-              promote proven hosts with a single click. Whitelisted
-              hosts re-rank to the top of /reviews/discover; blacklisted
-              hosts are refused at scrape time (same runtime effect as
-              the hardcoded EXCLUDED_URL_DOMAINS, editable without a
-              deploy). */}
-          <section className="mt-4">
-            <SourcesPanel />
           </section>
 
           {/* Per-album record of every curation pipeline run (one-click

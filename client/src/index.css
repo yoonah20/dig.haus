@@ -353,3 +353,59 @@ textarea:focus-visible,
 select:focus-visible {
   outline-offset: 0;
 }
+
+/* Density slider — 3-stop range input above the desktop album grid.
+   Browser defaults would give us full OS chrome which fights the
+   minimal admin styling, so we reset to a thin horizontal track
+   (2px, gray) with a small amber thumb (10px circle) that slots
+   between the three tick dots. Webkit/Moz selectors are separate
+   because the two engines don't share pseudo-elements. */
+.density-slider-input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 72px;
+  height: 16px;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  margin: 0;
+}
+.density-slider-input::-webkit-slider-runnable-track {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 1px;
+}
+.density-slider-input::-moz-range-track {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 1px;
+}
+.density-slider-input::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: #e8a020;
+  border: none;
+  box-shadow: 0 0 0 2px rgba(232, 160, 32, 0.2);
+  transition: box-shadow 0.15s ease-out;
+}
+.density-slider-input::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e8a020;
+  border: none;
+  box-shadow: 0 0 0 2px rgba(232, 160, 32, 0.2);
+  transition: box-shadow 0.15s ease-out;
+}
+.density-slider-input:hover::-webkit-slider-thumb,
+.density-slider-input:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(232, 160, 32, 0.35);
+}
+.density-slider-input:hover::-moz-range-thumb,
+.density-slider-input:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(232, 160, 32, 0.35);
+}

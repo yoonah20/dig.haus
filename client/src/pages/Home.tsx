@@ -378,20 +378,25 @@ export default function Home() {
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
-        {/* Grid header — sort trigger + density switcher. Sort moved
-            out of the nav bar so the top strip stays a pure "find
-            albums" cluster; this header owns everything about how
-            the feed itself is arranged. */}
+        {/* Grid header — density switcher on the left, sort trigger on
+            the right. Density is a "how this whole grid is shaped"
+            control so it reads first with left-aligned visual weight;
+            sort sits next to the right margin like a flyout menu
+            anchor. Sort moved out of the nav bar so the top strip
+            stays a pure "find albums" cluster; this header owns
+            everything about how the feed itself is arranged. */}
         {albums.length > 0 && (
           <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
+            {!isMobile ? (
+              <DensitySwitcher density={density} onChange={setDensity} />
+            ) : (
+              <span aria-hidden />
+            )}
             <SortTrigger
               sort={sort}
               onChange={setSort}
               label={currentSortLabel}
             />
-            {!isMobile && (
-              <DensitySwitcher density={density} onChange={setDensity} />
-            )}
           </div>
         )}
         {isLoading && albums.length === 0 ? (
@@ -614,12 +619,21 @@ function SortTrigger({
   );
 }
 
-// 3-step density toggle: comfortable / dense / ultra. Each button
-// renders a simple dot matrix whose dot count reflects the density
-// level so the control reads at-a-glance. Selected step is filled
-// amber; inactive steps are muted. Lives above the desktop grid
-// only — mobile density is fixed at 2 cols, adjusting it would pack
-// covers too small to tap.
+// 3-step density slider: comfortable / dense / ultra. A range input
+// with three stops (0 = comfortable, 1 = dense, 2 = ultra) — replaces
+// the earlier 3-button dot-matrix toggle. A slider reads more
+// naturally as a "continuous smaller → bigger" gesture, even though
+// we snap to three discrete values. Small labeled tick marks span the
+// track so users can see what they're dragging to. Lives above the
+// desktop grid only — mobile density is fixed at 2 cols, adjusting
+// it would pack covers too small to tap.
+const DENSITY_STEPS: DensityValue[] = ['comfortable', 'dense', 'ultra'];
+const DENSITY_LABELS: Record<DensityValue, string> = {
+  comfortable: '넉넉',
+  dense: '빽빽',
+  ultra: '더빽빽',
+};
+
 function DensitySwitcher({
   density,
   onChange,
@@ -627,49 +641,43 @@ function DensitySwitcher({
   density: DensityValue;
   onChange: (v: DensityValue) => void;
 }) {
-  const steps: Array<{ value: DensityValue; title: string; dots: number }> = [
-    { value: 'comfortable', title: '넉넉하게', dots: 2 },
-    { value: 'dense', title: '빽빽하게', dots: 3 },
-    { value: 'ultra', title: '더 빽빽하게', dots: 4 },
-  ];
+  const current = DENSITY_STEPS.indexOf(density);
   return (
-    <div className="inline-flex items-center gap-1 border border-white/10 rounded-md p-0.5 bg-[#0f0f0f]">
-      {steps.map((s) => {
-        const active = density === s.value;
-        return (
-          <button
-            key={s.value}
-            type="button"
-            onClick={() => onChange(s.value)}
-            title={`크기: ${s.title}`}
-            aria-label={`크기: ${s.title}`}
-            aria-pressed={active}
-            className={`h-6 px-2 flex items-center justify-center rounded-sm transition-colors cursor-pointer ${
-              active
-                ? 'bg-[#e8a020]/15 text-[#e8a020]'
-                : 'text-gray-500 hover:text-gray-300'
-            }`}
-          >
+    <div className="density-slider inline-flex items-center gap-2 text-[11px] text-gray-500">
+      <span aria-hidden title="넉넉하게">넉넉</span>
+      <div className="relative flex items-center">
+        <input
+          type="range"
+          min={0}
+          max={2}
+          step={1}
+          value={current >= 0 ? current : 0}
+          onChange={(e) => {
+            const idx = parseInt(e.target.value, 10);
+            const next = DENSITY_STEPS[idx];
+            if (next) onChange(next);
+          }}
+          title={`크기: ${DENSITY_LABELS[density]}`}
+          aria-label={`크기 조정: ${DENSITY_LABELS[density]}`}
+          aria-valuetext={DENSITY_LABELS[density]}
+          className="density-slider-input"
+        />
+        {/* Tick marks — three dots behind the thumb, aligned with the
+            0 / 1 / 2 stops. Decorative: the real value is on the
+            <input>. */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-between px-[7px]">
+          {DENSITY_STEPS.map((s) => (
             <span
-              className="inline-grid gap-[2px]"
-              style={{
-                gridTemplateColumns: `repeat(${s.dots}, 3px)`,
-                gridTemplateRows: `repeat(${s.dots}, 3px)`,
-              }}
+              key={s}
               aria-hidden
-            >
-              {Array.from({ length: s.dots * s.dots }).map((_, i) => (
-                <span
-                  key={i}
-                  className={`w-[3px] h-[3px] rounded-sm ${
-                    active ? 'bg-[#e8a020]' : 'bg-gray-500'
-                  }`}
-                />
-              ))}
-            </span>
-          </button>
-        );
-      })}
+              className={`w-[2px] h-[2px] rounded-full ${
+                s === density ? 'bg-[#e8a020]' : 'bg-gray-700'
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+      <span aria-hidden title="더 빽빽하게">빽빽</span>
     </div>
   );
 }
