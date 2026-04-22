@@ -639,12 +639,18 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
   // but the visible number on the page is deliberately blurred
   // (masked with a CSS filter until hover). Generic detectors can't
   // see it, and schema.org's ratingValue is set to null in their
-  // JSON-LD. The score lives in the article's page-state JSON
-  // embedded in the HTML: `"isBestNewMusic":…,"isBestNewReissue":…,
-  // "score":8.6`. Host-specific to avoid a generic `"score":N` from
-  // some other site's unrelated JSON.
+  // JSON-LD. The score lives in the article's page-state JSON as
+  // `"musicRating":{"isBestNewMusic":…,"isBestNewReissue":…,"score":8.2}`.
+  //
+  // The old detector matched a bare `"score":N` anywhere in the page,
+  // which worked until Pitchfork's 2026-era refresh started scattering
+  // other `"score":N` fields across the page — article-recommendation
+  // relevance floats that land in the 0.1-0.5 range. Matching the
+  // first one and rounding 0.36 × 10 = 4 is how a legitimate 8.2/10
+  // review came back as 40/100. Anchor to `"musicRating":{…,"score":N}`
+  // explicitly so unrelated JSON siblings can't hijack the match.
   if (host === 'pitchfork.com') {
-    const m = html.match(/"score"\s*:\s*(\d+(?:\.\d+)?)/);
+    const m = html.match(/"musicRating"\s*:\s*\{[^}]*?"score"\s*:\s*(\d+(?:\.\d+)?)/);
     if (m) {
       const score = parseFloat(m[1]);
       if (score >= 0 && score <= 10) return Math.round(score * 10);
@@ -710,6 +716,28 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
       const score = parseFloat(m[1]);
       if (Number.isFinite(score) && score >= 0 && score <= 10) {
         return Math.round(score * 10);
+      }
+    }
+  }
+
+  // Toilet ov Hell — sign-off rating in mixed-number form:
+  //   <h3>4 1/2 out of 5 Flaming Toilets ov Hell</h3>
+  // The generic "N out of M" detector can't read mixed numbers: it
+  // matches "2 out of 5" (picking the "2" that's the denominator of
+  // the 1/2 fraction) and reports 40 for what should be 90. Parse
+  // whole + optional fraction here so the Vektor "4 1/2" case lands
+  // on 4.5/5 = 90 instead of the spurious 2/5 = 40.
+  if (host === 'toiletovhell.com') {
+    const m = html.match(
+      /(\d)(?:\s+(\d)\s*\/\s*(\d))?\s+out\s+of\s+5\s+Flaming\s+Toilets/i
+    );
+    if (m) {
+      const whole = parseInt(m[1], 10);
+      const num = m[2] ? parseInt(m[2], 10) : 0;
+      const den = m[3] ? parseInt(m[3], 10) : 1;
+      const score = den > 0 ? whole + num / den : whole;
+      if (score >= 0 && score <= 5) {
+        return Math.round((score / 5) * 100);
       }
     }
   }
