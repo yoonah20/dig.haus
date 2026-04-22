@@ -1353,12 +1353,15 @@ function HostList({
             <div key={it.host} className="px-3 py-2 flex items-center gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span
-                    className="text-xs text-white truncate"
-                    title={it.title}
+                  <a
+                    href={`https://${it.host}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-white truncate hover:text-[#e8a020] transition-colors"
+                    title={it.title ?? `${it.host} 열기`}
                   >
                     {it.host}
-                  </span>
+                  </a>
                   {it.badge && (
                     <span className="text-[10px] text-gray-500 tabular-nums">
                       {it.badge}
@@ -1448,9 +1451,15 @@ function ManagedHostList({
           items.map((it) => (
             <div key={it.host} className="px-3 py-2 flex items-center gap-2">
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-white truncate" title={it.title}>
+                <a
+                  href={`https://${it.host}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-white truncate block hover:text-[#e8a020] transition-colors"
+                  title={it.title ?? `${it.host} 열기`}
+                >
                   {it.host}
-                </div>
+                </a>
                 {it.sub && (
                   <div className="text-[10px] text-gray-600 truncate mt-0.5">
                     {it.sub}

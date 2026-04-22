@@ -36,10 +36,18 @@ interface PriceTagStackProps {
 // Semi-circle notches punched into the top/bottom mid-edges — like a hang
 // tag pierced for a string. Two radial gradients composite with
 // `intersect` so only the two small circles get cut out of the element.
-const NOTCH_R = 2.6;
+//
+// Radius is set in `em` so the notch scales with the sticker's own
+// font-size (which is itself clamped against container-width via cqw in
+// the inline style below). Previously a fixed 2.6px — that was sized
+// for comfortable-density covers and read correctly there, but on the
+// ultra-density 10-column grid the sticker shrinks while the notch
+// stayed put, making the holes look disproportionately huge. 0.24em
+// lands at ~2.6px when the font hits its 11px ceiling (matching the
+// old look) and shrinks down to ~1.7px at the 7px font floor.
 const NOTCH_MASK =
-  `radial-gradient(circle ${NOTCH_R}px at 50% 0, transparent 98%, #000 100%),` +
-  `radial-gradient(circle ${NOTCH_R}px at 50% 100%, transparent 98%, #000 100%)`;
+  `radial-gradient(circle 0.24em at 50% 0, transparent 98%, #000 100%),` +
+  `radial-gradient(circle 0.24em at 50% 100%, transparent 98%, #000 100%)`;
 
 // Top + bottom red rules, centered, spanning the middle 80% of the sticker
 // width. Both rules sit 4px inside the top / bottom edges. Stroke is a
