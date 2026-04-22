@@ -33,23 +33,43 @@ export function WallRail({
   seed?: number;
   style?: React.CSSProperties;
 }) {
-  const h = 14;
-  const canvasH = h + 8;
-  // Deterministic knot placements — one or two per rail depending on
-  // width. Seed is XOR'd with width so two rails of the same length
-  // but different rows pick different x positions.
+  // Thicker profile than the previous 14px rail — gives records
+  // something substantial to lean on and lets more wood detail
+  // live on the face without crowding. Face height + lip + top
+  // surface redistribute across the taller canvas.
+  const h = 20;
+  const canvasH = h + 10;
+  const topH = 4;              // top surface (catches lamp)
+  const faceTop = topH + 1.5;  // y-coord where the face begins
+  const faceH = h - topH - 1;  // face body height
+  const lipY = h - 1.8;        // thin lip at bottom edge
+
+  // Deterministic knot placements — one or two per rail depending
+  // on width. Seed is XOR'd with width so two rails of the same
+  // length but different rows pick different x positions.
   const knotCount = width > 520 ? 2 : 1;
   const knots = Array.from({ length: knotCount }).map((_, i) => {
     const hash = Math.abs(((seed ^ (width + i * 73)) * 2654435761) >>> 0);
     const x = 40 + (hash % Math.max(1, width - 80));
-    const r = 1.4 + ((hash >> 8) % 10) / 10;
+    const r = 2.2 + ((hash >> 8) % 10) / 8; // slightly bigger knots
     return { x, r };
   });
-  // Scuff — thin light scratch on the face, off-center so it doesn't
-  // fight the knot visually.
-  const scuffSeed = Math.abs(((seed + 991) * 2654435761) >>> 0);
-  const scuffX = 30 + (scuffSeed % Math.max(1, width - 60));
-  const scuffLen = 8 + (scuffSeed % 8);
+
+  // Multiple scuffs/scratches scattered across the face for more
+  // "real wood" vibe. Each seeded independently so they don't
+  // cluster.
+  const scuffs = Array.from({ length: 3 }).map((_, i) => {
+    const h1 = Math.abs(((seed ^ (i * 577 + 991)) * 2654435761) >>> 0);
+    const h2 = Math.abs(((seed ^ (i * 131 + 77)) * 2654435761) >>> 0);
+    return {
+      x: 20 + (h1 % Math.max(1, width - 60)),
+      len: 6 + (h2 % 12),
+      y1: faceTop + 2 + (h2 % 8),
+      dy: -1 - ((h1 >> 4) % 3),
+      opacity: 0.35 + ((h2 >> 8) % 5) * 0.06,
+    };
+  });
+
   return (
     <svg
       width={width}
@@ -61,81 +81,157 @@ export function WallRail({
       <defs>
         <linearGradient id={`railFace-${seed}`} x1="0" x2="0" y1="0" y2="1">
           <stop offset="0" stopColor={ROOM.woodTop} />
-          <stop offset="0.5" stopColor={ROOM.woodFace} />
+          <stop offset="0.4" stopColor={ROOM.woodFace} />
           <stop offset="1" stopColor={ROOM.woodBot} />
         </linearGradient>
         <linearGradient id={`railLamp-${seed}`} x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0" stopColor={ROOM.woodHi as string} stopOpacity="0.55" />
-          <stop offset="0.35" stopColor={ROOM.woodHi as string} stopOpacity="0.2" />
+          <stop offset="0" stopColor={ROOM.woodHi as string} stopOpacity="0.6" />
+          <stop offset="0.35" stopColor={ROOM.woodHi as string} stopOpacity="0.22" />
           <stop offset="0.7" stopColor={ROOM.woodHi as string} stopOpacity="0" />
         </linearGradient>
         <linearGradient id={`railUnder-${seed}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stopColor="rgba(0,0,0,0.35)" />
+          <stop offset="0" stopColor="rgba(0,0,0,0.4)" />
           <stop offset="1" stopColor="rgba(0,0,0,0)" />
         </linearGradient>
+        {/* Wood grain noise filter — feTurbulence stretched along
+            the X axis (baseFrequency 0.9x / 0.02y) so it reads as
+            horizontal grain fibers rather than static. */}
+        <filter id={`railGrain-${seed}`}>
+          <feTurbulence baseFrequency="0.9 0.02" numOctaves="2" seed={seed + 13} />
+          <feColorMatrix values="0 0 0 0 0.05  0 0 0 0 0.03  0 0 0 0 0.015  0 0 0 0.5 0" />
+        </filter>
       </defs>
+
       {/* tiny shadow cast upward onto the wall where records rest */}
-      <rect x="0" y="0" width={width} height="1.5" fill="rgba(40,20,8,0.45)" />
+      <rect x="0" y="0" width={width} height="1.5" fill="rgba(40,20,8,0.55)" />
       {/* top surface — lightest, catches the upper-left lamp */}
-      <rect x="0" y="1.5" width={width} height="3.5" fill={ROOM.woodTop} />
+      <rect x="0" y="1.5" width={width} height={topH} fill={ROOM.woodTop} />
       {/* lamp wash on top edge, biased upper-left */}
-      <rect x="0" y="1.5" width={width} height="1" fill={`url(#railLamp-${seed})`} />
-      {/* face — darker, grain */}
-      <rect x="0" y="5" width={width} height="7" fill={`url(#railFace-${seed})`} />
-      {/* subtle lamp wash on the face too, weaker */}
-      <rect x="0" y="5" width={width * 0.45} height="7" fill={ROOM.woodHi as string} opacity="0.1" />
-      {/* front lip */}
-      <rect x="0" y="5" width={width} height="1.4" fill={ROOM.woodTop} opacity="0.9" />
-      {/* undercut shadow — soft gradient instead of flat rect */}
-      <rect x="0" y="12" width={width} height="5" fill={`url(#railUnder-${seed})`} />
-      {/* floor-cast shadow below rail (kept, with wider blur for softness) */}
-      <rect x="4" y={h} width={width - 8} height="4" fill="rgba(0,0,0,0.25)" filter="blur(3px)" />
-      {/* grain streaks — varied opacity per stripe, mirroring the
-          shelf carcass streaks so the two pieces of wood read as the
-          same material. */}
-      {Array.from({ length: Math.floor(width / 28) }).map((_, i) => (
+      <rect x="0" y="1.5" width={width} height={topH * 0.7} fill={`url(#railLamp-${seed})`} />
+      {/* Subtle top-edge highlight (1px crisp cream line) where
+          the lamp catches the very top plank corner. */}
+      <rect x="0" y="1.5" width={width * 0.8} height="0.6" fill={ROOM.woodHi as string} opacity="0.5" />
+
+      {/* face — base gradient */}
+      <rect x="0" y={faceTop} width={width} height={faceH} fill={`url(#railFace-${seed})`} />
+
+      {/* Horizontal wood-grain noise overlayed on the face —
+          this is the main new "woodsiness" pass. Screen-space
+          turbulence warped horizontally reads as grain fiber. */}
+      <rect
+        x="0"
+        y={faceTop}
+        width={width}
+        height={faceH}
+        filter={`url(#railGrain-${seed})`}
+        opacity="0.75"
+      />
+
+      {/* Longer horizontal grain streaks — maybe 3-4 across the
+          face. These read as clear visible fibers on top of the
+          noise, giving direction. */}
+      {Array.from({ length: 4 }).map((_, i) => {
+        const hash = Math.abs(((seed ^ (i * 443 + 17)) * 2654435761) >>> 0);
+        const y = faceTop + 2 + (i * (faceH - 4)) / 4 + ((hash % 3) - 1);
+        const startX = (hash % Math.max(1, width - 120)) | 0;
+        const len = 40 + ((hash >> 6) % Math.max(1, width - startX - 40));
+        return (
+          <line
+            key={`grainH-${i}`}
+            x1={startX}
+            y1={y}
+            x2={startX + len}
+            y2={y + ((hash >> 10) % 2)}
+            stroke={ROOM.woodGrain as string}
+            strokeWidth="0.6"
+            opacity={0.3 + ((i + seed) % 3) * 0.12}
+          />
+        );
+      })}
+
+      {/* Short diagonal grain streaks — the original "visible wood
+          texture" pattern, denser than before. */}
+      {Array.from({ length: Math.floor(width / 18) }).map((_, i) => (
         <line
-          key={i}
-          x1={10 + i * 28}
-          y1="6"
-          x2={20 + i * 28}
-          y2="11.5"
-          stroke={ROOM.woodGrain}
-          strokeWidth="0.4"
-          opacity={0.35 + ((i + seed) % 4) * 0.12}
+          key={`grainD-${i}`}
+          x1={6 + i * 18}
+          y1={faceTop + 2}
+          x2={14 + i * 18}
+          y2={faceTop + faceH - 2}
+          stroke={ROOM.woodGrain as string}
+          strokeWidth="0.35"
+          opacity={0.25 + ((i + seed) % 4) * 0.1}
         />
       ))}
-      {/* knot(s) — darker circle on the face, very small */}
+
+      {/* lamp wash on the face — brightens the upper-left quarter */}
+      <rect
+        x="0"
+        y={faceTop}
+        width={width * 0.45}
+        height={faceH}
+        fill={ROOM.woodHi as string}
+        opacity="0.08"
+      />
+
+      {/* front lip — thin highlight near the bottom edge */}
+      <rect x="0" y={lipY} width={width} height="1.2" fill={ROOM.woodTop} opacity="0.85" />
+
+      {/* undercut shadow — soft gradient instead of flat rect */}
+      <rect x="0" y={h} width={width} height={canvasH - h} fill={`url(#railUnder-${seed})`} />
+
+      {/* floor-cast shadow below rail (kept, with wider blur for softness) */}
+      <rect x="4" y={h + 1} width={width - 8} height="5" fill="rgba(0,0,0,0.3)" filter="blur(3px)" />
+
+      {/* knot(s) — darker oval with concentric ring around it
+          suggesting growth rings. */}
       {knots.map((k, i) => (
         <g key={i}>
+          {/* Outer ring — wood growth-ring feel */}
           <ellipse
             cx={k.x}
-            cy={8.5}
+            cy={faceTop + faceH / 2}
+            rx={k.r * 1.8}
+            ry={k.r * 1.3}
+            fill="none"
+            stroke={ROOM.woodGrain as string}
+            strokeWidth="0.4"
+            opacity="0.35"
+          />
+          {/* Knot body */}
+          <ellipse
+            cx={k.x}
+            cy={faceTop + faceH / 2}
             rx={k.r}
             ry={k.r * 0.75}
             fill={ROOM.woodGrain as string}
-            opacity="0.7"
+            opacity="0.75"
           />
+          {/* Dark centre */}
           <ellipse
             cx={k.x - 0.3}
-            cy={8.2}
-            rx={k.r * 0.5}
-            ry={k.r * 0.35}
+            cy={faceTop + faceH / 2 - 0.3}
+            rx={k.r * 0.55}
+            ry={k.r * 0.4}
             fill={ROOM.woodBot}
-            opacity="0.8"
+            opacity="0.85"
           />
         </g>
       ))}
-      {/* scuff — thin light diagonal on the face, barely visible. */}
-      <line
-        x1={scuffX}
-        y1={9.5}
-        x2={scuffX + scuffLen}
-        y2={7.5}
-        stroke={ROOM.woodScuff as string}
-        strokeWidth="0.4"
-        opacity="0.55"
-      />
+
+      {/* Scuffs / light scratches — multiple, short, low-angle */}
+      {scuffs.map((s, i) => (
+        <line
+          key={`scuff-${i}`}
+          x1={s.x}
+          y1={s.y1}
+          x2={s.x + s.len}
+          y2={s.y1 + s.dy}
+          stroke={ROOM.woodScuff as string}
+          strokeWidth="0.35"
+          opacity={s.opacity}
+        />
+      ))}
     </svg>
   );
 }

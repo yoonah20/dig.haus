@@ -51,6 +51,7 @@ export interface MyDigCrate {
 export interface MyDigData {
   user: MyDigUser;
   isPublic: boolean;
+  vinylWallTheme: string | null;
   vinylWall: MyDigWallItem[];
   shelf: MyDigShelfSlot[];
   crates: MyDigCrate[];
@@ -96,6 +97,19 @@ export function useMyDigCandidates(
     },
     enabled,
     staleTime: 15_000,
+  });
+}
+
+export function useUpdateVinylWallTheme(username: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation<{ ok: boolean; theme: string | null }, unknown, string | null>({
+    mutationFn: async (theme) => {
+      const { data } = await axios.patch('/api/mydig/vinyl-wall/theme', { theme });
+      return data;
+    },
+    onSuccess: () => {
+      if (username) qc.invalidateQueries({ queryKey: ['mydig', username] });
+    },
   });
 }
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   useMyDig,
+  useUpdateVinylWallTheme,
   useVinylWallSnapshots,
   type MyDigWallItem,
   type MyDigShelfSlot,
@@ -49,6 +50,7 @@ export default function MyDig() {
   const { data, isLoading, error } = useMyDig(username);
   const [editingWall, setEditingWall] = useState(false);
   const [savingSnapshot, setSavingSnapshot] = useState(false);
+  const [editingTheme, setEditingTheme] = useState(false);
   const snapshotsQuery = useVinylWallSnapshots(username);
 
   if (isLoading) return <LoadingSkeleton />;
@@ -109,8 +111,10 @@ export default function MyDig() {
           displayName={data.user.displayName}
           avatarUrl={data.user.avatarUrl}
           isOwner={data.user.isOwner}
+          wallTheme={data.vinylWallTheme}
           onEdit={() => setEditingWall(true)}
           onSaveSnapshot={() => setSavingSnapshot(true)}
+          onEditTheme={() => setEditingTheme(true)}
           shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
@@ -153,6 +157,14 @@ export default function MyDig() {
           />
         )}
 
+        {editingTheme && username && (
+          <ThemeEditModal
+            username={username}
+            initialValue={data.vinylWallTheme}
+            onClose={() => setEditingTheme(false)}
+          />
+        )}
+
         {/* Shelf + Crate tiers temporarily hidden while we focus on
             getting Vinyl Wall right. Server routes + schema are
             untouched; the tier renders just don't mount. Restore
@@ -168,28 +180,43 @@ export default function MyDig() {
 // circle portrait; right column stacks the @username breadcrumb,
 // the italic-serif display name, and a warm amber "open" indicator
 // that matches the dig.haus accent colour elsewhere.
+// ─── Profile header ──────────────────────────────────────────
+// Hierarchy:
+//   [avatar]  WALL THEME (big italic serif — primary focus)
+//             @username · displayName (medium muted line)
+//             · open ·  [edit] [snapshot] [share]  (small meta row)
+//
+// The theme replaces the earlier "{name}의 my dig" hybrid title
+// that mixed italic + non-italic inside a single h1 and read as
+// cluttered. Now only one italic block, one readable-size handle
+// line, one compact meta row. Each element has one clear size.
 function ProfileHeader({
   username,
   displayName,
   avatarUrl,
   isOwner,
+  wallTheme,
   onEdit,
   onSaveSnapshot,
+  onEditTheme,
   shareUrl,
 }: {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
   isOwner: boolean;
+  wallTheme: string | null;
   onEdit: () => void;
   onSaveSnapshot: () => void;
+  onEditTheme: () => void;
   shareUrl: string;
 }) {
   const initial = (displayName || username).charAt(0).toUpperCase();
   const resolvedAvatar = resolveApiUrl(avatarUrl);
-  const name = displayName || username;
+  const displayThemeText = wallTheme || 'my dig';
+  const themePlaceholder = !wallTheme;
   return (
-    <header className="flex items-center gap-4 pt-2 pb-4">
+    <header className="flex items-start gap-4 pt-2 pb-6">
       <div className="shrink-0">
         {resolvedAvatar ? (
           <img
@@ -207,21 +234,50 @@ function ProfileHeader({
           </div>
         )}
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-[11px] text-gray-500 tracking-wider">
-          @{username}
+      <div className="flex-1 min-w-0 pt-1">
+        {/* Primary: wall theme (italic serif h1). Owner gets a tiny
+            inline pencil that swaps into an input via onEditTheme. */}
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <h1
+            className={`text-2xl sm:text-3xl font-serif italic leading-tight truncate ${
+              themePlaceholder ? 'text-[#7a6650]' : 'text-[#f5e8c8]'
+            }`}
+            title={displayThemeText}
+          >
+            {displayThemeText}
+          </h1>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={onEditTheme}
+              className="text-[11px] text-gray-500 hover:text-[#e8a020] cursor-pointer transition-colors"
+              title="벽 제목 수정"
+            >
+              ✏️
+            </button>
+          )}
         </div>
-        <h1
-          className="text-2xl sm:text-4xl font-serif italic text-[#f5e8c8] leading-tight truncate"
-          title={`${name}의 my dig`}
-        >
-          <span>{name}</span>
-          <span className="text-[#a88a60] not-italic">의 </span>
-          <span>my dig</span>
-        </h1>
-        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-          <span className="text-[11px] uppercase tracking-[0.2em] text-[#e8a020]">
-            · open ·
+
+        {/* Secondary: @username + optional displayName. Readable
+            size (text-sm) — no longer the mouse-hunt 11px tracking
+            that made the earlier header feel lopsided. */}
+        <div className="mt-1.5 text-sm text-gray-400 truncate">
+          <span className="text-[#a88a60]">@{username}</span>
+          {displayName &&
+            displayName.toLowerCase() !== username.toLowerCase() && (
+              <span className="text-gray-500"> · {displayName}</span>
+            )}
+        </div>
+
+        {/* Meta row: status + owner actions + share */}
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-[#e8a020]">
+            <span
+              aria-hidden
+              className="w-1.5 h-1.5 rounded-full bg-[#e8a020]"
+              style={{ boxShadow: '0 0 5px rgba(232, 160, 32, 0.7)' }}
+            />
+            open
           </span>
           {isOwner && (
             <>
@@ -246,6 +302,89 @@ function ProfileHeader({
         </div>
       </div>
     </header>
+  );
+}
+
+// ─── Theme edit modal ────────────────────────────────────────
+// Mirrors SnapshotSaveModal's shape so the two edit surfaces feel
+// like siblings. Submits a PATCH; server persists to users.
+// vinyl_wall_theme. Empty input clears the theme back to the
+// "my dig" fallback.
+function ThemeEditModal({
+  username,
+  initialValue,
+  onClose,
+}: {
+  username: string;
+  initialValue: string | null;
+  onClose: () => void;
+}) {
+  const [value, setValue] = useState(initialValue ?? '');
+  const update = useUpdateVinylWallTheme(username);
+
+  const handleSave = async () => {
+    if (update.isPending) return;
+    try {
+      await update.mutateAsync(value.trim() ? value.trim() : null);
+      onClose();
+    } catch {
+      /* error surfaced below */
+    }
+  };
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg text-white font-serif italic mb-1">벽 제목</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          지금 벽의 주제를 한 줄로 적어주세요. 비워두면 "my dig"로 돌아가요.
+        </p>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          maxLength={80}
+          autoFocus
+          className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-[#e8a020] focus:outline-none"
+          placeholder="예: 2026년 4월의 최애"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleSave();
+            } else if (e.key === 'Escape') {
+              e.preventDefault();
+              onClose();
+            }
+          }}
+        />
+        {update.isError && (
+          <p className="text-xs text-red-400 mt-3">저장에 실패했어요.</p>
+        )}
+        <div className="flex items-center justify-end gap-2 mt-5">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={update.isPending}
+            className="text-xs text-gray-400 hover:text-white px-3 py-1.5 cursor-pointer disabled:opacity-50"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={update.isPending}
+            className="text-xs text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/50 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 transition-colors"
+          >
+            {update.isPending ? '저장 중…' : '저장'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

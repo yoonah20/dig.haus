@@ -24,12 +24,13 @@ interface ResolvedUser {
   avatar_url: string | null;
   custom_avatar_url: string | null;
   mydig_public: number | null;
+  vinyl_wall_theme: string | null;
 }
 
 function resolveUserByUsername(username: string): ResolvedUser | null {
   return queryGet(
     `SELECT id, username, display_name, name, email, avatar_url,
-            custom_avatar_url, mydig_public
+            custom_avatar_url, mydig_public, vinyl_wall_theme
      FROM users
      WHERE LOWER(username) = LOWER(?)`,
     [username]
@@ -162,6 +163,7 @@ router.get('/mydig/:username', (req, res, next) => {
       isOwner,
     },
     isPublic,
+    vinylWallTheme: user.vinyl_wall_theme,
     vinylWall: wallRows.map((r: any) => ({
       position: r.position,
       album: {
@@ -236,6 +238,30 @@ router.get('/mydig/:username', (req, res, next) => {
 // in-memory array, submit when done) and makes the server API tiny.
 // Duplicates (same album_id in multiple positions) are allowed per
 // the Phase 3 principles — UNIQUE is only on (user_id, position).
+// PATCH /api/mydig/vinyl-wall/theme — free-form title for the
+// current wall. Null / empty string clears it (the client falls
+// back to "my dig" on render when cleared).
+router.patch('/mydig/vinyl-wall/theme', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const body = (req.body ?? {}) as { theme?: unknown };
+  let theme: string | null;
+  if (body.theme === null || body.theme === undefined) {
+    theme = null;
+  } else if (typeof body.theme === 'string') {
+    const trimmed = body.theme.trim().slice(0, 80);
+    theme = trimmed.length > 0 ? trimmed : null;
+  } else {
+    return res.status(400).json({ error: 'theme은 문자열 또는 null이어야 해요.' });
+  }
+  try {
+    execute(`UPDATE users SET vinyl_wall_theme = ? WHERE id = ?`, [theme, me.id]);
+    res.json({ ok: true, theme });
+  } catch (err) {
+    console.error('[mydig/theme] patch failed:', err);
+    res.status(500).json({ error: '테마 저장 실패' });
+  }
+});
+
 router.put('/mydig/vinyl-wall/items', requireAuth, (req, res) => {
   const me = req.user as AppUser;
   const body = (req.body ?? {}) as { items?: unknown };

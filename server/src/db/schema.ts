@@ -665,6 +665,12 @@ export function initializeDatabase(db: Database.Database): void {
     // construction placeholder for non-owners).
     'username TEXT',
     'mydig_public INTEGER DEFAULT 1',
+    // Free-form title for the vinyl wall — displays as the h1 on
+    // /my/:username. Owner-editable; NULL falls back to "my dig"
+    // on render. Same role as a snapshot's name field: a place
+    // for the user to frame the theme of their current wall
+    // ("2026 spring picks", "raining sunday", etc.).
+    'vinyl_wall_theme TEXT',
   ]);
 
   // Partial unique index — enforces uniqueness only on rows that have
