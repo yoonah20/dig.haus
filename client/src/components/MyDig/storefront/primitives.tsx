@@ -724,3 +724,247 @@ function Cubby({
     </>
   );
 }
+
+// ─── Wooden Crate (bedroom-floor variant) ────────────────────
+// A freestanding wooden record crate sitting on a bedroom floor,
+// showing both its front face and its top opening at a slight
+// perspective. Replaces the ShelfUnit cubby for the lofi-bedroom
+// scene where records are stored on the floor, not on a wall-
+// mounted shelf. Two visible faces:
+//
+//   Front face  — vertical rectangle with wood grain, masking-tape
+//                 label. This is where the genre / theme name lives.
+//   Top face    — angled parallelogram at the top, showing the
+//                 interior "looking down into the crate" from an
+//                 above-front angle. Inside we see the TOP EDGES of
+//                 records stored vertically (strips stacked like
+//                 books on a shelf viewed from above).
+//
+// No real 3D CSS transforms — the top face is just a skewed div with
+// a clip-path polygon. Simpler to maintain than a preserve-3d setup,
+// and the result reads as 3D enough at the scale crates render.
+export type CrateSpec = {
+  label: string | null;
+  count: number;
+  coverSeed?: number;
+};
+
+export function WoodenCrate({
+  width,
+  depthRatio = 0.5,
+  spec,
+  seed = 0,
+  tilt = 0,
+}: {
+  /** Exterior width of the crate. Height is derived so the front
+   *  face is slightly taller than a square (crates are usually
+   *  deeper than they are wide when viewed from the front). */
+  width: number;
+  /** Top-face apparent height relative to width. 0.5 ≈ moderate
+   *  viewing angle from a seated viewpoint. Larger = steeper angle
+   *  (more top visible), smaller = flatter (less top visible). */
+  depthRatio?: number;
+  spec: CrateSpec;
+  seed?: number;
+  /** Degrees to rotate the whole crate around its bottom center.
+   *  Used by the caller to scatter crates on the floor (±3–8°). */
+  tilt?: number;
+}) {
+  // Front face dimensions. A real 12" LP is 305mm × 305mm; the
+  // crate interior needs ~20mm breathing room, so the front face
+  // is slightly taller than the LP itself. Keep the aspect close
+  // to square with a touch of extra height.
+  const frontH = Math.round(width * 1.05);
+  const topH = Math.round(width * depthRatio);
+  const totalH = frontH + topH;
+
+  // Wood board thickness (visible on top rim and inner walls).
+  const boardT = Math.max(6, Math.round(width * 0.05));
+
+  // LP top-edge "strips" visible in the top face. count scales how
+  // dense the stack looks inside. We cap the visible strip count so
+  // a 50-record crate doesn't try to draw 50 sub-pixel lines.
+  const visibleEdges =
+    spec.count === 0
+      ? 0
+      : Math.min(spec.count, Math.max(6, Math.floor(width / 3)));
+
+  // Interior width for the strip row (top face minus side boards).
+  const stripRowW = width - boardT * 2;
+  const stripW = visibleEdges > 0 ? stripRowW / visibleEdges : 0;
+
+  // Deterministic per-strip color jitter — each "record" has a
+  // slightly different top-edge tone. Using the same cover-background
+  // palette as FakeCover so the edges feel like they're extensions
+  // of real sleeves.
+  const EDGE_COLORS = [
+    '#3a2a1a',
+    '#5a3c24',
+    '#2a1a0d',
+    '#6b4628',
+    '#1a0f08',
+    '#8b6a3e',
+    '#4a311d',
+    '#3a2513',
+  ];
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        width,
+        height: totalH + 12,
+        transform: `rotate(${tilt.toFixed(2)}deg)`,
+        transformOrigin: 'bottom center',
+      }}
+    >
+      {/* Ground shadow under the crate */}
+      <div
+        style={{
+          position: 'absolute',
+          left: -4,
+          right: -4,
+          bottom: -4,
+          height: 14,
+          background:
+            'radial-gradient(ellipse at 50% 30%, rgba(0,0,0,0.5), transparent 75%)',
+          filter: 'blur(4px)',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* TOP FACE — the crate opening viewed from a downward angle.
+          Rendered as a trapezoid using clip-path so the back edge
+          sits further from the viewer than the front edge. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width,
+          height: topH,
+          background: `linear-gradient(180deg, ${ROOM.woodFace}, ${ROOM.woodBot})`,
+          clipPath: `polygon(${topH * 0.35}px 0, ${width - topH * 0.35}px 0, 100% 100%, 0 100%)`,
+        }}
+      >
+        {/* Inner shadow around the opening rim */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: boardT,
+            background: ROOM.crateInterior as string,
+            boxShadow: `inset 0 3px 6px ${ROOM.crateShadow as string}, inset 0 -2px 4px rgba(0,0,0,0.45)`,
+            clipPath: `polygon(${topH * 0.2}px 0, ${width - boardT * 2 - topH * 0.2}px 0, 100% 100%, 0 100%)`,
+          }}
+        >
+          {/* LP top-edge strip row — each record's top ~20mm visible
+              as a thin vertical strip. Packed tight side-by-side. */}
+          <div
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: topH * 0.1,
+              bottom: topH * 0.1,
+              display: 'flex',
+              gap: 0,
+            }}
+          >
+            {Array.from({ length: visibleEdges }).map((_, i) => {
+              const hash = Math.abs(((seed + i) * 2654435761) >>> 0);
+              const color = EDGE_COLORS[hash % EDGE_COLORS.length];
+              const shift = ((hash >> 8) % 3) - 1;
+              return (
+                <div
+                  key={i}
+                  style={{
+                    width: `${stripW}px`,
+                    height: '100%',
+                    background: color,
+                    boxShadow: `inset -0.5px 0 0 rgba(0,0,0,0.4), inset 0.5px 0 0 rgba(255,220,170,0.06)`,
+                    transform: `translateY(${shift}px)`,
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* FRONT FACE — vertical wood panel with grain, holds the
+          masking-tape label. Positioned below the top face. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: topH,
+          width,
+          height: frontH,
+          background: `linear-gradient(180deg, ${ROOM.woodFace}, ${ROOM.woodBot})`,
+          boxShadow: `inset 0 2px 3px rgba(0,0,0,0.25), inset 0 -3px 4px rgba(0,0,0,0.4), inset 1px 0 0 ${ROOM.woodHi}`,
+          overflow: 'hidden',
+        }}
+      >
+        {/* Wood grain — vertical streaks, deterministic per seed */}
+        <svg
+          width={width}
+          height={frontH}
+          style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+        >
+          {Array.from({ length: Math.floor(width / 14) }).map((_, i) => {
+            const hash = Math.abs(((seed + i * 31) * 2654435761) >>> 0);
+            return (
+              <line
+                key={i}
+                x1={6 + i * 14 + (hash % 4)}
+                y1={4}
+                x2={8 + i * 14 + (hash % 3)}
+                y2={frontH - 4}
+                stroke={ROOM.woodGrain}
+                strokeWidth="0.45"
+                opacity={0.3 + ((hash >> 4) % 5) * 0.1}
+              />
+            );
+          })}
+          {/* Top rim highlight — a thin light line just under the
+              crate opening suggests the top edge of the front panel
+              catching the lamp. */}
+          <rect
+            x="0"
+            y="0"
+            width={width}
+            height="1.5"
+            fill={ROOM.woodHi as string}
+            opacity="0.35"
+          />
+          {/* Bottom rim shadow */}
+          <rect
+            x="0"
+            y={frontH - 2}
+            width={width}
+            height="2"
+            fill="rgba(0,0,0,0.4)"
+          />
+        </svg>
+
+        {/* Masking-tape label, centered on the lower-middle of the
+            front face (where it'd realistically be stuck). */}
+        {spec.label && (
+          <TapeLabel
+            width={Math.min(width * 0.8, 160)}
+            text={spec.label}
+            seed={seed + 11}
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: frontH * 0.55,
+              transform: `translateX(-50%) rotate(${(((Math.sin(seed * 5.5) * 43758) % 1 + 1) % 1 * 14 - 7).toFixed(2)}deg)`,
+              transformOrigin: 'center',
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
