@@ -188,8 +188,6 @@ function ProfileHeader({
   const initial = (displayName || username).charAt(0).toUpperCase();
   const resolvedAvatar = resolveApiUrl(avatarUrl);
   const name = displayName || username;
-  const showHandle =
-    !!displayName && displayName.toLowerCase() !== username.toLowerCase();
   return (
     <header className="flex items-center gap-4 pt-2 pb-4">
       <div className="shrink-0">
@@ -210,16 +208,16 @@ function ProfileHeader({
         )}
       </div>
       <div className="flex-1 min-w-0">
-        {showHandle && (
-          <div className="text-[11px] text-gray-500 tracking-wider">
-            @{username}
-          </div>
-        )}
+        <div className="text-[11px] text-gray-500 tracking-wider">
+          @{username}
+        </div>
         <h1
           className="text-2xl sm:text-4xl font-serif italic text-[#f5e8c8] leading-tight truncate"
-          title={name}
+          title={`${name}의 my dig`}
         >
-          {name}
+          <span>{name}</span>
+          <span className="text-[#a88a60] not-italic">의 </span>
+          <span>my dig</span>
         </h1>
         <div className="flex items-center gap-3 mt-1.5 flex-wrap">
           <span className="text-[11px] uppercase tracking-[0.2em] text-[#e8a020]">
@@ -391,30 +389,32 @@ function VinylWallGrid({
   }, []);
 
   const mobile = width < 520;
+  // Desktop = 5 cols × 3 rows; mobile = 3 cols × 5 rows. Both cover
+  // the full 15 slots cleanly. "2×5"는 15장이 나눠 떨어지지 않아
+  // 세로 지향 의도만 살려 3×5로 맞춤 — 원하면 2로 내려 8-row
+  // layout으로 변경 가능.
+  const cols = mobile ? 3 : 5;
+  const rowCount = 15 / cols;
   // 20% bigger than the earlier 140 → 168 desktop ceiling. Actual
   // size floors to whatever fits the measured width so records
   // never overflow or get crammed to one side.
-  const maxLpSize = mobile ? 86 : 168;
-  const gapX = mobile ? 8 : 16;
-  const rowGap = mobile ? 22 : 32;
+  const maxLpSize = mobile ? 108 : 168;
+  const gapX = mobile ? 10 : 16;
+  const rowGap = mobile ? 24 : 32;
   // Overhang = how much wider the rail is than the record row.
   // Gives the rail shoulder room so the first/last record doesn't
   // sit flush at the rail's edge — fixes the "레일 왼쪽 끝에 딱
   // 앨범이 고정" awkwardness.
-  const overhang = mobile ? 16 : 36;
-  const fit = (width - 2 * overhang - 4 * gapX) / 5;
+  const overhang = mobile ? 18 : 36;
+  const fit = (width - 2 * overhang - (cols - 1) * gapX) / cols;
   const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
-  // Actual record-block width + matching rail width. The rail
-  // fills to `width` so we get the overhang feel naturally.
-  const recordsWidth = 5 * lpSize + 4 * gapX;
   const railWidth = Math.round(width);
 
-  let cursor = 0;
-  const rows = WALL_ROW_SIZES.map((count) => {
-    const positions = Array.from({ length: count }, (_, i) => cursor + i);
-    cursor += count;
-    return { count, positions };
-  });
+  // Rows derived from col count: three rows of 5 on desktop, five
+  // rows of 3 on mobile.
+  const rows = Array.from({ length: rowCount }, (_, ri) => ({
+    positions: Array.from({ length: cols }, (_, ci) => ri * cols + ci),
+  }));
 
   return (
     <div
@@ -437,17 +437,15 @@ function VinylWallGrid({
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: `repeat(5, ${lpSize}px)`,
+                gridTemplateColumns: `repeat(${cols}, ${lpSize}px)`,
                 gap: gapX,
                 justifyContent: 'center',
                 alignItems: 'end',
-                width: recordsWidth > 0 ? undefined : 'auto',
               }}
             >
               {positions.map((position, ci) => {
                 const item = wallByPosition.get(position);
-                const lampBias =
-                  1 - Math.min(1, (ri * 5 + ci) / (WALL_ROW_SIZES.length * 5));
+                const lampBias = 1 - Math.min(1, (ri * cols + ci) / (rowCount * cols));
                 if (!item) {
                   return (
                     <WallLP

@@ -119,7 +119,7 @@ function SnapshotHeader({
           to={`/my/${encodeURIComponent(username)}`}
           className="text-[11px] text-gray-500 hover:text-[#e8a020] tracking-wider"
         >
-          ← {name}
+          ← {name}의 my dig
         </Link>
         <h1
           className="text-xl sm:text-2xl font-serif italic text-[#f5e8c8] leading-tight truncate mt-0.5"
@@ -177,20 +177,19 @@ function SnapshotWallGrid({
   }, []);
 
   const mobile = width < 520;
-  const maxLpSize = mobile ? 86 : 168;
-  const gapX = mobile ? 8 : 16;
-  const rowGap = mobile ? 22 : 32;
-  const overhang = mobile ? 16 : 36;
-  const fit = (width - 2 * overhang - 4 * gapX) / 5;
+  const cols = mobile ? 3 : 5;
+  const rowCount = 15 / cols;
+  const maxLpSize = mobile ? 108 : 168;
+  const gapX = mobile ? 10 : 16;
+  const rowGap = mobile ? 24 : 32;
+  const overhang = mobile ? 18 : 36;
+  const fit = (width - 2 * overhang - (cols - 1) * gapX) / cols;
   const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
   const railWidth = Math.round(width);
 
-  let cursor = 0;
-  const rows = WALL_ROW_SIZES.map((count) => {
-    const positions = Array.from({ length: count }, (_, i) => cursor + i);
-    cursor += count;
-    return { count, positions };
-  });
+  const rows = Array.from({ length: rowCount }, (_, ri) => ({
+    positions: Array.from({ length: cols }, (_, ci) => ri * cols + ci),
+  }));
 
   return (
     <div
@@ -209,7 +208,7 @@ function SnapshotWallGrid({
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: `repeat(5, ${lpSize}px)`,
+                gridTemplateColumns: `repeat(${cols}, ${lpSize}px)`,
                 gap: gapX,
                 justifyContent: 'center',
                 alignItems: 'end',
@@ -217,8 +216,7 @@ function SnapshotWallGrid({
             >
               {positions.map((position, ci) => {
                 const album = byPosition.get(position);
-                const lampBias =
-                  1 - Math.min(1, (ri * 5 + ci) / (WALL_ROW_SIZES.length * 5));
+                const lampBias = 1 - Math.min(1, (ri * cols + ci) / (rowCount * cols));
                 if (!album) {
                   return (
                     <WallLP
