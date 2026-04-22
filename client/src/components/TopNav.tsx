@@ -117,16 +117,17 @@ export default function TopNav() {
                 (Home.tsx's SortTrigger). Keeping the nav cluster
                 down to "find / my store / login" — everything about
                 how the feed is arranged belongs to the feed itself. */}
-            {/* mydig entry. Shovel-in-a-mound icon — sourced from
-                flaticon as a free-use PNG (/icons/shovel-dig.png).
-                The colorful original (brown shaft, cream blade, tan
-                mound) harmonises with the warm-walnut palette of the
-                mydig page so we keep the icon's native colors rather
-                than recoloring. Removed the amber hover-fill (which
-                would sit oddly behind a colored icon) and kept the
-                ring border as the primary affordance. First click
-                with no username opens the UsernameModal; later
-                clicks go to /my/:username. Hidden for guests. */}
+            {/* mydig entry. Flaticon shovel outline (PNG) rendered
+                via CSS mask-image so only the icon's alpha shape
+                hits the screen and the pixel color comes from
+                `background-color`. Lets the icon inherit the
+                dig.haus amber the rest of the nav uses, and hover
+                can recolor it with pure Tailwind utilities. The
+                original PNG is monochrome black, which would have
+                been invisible on the dark nav if rendered as a
+                plain <img>. First click with no username opens the
+                UsernameModal; later clicks go to /my/:username.
+                Hidden for guests. */}
             {user && (
               <button
                 onClick={() => {
@@ -136,16 +137,23 @@ export default function TopNav() {
                     setUsernameModalOpen(true);
                   }
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] transition-colors cursor-pointer"
+                className="group w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] hover:bg-[#e8a020] transition-colors cursor-pointer"
                 title="mydig으로"
                 aria-label="mydig으로"
               >
-                <img
-                  src="/icons/shovel-dig.png"
-                  alt=""
+                <span
                   aria-hidden
-                  className="w-[18px] h-[18px] select-none"
-                  draggable={false}
+                  className="w-[18px] h-[18px] bg-[#e8a020] group-hover:bg-black transition-colors"
+                  style={{
+                    WebkitMaskImage: "url('/icons/shovel-dig.png')",
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    maskImage: "url('/icons/shovel-dig.png')",
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                  }}
                 />
               </button>
             )}
