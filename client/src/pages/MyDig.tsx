@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMyDig, type MyDigWallItem, type MyDigShelfSlot, type MyDigCrate } from '../hooks/useMyDig';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
+import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 
 // Phase 3a skeleton — the four-layer placeholder scaffold described
 // in CLAUDE.md. No edit mode, no drag-drop, no flip-through yet —
@@ -143,6 +144,15 @@ export default function MyDig() {
   );
 }
 
+// Layout reused from the /my-preview Storefront Wall. Four rows
+// (5/5/6/6), all LPs the same pixel size, per-row wooden rail sized
+// to that row's width, shorter rows centered under the widest row.
+// The live mydig page differs from the preview in two ways:
+//  (1) content is real album data (CoverArt) instead of FakeCover
+//      seeded sleeves, and
+//  (2) filled slots are clickable Links to the album page.
+// WallLP takes a `children` prop so this component can inject its
+// own cover node without forking the primitive.
 function VinylWallGrid({
   wallByPosition,
   isOwner,
@@ -150,81 +160,118 @@ function VinylWallGrid({
   wallByPosition: Map<number, MyDigWallItem>;
   isOwner: boolean;
 }) {
-  // Split the 22 positions into 4 rows of 5/5/6/6.
+  // Responsive LP size. Desktop matches the preview's 170px so the
+  // wall reads "crafted wall" instead of "small thumbnails."
+  // Mobile compresses to 96px so a 6-row still fits inside a 375px
+  // viewport (6×96 + 5×8 gap = 616 > 375 — mobile 6-row rows will
+  // overflow slightly; the outer container scrolls horizontally on
+  // phones which is acceptable given the 3a scope). Measured here
+  // on mount via matchMedia so hydration matches first paint.
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const sync = () => setMobile(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  const lpSize = mobile ? 64 : 140;
+  const gapX = mobile ? 6 : 14;
+  const rowSpacing = mobile ? 14 : 22;
+
   let cursor = 0;
   const rows = WALL_ROW_SIZES.map((count) => {
     const positions = Array.from({ length: count }, (_, i) => cursor + i);
     cursor += count;
-    return positions;
+    return { count, positions };
   });
 
+  // Compute the widest row's width so narrower rows can center
+  // under it. All rows go in a position:relative container whose
+  // width locks to the widest-row pixel width.
+  const maxCols = Math.max(...WALL_ROW_SIZES);
+  const maxRowW = maxCols * lpSize + (maxCols - 1) * gapX;
+
   return (
-    <div className="flex flex-col gap-3 sm:gap-4">
-      {rows.map((positions, rowIdx) => (
-        <div
-          key={rowIdx}
-          // 6-column grid so every cover sits at the same width across
-          // all rows — 5-count rows just render 5 cells and leave one
-          // empty column on the right (asymmetric by design; could be
-          // centred later). Inline style instead of grid-cols-6 so we
-          // don't rely on Tailwind v4's JIT having emitted the utility
-          // class — a few earlier renders reportedly collapsed to a
-          // single-column stack of 22 items, which is what happens
-          // when the grid declaration doesn't take.
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
-          }}
-          className="gap-3 sm:gap-4"
-        >
-          {positions.map((position) => {
-            const item = wallByPosition.get(position);
-            return (
-              <div key={position} className="w-full aspect-square">
-                <WallSlot item={item} isOwner={isOwner} />
-              </div>
-            );
-          })}
-        </div>
-      ))}
+    <div
+      style={{
+        position: 'relative',
+        width: maxRowW,
+        maxWidth: '100%',
+        margin: '0 auto',
+        paddingTop: 12,
+      }}
+    >
+      {rows.map(({ count, positions }, ri) => {
+        const rowW = count * lpSize + (count - 1) * gapX;
+        return (
+          <div
+            key={ri}
+            style={{ position: 'relative', marginBottom: rowSpacing }}
+          >
+            {/* LP row */}
+            <div
+              style={{
+                display: 'flex',
+                gap: gapX,
+                justifyContent: 'center',
+                alignItems: 'flex-end',
+              }}
+            >
+              {positions.map((position, ci) => {
+                const item = wallByPosition.get(position);
+                const lampBias =
+                  1 - Math.min(1, (ri * maxCols + ci) / (WALL_ROW_SIZES.length * maxCols));
+                if (!item) {
+                  return <WallLP key={position} size={lpSize} seed={position} empty lampBias={lampBias} />;
+                }
+                const { album } = item;
+                const target = album.slug || album.mbid;
+                return (
+                  <Link
+                    key={position}
+                    to={`/album/${target}`}
+                    title={`${album.artist} — ${album.title}`}
+                    style={{
+                      display: 'block',
+                      width: lpSize,
+                      height: lpSize,
+                      textDecoration: 'none',
+                    }}
+                  >
+                    <WallLP size={lpSize} seed={position} lampBias={lampBias}>
+                      <CoverArt
+                        src={album.coverArtUrl}
+                        fallbacks={album.coverArtFallbacks}
+                        alt={album.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </WallLP>
+                  </Link>
+                );
+              })}
+            </div>
+            {/* Per-row rail — same sizing rule as the preview: row
+                pixel width plus a ~10px overhang each side. Centered
+                via margin auto within the outer container. */}
+            <div style={{ position: 'relative', marginTop: -1 }}>
+              <WallRail
+                width={rowW + 20}
+                seed={ri * 37 + 13}
+                style={{ margin: '0 auto' }}
+              />
+            </div>
+          </div>
+        );
+      })}
       {wallByPosition.size === 0 && (
         <p className="text-center text-xs text-gray-600 pt-2">
           {isOwner
-            ? '아직 벽이 비어 있어요. 곧 채울 수 있는 기능이 열립니다.'
+            ? '아직 벽이 비어 있어요. 편집 버튼으로 앨범을 걸어보세요.'
             : '이 벽은 아직 비어 있어요.'}
         </p>
       )}
     </div>
-  );
-}
-
-function WallSlot({
-  item,
-  isOwner: _isOwner,
-}: {
-  item: MyDigWallItem | undefined;
-  isOwner: boolean;
-}) {
-  if (!item) {
-    return (
-      <div className="w-full h-full rounded-md border border-dashed border-white/10 bg-white/[0.015]" />
-    );
-  }
-  const { album } = item;
-  const target = album.slug || album.mbid;
-  return (
-    <Link
-      to={`/album/${target}`}
-      className="block w-full h-full rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 hover:ring-[#e8a020]/50 transition-all"
-      title={`${album.artist} — ${album.title}`}
-    >
-      <CoverArt
-        src={album.coverArtUrl}
-        fallbacks={album.coverArtFallbacks}
-        alt={album.title}
-        className="w-full h-full object-cover"
-      />
-    </Link>
   );
 }
 

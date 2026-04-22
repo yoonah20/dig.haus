@@ -157,12 +157,18 @@ export function WallLP({
   coverSeed,
   empty = false,
   lampBias = 1,
+  children,
 }: {
   size: number;
   seed: number;
   coverSeed?: number;
   empty?: boolean;
   lampBias?: number;
+  // Caller can inject their own cover node (typically a real
+  // <CoverArt />) instead of the FakeCover seeded preview. Used by
+  // the live /my/:username page; preview surfaces leave this out
+  // and get the FakeCover demo sleeves.
+  children?: React.ReactNode;
 }) {
   if (empty) {
     // Empty slot = just blank wall. No placeholder, no ghost, no
@@ -221,7 +227,7 @@ export function WallLP({
           background: '#000',
         }}
       >
-        <FakeCover size={size} seed={coverSeed ?? seed} />
+        {children ?? <FakeCover size={size} seed={coverSeed ?? seed} />}
         {/* upper-left lamp highlight on the sleeve — a soft radial
             wash biased toward (0, 0) so LPs near the lamp source
             pick up extra warmth. Multiplied by lampBias so the
