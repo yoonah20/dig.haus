@@ -262,6 +262,73 @@ This matches how real records are stored in crates on the floor — you don't se
 
 **Phase ordering** (per entry 18's MVP realization, we defer this): S1 ships static. S2–S5 layer in after the wireframe validates the data model and interaction affordances.
 
+---
+
+### 18. CSS/SVG can't reach true illustrated-lofi aesthetic
+
+**Context**: After landing entries 11–17 in code (dark lofi palette, wall 5-5, turntable console, floor wooden crates), the rendered `/my-preview` was side-by-side compared against the nano banana reference image. The structural composition matched well. The *aesthetic* didn't.
+
+**Observation**: Pure CSS + inline SVG, no matter how much shadow/gradient/texture tuning, hits a ceiling at "thoughtfully geometric." It can't produce the hand-drawn linework, painterly color-block edges, or subtly imperfect brush texture that defines the lofi-hip-hop-radio visual universe. Programmatic rendering always shows through — surfaces look "computed" rather than "painted."
+
+**What CSS is good at** (for this project):
+- Geometric composition
+- Gradient lighting and drop shadows
+- Dynamic content placement (LPs, labels, crates that change per user)
+- Interactive states (hover, click, animation)
+- Responsive layouts
+
+**What CSS is bad at** (for this project):
+- Hand-drawn outlines with variable line weight
+- Painted texture that looks like brush on paper
+- Organic imperfection (wobbly lines, slight color bleeds)
+- The specific "cel-animation" flat-shaded + outlined look
+
+**Decided**: Accept the limit. Don't try to out-CSS the aesthetic — pick a different strategy.
+
+**Three paths considered**:
+
+- **Path A — pure CSS, aesthetic pivot**: continue with CSS only, but abandon the "illustrated lofi" goal. Land somewhere like Teenage Engineering / Braun minimal-geometric. Clean, warm, programmatic. *Achievable with current tooling; not the mood the user wants*.
+- **Path B — hybrid**: AI-generated illustrated *background layer* (walls, floor textures, lived-in wall decor, neon leak, peripheral peeks) as a static PNG behind the scene, with CSS/SVG primitives (wall rails, LP covers, console, crates, masking-tape labels) layered on top for all the dynamic content. *Illustrated mood ≈ 90%, dynamic content 100%, moderate implementation cost*.
+- **Path C — full illustration**: commission or generate a complete painted room, use invisible CSS hotspots only for click detection and content overlays. *Illustrated mood 100%, minimal flexibility, high asset cost per theme*.
+
+**Recommended path (long-term)**: **Path B hybrid**. Achievable fidelity (~90% lofi), dynamic content survives, current CSS structure can stay as the overlay layer. Generation of background assets via nano banana / Stable Diffusion — reasonable cost per theme, multiple themes possible ("spring room" / "midnight room" / "rainy window room" as Phase 3e features).
+
+**Current decision**: Defer Path B to a later polish pass. For the Phase 3 MVP, go simpler (see entry 19).
+
+---
+
+### 19. Wireframe-first MVP — ship structure and interaction, defer visual
+
+**Context**: Given entry 18's conclusion that CSS can't reach full lofi aesthetic anyway, and given that the current `/my-preview` has a visual style that's "midway between shop and bedroom and neither fully" (a decent base but not a destination), continuing to polish the CSS decoration layer yields diminishing returns.
+
+**Decided**: Strip the visual layer down to a wireframe and focus Phase 3 MVP on **data model + interaction affordances**. The visual pass (whether Path A or Path B) happens *after* the interactions are known to work and the data flow is validated.
+
+**Wireframe scope**:
+- Plain rectangles with 1px borders for wall slots, crates, turntable area
+- Labels as visible plain text (no masking-tape illustration, just readable typography)
+- Empty states as dashed borders
+- Neutral grayscale + single amber accent (`#e8a020`, the dig.haus brand color)
+- No gradients, no wood textures, no lighting pools, no 3D perspective
+- Layout ratios match the target scene (wall above, turntable middle, crates below) so the eventual visual pass drops in without reshuffling
+
+**What we're validating at wireframe stage**:
+- Wall slot drag-drop (can user rearrange the 10 slots intuitively?)
+- Crate creation + curation flow (making a new crate, naming it, adding albums, reordering)
+- Floor slot assignment (drag a library crate onto a floor slot, remove it back)
+- Crate flip-through modal (open a crate, cycle through its albums)
+- Single-album slot vs. crate slot (does the polymorphism feel natural or confusing?)
+- The turntable as Now Playing (does "one featured LP on the platter" feel alive or dead?)
+
+**Why this order**:
+- Iteration on structure is cheap when the paint hasn't dried. Rearranging wireframe rectangles is fast; redrawing an illustrated scene per layout change is slow.
+- A pretty page with wrong interactions fails harder than an ugly page with right ones.
+- Real user testing on the wireframe surfaces data-model problems before they calcify into asset work.
+- The illustrated visual pass (eventually Path B) can be layered onto a known-good wireframe with confidence. Doing it in reverse — beautiful-first, then realizing the data shape is wrong — burns the illustration budget.
+
+**What survives from the lofi work**: the tier structure (wall + turntable + crates), the count specs (wall 10, crates 0–6), the polymorphism rules (crate library vs. floor slots), the interactive loop spec (hover → pop → turntable → play). Only the decoration/texture layer gets stripped.
+
+**Route**: Wireframe lands at `/my-preview` (current storefront there gets replaced). `/my/:username` continues to run its own ShelfUnit-based composition for now. When wireframe interactions are validated and the data model is settled, we'll decide: (a) style the wireframe via Path A for MVP and defer Path B, or (b) skip Path A entirely and go straight to Path B illustrated assets.
+
 
 ---
 
