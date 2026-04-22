@@ -129,6 +129,98 @@ All wear and casual imperfection moves to the Shelf tier: masking-tape labels ti
 
 **Decided**: Keep the original 22-slot 5-5-6-6. The other decisions on the list (removing frames, dark-mode, the shelf pivot) collectively reduced the wall's visual weight enough that the 22 count didn't feel overwhelming anymore, and 22 remains the canonical count the plan was built around.
 
+**Note**: Superseded by entry 11 below during the second-round lofi-bedroom pivot. The 22-slot count held while the scene was a record-shop interior; once the scene became "my bedroom wall", a smaller count read as more intimate.
+
+---
+
+### 11. Vinyl Wall 22 → 10 (5-5) — bedroom intimacy scale
+
+**Context**: After the lofi-bedroom mood pivot (entry 12), 22 felt wrong again. A shop wall wants a big archive; a bedroom wall above a desk wants curated favorites.
+
+**Decided**: Drop from 22 to 10 (5-5, two rows of five).
+
+**Why**:
+- 22 was shop-scale ("collector showing off a large catalog"). 10 is room-scale ("my current favorites above the turntable").
+- Lower onboarding friction: "pick 10 albums you love right now" is tractable; "pick 22 curated favorites" reads as an archive curation task.
+- Visual balance: with the turntable console + floor crates added below, a 22-slot wall dominated the composition. 10 gives the wall presence without overwhelming the rest of the scene.
+- Always extensible: if a user wants a bigger display, we can add "extra row" slots later. Starting small is reversible; starting at 22 and shrinking is not.
+
+---
+
+### 12. Mood pivot — record shop interior → lofi-bedroom
+
+**Context**: After all the decisions up through entry 10 rendered at `/my-preview`, the result was a "dark Hongdae record shop interior" scene. Structurally correct per spec. But when the user visited the page they kept flagging a jarring brightness/warmth transition against the rest of dig.haus's dark chrome — the shop scene read as "a different website's interior" rather than a continuation of dig.haus.
+
+**User's nano banana reference** (Google's Gemini image gen, 2026-04): a Korean vinyl-collector's bedroom at night, warm desk lamp from upper-left pooling amber light, cool cyan-purple neon leaking from an off-screen window on the right, painted wall covered with minimal LP sleeves, a low wooden console with a turntable + 2 speakers + small amp + plant, four wooden record crates on the floor with masking-tape labels, viewed from a seated position facing the wall. The image nailed the direction: warm + cool dual-source lighting, lived-in wall with postcards and sticky notes as texture, crates with records poking up top-edge-first, and a turntable console bridging wall and floor.
+
+**Aesthetic anchors**: LoFi Hip Hop Radio imagery (specifically the "LoFi Girl" visual universe minus the character), Makoto Shinkai's warm atmospheric color palette, Wong Kar-wai interior tungsten, Japanese izakaya late-night warmth, Edward Hopper nocturnes.
+
+**Decided**: Replace the record-shop framing with "a Korean vinyl-collector's bedroom at night, viewed from the seat of a chair directly facing the wall." Keep the structural decisions (wall above, open shelf below, etc.) but re-skin everything from "shop interior" to "bedroom wall + desk + floor".
+
+**Why**:
+- The record-shop metaphor was always a touch off: mydig is supposed to be a *personal* digger page, not a commercial storefront. "My shop" implies curator/dealer; "my bedroom wall" implies fan/collector.
+- The lofi-girl aesthetic resonates with dig.haus's Korean 20s–30s audience and has direct lineage to 싸이월드 미니홈피 culture (already referenced as a touchpoint elsewhere in the plan).
+- Dual-source lighting (warm lamp + cool neon) carries depth better than a single shop-pendant pool. The two light temperatures meeting in a horizontal gradient across the scene is the lofi visual signature.
+- Window-to-city peripheral hints (corner peeks only, never the main event) let us imply "this is a real place in the world" without committing to rendering a full room.
+- Allows non-musical identity markers (plant, sticky notes, polaroids, desk lamp style) to contribute to the user's expression without cluttering the core wall/shelf/crate structure.
+
+**Mood scope note (narrow, not full redesign)**: We explicitly did NOT redo the viewpoint, the tier structure, or the core primitives. Wall on top, shelf/crate-zone in the middle, floor at the bottom — unchanged. The pivot was strictly the MOOD layer (lighting, wall texture, furniture style, room context peeks). The structural decisions from entries 1–9 all carry over.
+
+---
+
+### 13. Shelf → Turntable console (Now Playing integration)
+
+**Context**: Once the mood moved to bedroom, the open 6-cubby shelf felt like transplanted shop furniture. Real vinyl collectors' bedrooms don't have 6-slot labeled cubby shelves — that's inventory display for a store. A bedroom has a low console against the wall with a turntable and speakers on top, and records stored in crates on the floor.
+
+**Decided**: Replace the open shelf unit with a **turntable console** — a low wooden piece of furniture holding a turntable + 2 bookshelf speakers + small amp + potted plant, sitting between the wall above and the floor crates below.
+
+**This also solves the Now-Playing problem**: previously Now Playing was an awkward ambient "strip" parked for later iteration (entry 9). The turntable console IS Now Playing. The LP that sits on the platter is what the user is "currently spinning" — a natural, integrated identity element rather than an after-the-fact strip.
+
+**Composition**: speaker (left) — turntable (center, with LP on platter) — small amp with VU meters — potted plant — speaker (right). Console spans ~75% of the scene width, centered. Small amp + plant fill the right-of-turntable gap so the layout doesn't look like two speakers with nothing between them.
+
+**Why**:
+- Solves an unresolved feature (Now Playing) by integrating it into the new metaphor rather than bolting it on.
+- Matches what real collectors' bedrooms look like — there's always some gear between the wall and the crates.
+- Creates a natural "bridge" tier between wall LPs (display) and floor crates (storage) — the console is where records get *played*.
+- Unlocks the interactive killer moment (entry 17) by giving the hover/click target a place to land visually.
+
+---
+
+### 14. Cubby → Wooden floor crate (3D box)
+
+**Context**: Once the shelf became a console, the question was where the crate-style collections live. Keeping them inside cubby-shaped slots on the console didn't make sense — a console carries gear, not record bins. And the original milk-crate tier (entry 1, deferred-then-merged-into-shelf) came back naturally as "crates on the floor" when we dropped the shelf-slot metaphor.
+
+**Decided**: Floor crates render as **3D wooden boxes** with two visible faces — front face (vertical wood panel with masking-tape label) and top face (tilted parallelogram showing the interior from a slight above-angle, with the **top edges** of vertically-stored records visible as a packed row of thin dark strips).
+
+**Key distinction the 3D view locks in**:
+- **Wall LPs = covers forward** (display items)
+- **Crate LPs = top edges only** (storage items, stored vertically spine-up, we see the top of each sleeve from above)
+
+This matches how real records are stored in crates on the floor — you don't see the covers from a seated viewing angle, you see the tops poking up. When a visitor opens a crate (clicks it), *then* they see the covers via the flip-through modal.
+
+**Why**:
+- Makes the crate read as actually holding records (dense top-edge row communicates volume), not just as a labeled empty box.
+- Differentiates wall from crate functionally: "here are my favorites on display" vs "here's a stack I'm digging through."
+- The wooden 3D box reads as a real object in a real room far better than the flat cubby did against a bedroom floor.
+- Cheap to render: the 3D illusion is built from a clip-path trapezoid (top face) plus a flat rectangle (front face) — no real 3D CSS transforms, no preserve-3d chains.
+
+**Not used**: plastic milk crates (too harsh against the bedroom warmth), cardboard apple boxes (too disposable), transparent storage bins (too modern/sterile). Plain wooden boxes with masking-tape labels carry the intended "collector's private rack" read.
+
+---
+
+### 15. Crate count: 0–6 on the floor, user-selectable
+
+**Decided**: Up to 6 crates visible on the bedroom floor at once. User picks which of their crate library entries to "put out" vs. "keep in storage". 0 is a valid state (empty floor reads as "I haven't put anything out").
+
+**Why**:
+- 6 matches the original Tier-3 visible-count spec (entry 1's milk-crate row), preserving the "crate library has more than what's on display" concept.
+- 4 is the current preview seed, leaving headroom for variety without overcrowding the floor.
+- More than 6 starts packing the floor too densely at normal viewport widths — the crates overlap awkwardly or the scene gets busy.
+- 0 needs to be graceful: the floor with no crates should read as "the owner cleared up" or "still setting up" rather than "error: missing content".
+
+**Library vs. floor distinction is critical**: A user's crate library is unlimited (private, in the edit-mode picker). The floor slots (≤6) are the public-facing subset. Dragging a crate onto a floor slot "puts it out"; dragging it off "puts it back in the library". Same mental model as "which crates am I leaving out right now vs. storing".
+
+
 ---
 
 ## Implementation status
