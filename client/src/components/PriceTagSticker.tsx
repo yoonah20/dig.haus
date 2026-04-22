@@ -50,17 +50,24 @@ const NOTCH_MASK =
   `radial-gradient(circle 0.24em at 50% 100%, transparent 98%, #000 100%)`;
 
 // Top + bottom red rules, centered, spanning the middle 80% of the sticker
-// width. Both rules sit 4px inside the top / bottom edges. Stroke is a
-// hairline 0.75px so the rules read printed-on-paper thin instead of a
-// solid band. Rendered as background linear-gradients layered over the
-// white fill — the red ends at 90% of width, clear of the side notches at
-// x=0 / x=100%, so the mask never clips them.
+// width. Stroke is a hairline 0.75px so the rules read printed-on-paper
+// thin instead of a solid band. Rendered as background linear-gradients
+// layered over the white fill — the red ends at 90% of width, clear of
+// the side notches at x=0 / x=100%, so the mask never clips them.
+//
+// Rule offset was originally a fixed 4px; at the ultra-density 10-col
+// grid the sticker's padding drops to 4px (cqw floor) while the rule
+// stayed at 4px, so the rule ended up sitting right on top of the
+// price text. Scale it with container width via cqw, floored at 1.5px
+// so the rule never vanishes entirely, capped at 4px so comfortable-
+// density tags keep their original look.
 const RED = '#c8321f';
+const RULE_OFFSET = 'clamp(1.5px, 2cqw, 4px)';
 
 function buildRulesBg(color: string): string {
   return (
-    `linear-gradient(to right, transparent 10%, ${color} 10%, ${color} 90%, transparent 90%) left 0 top 4px / 100% 0.75px no-repeat,` +
-    `linear-gradient(to right, transparent 10%, ${color} 10%, ${color} 90%, transparent 90%) left 0 bottom 4px / 100% 0.75px no-repeat`
+    `linear-gradient(to right, transparent 10%, ${color} 10%, ${color} 90%, transparent 90%) left 0 top ${RULE_OFFSET} / 100% 0.75px no-repeat,` +
+    `linear-gradient(to right, transparent 10%, ${color} 10%, ${color} 90%, transparent 90%) left 0 bottom ${RULE_OFFSET} / 100% 0.75px no-repeat`
   );
 }
 
