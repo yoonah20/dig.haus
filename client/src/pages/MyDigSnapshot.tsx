@@ -56,7 +56,7 @@ export default function MyDigSnapshot() {
   return (
     // Transparent — backdrop lives on the app-root. See App.tsx.
     <div className="flex-1">
-      <main className="max-w-[1120px] mx-auto px-4 py-8 space-y-6">
+      <main className="max-w-[1120px] mx-auto px-4 pt-4 pb-8 space-y-3">
         <SnapshotHeader
           username={user.username}
           displayName={user.displayName}
@@ -156,7 +156,7 @@ function WallSection({ children }: { children: React.ReactNode }) {
     <section
       style={{
         position: 'relative',
-        padding: '28px 12px 40px',
+        padding: '4px 12px 40px',
       }}
     >
       <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
@@ -217,6 +217,9 @@ function SnapshotWallGrid({
         maxWidth: 960,
         margin: '0 auto',
         paddingTop: 12,
+        // Same painterly post-process as MyDig's live wall, so
+        // the snapshot view blends with the painted backdrop too.
+        filter: 'contrast(0.94) saturate(0.88) brightness(0.97)',
       }}
     >
       {rows.map(({ positions }, ri) => (

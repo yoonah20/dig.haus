@@ -81,7 +81,7 @@ export default function MyDig() {
     // brightness/saturate filter) shows through behind the page
     // content. See App.tsx for the backdrop layer.
     <div className="flex-1">
-      <main className="max-w-[1120px] mx-auto px-4 py-8 space-y-6">
+      <main className="max-w-[1120px] mx-auto px-4 pt-4 pb-8 space-y-3">
         <ProfileHeader
           username={data.user.username}
           displayName={data.user.displayName}
@@ -369,7 +369,10 @@ function WallSection({ children }: { children: React.ReactNode }) {
     <section
       style={{
         position: 'relative',
-        padding: '28px 12px 40px',
+        // Top padding tightened so the LP rows + rails sit higher
+        // against the painted wall — previously 28px made them
+        // float in the middle of the viewport.
+        padding: '4px 12px 40px',
       }}
     >
       <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
@@ -436,6 +439,12 @@ function VinylWallGrid({
         maxWidth: 960,
         margin: '0 auto',
         paddingTop: 12,
+        // Very subtle "painted" post-process so the photographic
+        // covers and the SVG rails read as closer siblings of the
+        // painted wall backdrop — slight desaturation + softer
+        // contrast + tiny brightness knock pull the records out of
+        // their photo-crisp look without making them hard to read.
+        filter: 'contrast(0.94) saturate(0.88) brightness(0.97)',
       }}
     >
       {rows.map(({ positions }, ri) => (
