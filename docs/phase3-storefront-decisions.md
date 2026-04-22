@@ -329,6 +329,53 @@ This matches how real records are stored in crates on the floor — you don't se
 
 **Route**: Wireframe lands at `/my-preview` (current storefront there gets replaced). `/my/:username` continues to run its own ShelfUnit-based composition for now. When wireframe interactions are validated and the data model is settled, we'll decide: (a) style the wireframe via Path A for MVP and defer Path B, or (b) skip Path A entirely and go straight to Path B illustrated assets.
 
+---
+
+### 20. 샀음 / 살거 vs. Crate — boundary question, open
+
+**Context**: Phase 2 introduced 샀음 (collection — "I own this album") and 살거 (wantlist — "I want to buy this") as per-user flags on albums, surfaced in the Profile page as grids. Phase 3 introduces Crate as the user-curated collection primitive for mydig. Reviewing the combined UX raises a concern: 샀음/살거 and Crate keep conflicting in the user's head.
+
+**The underlying tension**:
+- **샀음/살거 = inventory**: factual, per-album, real-world-anchored (do you own it, do you want it).
+- **Crate = curation/taxonomy**: expressive, per-collection, identity-anchored (how do you group albums by theme or mood).
+
+The two concepts share surface area — both are "lists of albums a user has curated" — but they answer different questions, and the current UI surfaces them as separate features without making the distinction explicit. Users reviewing the experience end up asking "when I like an album, should I 샀음 it or crate it?" — which means the product has two nearby buttons that feel interchangeable.
+
+**Three options documented**:
+
+- **A. Keep both, clarify boundary in UI**: 샀음/살거 stay on the Profile page as inventory; Crate lives on /my/:username as curation. Add connecting affordances (e.g., "create a crate from my 샀음 list") but never auto-merge. Minimum UX change; relies on good labels and placement to communicate the separation. *Phase 2 feature surface stays intact.*
+
+- **B. Absorb 샀음/살거 into auto-populated system crates**: every user gets two always-on "system crates" — one called "샀음" that auto-populates from the collection flag, one called "살거" from the wantlist flag. User-created crates sit alongside in the same library. One mental model (crates) with two behaviors (auto vs. manual). Profile inventory grids may remain for data viewing, but the crate concept becomes the canonical collection primitive. *Schema migration required; Profile page UI redesign.*
+
+- **C. Drop 샀음/살거 entirely**: the ownership/wishlist concepts are removed; users who want to track owned albums make a manually-curated "my vinyl" crate. Maximum simplification; most radical. *Loses ownership as a first-class signal and the server-side data that depends on it (e.g., admin stats). Rolls back Phase 2.*
+
+**Current lean**: Option A is the safest (no migration, no roll-back). Option B is architecturally cleaner but requires data-model migration and Profile-page rework. Option C is too disruptive to seriously consider without much more evidence that ownership is genuinely unnecessary.
+
+**Decision deferred**: The wireframe MVP will expose the actual interaction overlap. If users (or our own usage) keep confusing 샀음 and "add to a crate", that's evidence for Option B. If the two features feel distinct in practice, Option A stands. Resolve this *after* the wireframe is in hand and Crate CRUD is wired up.
+
+**Until then**: Build the wireframe assuming Option A (the two systems coexist). Don't design the crate CRUD flow in a way that makes Option B impossible to migrate to later.
+
+---
+
+## Implementation status (updated)
+
+- **Preview (`/my-preview`)**: was ported to the lofi-bedroom storefront (Wall 5-5 = 10, turntable console, wooden floor crates, dark warm palette with neon-leak intent). Per entry 19, this visual pass is about to be **replaced with a wireframe** focused on data model and interaction rather than decoration.
+- **Live page (`/my/:username`)**: continues to run its own composition built on the earlier ShelfUnit + Cubby primitives. Not affected by the preview changes. Will migrate to the new wireframe-derived structure once the interactions settle.
+- **Primitives library** (`client/src/components/MyDig/storefront/`): `WallRail`, `WallLP`, `TapeLabel`, `ShelfUnit` + `Cubby` (still used by /my/:username), `WoodenCrate` (new, used by the lofi-bedroom preview), `TurntableConsole` + private sub-components (new). The `Cubby*` palette keys remain in `palettes.ts` so both the old Shelf and new Crate primitives can coexist. When `/my/:username` migrates off ShelfUnit, those keys come out.
+- **Palette** (`palettes.ts`): currently on the lofi-bedroom variant (warm wall base, cool neon leak tokens, cream tape, dig.haus amber accent). Wireframe pass will swap the ROOM values to a neutral grayscale + amber accent.
+
+## What's still open
+
+- **Wireframe MVP** — not started. Entry 19 is the plan; next work session lands the skeleton.
+- **Edit-mode UI** — picker panel for drag-drop, crate library management, floor assignment. Must be wireframed alongside the view-mode so interactions can be tested end-to-end.
+- **샀음 / 살거 boundary** — entry 20's open question. Revisit after wireframe surfaces the real interaction overlap.
+- **Crate CRUD API** — server endpoints for creating / naming / populating / deleting crates and assigning them to floor slots. Schema sketch from entry 1 in the main CLAUDE.md holds; implementation waits on the wireframe confirming the shape.
+- **Private-mode visual** — "fabric drape + A4 notice" is agreed on conceptually; illustration pass not started.
+- **Interactive loop (hover pop-out → turntable → sample)** — entry 17's S2–S5. Built last, after MVP interactions are known good.
+- **Illustrated mood (Path B)** — entry 18's long-term aesthetic direction. Background-asset generation via nano banana / Stable Diffusion, coordinated with CSS overlay positioning. Scheduled for *after* the wireframe has proven the structure and interactions, not before.
+- **Mobile refinement** — all of the above considered desktop-first. Mobile composition needs a dedicated pass, especially the partial-3D perspective rules and the interactive-loop animations at 390px widths.
+- **Now Playing customization** — the user's "currently spinning" LP on the turntable platter is identified as a user-editable property in entry 13. API + edit UI not yet scoped.
+
 
 ---
 
