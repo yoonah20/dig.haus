@@ -862,7 +862,7 @@ router.get('/scrape-failures', (req, res) => {
        FROM scrape_failures sf
        JOIN last_per_host lph ON lph.last_id = sf.id
        LEFT JOIN albums a ON a.mbid = sf.album_mbid
-       ORDER BY attempts DESC, sf.failed_at DESC
+       ORDER BY sf.failed_at DESC
        LIMIT 200`,
       [`-${days} days`, `-${days} days`]
     );
