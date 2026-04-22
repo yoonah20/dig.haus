@@ -11,16 +11,15 @@ import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 import { resolveApiUrl } from '../utils/apiUrl';
 
 // Read-only snapshot viewer. URL = /my/:username/snap/:slug.
-// Mirrors the /my/:username page shell (header + shop-scene wall)
-// but fed entirely from the snapshot payload so the wall reflects
-// the moment it was saved. No edit button — the snapshot is
+// Mirrors the /my/:username page shell (header + wall) but fed
+// entirely from the snapshot payload so the wall reflects the
+// moment it was saved. No edit button — the snapshot is
 // immutable from this screen. Owner can delete / toggle-public
 // from the snapshot list on /my/:username, not here.
 //
 // Empty slots (positions without an item, or items whose album
 // was deleted after the snapshot was saved) render as blank wall,
 // same as the live page.
-const WALL_ROW_SIZES = [5, 5, 5] as const;
 
 export default function MyDigSnapshot() {
   const { username, slug } = useParams<{ username: string; slug: string }>();
@@ -49,13 +48,13 @@ export default function MyDigSnapshot() {
   const { snapshot, user, items } = data;
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
 
-  // Build a position → album map so the render loop is the same
-  // shape as /my/:username's.
+  // Build a position → album map; snapshot items may have album
+  // === null when the album was deleted after capture.
   const byPosition = new Map<number, MyDigAlbum | null>();
   for (const it of items) byPosition.set(it.position, it.album);
 
   return (
-    <div className="flex-1" style={{ background: '#0a0503' }}>
+    <div className="flex-1" style={{ background: '#1c120a' }}>
       <main className="max-w-[1120px] mx-auto px-4 py-8 space-y-6">
         <SnapshotHeader
           username={user.username}
@@ -148,16 +147,27 @@ function SnapshotHeader({
 }
 
 function formatDate(iso: string): string {
-  // Server returns 'YYYY-MM-DD HH:MM:SS'. Slice to just the date
-  // for the header — the relative time lives on the list card.
   return iso.slice(0, 10);
 }
 
-// Mirror of VinylWallGrid in MyDig.tsx — ResizeObserver-driven
-// sizing, rail spans container width, records fixed-size +
-// grid-centered. Kept inline rather than extracted to share code
-// with the live page because the wireframe pivot may replace
-// both views at once.
+function WallSection({ children }: { children: React.ReactNode }) {
+  return (
+    <section
+      style={{
+        position: 'relative',
+        padding: '28px 12px 40px',
+      }}
+    >
+      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
+    </section>
+  );
+}
+
+// ─── Snapshot wall grid ───────────────────────────────────────
+// Read-only mirror of VinylWallGrid in MyDig.tsx. Same layout
+// (5×3 desktop / 3×5 mobile) + same rail treatment; no hover
+// bubbles because snapshots don't carry user reviews. Empty
+// slots (album === null after deletion) render as blank wall.
 function SnapshotWallGrid({
   byPosition,
 }: {
@@ -186,10 +196,16 @@ function SnapshotWallGrid({
   const fit = (width - 2 * overhang - (cols - 1) * gapX) / cols;
   const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
   const railWidth = Math.round(width);
+  const railHeight = mobile ? 12 : 20;
 
   const rows = Array.from({ length: rowCount }, (_, ri) => ({
     positions: Array.from({ length: cols }, (_, ci) => ri * cols + ci),
   }));
+
+  const variance = (seed: number) => {
+    const h = Math.abs(((seed * 2654435761) >>> 0) % 10000) / 10000;
+    return h * 2 - 1;
+  };
 
   return (
     <div
@@ -202,160 +218,64 @@ function SnapshotWallGrid({
         paddingTop: 12,
       }}
     >
-      {rows.map(({ positions }, ri) => {
-        return (
-          <div key={ri} style={{ position: 'relative', marginBottom: rowGap }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: `repeat(${cols}, ${lpSize}px)`,
-                gap: gapX,
-                justifyContent: 'center',
-                alignItems: 'end',
-              }}
-            >
-              {positions.map((position, ci) => {
-                const album = byPosition.get(position);
-                const lampBias = 1 - Math.min(1, (ri * cols + ci) / (rowCount * cols));
-                if (!album) {
-                  return (
-                    <WallLP
-                      key={position}
-                      size={lpSize}
-                      seed={position}
-                      empty
-                      lampBias={lampBias}
-                    />
-                  );
-                }
-                const target = album.slug || album.mbid;
+      {rows.map(({ positions }, ri) => (
+        <div key={ri} style={{ position: 'relative', marginBottom: rowGap }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: `repeat(${cols}, ${lpSize}px)`,
+              gap: gapX,
+              justifyContent: 'center',
+              alignItems: 'end',
+            }}
+          >
+            {positions.map((position, ci) => {
+              const album = byPosition.get(position);
+              const lampBias = 1 - Math.min(1, (ri * cols + ci) / (rowCount * cols));
+              const jx = variance(ri * 131 + ci * 17 + 1) * (mobile ? 2 : 4);
+              if (!album) {
                 return (
-                  <Link
-                    key={position}
-                    to={`/album/${target}`}
-                    title={`${album.artist} — ${album.title}`}
-                    style={{
-                      display: 'block',
-                      width: lpSize,
-                      height: lpSize,
-                      textDecoration: 'none',
-                    }}
-                  >
-                    <WallLP size={lpSize} seed={position} lampBias={lampBias}>
-                      <CoverArt
-                        src={album.coverArtUrl}
-                        fallbacks={album.coverArtFallbacks}
-                        alt={album.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </WallLP>
-                  </Link>
+                  <div key={position} style={{ marginLeft: jx }}>
+                    <WallLP size={lpSize} seed={position} empty lampBias={lampBias} />
+                  </div>
                 );
-              })}
-            </div>
-            <div style={{ position: 'relative', marginTop: -1 }}>
-              <WallRail
-                width={railWidth}
-                seed={ri * 37 + 13}
-                style={{ display: 'block' }}
-              />
-            </div>
+              }
+              const target = album.slug || album.mbid;
+              return (
+                <Link
+                  key={position}
+                  to={`/album/${target}`}
+                  title={`${album.artist} — ${album.title}`}
+                  style={{
+                    display: 'block',
+                    width: lpSize,
+                    height: lpSize,
+                    marginLeft: jx,
+                    textDecoration: 'none',
+                  }}
+                >
+                  <WallLP size={lpSize} seed={position} lampBias={lampBias}>
+                    <CoverArt
+                      src={album.coverArtUrl}
+                      fallbacks={album.coverArtFallbacks}
+                      alt={album.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </WallLP>
+                </Link>
+              );
+            })}
           </div>
-        );
-      })}
+          <div style={{ position: 'relative', marginTop: 0 }}>
+            <WallRail
+              width={railWidth}
+              seed={ri * 37 + 13}
+              height={railHeight}
+              style={{ display: 'block' }}
+            />
+          </div>
+        </div>
+      ))}
     </div>
-  );
-}
-
-// ─── Wall section (matches MyDig.tsx) ─────────────────────────
-// Ambient layers (vertical warmth gradient, lamp pool, painted
-// noise, dust motes) without any bordered box or hard wall/floor
-// boundary. Duplicated from MyDig.tsx intentionally so the
-// snapshot view stays self-contained while the wireframe rebuild
-// is in flux; both merge together when that lands.
-function WallSection({ children }: { children: React.ReactNode }) {
-  return (
-    <section
-      style={{
-        position: 'relative',
-        padding: '28px 12px 40px',
-        overflow: 'hidden',
-      }}
-    >
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          background:
-            'linear-gradient(180deg, rgba(56, 38, 20, 0.55) 0%, rgba(30, 20, 10, 0.35) 50%, rgba(12, 7, 3, 0.5) 100%)',
-        }}
-      />
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: -40,
-          pointerEvents: 'none',
-          background:
-            'radial-gradient(ellipse 55% 50% at 32% 22%, rgba(255, 200, 120, 0.18) 0%, rgba(255, 185, 100, 0.06) 45%, transparent 75%)',
-        }}
-      />
-      <div
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: -40,
-          pointerEvents: 'none',
-          background:
-            'radial-gradient(ellipse 40% 35% at 78% 80%, rgba(255, 180, 110, 0.11) 0%, rgba(255, 170, 100, 0.04) 45%, transparent 75%)',
-        }}
-      />
-      <svg
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          opacity: 0.22,
-          mixBlendMode: 'overlay',
-        }}
-      >
-        <defs>
-          <filter id="mydigSnapWallConcrete">
-            <feTurbulence baseFrequency="0.5" numOctaves="3" seed="11" />
-            <feColorMatrix values="0 0 0 0 0.72  0 0 0 0 0.68  0 0 0 0 0.6  0 0 0 0.7 0" />
-          </filter>
-          <filter id="mydigSnapWallFleck">
-            <feTurbulence baseFrequency="0.9" numOctaves="2" seed="7" />
-            <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 0.78  0 0 0 0 0.55  0 0 0 0.6 0" />
-          </filter>
-        </defs>
-        <rect width="100%" height="100%" filter="url(#mydigSnapWallConcrete)" />
-        <rect width="100%" height="100%" filter="url(#mydigSnapWallFleck)" opacity="0.55" />
-      </svg>
-      <svg
-        aria-hidden
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          opacity: 0.45,
-        }}
-      >
-        {[
-          { x: 180, y: 70, r: 0.7 },
-          { x: 260, y: 130, r: 0.5 },
-          { x: 340, y: 100, r: 0.6 },
-          { x: 420, y: 160, r: 0.5 },
-          { x: 210, y: 220, r: 0.6 },
-          { x: 380, y: 250, r: 0.4 },
-        ].map((d, i) => (
-          <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#ffd08a" />
-        ))}
-      </svg>
-      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
-    </section>
   );
 }

@@ -90,7 +90,8 @@ router.get('/mydig/:username', (req, res, next) => {
             a.artist_name, a.release_date, a.release_year,
             a.cover_art_url, a.cover_art_fallbacks,
             ur.emoji AS user_review_emoji,
-            ur.body AS user_review_body
+            ur.body AS user_review_body,
+            ur.rating AS user_review_rating
      FROM vinyl_wall_items vwi
      JOIN albums a ON a.id = vwi.album_id
      LEFT JOIN user_reviews ur
@@ -183,6 +184,7 @@ router.get('/mydig/:username', (req, res, next) => {
           ? {
               body: String(r.user_review_body),
               emoji: r.user_review_emoji ? String(r.user_review_emoji) : null,
+              rating: r.user_review_rating ? String(r.user_review_rating) : null,
             }
           : null;
       return {

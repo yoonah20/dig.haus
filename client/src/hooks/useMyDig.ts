@@ -30,6 +30,7 @@ export interface MyDigWallItem {
   userReview?: {
     body: string;
     emoji: string | null;
+    rating: string | null;
   } | null;
 }
 

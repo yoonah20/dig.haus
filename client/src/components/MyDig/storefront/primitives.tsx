@@ -27,17 +27,19 @@ import { ROOM, FONT_HAND } from './palettes';
 export function WallRail({
   width,
   seed = 0,
+  height,
   style = {},
 }: {
   width: number;
   seed?: number;
+  // Optional override for the rail's face height. Defaults to 20
+  // (desktop). Mobile callers pass a smaller value so the rail
+  // reads as a subtle shelf strip instead of a heavy plank at
+  // smaller cover sizes.
+  height?: number;
   style?: React.CSSProperties;
 }) {
-  // Thicker profile than the previous 14px rail — gives records
-  // something substantial to lean on and lets more wood detail
-  // live on the face without crowding. Face height + lip + top
-  // surface redistribute across the taller canvas.
-  const h = 20;
+  const h = Math.max(10, height ?? 20);
   const canvasH = h + 10;
   const topH = 4;              // top surface (catches lamp)
   const faceTop = topH + 1.5;  // y-coord where the face begins
@@ -264,7 +266,12 @@ export function VinylDisc({ size }: { size: number }) {
       height={size}
       style={{
         display: 'block',
-        filter: 'drop-shadow(2px 3px 6px rgba(0,0,0,0.55))',
+        // Zero vertical offset so the shadow doesn't spill below
+        // the disc onto the wooden rail when the cell is hovered
+        // (hover scales the disc + peeks it to the right; a
+        // Y-offset shadow gets amplified and falls on the rail).
+        // Matches the WallLP gap-shadow style for consistency.
+        filter: 'drop-shadow(2px 0 3px rgba(0,0,0,0.45))',
       }}
       aria-hidden
     >
@@ -345,7 +352,6 @@ export function WallLP({
     // "drop here" affordance.
     return <div style={{ width: size, height: size }} />;
   }
-  const leanDeg = 5;
   const bias = Math.max(0, Math.min(1, lampBias));
   // Gap shadow — single tight pass behind the sleeve. Earlier
   // version had two big blurred shadows that spilled past the
@@ -360,15 +366,15 @@ export function WallLP({
   const highlightAlpha = 0.05 + bias * 0.15;
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
-      {/* gap shadow — pushed mostly sideways (to the right,
-          matching the upper-left lamp direction) with a small
-          vertical offset. Kept within the LP's own bounding box
-          so the blur doesn't spill onto the wooden rail below. */}
+      {/* gap shadow — pushed only sideways (to the right, matching
+          the upper-left lamp direction). Zero vertical offset so
+          nothing bleeds downward onto the wooden rail; the blur
+          keeps the shadow soft without dropping it below the LP. */}
       <div
         style={{
           position: 'absolute',
           left: shadowOffsetX,
-          top: 1,
+          top: 0,
           width: size,
           height: size,
           background: `rgba(20, 10, 3, ${shadowAlpha})`,
@@ -376,13 +382,15 @@ export function WallLP({
           borderRadius: 1,
         }}
       />
-      {/* the sleeve itself */}
+      {/* the sleeve itself — rendered flat against the wall. An
+          earlier iteration used perspective(700px) rotateX(-5deg)
+          to imply a physical lean-back, but in practice it reads
+          as the cover "about to fall forward" rather than resting
+          against the wall, so we dropped the tilt. */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          transform: `perspective(700px) rotateX(-${leanDeg}deg)`,
-          transformOrigin: 'bottom center',
           boxShadow: `0 1px 0 rgba(0,0,0,0.45), 0 -1px 0 rgba(255,210,170,0.1) inset, inset 0 0 0 0.5px rgba(0,0,0,0.55)`,
           overflow: 'hidden',
           background: '#000',
