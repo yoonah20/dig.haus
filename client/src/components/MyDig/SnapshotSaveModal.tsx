@@ -39,8 +39,10 @@ export default function SnapshotSaveModal({
         isPublic,
       });
       onClose();
-    } catch {
-      /* error state surfaces in create.isError below */
+    } catch (err) {
+      // Red banner below renders the server error via create.error;
+      // log it here too so devtools show the full response.
+      console.error('[mydig/snapshots] save failed:', err);
     }
   };
 
@@ -89,7 +91,11 @@ export default function SnapshotSaveModal({
         </label>
 
         {create.isError && (
-          <p className="text-xs text-red-400 mt-3">저장에 실패했어요.</p>
+          <p className="text-xs text-red-400 mt-3">
+            저장 실패: {(create.error as any)?.response?.data?.error
+              ?? (create.error as any)?.message
+              ?? '알 수 없는 오류'}
+          </p>
         )}
 
         <div className="flex items-center justify-end gap-2 mt-6">

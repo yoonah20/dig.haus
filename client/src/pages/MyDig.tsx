@@ -297,8 +297,11 @@ function ThemeEditModal({
     try {
       await update.mutateAsync(value.trim() ? value.trim() : null);
       onClose();
-    } catch {
-      /* error surfaced below */
+    } catch (err) {
+      // Surfaced in the red error line below via update.error;
+      // logged here too so the browser console shows the full
+      // response for debugging.
+      console.error('[mydig/theme] save failed:', err);
     }
   };
   return (
@@ -333,7 +336,11 @@ function ThemeEditModal({
           }}
         />
         {update.isError && (
-          <p className="text-xs text-red-400 mt-3">저장에 실패했어요.</p>
+          <p className="text-xs text-red-400 mt-3">
+            저장 실패: {(update.error as any)?.response?.data?.error
+              ?? (update.error as any)?.message
+              ?? '알 수 없는 오류'}
+          </p>
         )}
         <div className="flex items-center justify-end gap-2 mt-5">
           <button
