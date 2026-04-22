@@ -75,8 +75,14 @@ function DustMotes() {
   return (
     <div
       aria-hidden
+      // zIndex:5 puts the dust layer above the in-flow page
+      // content (records, rails, header) so motes actually float
+      // in front of the scene. Still well below the nav (z-40)
+      // and any mydig modals (z-40/50) so clicks and overlays
+      // work as before. pointer-events:none keeps everything
+      // clickable underneath.
       className="pointer-events-none absolute inset-0 overflow-hidden"
-      style={{ zIndex: -1 }}
+      style={{ zIndex: 5 }}
     >
       {DUST_MOTES.map((m, i) => (
         <div
