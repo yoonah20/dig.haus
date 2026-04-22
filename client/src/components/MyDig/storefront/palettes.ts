@@ -48,6 +48,17 @@ export const ROOM = {
   crateInterior: '#1a0f08',
   crateShadow: 'rgba(0, 0, 0, 0.55)',
 
+  // shelf cubby interior — legacy keys still referenced by the
+  // ShelfUnit / Cubby primitives used by the live /my/:username
+  // page. WoodenCrate replaces ShelfUnit in the preview storefront,
+  // but both primitives coexist until /my/:username switches over,
+  // so these colors can't go away yet. Same dark-void range as
+  // crateInterior above; the two sets were separated originally
+  // because the shelf had a visible front lip in its own wood tone.
+  cubbyTop: '#15090a',
+  cubbyBot: '#0a0503',
+  cubbyLip: '#3a2513',
+
   // masking tape — cream/beige, warm under the lamp
   tapeTop: '#f5e8c8',
   tapeMid: '#e8d6a8',
