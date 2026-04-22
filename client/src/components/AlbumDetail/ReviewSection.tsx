@@ -121,9 +121,10 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
   const handleRetranslate = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Each retranslate burns a fresh Claude call — guard against
-    // accidental double-clicks and casual exploration.
-    if (!confirm('이 리뷰 발췌를 다시 번역할까요? (Claude API 호출됩니다)')) return;
+    // Each retranslate burns a fresh LLM call (routed to DeepSeek
+    // primarily, Claude as fallback) — guard against accidental
+    // double-clicks and casual exploration.
+    if (!confirm('이 리뷰 발췌를 다시 번역할까요? (외부 API 호출됩니다)')) return;
     setRetranslating(true);
     try {
       await axios.post(`/api/albums/reviews/${review.id}/retranslate`);

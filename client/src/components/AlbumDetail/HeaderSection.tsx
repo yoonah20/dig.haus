@@ -346,7 +346,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
 
   const handleRegenerateSimilar = useCallback(async () => {
     if (regeneratingSimilar) return;
-    if (!confirm('비슷한 앨범 목록을 초기화하고 다시 찾을까요? (Last.fm + Claude 호출)')) return;
+    if (!confirm('비슷한 앨범 목록을 초기화하고 다시 찾을까요? (외부 API 호출됩니다)')) return;
     setRegeneratingSimilar(true);
     try {
       await axios.post(`/api/albums/${albumId}/similar/regenerate`);
@@ -940,7 +940,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                         onClick={handleRegenerateKo}
                         disabled={regeneratingKo}
                         className="text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-wait"
-                        title="한국어 번역 재생성 (Claude)"
+                        title="한국어 번역 재생성 (외부 API 호출)"
                         aria-label="한국어 번역 재생성"
                       >
                         {regeneratingKo ? '...' : '🔄'}

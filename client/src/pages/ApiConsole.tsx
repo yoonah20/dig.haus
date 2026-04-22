@@ -60,13 +60,14 @@ export default function ApiConsole({ embedded = false }: { embedded?: boolean } 
       return data;
     },
     enabled: !!user?.isAdmin,
-    // Standalone /admin/api-console: live pinned-tab view, polls every
-    // 15s even in the background. Embedded inside /admin/api: the tab
-    // is for occasional checking, not continuous monitoring, so drop
-    // the interval and rely on staleTime — admin can refetch by
-    // re-entering the tab.
+    // Standalone /admin/api-console: live pinned-tab view, polls
+    // every 15s WHEN VISIBLE. Embedded inside /admin/api: relies on
+    // staleTime + re-entry. Previously the standalone page forced
+    // refetchIntervalInBackground: true — which kept the poll
+    // running even when the tab was hidden, burning admin requests
+    // nobody was looking at. Default (false) respects tab visibility
+    // so pinned-but-unfocused tabs stop polling until admin looks.
     refetchInterval: embedded ? false : 15_000,
-    refetchIntervalInBackground: embedded ? false : true,
     staleTime: 30_000,
   });
 

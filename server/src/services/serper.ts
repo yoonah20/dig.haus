@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { memoAsync } from '../utils/memoCache.js';
 
 // Serper.dev — lightweight Google SERP proxy. Free tier 2.5k/mo,
 // then $50/mo for 50k. We hit the /search endpoint with the raw
@@ -49,7 +50,7 @@ async function runSerperPage(
   }
 }
 
-export async function searchReviewUrls(
+async function _searchReviewUrls(
   artist: string,
   album: string,
   pages = 3
@@ -96,3 +97,15 @@ export async function searchReviewUrls(
   }
   return all;
 }
+
+// Cache SERP results for 10 minutes per (artist, album). Real use
+// case is admin re-clicking 🔎 자동 검색 on the same album within
+// a session, or auto-curation retrying after a transient failure —
+// Google's organic results don't meaningfully move minute-to-minute,
+// so a short window saves Serper quota without hiding fresh index
+// additions.
+export const searchReviewUrls = memoAsync(
+  'serper-search',
+  _searchReviewUrls,
+  10 * 60 * 1000
+);

@@ -269,7 +269,7 @@ export default function Album() {
                               markNoReviews.isPending
                             }
                             className="text-xs text-gray-400 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                            title="Claude 호출 없이 크롤링 완료로만 표시 (비용 0)"
+                            title="외부 API 호출 없이 크롤링 완료로만 표시 (비용 0)"
                           >
                             {markNoReviews.isPending ? '표시 중…' : '🙅 리뷰 없음'}
                           </button>

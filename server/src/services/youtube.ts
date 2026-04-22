@@ -1,5 +1,6 @@
 import axios from 'axios';
 import https from 'https';
+import { memoAsync } from '../utils/memoCache.js';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 const httpsAgent = new https.Agent({ family: 4 });
@@ -8,7 +9,7 @@ function getApiKey(): string {
   return process.env.YOUTUBE_API_KEY || '';
 }
 
-export async function searchVideo(
+async function _searchVideo(
   artist: string,
   album: string
 ): Promise<string | null> {
@@ -64,3 +65,9 @@ export async function searchVideo(
     return null;
   }
 }
+
+// Cache YouTube lookups for an hour per (artist, album). Album pages
+// re-resolve the video embed on every visit and the result rarely
+// changes — same search today and tomorrow picks the same top hit.
+// TTL is a balance against YouTube's 10k units/day quota.
+export const searchVideo = memoAsync('yt-search', _searchVideo, 60 * 60 * 1000);

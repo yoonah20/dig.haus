@@ -14,6 +14,7 @@ import { initDb, closeDb, getDb } from './db/index.js';
 import { configurePassport } from './auth/passport.js';
 import { startRankScheduler } from './jobs/rankScheduler.js';
 import { startLabelFeedPoller } from './jobs/labelFeedPoller.js';
+import { startUsageLogPruneScheduler } from './jobs/usageLogPruner.js';
 import { warmExchangeRates } from './services/exchangeRates.js';
 import searchRouter from './routes/search.js';
 import albumsRouter from './routes/albums.js';
@@ -127,6 +128,7 @@ async function start() {
 
   startRankScheduler();
   startLabelFeedPoller();
+  startUsageLogPruneScheduler();
   warmExchangeRates();
 
   // Explicit IPv4 bind. Node 18+ defaults to "::" (IPv6 dual-stack)

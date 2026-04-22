@@ -431,7 +431,7 @@ export function AiSummaryBadge() {
   return (
     <span
       className="inline-flex items-center text-[10px] font-sans font-semibold tracking-wider uppercase text-[#e8a020]/80 border border-[#e8a020]/40 rounded-full px-1.5 py-0.5 leading-none align-middle translate-y-[-2px]"
-      title="Claude가 정리한 내용입니다."
+      title="AI가 정리한 내용입니다."
       aria-label="AI 요약"
     >
       AI 요약

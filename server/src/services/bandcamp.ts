@@ -1,6 +1,7 @@
 import axios from 'axios';
 import https from 'https';
 import * as cheerio from 'cheerio';
+import { memoAsync } from '../utils/memoCache.js';
 
 const BANDCAMP_SEARCH_URL = 'https://bandcamp.com/search';
 const httpsAgent = new https.Agent({ family: 4 });
@@ -22,7 +23,7 @@ async function rateLimitedGet(url: string, params?: Record<string, string>) {
   });
 }
 
-export async function searchBandcamp(
+async function _searchBandcamp(
   artist: string,
   album: string
 ): Promise<{ url: string; purchaseUrl: string } | null> {
@@ -50,3 +51,9 @@ export async function searchBandcamp(
     return null;
   }
 }
+
+// Cache Bandcamp lookups for an hour per (artist, album). Album page
+// visits repeatedly resolve the same purchase URL, and Bandcamp's
+// 1.1s rate-limit wait happens inline — caching saves both the wait
+// and the extra request.
+export const searchBandcamp = memoAsync('bc-search', _searchBandcamp, 60 * 60 * 1000);

@@ -288,7 +288,7 @@ function ClaudeUsageCard({
 
   const handleReset = () => {
     if (reset.isPending) return;
-    if (!confirm(`Claude API 사용량 기록을 모두 삭제할까요?\n(현재: $${usage.usd.toFixed(2)})\n\n되돌릴 수 없습니다.`)) return;
+    if (!confirm(`API 사용량 기록을 모두 삭제할까요?\n(현재: $${usage.usd.toFixed(2)})\n\n되돌릴 수 없습니다.`)) return;
     reset.mutate();
   };
 
@@ -306,7 +306,7 @@ function ClaudeUsageCard({
             type="button"
             onClick={() => setShowRecent((v) => !v)}
             className="text-[10px] text-gray-500 hover:text-[#e8a020] underline-offset-2 hover:underline cursor-pointer"
-            title="최근 50건의 개별 Claude 호출을 펼쳐서 봅니다."
+            title="최근 50건의 개별 LLM 호출을 펼쳐서 봅니다."
           >
             {showRecent ? '상세 접기' : '상세'}
           </button>
@@ -2157,13 +2157,21 @@ interface CurationRunRow {
 }
 
 function CurationRunsPanel() {
+  // CurationProgressContext already invalidates this query as each
+  // album in a run finishes (see its onSuccess on the /curation-runs
+  // POST), so the panel stays live without a short poll. The
+  // remaining reason for any interval at all is a second admin
+  // session on another tab — lengthen to 2 min so we catch that
+  // edge case without burning a request every 30s while the panel
+  // sits open.
   const query = useQuery<{ runs: CurationRunRow[] }>({
     queryKey: ['curation-runs'],
     queryFn: async () => {
       const { data } = await axios.get('/api/admin/curation-runs');
       return data;
     },
-    refetchInterval: 30_000,
+    refetchInterval: 120_000,
+    staleTime: 60_000,
   });
 
   const runs = query.data?.runs ?? [];
