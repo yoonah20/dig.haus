@@ -14,6 +14,7 @@ const Admin = lazy(() => import('./pages/Admin'));
 const Profile = lazy(() => import('./pages/Profile'));
 const MyDig = lazy(() => import('./pages/MyDig'));
 const MyDigPreview = lazy(() => import('./pages/MyDigPreview'));
+const MyDigSnapshot = lazy(() => import('./pages/MyDigSnapshot'));
 const ApiConsole = lazy(() => import('./pages/ApiConsole'));
 const LlmCompare = lazy(() => import('./pages/LlmCompare'));
 
@@ -82,6 +83,7 @@ export default function App() {
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/my-preview" element={<MyDigPreview />} />
                   <Route path="/my/:username" element={<MyDig />} />
+                  <Route path="/my/:username/snap/:slug" element={<MyDigSnapshot />} />
                   <Route path="/admin/api-console" element={<ApiConsole />} />
                   <Route path="/admin/compare" element={<LlmCompare />} />
                 </Routes>

@@ -1176,6 +1176,46 @@ export function initializeDatabase(db: Database.Database): void {
      ON vinyl_wall_items(user_id, position)`
   );
 
+  // Vinyl-wall snapshots — archival copy of the wall at a moment in
+  // time. Owner creates one from the current wall, names it (default
+  // falls to a date slug on the server), marks it private or public.
+  // Public snapshots are reachable at /my/:username/snap/:slug; the
+  // list of snapshots on /my/:username filters to public for
+  // visitors and shows all for the owner.
+  //
+  // Album FK deliberately lacks CASCADE — an album getting removed
+  // shouldn't retroactively re-write history; the snapshot row stays
+  // with a null join on render. The client renders missing albums
+  // as an empty slot with a muted "삭제된 앨범" tag.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS vinyl_wall_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      slug TEXT NOT NULL,
+      name TEXT NOT NULL,
+      is_public INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(user_id, slug)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vinyl_wall_snapshots_user_created
+     ON vinyl_wall_snapshots(user_id, created_at DESC)`
+  );
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS vinyl_wall_snapshot_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      snapshot_id INTEGER NOT NULL REFERENCES vinyl_wall_snapshots(id) ON DELETE CASCADE,
+      album_id INTEGER NOT NULL REFERENCES albums(id),
+      position INTEGER NOT NULL CHECK (position >= 0 AND position < 10),
+      UNIQUE(snapshot_id, position)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_vinyl_wall_snapshot_items_snapshot
+     ON vinyl_wall_snapshot_items(snapshot_id, position)`
+  );
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS shelf_slots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

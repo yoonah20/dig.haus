@@ -1,9 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useMyDig, type MyDigWallItem, type MyDigShelfSlot, type MyDigCrate } from '../hooks/useMyDig';
+import {
+  useMyDig,
+  useVinylWallSnapshots,
+  type MyDigWallItem,
+  type MyDigShelfSlot,
+  type MyDigCrate,
+} from '../hooks/useMyDig';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
+import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
+import SnapshotList from '../components/MyDig/SnapshotList';
+import ShareButton from '../components/MyDig/ShareButton';
 import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 import { resolveApiUrl } from '../utils/apiUrl';
 
@@ -37,6 +46,8 @@ export default function MyDig() {
   const { username } = useParams<{ username: string }>();
   const { data, isLoading, error } = useMyDig(username);
   const [editingWall, setEditingWall] = useState(false);
+  const [savingSnapshot, setSavingSnapshot] = useState(false);
+  const snapshotsQuery = useVinylWallSnapshots(username);
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -97,6 +108,8 @@ export default function MyDig() {
           avatarUrl={data.user.avatarUrl}
           isOwner={data.user.isOwner}
           onEdit={() => setEditingWall(true)}
+          onSaveSnapshot={() => setSavingSnapshot(true)}
+          shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
         {/* Tier 1 — Vinyl Wall inside a late-night shop scene. Dark
@@ -110,11 +123,30 @@ export default function MyDig() {
           />
         </ShopScene>
 
+        {/* Snapshot archive — horizontal strip of past walls. Owner
+            sees private + public; visitors see only public. Each
+            card links into /my/:username/snap/:slug. The whole
+            strip hides itself when there are no snapshots to show. */}
+        {username && (
+          <SnapshotList
+            username={username}
+            snapshots={snapshotsQuery.data?.snapshots ?? []}
+            isOwner={data.user.isOwner}
+          />
+        )}
+
         {editingWall && username && (
           <VinylWallEditor
             username={username}
             initialWall={data.vinylWall}
             onClose={() => setEditingWall(false)}
+          />
+        )}
+
+        {savingSnapshot && username && (
+          <SnapshotSaveModal
+            username={username}
+            onClose={() => setSavingSnapshot(false)}
           />
         )}
 
@@ -139,12 +171,16 @@ function ProfileHeader({
   avatarUrl,
   isOwner,
   onEdit,
+  onSaveSnapshot,
+  shareUrl,
 }: {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
   isOwner: boolean;
   onEdit: () => void;
+  onSaveSnapshot: () => void;
+  shareUrl: string;
 }) {
   const initial = (displayName || username).charAt(0).toUpperCase();
   const resolvedAvatar = resolveApiUrl(avatarUrl);
@@ -182,19 +218,30 @@ function ProfileHeader({
         >
           {name}
         </h1>
-        <div className="flex items-center gap-3 mt-1.5">
+        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
           <span className="text-[11px] uppercase tracking-[0.2em] text-[#e8a020]">
             · open ·
           </span>
           {isOwner && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="text-[11px] text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-            >
-              ✏️ 편집
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onEdit}
+                className="text-[11px] text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+              >
+                ✏️ 편집
+              </button>
+              <button
+                type="button"
+                onClick={onSaveSnapshot}
+                className="text-[11px] text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+                title="현재 벽을 스냅샷으로 저장"
+              >
+                📸 스냅샷
+              </button>
+            </>
           )}
+          <ShareButton url={shareUrl} label="공유" />
         </div>
       </div>
     </header>

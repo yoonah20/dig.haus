@@ -395,4 +395,289 @@ router.get('/mydig/candidates', requireAuth, (req, res) => {
   }
 });
 
+// ─── Vinyl-wall snapshots ─────────────────────────────────────
+//
+// Archive copies of the wall at a moment in time. Owner creates
+// one from the current wall; each snapshot is either private
+// (owner-only) or public (visitors see it in the list and can
+// open /my/:username/snap/:slug). Snapshots preserve the album
+// references as they were when captured — albums that get
+// deleted later render as empty slots on the snapshot, not
+// re-written history.
+
+function todayDateSlug(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+// Sanitise a name into a URL-friendly slug. Keeps a-z/0-9/Hangul/
+// hyphens/underscores, collapses whitespace to hyphens, strips
+// everything else. If the result is empty (name was all removed
+// characters) falls back to today's date so we always have
+// something deterministic.
+function slugifyName(raw: string): string {
+  const trimmed = raw.trim().toLowerCase();
+  const normalised = trimmed
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\-_ᄀ-ᇿ㄰-㆏가-힯]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalised.slice(0, 40) || todayDateSlug();
+}
+
+// Resolve a collision-free slug for (user_id, slug). Tries the
+// plain slug first, then slug-2 / slug-3 / ... up to a sane cap.
+function resolveSnapshotSlug(db: ReturnType<typeof getDb>, userId: number, base: string): string {
+  const check = db.prepare(
+    `SELECT 1 FROM vinyl_wall_snapshots WHERE user_id = ? AND slug = ?`
+  );
+  if (!check.get(userId, base)) return base;
+  for (let n = 2; n < 1000; n++) {
+    const candidate = `${base}-${n}`;
+    if (!check.get(userId, candidate)) return candidate;
+  }
+  // Beyond 1000 snapshots on the same base slug we just append a
+  // timestamp shard — should never happen in practice but the
+  // loop needs a terminator.
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+// POST /api/mydig/vinyl-wall/snapshots — capture current wall
+// as a snapshot. Name is optional (defaults to today's date);
+// isPublic defaults to false.
+router.post('/mydig/vinyl-wall/snapshots', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const body = (req.body ?? {}) as { name?: unknown; isPublic?: unknown };
+
+  // Name: trim + cap at 60 chars. Fall back to today's date.
+  let name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (name.length > 60) name = name.slice(0, 60);
+  if (!name) name = todayDateSlug();
+  const isPublic = body.isPublic === true ? 1 : 0;
+  const baseSlug = slugifyName(name);
+
+  const db = getDb();
+  try {
+    const slug = resolveSnapshotSlug(db, me.id, baseSlug);
+
+    const tx = db.transaction(() => {
+      const snapStmt = db.prepare(
+        `INSERT INTO vinyl_wall_snapshots (user_id, slug, name, is_public) VALUES (?, ?, ?, ?)`
+      );
+      const snapInfo = snapStmt.run(me.id, slug, name, isPublic);
+      const snapId = snapInfo.lastInsertRowid as number;
+
+      const currentItems = db.prepare(
+        `SELECT album_id, position FROM vinyl_wall_items WHERE user_id = ? ORDER BY position`
+      ).all(me.id) as Array<{ album_id: number; position: number }>;
+
+      if (currentItems.length > 0) {
+        const itemStmt = db.prepare(
+          `INSERT INTO vinyl_wall_snapshot_items (snapshot_id, album_id, position) VALUES (?, ?, ?)`
+        );
+        for (const it of currentItems) itemStmt.run(snapId, it.album_id, it.position);
+      }
+
+      return { snapId, itemCount: currentItems.length };
+    });
+
+    const { snapId, itemCount } = tx();
+    res.status(201).json({
+      id: snapId,
+      slug,
+      name,
+      isPublic: isPublic === 1,
+      itemCount,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[mydig/snapshots] create failed:', err);
+    res.status(500).json({ error: '스냅샷 저장 실패' });
+  }
+});
+
+// PATCH /api/mydig/vinyl-wall/snapshots/:id — rename / toggle
+// public. Owner-only. Slug stays immutable once created so
+// existing URLs don't break.
+router.patch('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid snapshot id' });
+  }
+  const body = (req.body ?? {}) as { name?: unknown; isPublic?: unknown };
+
+  const existing = queryGet(
+    `SELECT id, user_id, name, is_public FROM vinyl_wall_snapshots WHERE id = ?`,
+    [id]
+  );
+  if (!existing) return res.status(404).json({ error: '스냅샷을 찾을 수 없어요.' });
+  if (existing.user_id !== me.id) {
+    return res.status(403).json({ error: '권한이 없어요.' });
+  }
+
+  const patches: string[] = [];
+  const values: any[] = [];
+  if (typeof body.name === 'string') {
+    const name = body.name.trim().slice(0, 60);
+    if (!name) return res.status(400).json({ error: '이름은 비어있을 수 없어요.' });
+    patches.push('name = ?');
+    values.push(name);
+  }
+  if (typeof body.isPublic === 'boolean') {
+    patches.push('is_public = ?');
+    values.push(body.isPublic ? 1 : 0);
+  }
+  if (patches.length === 0) {
+    return res.status(400).json({ error: '변경사항이 없어요.' });
+  }
+  values.push(id);
+
+  try {
+    execute(
+      `UPDATE vinyl_wall_snapshots SET ${patches.join(', ')} WHERE id = ?`,
+      values
+    );
+    const updated = queryGet(
+      `SELECT id, slug, name, is_public AS isPublic, created_at AS createdAt FROM vinyl_wall_snapshots WHERE id = ?`,
+      [id]
+    );
+    res.json({
+      ...updated,
+      isPublic: updated.isPublic === 1,
+    });
+  } catch (err) {
+    console.error('[mydig/snapshots] patch failed:', err);
+    res.status(500).json({ error: '스냅샷 수정 실패' });
+  }
+});
+
+// DELETE /api/mydig/vinyl-wall/snapshots/:id — owner-only.
+router.delete('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid snapshot id' });
+  }
+  const existing = queryGet(
+    `SELECT user_id FROM vinyl_wall_snapshots WHERE id = ?`,
+    [id]
+  );
+  if (!existing) return res.status(404).json({ error: '스냅샷을 찾을 수 없어요.' });
+  if (existing.user_id !== me.id) {
+    return res.status(403).json({ error: '권한이 없어요.' });
+  }
+  try {
+    execute(`DELETE FROM vinyl_wall_snapshots WHERE id = ?`, [id]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[mydig/snapshots] delete failed:', err);
+    res.status(500).json({ error: '스냅샷 삭제 실패' });
+  }
+});
+
+// GET /api/mydig/:username/snapshots — list. Owner sees all
+// (private + public); visitors see only public. Lightweight
+// rollup per row — item count instead of the full item list,
+// the detail endpoint below fills that in on demand.
+router.get('/mydig/:username/snapshots', (req, res) => {
+  const raw = String(req.params.username || '').trim();
+  const user = resolveUserByUsername(raw);
+  if (!user) return res.status(404).json({ error: '사용자를 찾을 수 없어요.' });
+
+  const viewer = req.user as AppUser | undefined;
+  const isOwner = !!viewer && viewer.id === user.id;
+  const mydigPublic = user.mydig_public === null || user.mydig_public === 1;
+  if (!isOwner && !mydigPublic) {
+    // Whole page is private — don't reveal that there are any
+    // snapshots either.
+    return res.json({ snapshots: [] });
+  }
+
+  const whereVis = isOwner ? '' : ' AND is_public = 1';
+  const rows = queryAll(
+    `SELECT s.id, s.slug, s.name, s.is_public AS isPublic, s.created_at AS createdAt,
+            (SELECT COUNT(*) FROM vinyl_wall_snapshot_items i WHERE i.snapshot_id = s.id) AS itemCount
+     FROM vinyl_wall_snapshots s
+     WHERE s.user_id = ?${whereVis}
+     ORDER BY s.created_at DESC, s.id DESC`,
+    [user.id]
+  ) as Array<any>;
+  res.json({
+    snapshots: rows.map((r) => ({ ...r, isPublic: r.isPublic === 1 })),
+  });
+});
+
+// GET /api/mydig/:username/snapshots/:slug — full snapshot
+// detail with joined album metadata. Visitor access gated by
+// both mydig_public and is_public.
+router.get('/mydig/:username/snapshots/:slug', (req, res) => {
+  const raw = String(req.params.username || '').trim();
+  const slug = String(req.params.slug || '').trim();
+  const user = resolveUserByUsername(raw);
+  if (!user) return res.status(404).json({ error: '사용자를 찾을 수 없어요.' });
+
+  const viewer = req.user as AppUser | undefined;
+  const isOwner = !!viewer && viewer.id === user.id;
+  const mydigPublic = user.mydig_public === null || user.mydig_public === 1;
+
+  const snap = queryGet(
+    `SELECT id, slug, name, is_public AS isPublic, created_at AS createdAt
+     FROM vinyl_wall_snapshots WHERE user_id = ? AND slug = ?`,
+    [user.id, slug]
+  );
+  if (!snap) return res.status(404).json({ error: '스냅샷을 찾을 수 없어요.' });
+  if (!isOwner && (!mydigPublic || snap.isPublic !== 1)) {
+    return res.status(404).json({ error: '스냅샷을 찾을 수 없어요.' });
+  }
+
+  const items = queryAll(
+    `SELECT i.position, a.id AS album_id, a.mbid, a.slug AS album_slug,
+            a.title, a.artist_name AS artist,
+            a.release_date AS releaseDate, a.release_year AS releaseYear,
+            a.cover_art_url AS coverArtUrl, a.cover_art_fallbacks AS coverArtFallbacks
+     FROM vinyl_wall_snapshot_items i
+     LEFT JOIN albums a ON a.id = i.album_id
+     WHERE i.snapshot_id = ?
+     ORDER BY i.position`,
+    [snap.id]
+  ) as Array<any>;
+
+  res.json({
+    snapshot: {
+      id: snap.id,
+      slug: snap.slug,
+      name: snap.name,
+      isPublic: snap.isPublic === 1,
+      createdAt: snap.createdAt,
+    },
+    user: {
+      username: user.username,
+      displayName: user.display_name,
+      avatarUrl: user.custom_avatar_url ?? user.avatar_url,
+      isOwner,
+    },
+    items: items.map((r) => ({
+      position: r.position,
+      // album may be null if it was deleted after the snapshot was taken
+      album: r.album_id
+        ? {
+            id: r.album_id,
+            mbid: r.mbid,
+            slug: r.album_slug,
+            title: r.title,
+            artist: r.artist,
+            releaseDate: r.releaseDate,
+            releaseYear: r.releaseYear,
+            coverArtUrl: r.coverArtUrl,
+            coverArtFallbacks: r.coverArtFallbacks ? JSON.parse(r.coverArtFallbacks) : [],
+          }
+        : null,
+    })),
+  });
+});
+
 export default router;
