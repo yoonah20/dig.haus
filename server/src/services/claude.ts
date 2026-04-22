@@ -139,11 +139,16 @@ export async function generateKoreanSummary(
       `매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술. ` +
       `출력 규칙: 요약 본문만 작성. 앨범 제목이나 아티스트명을 헤더로 넣지 말 것. ` +
       `마크다운(#, **, *, -) 사용하지 말고 순수 문장으로만.\n${reviewsText}`;
+    // Trial: drop default from SONNET to HAIKU to see if Haiku 4.5
+    // can hold Korean summary quality at ~3x lower cost. Sonnet is
+    // still reachable via LLM_PRIMARY_MODEL_SUMMARY_FALLBACK=claude-
+    // sonnet-4-5 if the output regresses; revert the constant below
+    // to SONNET if admin spot-check says Haiku's phrasing is worse.
     const result = await invokeLlm({
       operation: 'summary_fallback',
       prompt: promptText,
       maxTokens: 500,
-      defaultModel: SONNET,
+      defaultModel: HAIKU,
       albumTitle: `${artist} - ${albumTitle}`,
     });
     if (!result.text) return null;
