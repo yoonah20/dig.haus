@@ -194,14 +194,22 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
         // for the log line that describes this run.
         const serverWhitelisted = typeof data?.whitelistedCount === 'number' ? data.whitelistedCount : 0;
         priorityCount = Math.min(serverWhitelisted, candidates.length);
+        // alreadySavedCount surfaces the dedup drop the server was
+        // already computing. Without it admin couldn't tell whether a
+        // missing-but-trusted URL got rejected by Haiku or simply
+        // got filtered because it was already on file — the log line
+        // now calls the dedup case out explicitly.
+        const alreadySaved = typeof data?.alreadySavedCount === 'number' ? data.alreadySavedCount : 0;
+        const logParts: string[] = [];
+        if (priorityCount > 0) logParts.push(`화이트리스트 ${priorityCount}개`);
+        if (alreadySaved > 0) logParts.push(`이미 저장 ${alreadySaved}개 제외`);
+        const logSuffix = logParts.length > 0 ? ` (${logParts.join(', ')})` : '';
         appendLog(
           albumMbid,
           albumTitle,
           candidates.length === 0
             ? `URL 없음 — ${data?.message ?? '검색 결과 없음'}`
-            : priorityCount > 0
-              ? `URL ${candidates.length}개 발견 (화이트리스트 ${priorityCount}개) — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`
-              : `URL ${candidates.length}개 발견 — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`,
+            : `URL ${candidates.length}개 발견${logSuffix} — 성공 ${AUTO_CURATION_TARGET_SAVED}개 목표로 큐레이션`,
           candidates.length === 0 ? 'warn' : 'info'
         );
       } catch (err: any) {

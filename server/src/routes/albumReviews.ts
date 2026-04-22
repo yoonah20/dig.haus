@@ -115,6 +115,7 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
       );
       return res.json({
         urls: [],
+        alreadySavedCount: alreadySaved,
         message:
           alreadySaved > 0
             ? '새로 가져올 URL이 없어요. 이미 저장된 리뷰들입니다.'
@@ -163,7 +164,15 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
     // single admin-managed source_whitelist is the only list of
     // preferred hosts, matching the direction we took for the
     // blacklist.
-    res.json({ urls: reordered, whitelistedCount });
+    //
+    // alreadySavedCount tells the client how many Serper candidates
+    // were silently dropped at the dedup step — without it, admin
+    // couldn't tell the difference between "Haiku rejected these
+    // hosts" and "we already have these URLs on file." Surfacing
+    // the number in the response lets the curation log call it out
+    // ("이미 저장 N개 제외") so a returning admin doesn't wonder why
+    // an otherwise-trusted URL didn't reappear.
+    res.json({ urls: reordered, whitelistedCount, alreadySavedCount: alreadySaved });
   } catch (err) {
     console.error('[discover] failed:', err);
     res.status(500).json({ error: 'URL 검색에 실패했습니다.' });

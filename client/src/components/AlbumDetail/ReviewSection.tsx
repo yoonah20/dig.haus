@@ -912,8 +912,21 @@ export default function ReviewSection({
                             try {
                               const result = await discover.mutateAsync();
                               const found = result.urls ?? [];
+                              const alreadySaved = result.alreadySavedCount ?? 0;
+                              // Dedup note gets appended to any admin-
+                              // facing alert below so admin can tell
+                              // the server-side "already on file" filter
+                              // from a genuine "no usable candidates"
+                              // case. Without it, a run that finds 20
+                              // URLs but happens to have 20 of them
+                              // already saved would look identical to a
+                              // Haiku-rejected-everything run.
+                              const dedupNote =
+                                alreadySaved > 0
+                                  ? ` (이미 저장된 ${alreadySaved}개 제외)`
+                                  : '';
                               if (found.length === 0) {
-                                alert(result.message || '후보 URL을 찾지 못했어요.');
+                                alert((result.message || '후보 URL을 찾지 못했어요.') + dedupNote);
                                 return;
                               }
                               // Filter out URLs already registered as
@@ -925,7 +938,7 @@ export default function ReviewSection({
                               );
                               const fresh = found.filter((u) => !existing.has(u));
                               if (fresh.length === 0) {
-                                alert('찾은 후보가 모두 이미 등록된 리뷰예요.');
+                                alert('찾은 후보가 모두 이미 등록된 리뷰예요.' + dedupNote);
                                 return;
                               }
                               // Merge into the checklist — keep any

@@ -203,7 +203,12 @@ export function useDeleteAllReviews(id: string) {
 // the caller uses the URLs to populate the URL-batch textarea so
 // admin can review / edit / save through the existing add-url flow.
 export function useDiscoverReviewUrls(id: string) {
-  return useMutation<{ urls: string[]; message?: string }>({
+  return useMutation<{
+    urls: string[];
+    message?: string;
+    whitelistedCount?: number;
+    alreadySavedCount?: number;
+  }>({
     mutationFn: async () => {
       const { data } = await axios.post(
         `/api/albums/${encodeURIComponent(id)}/reviews/discover`
