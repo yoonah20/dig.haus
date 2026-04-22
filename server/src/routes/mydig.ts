@@ -250,8 +250,8 @@ router.put('/mydig/vinyl-wall/items', requireAuth, (req, res) => {
     if (!raw || typeof raw !== 'object') continue;
     const position = (raw as any).position;
     const albumId = (raw as any).albumId;
-    if (!Number.isInteger(position) || position < 0 || position >= 22) {
-      return res.status(400).json({ error: `position은 0-21 정수여야 해요 (${position})` });
+    if (!Number.isInteger(position) || position < 0 || position >= 15) {
+      return res.status(400).json({ error: `position은 0-14 정수여야 해요 (${position})` });
     }
     if (!Number.isInteger(albumId) || albumId <= 0) {
       return res.status(400).json({ error: 'albumId가 잘못되었어요.' });

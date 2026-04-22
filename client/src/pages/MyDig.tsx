@@ -5,6 +5,7 @@ import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
+import { resolveApiUrl } from '../utils/apiUrl';
 
 // Phase 3a skeleton — the four-layer placeholder scaffold described
 // in CLAUDE.md. No edit mode, no drag-drop, no flip-through yet —
@@ -18,9 +19,12 @@ import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 // sub-phases (3b-3d) layer item-level interactions on top of this
 // scaffold without touching the layout logic.
 
-// Vinyl Wall rows: 5-5-6-6 = 22 slots, equal cover sizes.
-const WALL_ROW_SIZES = [5, 5, 6, 6] as const;
-const WALL_TOTAL = WALL_ROW_SIZES.reduce((a, b) => a + b, 0); // 22
+// Vinyl Wall rows: 5-5-5 = 15 slots, equal cover sizes. Reverted
+// from the short-lived 5-5-6-6 experiment — the late-night pendant
+// scene reads cleaner with three symmetric rows framing the lamp
+// pool on all sides, and 22 slots squeezed covers narrower on
+// mobile than the shopfront aesthetic wanted.
+const WALL_ROW_SIZES = [5, 5, 5] as const;
 
 const SHELF_BIN_COUNT = 6;
 
@@ -64,14 +68,8 @@ export default function MyDig() {
     );
   }
 
-  const ownerBadge = data.user.isOwner ? (
-    <span className="text-[10px] font-bold uppercase tracking-wider bg-[#e8a020]/15 text-[#e8a020] px-2 py-0.5 rounded">
-      MY PAGE
-    </span>
-  ) : null;
-
   // Wall items come back sparse (position → item). Build a dense
-  // 22-element array with nulls for the empty-frame render.
+  // 15-element array with nulls for the empty-frame render.
   const wallByPosition = new Map<number, MyDigWallItem>();
   for (const it of data.vinylWall) wallByPosition.set(it.position, it);
 
@@ -81,50 +79,31 @@ export default function MyDig() {
   for (const s of data.shelf) shelfByPosition.set(s.position, s);
 
   return (
-    <div className="flex-1">
-      <main className="max-w-[1120px] mx-auto px-4 py-8 space-y-10">
-        {/* Header — display name (or username), owner badge. The
-            URL already carries /my/:username, so duplicating the
-            handle in the title ended up reading as "fpp @fpp" /
-            "Yoonah @yoonah" — redundant either way. Only show the
-            @handle when display name is set AND differs from the
-            username so the two pieces aren't saying the same thing. */}
-        <header className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl sm:text-3xl font-bold text-white font-serif">
-            {data.user.displayName || data.user.username}
-          </h1>
-          {data.user.displayName &&
-            data.user.displayName.toLowerCase() !==
-              data.user.username.toLowerCase() && (
-              <span className="text-gray-500 text-base sm:text-lg">
-                @{data.user.username}
-              </span>
-            )}
-          {ownerBadge}
-        </header>
+    <div className="flex-1" style={{ background: '#0a0503' }}>
+      <main className="max-w-[1120px] mx-auto px-4 py-8 space-y-6">
+        {/* Hybrid profile header: avatar block + display name block.
+            Sits OUTSIDE the shop scene below — lets visitors see who
+            they're visiting before the scene's late-night immersion
+            takes over. Kept to a single quiet row so the header
+            doesn't fight the lamp-pool drama. */}
+        <ProfileHeader
+          username={data.user.username}
+          displayName={data.user.displayName}
+          avatarUrl={data.user.avatarUrl}
+          isOwner={data.user.isOwner}
+          onEdit={() => setEditingWall(true)}
+        />
 
-        {/* Tier 1 — Vinyl Wall. 5-5-6-6, equal cover sizes, 5-rows
-            centered with empty space at the ends. */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm uppercase tracking-wider text-gray-500">
-              Vinyl Wall
-            </h2>
-            {data.user.isOwner && (
-              <button
-                type="button"
-                onClick={() => setEditingWall(true)}
-                className="text-xs text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-md px-2 py-0.5 cursor-pointer transition-colors"
-              >
-                ✏️ 편집
-              </button>
-            )}
-          </div>
+        {/* Tier 1 — Vinyl Wall inside a late-night shop scene. Dark
+            warm wall, pendant lamp pool upper-center-left, floor +
+            baseboard below. Records glow where the pool hits;
+            edges fade into warm shadow. */}
+        <ShopScene>
           <VinylWallGrid
             wallByPosition={wallByPosition}
             isOwner={data.user.isOwner}
           />
-        </section>
+        </ShopScene>
 
         {editingWall && username && (
           <VinylWallEditor
@@ -141,6 +120,272 @@ export default function MyDig() {
             showing. */}
       </main>
     </div>
+  );
+}
+
+// ─── Profile header ────────────────────────────────────────────
+// Avatar + name block that sits above the shop scene. Avatar is a
+// circle portrait; right column stacks the @username breadcrumb,
+// the italic-serif display name, and a warm amber "open" indicator
+// that matches the dig.haus accent colour elsewhere.
+function ProfileHeader({
+  username,
+  displayName,
+  avatarUrl,
+  isOwner,
+  onEdit,
+}: {
+  username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  isOwner: boolean;
+  onEdit: () => void;
+}) {
+  const initial = (displayName || username).charAt(0).toUpperCase();
+  const resolvedAvatar = resolveApiUrl(avatarUrl);
+  const name = displayName || username;
+  const showHandle =
+    !!displayName && displayName.toLowerCase() !== username.toLowerCase();
+  return (
+    <header className="flex items-center gap-4 pt-2 pb-4">
+      <div className="shrink-0">
+        {resolvedAvatar ? (
+          <img
+            src={resolvedAvatar}
+            alt=""
+            aria-hidden
+            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-white/10"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
+            <span className="text-2xl sm:text-3xl text-[#e8a020]/70 font-serif italic">
+              {initial}
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        {showHandle && (
+          <div className="text-[11px] text-gray-500 tracking-wider">
+            @{username}
+          </div>
+        )}
+        <h1
+          className="text-2xl sm:text-4xl font-serif italic text-[#f5e8c8] leading-tight truncate"
+          title={name}
+        >
+          {name}
+        </h1>
+        <div className="flex items-center gap-3 mt-1.5">
+          <span className="text-[11px] uppercase tracking-[0.2em] text-[#e8a020]">
+            · open ·
+          </span>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="text-[11px] text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            >
+              ✏️ 편집
+            </button>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+// ─── Shop scene ────────────────────────────────────────────────
+// Immersive dark-mode container that wraps whatever tier is
+// rendered as "the view" — right now just Vinyl Wall. Composition
+// (bottom-to-top layers):
+//   1. Near-black scene base (#0a0503)
+//   2. Wall panel with subtle vertical plank seams + grain noise
+//   3. The tier content (records on rails)
+//   4. Baseboard band + floor strip at the bottom
+//   5. Pendant lamp "darkening" overlay (multiply) — vignettes the
+//      corners toward near-black
+//   6. Pendant lamp "warmth" overlay (screen) — paints the tungsten
+//      pool over the upper-center-left, brightening what's under it
+//   7. A few dust motes inside the pool for atmosphere
+// The two lamp overlays together produce the "lighting provides
+// depth" behaviour the brief asked for: records at edges fade,
+// records under the pool glow. No per-slot lighting logic needed
+// at the WallLP level.
+function ShopScene({ children }: { children: React.ReactNode }) {
+  return (
+    <section
+      style={{
+        position: 'relative',
+        borderRadius: 10,
+        overflow: 'hidden',
+        background: '#0a0503',
+        minHeight: 420,
+      }}
+    >
+      {/* 1. Wall backdrop — matte dark warm paint on wood paneling,
+          subtle radial warmth centred under the lamp so the wall
+          reads lighter where the pool lands and nearly-black in
+          the corners. */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          bottom: '16%',
+          background: `
+            radial-gradient(ellipse 75% 60% at 38% 35%, #3a2818 0%, #241a0f 55%, #130c06 100%)
+          `,
+        }}
+      />
+
+      {/* 2. Vertical plank seams — 6 seams across the wall, thin
+          dark lines with a faint cream highlight on one side
+          (where the lamp catches the bevel). */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          bottom: '16%',
+          pointerEvents: 'none',
+          opacity: 0.6,
+        }}
+      >
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: `${((i + 1) * 100) / 7}%`,
+              top: 0,
+              bottom: 0,
+              width: 1,
+              background:
+                'linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.25))',
+              boxShadow: '1px 0 0 rgba(255, 220, 160, 0.04)',
+            }}
+          />
+        ))}
+      </div>
+
+      {/* 3. Tier content — records on rails. Rendered BEFORE the
+          lamp overlays so the lighting layer stacks on top of the
+          covers and attenuates the edges / lifts the centre. */}
+      <div style={{ position: 'relative', zIndex: 1, padding: '32px 16px 0' }}>
+        {children}
+      </div>
+
+      {/* 4. Baseboard — thin almost-black band where wall meets
+          floor; top edge catches a sliver of lamp light. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: '16%',
+          height: 5,
+          background: '#050301',
+          boxShadow: 'inset 0 1px 0 rgba(232, 160, 32, 0.18)',
+          zIndex: 2,
+        }}
+      />
+
+      {/* 5. Floor — dark stained walnut with horizontal plank seams
+          and a warm spill where the lamp falls. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: '16%',
+          background: `
+            radial-gradient(ellipse 55% 140% at 38% 0%, rgba(90, 55, 22, 0.5) 0%, transparent 60%),
+            linear-gradient(180deg, #1a0f08, #0a0503)
+          `,
+          zIndex: 2,
+        }}
+      >
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: `${(i + 1) * 25}%`,
+              height: 1,
+              background:
+                'linear-gradient(90deg, transparent, rgba(0,0,0,0.55), transparent)',
+            }}
+          />
+        ))}
+      </div>
+
+      {/* 6. Lamp pool — DARKENING layer. Multiply blend so dim
+          areas (edges) push the scene toward near-black while the
+          bright centre (nearly white in the gradient) passes the
+          underlying colour through unchanged. */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          background:
+            'radial-gradient(ellipse 70% 55% at 38% 32%, rgba(255,255,255,0.98) 0%, rgba(60,40,20,0.85) 45%, rgba(10,5,3,1) 90%)',
+          mixBlendMode: 'multiply',
+          zIndex: 5,
+        }}
+      />
+
+      {/* 7. Lamp pool — WARMTH layer. Screen blend with a warm
+          tungsten colour so what's inside the pool gets lifted
+          toward cream/amber while outside gets no additive effect. */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          background:
+            'radial-gradient(ellipse 55% 45% at 38% 30%, rgba(255, 208, 138, 0.32) 0%, rgba(255, 196, 110, 0.12) 40%, transparent 75%)',
+          mixBlendMode: 'screen',
+          zIndex: 6,
+        }}
+      />
+
+      {/* 8. Dust motes — a handful of tiny specks scattered across
+          the lit area, each a pinprick of warm light. Absolute
+          pixel positions work here because the scene width is
+          bounded by the surrounding layout (max-w-[1120px]). */}
+      <svg
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          zIndex: 7,
+          opacity: 0.6,
+        }}
+      >
+        {[
+          { x: 180, y: 80, r: 0.8 },
+          { x: 260, y: 140, r: 0.5 },
+          { x: 340, y: 110, r: 0.6 },
+          { x: 420, y: 170, r: 0.5 },
+          { x: 200, y: 220, r: 0.7 },
+          { x: 370, y: 240, r: 0.5 },
+        ].map((d, i) => (
+          <circle
+            key={i}
+            cx={d.x}
+            cy={d.y}
+            r={d.r}
+            fill="#ffd08a"
+            opacity="0.7"
+          />
+        ))}
+      </svg>
+    </section>
   );
 }
 

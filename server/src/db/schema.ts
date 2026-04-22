@@ -983,6 +983,21 @@ export function initializeDatabase(db: Database.Database): void {
     );
   });
 
+  // Vinyl Wall sized down from 22 to 15 slots (5/5/5) after the
+  // late-night pendant scene redesign. Any rows left at positions
+  // 15-21 from the brief 5-5-6-6 experiment are dropped so fresh
+  // /my/:username visits don't render ghost LPs outside the new
+  // grid. No-op in normal case (feature just launched, hardly any
+  // real users yet).
+  runOnce(db, 'vinyl-wall-trim-to-15-2026-04-22', () => {
+    const info = db
+      .prepare('DELETE FROM vinyl_wall_items WHERE position >= 15')
+      .run();
+    if ((info.changes as number) > 0) {
+      console.log(`[migration] pruned ${info.changes} vinyl_wall_items with position >= 15`);
+    }
+  });
+
   // Rewrite legacy email-shaped usernames. Phase 1 stored the full
   // email as users.username because the NOT NULL column existed from
   // day one and OAuth didn't yet need a URL-safe slug. Phase 3 mydig
@@ -1136,7 +1151,7 @@ export function initializeDatabase(db: Database.Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL CHECK (position >= 0 AND position < 22),
+      position INTEGER NOT NULL CHECK (position >= 0 AND position < 15),
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(user_id, position)
     )
