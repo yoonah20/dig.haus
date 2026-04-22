@@ -86,24 +86,56 @@ export default function App() {
               style={{ isolation: 'isolate' }}
             >
               {isMydig && (
-                <div
-                  aria-hidden
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    // zIndex:-1 puts the backdrop behind the in-flow
-                    // content (nav + route + footer) without blocking
-                    // any of them. Filter is applied here so the
-                    // image's cream/beige tone is pulled into the
-                    // dark walnut range; filter stays scoped to this
-                    // div and doesn't cascade to page content.
-                    zIndex: -1,
-                    backgroundImage: "url('/backdrops/wall2.webp')",
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    backgroundRepeat: 'no-repeat',
-                    filter: 'brightness(0.45) saturate(0.85)',
-                  }}
-                />
+                <>
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      // zIndex:-1 puts the backdrop behind the
+                      // in-flow content (nav + route + footer) without
+                      // blocking any of them. Filter is applied here
+                      // so the image's cream/beige tone is pulled
+                      // into the dark walnut range; filter stays
+                      // scoped to this div and doesn't cascade to
+                      // page content.
+                      zIndex: -1,
+                      backgroundImage: "url('/backdrops/wall2.webp')",
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                      filter: 'brightness(0.45) saturate(0.85)',
+                    }}
+                  />
+                  {/* Warm lamp pool — a soft radial from upper-left
+                      biased over the darkened backdrop, blended via
+                      `screen` so it only lightens (never darkens)
+                      whatever's beneath. Gives the scene a "pendant
+                      lamp is on" focal point; previously the page
+                      read as uniformly dim ("밋밋"). Kept at low
+                      alpha so it doesn't wash out the wall texture. */}
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      zIndex: -1,
+                      background:
+                        'radial-gradient(ellipse 70% 60% at 25% 15%, rgba(255, 200, 130, 0.28) 0%, rgba(255, 180, 110, 0.10) 40%, transparent 70%)',
+                      mixBlendMode: 'screen',
+                    }}
+                  />
+                  {/* Bottom-right ambient lift so the opposite corner
+                      from the lamp doesn't sink into pure black. */}
+                  <div
+                    aria-hidden
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      zIndex: -1,
+                      background:
+                        'radial-gradient(ellipse 50% 40% at 80% 85%, rgba(232, 160, 80, 0.14) 0%, transparent 65%)',
+                      mixBlendMode: 'screen',
+                    }}
+                  />
+                </>
               )}
               <TopNav />
               <Suspense fallback={<RouteFallback />}>

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   useDeleteVinylWallSnapshot,
@@ -11,6 +12,16 @@ import { formatRelativeKo } from '../../utils/relativeTime';
 // with inline controls to toggle public/private and delete. Each
 // card links to /my/:username/snap/:slug for the read-only detail
 // view.
+//
+// Layout: always a single row, horizontally scrollable. When
+// there are enough snapshots that some sit off-screen we mount
+// left/right arrow buttons that scroll the strip by one
+// viewport-worth at a time. Threshold is measured from actual
+// overflow, not count, so the arrows appear as soon as anything
+// is clipped regardless of viewport width.
+//
+// ARROW_THRESHOLD: roughly 4–5 cards at 180px + gaps on desktop.
+// The arrows stay hidden under that since everything fits.
 export default function SnapshotList({
   username,
   snapshots,
@@ -20,34 +31,116 @@ export default function SnapshotList({
   snapshots: VinylWallSnapshotSummary[];
   isOwner: boolean;
 }) {
-  if (snapshots.length === 0) {
-    // Hide entirely when there's nothing to show — avoids a dead
-    // "아직 스냅샷이 없어요" row on first visits. The save button
-    // lives in the header, so owner discovery doesn't depend on
-    // this strip.
-    return null;
-  }
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  // Recompute arrow enablement on mount, scroll, and resize. The
+  // "can scroll further" flags drive opacity on the arrow buttons
+  // so hitting an edge feels closed-off rather than silently dead.
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const measure = () => {
+      const max = el.scrollWidth - el.clientWidth;
+      setCanLeft(el.scrollLeft > 4);
+      setCanRight(el.scrollLeft < max - 4);
+    };
+    measure();
+    el.addEventListener('scroll', measure, { passive: true });
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener('scroll', measure);
+      ro.disconnect();
+    };
+  }, [snapshots.length]);
+
+  if (snapshots.length === 0) return null;
+
+  const scrollByAmount = (direction: 1 | -1) => {
+    const el = trackRef.current;
+    if (!el) return;
+    // Scroll by ~80% of visible width so consecutive clicks always
+    // land on fresh cards instead of re-showing the same edge pair.
+    el.scrollBy({ left: direction * el.clientWidth * 0.8, behavior: 'smooth' });
+  };
+
+  const showArrows = snapshots.length > 4;
+
   return (
-    <section className="mt-2">
-      <div className="flex items-center gap-3 mb-3">
-        <h2 className="text-[11px] uppercase tracking-[0.22em] text-gray-500">
-          Snapshots
-        </h2>
-        <span className="text-[11px] text-gray-600 tabular-nums">
-          {snapshots.length}
-        </span>
-      </div>
-      <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
-        {snapshots.map((s) => (
-          <SnapshotCard
-            key={s.id}
-            username={username}
-            snapshot={s}
-            isOwner={isOwner}
+    <section className="relative">
+      {/* Strip header compressed — just a muted count on the right
+          of the first card to save vertical space. The "Snapshots"
+          label fell out because the cards themselves obviously are
+          snapshots and the extra line was pushing records down. */}
+      <div className="relative flex items-center gap-2">
+        {showArrows && (
+          <NavArrow
+            direction="left"
+            enabled={canLeft}
+            onClick={() => scrollByAmount(-1)}
           />
-        ))}
+        )}
+        <div
+          ref={trackRef}
+          className="flex gap-3 overflow-x-auto scroll-smooth pb-1 flex-1"
+          // Hide the native scrollbar so the arrow buttons are
+          // the primary navigation signal. On trackpads the strip
+          // still scrolls by swipe.
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {snapshots.map((s) => (
+            <SnapshotCard
+              key={s.id}
+              username={username}
+              snapshot={s}
+              isOwner={isOwner}
+            />
+          ))}
+        </div>
+        {showArrows && (
+          <NavArrow
+            direction="right"
+            enabled={canRight}
+            onClick={() => scrollByAmount(1)}
+          />
+        )}
       </div>
     </section>
+  );
+}
+
+// Horizontal triangle arrow button ("눕힌 삼각형"). Sits flush to
+// the left/right edges of the snapshot strip. Fades to disabled
+// look when the strip can't scroll any further in that direction.
+function NavArrow({
+  direction,
+  enabled,
+  onClick,
+}: {
+  direction: 'left' | 'right';
+  enabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!enabled}
+      aria-label={direction === 'left' ? '이전 스냅샷' : '다음 스냅샷'}
+      className={`shrink-0 w-6 h-10 flex items-center justify-center text-[#e8a020] transition-opacity cursor-pointer disabled:cursor-not-allowed ${
+        enabled ? 'opacity-80 hover:opacity-100' : 'opacity-25'
+      }`}
+    >
+      <svg viewBox="0 0 10 14" className="w-3 h-5" fill="currentColor">
+        {direction === 'left' ? (
+          <path d="M9 0 L1 7 L9 14 Z" />
+        ) : (
+          <path d="M1 0 L9 7 L1 14 Z" />
+        )}
+      </svg>
+    </button>
   );
 }
 

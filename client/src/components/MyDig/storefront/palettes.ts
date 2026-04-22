@@ -34,14 +34,17 @@ export const ROOM = {
   baseboard: '#1a120a',
   baseboardHi: '#5a3f2a',
 
-  // wood (rails, console, crates) — warm mid-tone wood, lighter than
-  // floor so furniture pops against it
-  woodTop: '#8a5e36',
-  woodFace: '#7a5230',
-  woodBot: '#5a3a22',
-  woodGrain: 'rgba(30, 15, 5, 0.5)',
-  woodHi: 'rgba(255, 218, 175, 0.45)',
-  woodScuff: 'rgba(255, 220, 180, 0.35)',
+  // wood (rails, console, crates) — dark walnut. Earlier warm
+  // mid-tone read as too pale against the painted wall backdrop,
+  // so the rails floated instead of anchoring the records. These
+  // values sit clearly below the backdrop's beige range and match
+  // the "studio shelf" feel the mydig page aims at.
+  woodTop: '#3a2414',
+  woodFace: '#2a1a0c',
+  woodBot: '#1a0e05',
+  woodGrain: 'rgba(10, 5, 2, 0.55)',
+  woodHi: 'rgba(255, 210, 160, 0.22)',
+  woodScuff: 'rgba(255, 210, 170, 0.18)',
 
   // crate interior — dark void inside wooden record crates; keeps
   // the LP top edges that sit inside from fading into the wood

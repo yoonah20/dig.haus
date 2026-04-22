@@ -96,7 +96,7 @@ function SnapshotHeader({
   const resolvedAvatar = resolveApiUrl(avatarUrl);
   const name = displayName || username;
   return (
-    <header className="flex items-center gap-4 pt-2 pb-4">
+    <header className="flex items-center gap-4 pt-2 pb-4" style={{ color: '#f5d89a' }}>
       <div className="shrink-0">
         {resolvedAvatar ? (
           <img
@@ -190,14 +190,14 @@ function SnapshotWallGrid({
   const mobile = width < 520;
   const cols = mobile ? 3 : 5;
   const rowCount = 15 / cols;
-  const maxLpSize = mobile ? 108 : 168;
+  const maxLpSize = mobile ? 128 : 168;
   const gapX = mobile ? 10 : 16;
   const rowGap = mobile ? 24 : 32;
-  const overhang = mobile ? 18 : 36;
+  const overhang = mobile ? 14 : 36;
   const fit = (width - 2 * overhang - (cols - 1) * gapX) / cols;
   const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
   const railWidth = Math.round(width);
-  const railHeight = mobile ? 12 : 20;
+  const railHeight = mobile ? 16 : 20;
 
   const rows = Array.from({ length: rowCount }, (_, ri) => ({
     positions: Array.from({ length: cols }, (_, ci) => ri * cols + ci),

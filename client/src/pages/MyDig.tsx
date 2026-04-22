@@ -81,7 +81,7 @@ export default function MyDig() {
     // brightness/saturate filter) shows through behind the page
     // content. See App.tsx for the backdrop layer.
     <div className="flex-1">
-      <main className="max-w-[1120px] mx-auto px-4 pt-4 pb-8 space-y-3">
+      <main className="max-w-[1120px] mx-auto px-4 pt-4 pb-8 space-y-1">
         <ProfileHeader
           username={data.user.username}
           displayName={data.user.displayName}
@@ -177,16 +177,7 @@ function ProfileHeader({
   const displayThemeText = wallTheme || 'my dig';
   const themePlaceholder = !wallTheme;
   return (
-    <header
-      className="flex items-start gap-4 pt-2 pb-6"
-      // Dark halo on every text descendant — the painted wall
-      // backdrop varies from cream to deeper beige across the
-      // viewport, and the header's cream / amber / gray text
-      // washes out against the lighter patches. A subtle shadow
-      // keeps glyph edges legible over any wall region without
-      // having to darken the backdrop itself.
-      style={{ textShadow: '0 1px 3px rgba(0, 0, 0, 0.85)' }}
-    >
+    <header className="flex items-start gap-4 pt-2 pb-6">
       <div className="shrink-0">
         {resolvedAvatar ? (
           <img
@@ -210,7 +201,7 @@ function ProfileHeader({
         <div className="flex items-baseline gap-2 flex-wrap">
           <h1
             className={`text-2xl sm:text-3xl font-serif italic leading-tight truncate ${
-              themePlaceholder ? 'text-[#7a6650]' : 'text-[#f5e8c8]'
+              themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
             }`}
             title={displayThemeText}
           >
@@ -220,7 +211,7 @@ function ProfileHeader({
             <button
               type="button"
               onClick={onEditTheme}
-              className="text-[11px] text-gray-500 hover:text-[#e8a020] cursor-pointer transition-colors"
+              className="text-[11px] text-gray-400 hover:text-[#e8a020] cursor-pointer transition-colors"
               title="벽 제목 수정"
             >
               ✏️
@@ -228,15 +219,17 @@ function ProfileHeader({
           )}
         </div>
 
-        {/* Secondary: @username + optional displayName. Readable
-            size (text-sm) — no longer the mouse-hunt 11px tracking
-            that made the earlier header feel lopsided. */}
-        <div className="mt-1.5 text-sm text-gray-400 truncate">
-          <span className="text-[#a88a60]">@{username}</span>
-          {displayName &&
-            displayName.toLowerCase() !== username.toLowerCase() && (
-              <span className="text-gray-500"> · {displayName}</span>
-            )}
+        {/* Secondary: @username · {displayName}의 mydig (or just
+            "@username의 mydig" when no distinct display name).
+            Warmer amber tones than the earlier gray — reads clearly
+            on the painted beige wall without a text-shadow halo. */}
+        <div className="mt-1.5 text-sm truncate">
+          <span className="text-[#e8a020]">@{username}</span>
+          <span className="text-[#c9a060]">
+            {displayName && displayName.toLowerCase() !== username.toLowerCase()
+              ? ` · ${displayName}의 mydig`
+              : '의 mydig'}
+          </span>
         </div>
 
         {/* Meta row: status + owner actions + share */}
@@ -376,10 +369,10 @@ function WallSection({ children }: { children: React.ReactNode }) {
     <section
       style={{
         position: 'relative',
-        // Top padding tightened so the LP rows + rails sit higher
-        // against the painted wall — previously 28px made them
-        // float in the middle of the viewport.
-        padding: '4px 12px 40px',
+        // Bottom padding also trimmed (was 40px) so the snapshot
+        // strip beneath sits closer to the wall without a big
+        // dead zone between.
+        padding: '4px 12px 12px',
       }}
     >
       <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
@@ -415,14 +408,14 @@ function VinylWallGrid({
   const mobile = width < 520;
   const cols = mobile ? 3 : 5;
   const rowCount = 15 / cols;
-  const maxLpSize = mobile ? 108 : 168;
+  const maxLpSize = mobile ? 128 : 168;
   const gapX = mobile ? 10 : 16;
   const rowGap = mobile ? 24 : 32;
-  const overhang = mobile ? 18 : 36;
+  const overhang = mobile ? 14 : 36;
   const fit = (width - 2 * overhang - (cols - 1) * gapX) / cols;
   const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
   const railWidth = Math.round(width);
-  const railHeight = mobile ? 12 : 20;
+  const railHeight = mobile ? 16 : 20;
 
   const rows = Array.from({ length: rowCount }, (_, ri) => ({
     positions: Array.from({ length: cols }, (_, ci) => ri * cols + ci),

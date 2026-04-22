@@ -117,11 +117,13 @@ export default function TopNav() {
                 (Home.tsx's SortTrigger). Keeping the nav cluster
                 down to "find / my store / login" — everything about
                 how the feed is arranged belongs to the feed itself. */}
-            {/* 내 가게 entry. Storefront icon (awning + shop body)
-                instead of a house — the house glyph read as "go home"
-                and collided with the logo's behaviour. First click
-                with no username set opens the UsernameModal; on save
-                the modal navigates. Later clicks go straight to
+            {/* mydig entry. A shovel — 'dig' made literal, and it
+                echoes the site's crate-digger lexicon ("keep digging"
+                tagline, the 'mydig' namespace). Earlier iterations
+                used a shopfront (when the page was a store), then a
+                vinyl record; the shovel reads more uniquely and
+                dodges both collisions. First click with no username
+                opens the UsernameModal; later clicks go to
                 /my/:username. Hidden for guests. */}
             {user && (
               <button
@@ -133,22 +135,25 @@ export default function TopNav() {
                   }
                 }}
                 className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
-                title="내 가게"
-                aria-label="내 가게"
+                title="mydig으로"
+                aria-label="mydig으로"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   className="w-[18px] h-[18px]"
                   fill="none"
                   viewBox="0 0 24 24"
-                  strokeWidth={1.8}
+                  strokeWidth={1.6}
                   stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
-                  />
+                  {/* T-handle */}
+                  <path d="M9 3 H15" />
+                  {/* Shaft */}
+                  <path d="M12 3 V13" />
+                  {/* Spade blade — triangular, pointed down */}
+                  <path d="M7 13 H17 L12 21 Z" />
                 </svg>
               </button>
             )}
