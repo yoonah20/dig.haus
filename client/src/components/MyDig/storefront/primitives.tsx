@@ -16,43 +16,83 @@ import { ROOM, FONT_HAND } from './palettes';
 // A plain wooden strip running horizontally across a row of LPs.
 // Records lean on its top surface against the wall; a small front
 // lip keeps them from sliding off.
+//
+// Polished pass borrowed from ShelfUnit's woodwork: richer gradient
+// with an explicit lamp highlight concentrated on the upper-left
+// quarter, deterministic knot/scuff marks seeded by row, a softer
+// multi-stop underhang shadow so the rail looks like it's casting
+// onto the wall behind rather than sitting on top of a drawn line.
+// Each row passes a `seed` so successive rails don't share the
+// exact same knot position and start to look like a pattern.
 export function WallRail({
   width,
+  seed = 0,
   style = {},
 }: {
   width: number;
+  seed?: number;
   style?: React.CSSProperties;
 }) {
   const h = 14;
+  const canvasH = h + 8;
+  // Deterministic knot placements — one or two per rail depending on
+  // width. Seed is XOR'd with width so two rails of the same length
+  // but different rows pick different x positions.
+  const knotCount = width > 520 ? 2 : 1;
+  const knots = Array.from({ length: knotCount }).map((_, i) => {
+    const hash = Math.abs(((seed ^ (width + i * 73)) * 2654435761) >>> 0);
+    const x = 40 + (hash % Math.max(1, width - 80));
+    const r = 1.4 + ((hash >> 8) % 10) / 10;
+    return { x, r };
+  });
+  // Scuff — thin light scratch on the face, off-center so it doesn't
+  // fight the knot visually.
+  const scuffSeed = Math.abs(((seed + 991) * 2654435761) >>> 0);
+  const scuffX = 30 + (scuffSeed % Math.max(1, width - 60));
+  const scuffLen = 8 + (scuffSeed % 8);
   return (
     <svg
       width={width}
-      height={h + 6}
-      viewBox={`0 0 ${width} ${h + 6}`}
+      height={canvasH}
+      viewBox={`0 0 ${width} ${canvasH}`}
       style={{ display: 'block', ...style }}
       preserveAspectRatio="none"
     >
       <defs>
-        <linearGradient id="railFace" x1="0" x2="0" y1="0" y2="1">
+        <linearGradient id={`railFace-${seed}`} x1="0" x2="0" y1="0" y2="1">
           <stop offset="0" stopColor={ROOM.woodTop} />
           <stop offset="0.5" stopColor={ROOM.woodFace} />
           <stop offset="1" stopColor={ROOM.woodBot} />
+        </linearGradient>
+        <linearGradient id={`railLamp-${seed}`} x1="0" x2="1" y1="0" y2="0">
+          <stop offset="0" stopColor={ROOM.woodHi as string} stopOpacity="0.55" />
+          <stop offset="0.35" stopColor={ROOM.woodHi as string} stopOpacity="0.2" />
+          <stop offset="0.7" stopColor={ROOM.woodHi as string} stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id={`railUnder-${seed}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="rgba(0,0,0,0.35)" />
+          <stop offset="1" stopColor="rgba(0,0,0,0)" />
         </linearGradient>
       </defs>
       {/* tiny shadow cast upward onto the wall where records rest */}
       <rect x="0" y="0" width={width} height="1.5" fill="rgba(40,20,8,0.45)" />
       {/* top surface — lightest, catches the upper-left lamp */}
       <rect x="0" y="1.5" width={width} height="3.5" fill={ROOM.woodTop} />
-      <rect x="0" y="1.5" width={width * 0.6} height="0.5" fill={ROOM.woodHi} opacity="0.55" />
+      {/* lamp wash on top edge, biased upper-left */}
+      <rect x="0" y="1.5" width={width} height="1" fill={`url(#railLamp-${seed})`} />
       {/* face — darker, grain */}
-      <rect x="0" y="5" width={width} height="7" fill="url(#railFace)" />
+      <rect x="0" y="5" width={width} height="7" fill={`url(#railFace-${seed})`} />
+      {/* subtle lamp wash on the face too, weaker */}
+      <rect x="0" y="5" width={width * 0.45} height="7" fill={ROOM.woodHi as string} opacity="0.1" />
       {/* front lip */}
       <rect x="0" y="5" width={width} height="1.4" fill={ROOM.woodTop} opacity="0.9" />
-      {/* undercut shadow */}
-      <rect x="0" y="12" width={width} height="2" fill={ROOM.floorLo} opacity="0.9" />
-      {/* floor-cast shadow below rail */}
-      <rect x="2" y="14" width={width - 4} height="4" fill="rgba(0,0,0,0.25)" filter="blur(2px)" />
-      {/* grain streaks */}
+      {/* undercut shadow — soft gradient instead of flat rect */}
+      <rect x="0" y="12" width={width} height="5" fill={`url(#railUnder-${seed})`} />
+      {/* floor-cast shadow below rail (kept, with wider blur for softness) */}
+      <rect x="4" y={h} width={width - 8} height="4" fill="rgba(0,0,0,0.25)" filter="blur(3px)" />
+      {/* grain streaks — varied opacity per stripe, mirroring the
+          shelf carcass streaks so the two pieces of wood read as the
+          same material. */}
       {Array.from({ length: Math.floor(width / 28) }).map((_, i) => (
         <line
           key={i}
@@ -62,9 +102,40 @@ export function WallRail({
           y2="11.5"
           stroke={ROOM.woodGrain}
           strokeWidth="0.4"
-          opacity="0.5"
+          opacity={0.35 + ((i + seed) % 4) * 0.12}
         />
       ))}
+      {/* knot(s) — darker circle on the face, very small */}
+      {knots.map((k, i) => (
+        <g key={i}>
+          <ellipse
+            cx={k.x}
+            cy={8.5}
+            rx={k.r}
+            ry={k.r * 0.75}
+            fill={ROOM.woodGrain as string}
+            opacity="0.7"
+          />
+          <ellipse
+            cx={k.x - 0.3}
+            cy={8.2}
+            rx={k.r * 0.5}
+            ry={k.r * 0.35}
+            fill={ROOM.woodBot}
+            opacity="0.8"
+          />
+        </g>
+      ))}
+      {/* scuff — thin light diagonal on the face, barely visible. */}
+      <line
+        x1={scuffX}
+        y1={9.5}
+        x2={scuffX + scuffLen}
+        y2={7.5}
+        stroke={ROOM.woodScuff as string}
+        strokeWidth="0.4"
+        opacity="0.55"
+      />
     </svg>
   );
 }
@@ -73,16 +144,25 @@ export function WallRail({
 // A naked 12" record sleeve (square), leaning back 5° against the
 // wall. No frame, no border. Just sleeve + a small gap-shadow
 // between its bottom and the rail.
+//
+// `lampBias` (0-1) scales the upper-left highlight and pushes the
+// drop-shadow further down-right so LPs closer to the lamp source
+// (top-left of the wall grid) read with stronger directional light.
+// Default 1 = full lamp (matches the original bright look). Wall
+// function passes a value that decreases from 1 at slot (0,0) to
+// near 0 at the bottom-right slot.
 export function WallLP({
   size,
   seed,
   coverSeed,
   empty = false,
+  lampBias = 1,
 }: {
   size: number;
   seed: number;
   coverSeed?: number;
   empty?: boolean;
+  lampBias?: number;
 }) {
   if (empty) {
     // Empty slot = just blank wall. No placeholder, no ghost, no
@@ -90,19 +170,42 @@ export function WallLP({
     return <div style={{ width: size, height: size }} />;
   }
   const leanDeg = 5;
+  const bias = Math.max(0, Math.min(1, lampBias));
+  // Gap shadow offsets — pushed further from the sleeve when the
+  // LP is near the lamp so the shadow falls "longer" in that
+  // direction. Tiny absolute values keep the effect subtle.
+  const shadowOffsetX = 2 + bias * 3;
+  const shadowOffsetY = 4 + bias * 3;
+  const shadowAlpha = 0.35 + bias * 0.2;
+  // Lamp highlight intensity on the sleeve's upper-left corner.
+  const highlightAlpha = 0.05 + bias * 0.15;
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
-      {/* gap shadow — sleeve is ~3mm thick leaning; shadow falls
-          lower-right to match upper-left lamp. */}
+      {/* gap shadow — blurred, and positioned via two layered rects
+          so the drop has both a tight core (for the sleeve's bottom
+          edge contact) and a wider spill (the directional lamp
+          shadow onto the wall/rail). */}
       <div
         style={{
           position: 'absolute',
-          left: 3,
-          top: 5,
+          left: shadowOffsetX,
+          top: shadowOffsetY,
           width: size,
           height: size,
-          background: 'rgba(30, 15, 5, 0.45)',
-          filter: 'blur(3px)',
+          background: `rgba(20, 10, 3, ${shadowAlpha})`,
+          filter: 'blur(5px)',
+          borderRadius: 1,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          left: 1,
+          top: 3,
+          width: size,
+          height: size,
+          background: 'rgba(15, 8, 3, 0.35)',
+          filter: 'blur(2px)',
           borderRadius: 1,
         }}
       />
@@ -119,6 +222,19 @@ export function WallLP({
         }}
       >
         <FakeCover size={size} seed={coverSeed ?? seed} />
+        {/* upper-left lamp highlight on the sleeve — a soft radial
+            wash biased toward (0, 0) so LPs near the lamp source
+            pick up extra warmth. Multiplied by lampBias so the
+            effect fades across the grid. */}
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: `radial-gradient(circle at 15% 15%, rgba(255,220,160,${highlightAlpha}) 0%, transparent 55%)`,
+            pointerEvents: 'none',
+            mixBlendMode: 'screen',
+          }}
+        />
         {/* implied spine shadow on right edge */}
         <div
           style={{

@@ -3,17 +3,30 @@ import { CoverDefs } from './FakeCover';
 import { ShelfUnit, WallLP, WallRail, type CubbySpec } from './primitives';
 import { ROOM, FONT_HEAD, FONT_LABEL } from './palettes';
 
-// Wall fill pattern — 12 of 15 slots populated, empties scattered
-// across different columns per row so there's no visible gap pattern.
+// Wall fill pattern — 22 slots arranged as 5/5/6/6 per the Phase 3
+// spec (CLAUDE.md). 5-slot rows are centered against the 6-slot
+// width below them; all LPs share the same pixel size so the
+// alignment reads as "wider rows have two extra sleeves" rather
+// than "wider rows are scaled up." A few empties scattered around
+// so the preview doesn't read as suspiciously uniform.
 const WALL_PATTERN: readonly (readonly boolean[])[] = [
   [true, true, false, true, true],
   [true, true, true, false, true],
-  [false, true, true, true, true],
+  [false, true, true, true, true, true],
+  [true, true, false, true, true, true],
 ];
 
 // Deterministic per-slot seeds — stable across reloads so the same
-// slot always shows the same fake sleeve.
-const WALL_SEEDS = [11, 42, 0, 67, 29, 88, 5, 56, 0, 73, 0, 94, 18, 37, 61];
+// slot always shows the same fake sleeve. One entry per cell in the
+// 5+5+6+6 = 22 grid, flattened row-by-row; zeros mark the empty
+// slots from WALL_PATTERN (kept in the array so index arithmetic
+// stays trivial).
+const WALL_SEEDS = [
+  11, 42, 0, 67, 29,
+  88, 5, 56, 0, 73,
+  0, 94, 18, 37, 61, 22,
+  8, 45, 0, 31, 76, 53,
+];
 
 // Shelf cubby contents — covers the range we want the design to
 // demonstrate (empty / single / sparse / packed / dense) plus one
@@ -299,7 +312,13 @@ function Header({
   );
 }
 
-// ─── Wall tier (5 × 3 bare LPs on wooden rails) ──────────────
+// ─── Wall tier — 5/5/6/6 bare LPs on wooden rails ─────────────
+// Four rows with counts 5, 5, 6, 6 (22 slots total). All LPs share
+// `lpSize`; shorter rows get centered against the widest row's
+// width so the column alignment reads intentional. Each row has its
+// own rail sized to that row (plus a small overhang) — a single
+// wall-wide rail would leave awkward stub ends protruding past the
+// shorter rows.
 function Wall({
   width,
   lpSize,
@@ -311,48 +330,66 @@ function Wall({
   gapX: number;
   rowSpacing: number;
 }) {
-  const cols = 5;
-  const rowW = cols * lpSize + (cols - 1) * gapX;
-  const rowLeft = (width - rowW) / 2;
+  // Widest row dictates the centering reference — any other row
+  // narrower than that gets centered horizontally under it.
+  const maxCols = WALL_PATTERN.reduce((m, r) => Math.max(m, r.length), 0);
+  const slotsBefore = WALL_PATTERN.reduce<number[]>((acc, _r, i) => {
+    acc.push(i === 0 ? 0 : acc[i - 1] + WALL_PATTERN[i - 1].length);
+    return acc;
+  }, []);
 
   return (
     <div style={{ position: 'relative', width, paddingTop: 12 }}>
-      {WALL_PATTERN.map((row, ri) => (
-        <div key={ri} style={{ position: 'relative', marginBottom: rowSpacing }}>
-          <div
-            style={{
-              display: 'flex',
-              gap: gapX,
-              paddingLeft: rowLeft,
-              paddingRight: rowLeft,
-              alignItems: 'flex-end',
-            }}
-          >
-            {row.map((filled, ci) => {
-              const idx = ri * cols + ci;
-              return (
-                <WallLP
-                  key={ci}
-                  size={lpSize}
-                  seed={WALL_SEEDS[idx] || idx + 1}
-                  coverSeed={WALL_SEEDS[idx] || idx + 1}
-                  empty={!filled}
-                />
-              );
-            })}
+      {WALL_PATTERN.map((row, ri) => {
+        const rowW = row.length * lpSize + (row.length - 1) * gapX;
+        const rowLeft = (width - rowW) / 2;
+        return (
+          <div key={ri} style={{ position: 'relative', marginBottom: rowSpacing }}>
+            {/* LP row — flex + paddingLeft/Right centers against the
+                outer Wall width, independent of this row's length. */}
+            <div
+              style={{
+                display: 'flex',
+                gap: gapX,
+                paddingLeft: rowLeft,
+                paddingRight: rowLeft,
+                alignItems: 'flex-end',
+              }}
+            >
+              {row.map((filled, ci) => {
+                const idx = slotsBefore[ri] + ci;
+                return (
+                  <WallLP
+                    key={ci}
+                    size={lpSize}
+                    seed={WALL_SEEDS[idx] || idx + 1}
+                    coverSeed={WALL_SEEDS[idx] || idx + 1}
+                    empty={!filled}
+                    // Lamp bias: the upper-left of the scene is lit
+                    // strongest. Passing a 0-1 factor based on this
+                    // LP's absolute position lets WallLP nudge its
+                    // highlight + gap-shadow so the wall reads as a
+                    // real room with directional light instead of
+                    // flatly-lit tiles.
+                    lampBias={1 - Math.min(1, (ri * maxCols + ci) / (WALL_PATTERN.length * maxCols))}
+                  />
+                );
+              })}
+            </div>
+            {/* Per-row rail — sized to the row (not the full wall).
+                A 10px overhang each side so records near the edges
+                sit comfortably inside the rail ends. Centered in
+                the Wall width via margin: auto. */}
+            <div style={{ position: 'relative', marginTop: -1 }}>
+              <WallRail
+                width={rowW + 20}
+                seed={ri * 37 + 13}
+                style={{ margin: '0 auto' }}
+              />
+            </div>
           </div>
-          <div
-            style={{
-              position: 'relative',
-              marginTop: -1,
-              paddingLeft: Math.max(0, rowLeft - 10),
-              paddingRight: Math.max(0, rowLeft - 10),
-            }}
-          >
-            <WallRail width={rowW + 20} style={{ margin: '0 auto' }} />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
