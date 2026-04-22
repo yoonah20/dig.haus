@@ -12,12 +12,12 @@ import {
 // Phase 3b — Vinyl Wall edit mode. 80/20 split, native HTML5
 // drag-drop on desktop, tap-to-select + tap-slot on touch. Edit
 // state lives entirely in-memory here; submit button pushes the
-// full 10-slot array to PUT /api/mydig/vinyl-wall/items (bulk
+// full 15-slot array to PUT /api/mydig/vinyl-wall/items (bulk
 // replace in a transaction server-side). Cancel resets to the
 // server snapshot.
 
-const WALL_ROW_SIZES = [5, 5] as const;
-const WALL_TOTAL = 10;
+const WALL_ROW_SIZES = [5, 5, 5] as const;
+const WALL_TOTAL = 15;
 
 type DraftSlot = MyDigAlbum | null;
 

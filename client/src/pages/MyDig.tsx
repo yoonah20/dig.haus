@@ -33,12 +33,14 @@ import { resolveApiUrl } from '../utils/apiUrl';
 // scene reads cleaner with three symmetric rows framing the lamp
 // pool on all sides, and 22 slots squeezed covers narrower on
 // mobile than the shopfront aesthetic wanted.
-// Vinyl Wall rows: 5-5 = 10 slots, a "top-10 favourites" frame.
-// Two rows keep the pendant-scene proportions clean (third row was
-// getting clipped at the baseboard on mobile + landing into the
-// floor band on desktop). Also aligns with the preview scene's
-// 5-5 count after the lofi-bedroom pivot.
-const WALL_ROW_SIZES = [5, 5] as const;
+// Vinyl Wall rows: 5-5-5 = 15 slots on three rails. Earlier trim
+// to 10 (5-5) was a workaround for a layout bug where the second
+// row was landing on the baseboard because ShopScene was a
+// fixed-ratio box that sliced its own interior into wall vs
+// floor. The real fix is to drop the box (no more wall/floor
+// boundary), which means there's no boundary to clip against
+// anymore and all three rails fit naturally.
+const WALL_ROW_SIZES = [5, 5, 5] as const;
 
 const SHELF_BIN_COUNT = 6;
 
@@ -85,7 +87,7 @@ export default function MyDig() {
   }
 
   // Wall items come back sparse (position → item). Build a dense
-  // 10-element array with nulls for the empty-frame render.
+  // 15-element array with nulls for the empty-frame render.
   const wallByPosition = new Map<number, MyDigWallItem>();
   for (const it of data.vinylWall) wallByPosition.set(it.position, it);
 
@@ -112,16 +114,17 @@ export default function MyDig() {
           shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
-        {/* Tier 1 — Vinyl Wall inside a late-night shop scene. Dark
-            warm wall, pendant lamp pool upper-center-left, floor +
-            baseboard below. Records glow where the pool hits;
-            edges fade into warm shadow. */}
-        <ShopScene>
+        {/* Tier 1 — Vinyl Wall. Three rails (5-5-5 = 15) sitting
+            on a soft ambient page background. No bordered container,
+            no floor / baseboard bands — the wall flows straight
+            out of the profile header above and out to the snapshot
+            list below. */}
+        <WallSection>
           <VinylWallGrid
             wallByPosition={wallByPosition}
             isOwner={data.user.isOwner}
           />
-        </ShopScene>
+        </WallSection>
 
         {/* Snapshot archive — horizontal strip of past walls. Owner
             sees private + public; visitors see only public. Each
@@ -248,203 +251,43 @@ function ProfileHeader({
   );
 }
 
-// ─── Shop scene ────────────────────────────────────────────────
-// Immersive dark-mode container that wraps whatever tier is
-// rendered as "the view" — right now just Vinyl Wall. Composition
-// (bottom-to-top layers):
-//   1. Near-black scene base (#0a0503)
-//   2. Wall panel with subtle vertical plank seams + grain noise
-//   3. The tier content (records on rails)
-//   4. Baseboard band + floor strip at the bottom
-//   5. Pendant lamp "darkening" overlay (multiply) — vignettes the
-//      corners toward near-black
-//   6. Pendant lamp "warmth" overlay (screen) — paints the tungsten
-//      pool over the upper-center-left, brightening what's under it
-//   7. A few dust motes inside the pool for atmosphere
-// The two lamp overlays together produce the "lighting provides
-// depth" behaviour the brief asked for: records at edges fade,
-// records under the pool glow. No per-slot lighting logic needed
-// at the WallLP level.
-function ShopScene({ children }: { children: React.ReactNode }) {
+// ─── Wall section ─────────────────────────────────────────────
+// Previously this was a fixed-ratio "shop scene" — bordered panel
+// with explicit wall/floor bands, baseboard, plank seams, pendant
+// overlays. Three problems stacked up: (1) the box read as a
+// framed container on an otherwise full-bleed dark page, breaking
+// the "융화" feel; (2) the wall-vs-floor boundary lived at a %
+// split of the container height, so records in the third row got
+// clipped by the fake baseboard whenever content outgrew the
+// pre-set ratio; (3) the lamp overlays doubled up on the per-LP
+// lampBias that WallLP already applies and read as over-staged.
+//
+// This version keeps just the ambient atmosphere and drops every
+// piece of scene chrome: no border, no background box, no floor
+// band, no baseboard line, no plank seams. The only non-content
+// element is a soft warm radial wash pinned to the upper-left so
+// the page still reads as "lit from somewhere." Records on rails
+// extend whatever vertical distance they need — no boundary to
+// clip against because there isn't a boundary anymore.
+function WallSection({ children }: { children: React.ReactNode }) {
   return (
-    <section
-      style={{
-        position: 'relative',
-        borderRadius: 10,
-        overflow: 'hidden',
-        background: '#0a0503',
-        minHeight: 420,
-      }}
-    >
-      {/* 1. Wall backdrop — matte dark warm paint on wood paneling,
-          subtle radial warmth centred under the lamp so the wall
-          reads lighter where the pool lands and nearly-black in
-          the corners. */}
+    <section style={{ position: 'relative', padding: '16px 8px' }}>
+      {/* Ambient warmth — single very-soft radial, no blend mode.
+          Just nudges the upper-left toward a lit-interior feel
+          without the hard pool shape the old overlays had. The
+          rest of the mood comes from each WallLP's internal
+          lampBias-driven highlight + drop shadow. */}
       <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          bottom: '16%',
-          background: `
-            radial-gradient(ellipse 75% 60% at 38% 35%, #3a2818 0%, #241a0f 55%, #130c06 100%)
-          `,
-        }}
-      />
-
-      {/* 2. Vertical plank seams — 6 seams across the wall, thin
-          dark lines with a faint cream highlight on one side
-          (where the lamp catches the bevel). */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          bottom: '16%',
-          pointerEvents: 'none',
-          opacity: 0.6,
-        }}
-      >
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: `${((i + 1) * 100) / 7}%`,
-              top: 0,
-              bottom: 0,
-              width: 1,
-              background:
-                'linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.25))',
-              boxShadow: '1px 0 0 rgba(255, 220, 160, 0.04)',
-            }}
-          />
-        ))}
-      </div>
-
-      {/* 3. Tier content — records on rails. Rendered BEFORE the
-          lamp overlays so the lighting layer stacks on top of the
-          covers and attenuates the edges / lifts the centre. */}
-      <div style={{ position: 'relative', zIndex: 1, padding: '32px 16px 0' }}>
-        {children}
-      </div>
-
-      {/* 4. Baseboard — thin almost-black band where wall meets
-          floor; top edge catches a sliver of lamp light. */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: '16%',
-          height: 5,
-          background: '#050301',
-          boxShadow: 'inset 0 1px 0 rgba(232, 160, 32, 0.18)',
-          zIndex: 2,
-        }}
-      />
-
-      {/* 5. Floor — dark stained walnut with horizontal plank seams.
-          Earlier version included a bright warm spill under the lamp
-          position; toned down to just a hint of warmth on the top
-          edge (where the baseboard catches light) and otherwise a
-          quiet dark band. */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: '16%',
-          background: `
-            radial-gradient(ellipse 60% 120% at 40% 0%, rgba(70, 45, 20, 0.28) 0%, transparent 70%),
-            linear-gradient(180deg, #1a0f08, #0a0503)
-          `,
-          zIndex: 2,
-        }}
-      >
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: `${(i + 1) * 25}%`,
-              height: 1,
-              background:
-                'linear-gradient(90deg, transparent, rgba(0,0,0,0.55), transparent)',
-            }}
-          />
-        ))}
-      </div>
-
-      {/* 6. Ambient vignette — a gentle corner darkening so the
-          scene doesn't read as a flat evenly-lit box. Previous
-          iteration used a punchy multiply-blend radial that
-          pushed corners all the way to near-black; visitors
-          reported it read as "overly theatrical lighting" rather
-          than "a dark room." Dialled back to a modest corner
-          vignette (no blend mode), preserving most of the base
-          wall colour while softening edges. */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          background:
-            'radial-gradient(ellipse 90% 75% at 45% 40%, transparent 0%, transparent 55%, rgba(10, 5, 3, 0.4) 100%)',
-          zIndex: 5,
-        }}
-      />
-
-      {/* 7. Lamp pool — WARMTH layer. Subtle warm wash so the
-          centre of the scene picks up a hint of tungsten
-          without reading as "the lamp is ON and spotlighting
-          the records." Screen blend is retained because it only
-          lifts colour where strong and no-ops where weak. */}
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          background:
-            'radial-gradient(ellipse 60% 50% at 40% 32%, rgba(255, 208, 138, 0.14) 0%, rgba(255, 196, 110, 0.05) 45%, transparent 80%)',
-          mixBlendMode: 'screen',
-          zIndex: 6,
-        }}
-      />
-
-      {/* 8. Dust motes — a few tiny specks in the lit area. Kept
-          very dim so they read as "dust seen in ambient light"
-          rather than stars; the earlier stronger opacity made the
-          scene look like a nebula. */}
-      <svg
         aria-hidden
         style={{
           position: 'absolute',
-          inset: 0,
+          inset: -40,
           pointerEvents: 'none',
-          zIndex: 7,
-          opacity: 0.3,
+          background:
+            'radial-gradient(ellipse 60% 55% at 32% 25%, rgba(255, 196, 110, 0.09) 0%, transparent 65%)',
         }}
-      >
-        {[
-          { x: 180, y: 80, r: 0.6 },
-          { x: 260, y: 140, r: 0.4 },
-          { x: 340, y: 110, r: 0.5 },
-          { x: 420, y: 170, r: 0.4 },
-          { x: 200, y: 220, r: 0.5 },
-          { x: 370, y: 240, r: 0.4 },
-        ].map((d, i) => (
-          <circle
-            key={i}
-            cx={d.x}
-            cy={d.y}
-            r={d.r}
-            fill="#ffd08a"
-            opacity="0.7"
-          />
-        ))}
-      </svg>
+      />
+      <div style={{ position: 'relative' }}>{children}</div>
     </section>
   );
 }

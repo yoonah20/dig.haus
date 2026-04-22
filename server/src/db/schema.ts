@@ -1166,7 +1166,7 @@ export function initializeDatabase(db: Database.Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL CHECK (position >= 0 AND position < 10),
+      position INTEGER NOT NULL CHECK (position >= 0 AND position < 15),
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(user_id, position)
     )
@@ -1207,7 +1207,7 @@ export function initializeDatabase(db: Database.Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       snapshot_id INTEGER NOT NULL REFERENCES vinyl_wall_snapshots(id) ON DELETE CASCADE,
       album_id INTEGER NOT NULL REFERENCES albums(id),
-      position INTEGER NOT NULL CHECK (position >= 0 AND position < 10),
+      position INTEGER NOT NULL CHECK (position >= 0 AND position < 15),
       UNIQUE(snapshot_id, position)
     )
   `);

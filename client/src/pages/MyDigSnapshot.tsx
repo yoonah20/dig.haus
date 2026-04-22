@@ -19,7 +19,7 @@ import { resolveApiUrl } from '../utils/apiUrl';
 // Empty slots (positions without an item, or items whose album
 // was deleted after the snapshot was saved) render as blank wall,
 // same as the live page.
-const WALL_ROW_SIZES = [5, 5] as const;
+const WALL_ROW_SIZES = [5, 5, 5] as const;
 
 export default function MyDigSnapshot() {
   const { username, slug } = useParams<{ username: string; slug: string }>();
@@ -66,9 +66,9 @@ export default function MyDigSnapshot() {
           shareUrl={shareUrl}
         />
 
-        <ShopScene>
+        <WallSection>
           <SnapshotWallGrid byPosition={byPosition} />
-        </ShopScene>
+        </WallSection>
       </main>
     </div>
   );
@@ -247,122 +247,24 @@ function SnapshotWallGrid({
   );
 }
 
-// ─── Shop scene (copied from MyDig) ────────────────────────────
-// Same layered scene as the live page. Keeping it inline here
-// keeps the snapshot view self-contained; if we ever pull the
-// scene out into a shared component, both pages will switch over
-// in one change.
-function ShopScene({ children }: { children: React.ReactNode }) {
+// ─── Wall section (matches MyDig.tsx's simplified version) ────
+// Minimal ambient wrapper. No bordered panel, no explicit floor
+// or baseboard — the scene's feel comes from the per-LP lampBias
+// highlights and a single soft warm radial on the upper-left.
+function WallSection({ children }: { children: React.ReactNode }) {
   return (
-    <section
-      style={{
-        position: 'relative',
-        borderRadius: 10,
-        overflow: 'hidden',
-        background: '#0a0503',
-        minHeight: 380,
-      }}
-    >
+    <section style={{ position: 'relative', padding: '16px 8px' }}>
       <div
+        aria-hidden
         style={{
           position: 'absolute',
-          inset: 0,
-          bottom: '16%',
-          background: `
-            radial-gradient(ellipse 75% 60% at 38% 35%, #3a2818 0%, #241a0f 55%, #130c06 100%)
-          `,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          bottom: '16%',
-          pointerEvents: 'none',
-          opacity: 0.6,
-        }}
-      >
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: `${((i + 1) * 100) / 7}%`,
-              top: 0,
-              bottom: 0,
-              width: 1,
-              background:
-                'linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.25))',
-              boxShadow: '1px 0 0 rgba(255, 220, 160, 0.04)',
-            }}
-          />
-        ))}
-      </div>
-      <div style={{ position: 'relative', zIndex: 1, padding: '32px 16px 0' }}>
-        {children}
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: '16%',
-          height: 5,
-          background: '#050301',
-          boxShadow: 'inset 0 1px 0 rgba(232, 160, 32, 0.18)',
-          zIndex: 2,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          height: '16%',
-          background: `
-            radial-gradient(ellipse 60% 120% at 40% 0%, rgba(70, 45, 20, 0.28) 0%, transparent 70%),
-            linear-gradient(180deg, #1a0f08, #0a0503)
-          `,
-          zIndex: 2,
-        }}
-      >
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div
-            key={i}
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: `${(i + 1) * 25}%`,
-              height: 1,
-              background:
-                'linear-gradient(90deg, transparent, rgba(0,0,0,0.55), transparent)',
-            }}
-          />
-        ))}
-      </div>
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
+          inset: -40,
           pointerEvents: 'none',
           background:
-            'radial-gradient(ellipse 90% 75% at 45% 40%, transparent 0%, transparent 55%, rgba(10, 5, 3, 0.4) 100%)',
-          zIndex: 5,
+            'radial-gradient(ellipse 60% 55% at 32% 25%, rgba(255, 196, 110, 0.09) 0%, transparent 65%)',
         }}
       />
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          pointerEvents: 'none',
-          background:
-            'radial-gradient(ellipse 60% 50% at 40% 32%, rgba(255, 208, 138, 0.14) 0%, rgba(255, 196, 110, 0.05) 45%, transparent 80%)',
-          mixBlendMode: 'screen',
-          zIndex: 6,
-        }}
-      />
+      <div style={{ position: 'relative' }}>{children}</div>
     </section>
   );
 }
