@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   useVinylWallSnapshot,
@@ -152,15 +153,38 @@ function formatDate(iso: string): string {
   return iso.slice(0, 10);
 }
 
+// Mirror of VinylWallGrid in MyDig.tsx — ResizeObserver-driven
+// sizing, rail spans container width, records fixed-size +
+// grid-centered. Kept inline rather than extracted to share code
+// with the live page because the wireframe pivot may replace
+// both views at once.
 function SnapshotWallGrid({
   byPosition,
 }: {
   byPosition: Map<number, MyDigAlbum | null>;
 }) {
-  const lpSize = typeof window !== 'undefined' && window.innerWidth < 640 ? 64 : 140;
-  const gapX = lpSize < 100 ? 6 : 14;
-  const rowSpacing = lpSize < 100 ? 14 : 22;
-  const maxCols = Math.max(...WALL_ROW_SIZES);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(880);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setWidth(el.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) setWidth(entry.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const mobile = width < 520;
+  const maxLpSize = mobile ? 86 : 168;
+  const gapX = mobile ? 8 : 16;
+  const rowGap = mobile ? 22 : 32;
+  const overhang = mobile ? 16 : 36;
+  const fit = (width - 2 * overhang - 4 * gapX) / 5;
+  const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
+  const railWidth = Math.round(width);
+
   let cursor = 0;
   const rows = WALL_ROW_SIZES.map((count) => {
     const positions = Array.from({ length: count }, (_, i) => cursor + i);
@@ -170,33 +194,31 @@ function SnapshotWallGrid({
 
   return (
     <div
+      ref={containerRef}
       style={{
         position: 'relative',
-        width: maxCols * lpSize + (maxCols - 1) * gapX,
-        maxWidth: '100%',
+        width: '100%',
+        maxWidth: 960,
         margin: '0 auto',
         paddingTop: 12,
       }}
     >
-      {rows.map(({ count, positions }, ri) => {
-        const rowW = count * lpSize + (count - 1) * gapX;
+      {rows.map(({ positions }, ri) => {
         return (
-          <div
-            key={ri}
-            style={{ position: 'relative', marginBottom: rowSpacing }}
-          >
+          <div key={ri} style={{ position: 'relative', marginBottom: rowGap }}>
             <div
               style={{
-                display: 'flex',
+                display: 'grid',
+                gridTemplateColumns: `repeat(5, ${lpSize}px)`,
                 gap: gapX,
                 justifyContent: 'center',
-                alignItems: 'flex-end',
+                alignItems: 'end',
               }}
             >
               {positions.map((position, ci) => {
                 const album = byPosition.get(position);
                 const lampBias =
-                  1 - Math.min(1, (ri * maxCols + ci) / (WALL_ROW_SIZES.length * maxCols));
+                  1 - Math.min(1, (ri * 5 + ci) / (WALL_ROW_SIZES.length * 5));
                 if (!album) {
                   return (
                     <WallLP
@@ -235,9 +257,9 @@ function SnapshotWallGrid({
             </div>
             <div style={{ position: 'relative', marginTop: -1 }}>
               <WallRail
-                width={rowW + 20}
+                width={railWidth}
                 seed={ri * 37 + 13}
-                style={{ margin: '0 auto' }}
+                style={{ display: 'block' }}
               />
             </div>
           </div>
@@ -247,13 +269,31 @@ function SnapshotWallGrid({
   );
 }
 
-// ─── Wall section (matches MyDig.tsx's simplified version) ────
-// Minimal ambient wrapper. No bordered panel, no explicit floor
-// or baseboard — the scene's feel comes from the per-LP lampBias
-// highlights and a single soft warm radial on the upper-left.
+// ─── Wall section (matches MyDig.tsx) ─────────────────────────
+// Ambient layers (vertical warmth gradient, lamp pool, painted
+// noise, dust motes) without any bordered box or hard wall/floor
+// boundary. Duplicated from MyDig.tsx intentionally so the
+// snapshot view stays self-contained while the wireframe rebuild
+// is in flux; both merge together when that lands.
 function WallSection({ children }: { children: React.ReactNode }) {
   return (
-    <section style={{ position: 'relative', padding: '16px 8px' }}>
+    <section
+      style={{
+        position: 'relative',
+        padding: '28px 12px 40px',
+        overflow: 'hidden',
+      }}
+    >
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          background:
+            'linear-gradient(180deg, rgba(56, 38, 20, 0.55) 0%, rgba(30, 20, 10, 0.35) 50%, rgba(12, 7, 3, 0.5) 100%)',
+        }}
+      />
       <div
         aria-hidden
         style={{
@@ -261,10 +301,48 @@ function WallSection({ children }: { children: React.ReactNode }) {
           inset: -40,
           pointerEvents: 'none',
           background:
-            'radial-gradient(ellipse 60% 55% at 32% 25%, rgba(255, 196, 110, 0.09) 0%, transparent 65%)',
+            'radial-gradient(ellipse 55% 50% at 32% 22%, rgba(255, 200, 120, 0.18) 0%, rgba(255, 185, 100, 0.06) 45%, transparent 75%)',
         }}
       />
-      <div style={{ position: 'relative' }}>{children}</div>
+      <svg
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          opacity: 0.14,
+          mixBlendMode: 'overlay',
+        }}
+      >
+        <defs>
+          <filter id="mydigSnapWallNoise">
+            <feTurbulence baseFrequency="0.85" numOctaves="2" seed="7" />
+            <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 0.75  0 0 0 0 0.5  0 0 0 0.75 0" />
+          </filter>
+        </defs>
+        <rect width="100%" height="100%" filter="url(#mydigSnapWallNoise)" />
+      </svg>
+      <svg
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          opacity: 0.45,
+        }}
+      >
+        {[
+          { x: 180, y: 70, r: 0.7 },
+          { x: 260, y: 130, r: 0.5 },
+          { x: 340, y: 100, r: 0.6 },
+          { x: 420, y: 160, r: 0.5 },
+          { x: 210, y: 220, r: 0.6 },
+          { x: 380, y: 250, r: 0.4 },
+        ].map((d, i) => (
+          <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#ffd08a" />
+        ))}
+      </svg>
+      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
     </section>
   );
 }

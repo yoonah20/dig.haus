@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   useMyDig,
@@ -252,31 +252,45 @@ function ProfileHeader({
 }
 
 // ─── Wall section ─────────────────────────────────────────────
-// Previously this was a fixed-ratio "shop scene" — bordered panel
-// with explicit wall/floor bands, baseboard, plank seams, pendant
-// overlays. Three problems stacked up: (1) the box read as a
-// framed container on an otherwise full-bleed dark page, breaking
-// the "융화" feel; (2) the wall-vs-floor boundary lived at a %
-// split of the container height, so records in the third row got
-// clipped by the fake baseboard whenever content outgrew the
-// pre-set ratio; (3) the lamp overlays doubled up on the per-LP
-// lampBias that WallLP already applies and read as over-staged.
-//
-// This version keeps just the ambient atmosphere and drops every
-// piece of scene chrome: no border, no background box, no floor
-// band, no baseboard line, no plank seams. The only non-content
-// element is a soft warm radial wash pinned to the upper-left so
-// the page still reads as "lit from somewhere." Records on rails
-// extend whatever vertical distance they need — no boundary to
-// clip against because there isn't a boundary anymore.
+// The previous version was boxed + banded (wall/floor ratio,
+// baseboard, plank seams, pendant overlays) which clipped rows
+// and read as a framed panel. This version keeps the page flow
+// but restores atmosphere so the wall has air around it:
+//   - Soft vertical warmth gradient (no hard wall/floor boundary)
+//   - Warm lamp pool concentrated upper-left (matches each WallLP's
+//     lampBias direction so the shadow play stays consistent)
+//   - Very faint painted-surface noise for texture
+//   - A few ambient dust motes in the lit area
+// No enclosing border, no background box — the section sits on
+// the same #0a0503 base as the rest of the page so records look
+// hung on the page, not mounted inside a window.
 function WallSection({ children }: { children: React.ReactNode }) {
   return (
-    <section style={{ position: 'relative', padding: '16px 8px' }}>
-      {/* Ambient warmth — single very-soft radial, no blend mode.
-          Just nudges the upper-left toward a lit-interior feel
-          without the hard pool shape the old overlays had. The
-          rest of the mood comes from each WallLP's internal
-          lampBias-driven highlight + drop shadow. */}
+    <section
+      style={{
+        position: 'relative',
+        padding: '28px 12px 40px',
+        overflow: 'hidden',
+      }}
+    >
+      {/* 1. Vertical warmth — slightly brighter warm top fading to
+          deeper dark at the bottom. Implies gravity / depth without
+          a hard line. Mixed over the page's base (#0a0503) so the
+          bottom effectively returns to the page color. */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          background:
+            'linear-gradient(180deg, rgba(56, 38, 20, 0.55) 0%, rgba(30, 20, 10, 0.35) 50%, rgba(12, 7, 3, 0.5) 100%)',
+        }}
+      />
+
+      {/* 2. Warm lamp pool — visible but not a spotlight. Upper-
+          left biased so it agrees with each WallLP's per-slot
+          lampBias direction. */}
       <div
         aria-hidden
         style={{
@@ -284,10 +298,56 @@ function WallSection({ children }: { children: React.ReactNode }) {
           inset: -40,
           pointerEvents: 'none',
           background:
-            'radial-gradient(ellipse 60% 55% at 32% 25%, rgba(255, 196, 110, 0.09) 0%, transparent 65%)',
+            'radial-gradient(ellipse 55% 50% at 32% 22%, rgba(255, 200, 120, 0.18) 0%, rgba(255, 185, 100, 0.06) 45%, transparent 75%)',
         }}
       />
-      <div style={{ position: 'relative' }}>{children}</div>
+
+      {/* 3. Painted-surface noise — cream-tinted feTurbulence flecks,
+          barely there, gives the flat background something to
+          catch rather than reading as paint-blank void. */}
+      <svg
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          opacity: 0.14,
+          mixBlendMode: 'overlay',
+        }}
+      >
+        <defs>
+          <filter id="mydigWallNoise">
+            <feTurbulence baseFrequency="0.85" numOctaves="2" seed="7" />
+            <feColorMatrix values="0 0 0 0 0.9  0 0 0 0 0.75  0 0 0 0 0.5  0 0 0 0.75 0" />
+          </filter>
+        </defs>
+        <rect width="100%" height="100%" filter="url(#mydigWallNoise)" />
+      </svg>
+
+      {/* 4. Dust motes — tiny warm specks in the lit area. Low
+          opacity so they read as ambient dust, not stars. */}
+      <svg
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          pointerEvents: 'none',
+          opacity: 0.45,
+        }}
+      >
+        {[
+          { x: 180, y: 70, r: 0.7 },
+          { x: 260, y: 130, r: 0.5 },
+          { x: 340, y: 100, r: 0.6 },
+          { x: 420, y: 160, r: 0.5 },
+          { x: 210, y: 220, r: 0.6 },
+          { x: 380, y: 250, r: 0.4 },
+        ].map((d, i) => (
+          <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#ffd08a" />
+        ))}
+      </svg>
+
+      <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
     </section>
   );
 }
@@ -308,24 +368,46 @@ function VinylWallGrid({
   wallByPosition: Map<number, MyDigWallItem>;
   isOwner: boolean;
 }) {
-  // Responsive LP size. Desktop matches the preview's 170px so the
-  // wall reads "crafted wall" instead of "small thumbnails."
-  // Mobile compresses to 96px so a 6-row still fits inside a 375px
-  // viewport (6×96 + 5×8 gap = 616 > 375 — mobile 6-row rows will
-  // overflow slightly; the outer container scrolls horizontally on
-  // phones which is acceptable given the 3a scope). Measured here
-  // on mount via matchMedia so hydration matches first paint.
-  const [mobile, setMobile] = useState(false);
+  // Measure the actual container width via ResizeObserver so the
+  // cover sizing + rail width always track the available space.
+  // The previous matchMedia-based version used a fixed lpSize and
+  // could overflow or leave records pinned to the left on
+  // intermediate viewports. Container-measurement eliminates both
+  // modes.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(880);
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 640px)');
-    const sync = () => setMobile(mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
+    const el = containerRef.current;
+    if (!el) return;
+    // Initial sync (don't wait for first ResizeObserver callback)
+    setWidth(el.clientWidth);
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWidth(entry.contentRect.width);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
-  const lpSize = mobile ? 64 : 140;
-  const gapX = mobile ? 6 : 14;
-  const rowSpacing = mobile ? 14 : 22;
+
+  const mobile = width < 520;
+  // 20% bigger than the earlier 140 → 168 desktop ceiling. Actual
+  // size floors to whatever fits the measured width so records
+  // never overflow or get crammed to one side.
+  const maxLpSize = mobile ? 86 : 168;
+  const gapX = mobile ? 8 : 16;
+  const rowGap = mobile ? 22 : 32;
+  // Overhang = how much wider the rail is than the record row.
+  // Gives the rail shoulder room so the first/last record doesn't
+  // sit flush at the rail's edge — fixes the "레일 왼쪽 끝에 딱
+  // 앨범이 고정" awkwardness.
+  const overhang = mobile ? 16 : 36;
+  const fit = (width - 2 * overhang - 4 * gapX) / 5;
+  const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
+  // Actual record-block width + matching rail width. The rail
+  // fills to `width` so we get the overhang feel naturally.
+  const recordsWidth = 5 * lpSize + 4 * gapX;
+  const railWidth = Math.round(width);
 
   let cursor = 0;
   const rows = WALL_ROW_SIZES.map((count) => {
@@ -334,44 +416,48 @@ function VinylWallGrid({
     return { count, positions };
   });
 
-  // Compute the widest row's width so narrower rows can center
-  // under it. All rows go in a position:relative container whose
-  // width locks to the widest-row pixel width.
-  const maxCols = Math.max(...WALL_ROW_SIZES);
-  const maxRowW = maxCols * lpSize + (maxCols - 1) * gapX;
-
   return (
     <div
+      ref={containerRef}
       style={{
         position: 'relative',
-        width: maxRowW,
-        maxWidth: '100%',
+        width: '100%',
+        maxWidth: 960,
         margin: '0 auto',
         paddingTop: 12,
       }}
     >
-      {rows.map(({ count, positions }, ri) => {
-        const rowW = count * lpSize + (count - 1) * gapX;
+      {rows.map(({ positions }, ri) => {
         return (
-          <div
-            key={ri}
-            style={{ position: 'relative', marginBottom: rowSpacing }}
-          >
-            {/* LP row */}
+          <div key={ri} style={{ position: 'relative', marginBottom: rowGap }}>
+            {/* LP row — explicit grid with fixed column width +
+                justifyContent:center so the whole cluster is
+                always centered within the parent (which matches
+                the rail width below). */}
             <div
               style={{
-                display: 'flex',
+                display: 'grid',
+                gridTemplateColumns: `repeat(5, ${lpSize}px)`,
                 gap: gapX,
                 justifyContent: 'center',
-                alignItems: 'flex-end',
+                alignItems: 'end',
+                width: recordsWidth > 0 ? undefined : 'auto',
               }}
             >
               {positions.map((position, ci) => {
                 const item = wallByPosition.get(position);
                 const lampBias =
-                  1 - Math.min(1, (ri * maxCols + ci) / (WALL_ROW_SIZES.length * maxCols));
+                  1 - Math.min(1, (ri * 5 + ci) / (WALL_ROW_SIZES.length * 5));
                 if (!item) {
-                  return <WallLP key={position} size={lpSize} seed={position} empty lampBias={lampBias} />;
+                  return (
+                    <WallLP
+                      key={position}
+                      size={lpSize}
+                      seed={position}
+                      empty
+                      lampBias={lampBias}
+                    />
+                  );
                 }
                 const { album } = item;
                 const target = album.slug || album.mbid;
@@ -399,14 +485,14 @@ function VinylWallGrid({
                 );
               })}
             </div>
-            {/* Per-row rail — same sizing rule as the preview: row
-                pixel width plus a ~10px overhang each side. Centered
-                via margin auto within the outer container. */}
+            {/* Rail — spans the full measured container width so
+                records always sit centered on a longer rail with
+                breathing room on both sides. */}
             <div style={{ position: 'relative', marginTop: -1 }}>
               <WallRail
-                width={rowW + 20}
+                width={railWidth}
                 seed={ri * 37 + 13}
-                style={{ margin: '0 auto' }}
+                style={{ display: 'block' }}
               />
             </div>
           </div>
