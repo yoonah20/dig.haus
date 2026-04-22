@@ -378,25 +378,20 @@ export default function Home() {
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
-        {/* Grid header — density switcher on the left, sort trigger on
-            the right. Density is a "how this whole grid is shaped"
-            control so it reads first with left-aligned visual weight;
-            sort sits next to the right margin like a flyout menu
-            anchor. Sort moved out of the nav bar so the top strip
+        {/* Grid header — sort trigger on the left, density switcher on
+            the right. Sort moved out of the nav bar so the top strip
             stays a pure "find albums" cluster; this header owns
             everything about how the feed itself is arranged. */}
         {albums.length > 0 && (
           <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
-            {!isMobile ? (
-              <DensitySwitcher density={density} onChange={setDensity} />
-            ) : (
-              <span aria-hidden />
-            )}
             <SortTrigger
               sort={sort}
               onChange={setSort}
               label={currentSortLabel}
             />
+            {!isMobile && (
+              <DensitySwitcher density={density} onChange={setDensity} />
+            )}
           </div>
         )}
         {isLoading && albums.length === 0 ? (
