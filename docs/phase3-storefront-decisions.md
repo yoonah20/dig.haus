@@ -220,6 +220,48 @@ This matches how real records are stored in crates on the floor — you don't se
 
 **Library vs. floor distinction is critical**: A user's crate library is unlimited (private, in the edit-mode picker). The floor slots (≤6) are the public-facing subset. Dragging a crate onto a floor slot "puts it out"; dragging it off "puts it back in the library". Same mental model as "which crates am I leaving out right now vs. storing".
 
+---
+
+### 16. 3D perspective strategy — partial, not full
+
+**Considered**: Applying a full one-point perspective to the whole scene (wall tilts toward vanishing point, floor recedes, everything sits in a coherent 3D space).
+
+**Decided**: **Partial perspective keyed to vertical position**. The wall stays flat (head-on view, zero foreshortening). The turntable console is slightly tilted so its top surface is visible. The floor crates are fully 3D (front face + top face + implied depth). The floor itself recedes gently via a one-point perspective.
+
+**Rule of thumb**: flatness scales with height in the scene — the higher something is in the composition, the flatter it renders. This matches how a seated viewer's eye actually sees a bedroom: the wall far away reads as flat, objects near the floor are perceived from a top-down angle because the viewer is looking forward and slightly down at them.
+
+**Why**:
+- Full one-point perspective would distort the wall LP sleeves (covers would become trapezoids depending on position), which breaks the "display" function of the wall tier.
+- Partial perspective localizes the 3D work to the pieces that benefit from it (crates need to look like boxes you could open; the console wants to feel like a surface you can put gear on) without forcing a global recalculation of the whole scene.
+- Keeps CSS implementation tractable: each "3D" piece uses flat shapes with clip-path trickery, not real preserve-3d transform chains.
+- Matches how a real seated viewpoint reads a room — the perceived geometry isn't uniform, objects at different distances get different amounts of visible top/side surface.
+
+**Cost of the approach**: The scene isn't a strictly correct 3D projection. Someone with a CAD-trained eye might notice the wall and the floor don't share a single vanishing point. In practice the scene reads fine because every viewer already accepts that bedroom illustrations take these liberties.
+
+---
+
+### 17. Interactive design — hover pop-out, click moves to turntable, sample plays
+
+**Context**: Once the turntable console exists and holds an LP on its platter, the static scene begs an obvious question: "what happens if I click one of the wall LPs?" The answer we landed on connects the three tiers into one interaction loop.
+
+**The full sequence (to ship across S2–S5)**:
+
+1. **Idle** — turntable holds a default LP (the user's "currently spinning" pick). Wall LPs are static displays. Scene is purely decorative.
+2. **Hover** a wall LP → the black vinyl disc slides partially out of the sleeve (~60% to the right, half-revealed). Cursor leaves → vinyl retracts. Stateless preview.
+3. **Click** a wall LP → the vinyl fully exits its sleeve and animates across the scene onto the turntable platter. The LP that was previously on the platter either retreats first (back to wherever it came from) or swaps in place. Tonearm descends, platter spins, sample begins.
+4. **While playing** — platter rotates continuously, tonearm sits on the record. Clicking another wall LP swaps.
+5. **Sample ends** (30-second preview cap) — tonearm parks itself, platter stops. User can re-click or let the room sit idle.
+
+**Sample playback source**: Spotify's `preview_url` track field (30-second MP3) is the primary path — free, no auth, already present in the album data we store. YouTube as fallback for albums without Spotify coverage. Silent graceful degradation for albums with neither.
+
+**Why this matters**:
+- Turns the storefront from static decoration into an interactive listening station. A visitor can actually *hear* through what the owner has chosen to display. This is the killer moment the page hinges on.
+- Grounds the three tiers in a physical metaphor: wall records are pulled down, placed on the turntable, played, returned. It's the actual motion of using a real record collection.
+- Uses physical-world affordances to teach the interaction — the hover pop-out previews what the click will do, which is exactly how a real record being pulled halfway out of a sleeve telegraphs that it's about to be played.
+- Low-risk implementation: each phase (hover pop-out, click animation, sample playback, swap UX) ships independently. S1 is static decoration; S2 is hover-only; etc.
+
+**Phase ordering** (per entry 18's MVP realization, we defer this): S1 ships static. S2–S5 layer in after the wireframe validates the data model and interaction affordances.
+
 
 ---
 
