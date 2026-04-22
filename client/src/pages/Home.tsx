@@ -623,16 +623,44 @@ function SortTrigger({
 // with three stops (0 = comfortable, 1 = dense, 2 = ultra) — replaces
 // the earlier 3-button dot-matrix toggle. A slider reads more
 // naturally as a "continuous smaller → bigger" gesture, even though
-// we snap to three discrete values. Small labeled tick marks span the
-// track so users can see what they're dragging to. Lives above the
-// desktop grid only — mobile density is fixed at 2 cols, adjusting
-// it would pack covers too small to tap.
+// we snap to three discrete values. Dot-matrix glyphs on either end
+// (2×2 ↔ 4×4) serve as the smaller/bigger labels — the same icons
+// that sat on the previous button triplet, now re-purposed as the
+// slider's endpoints. Lives above the desktop grid only — mobile
+// density is fixed at 2 cols, adjusting it would pack covers too
+// small to tap.
 const DENSITY_STEPS: DensityValue[] = ['comfortable', 'dense', 'ultra'];
 const DENSITY_LABELS: Record<DensityValue, string> = {
-  comfortable: '넉넉',
-  dense: '빽빽',
-  ultra: '더빽빽',
+  comfortable: '넉넉하게',
+  dense: '빽빽하게',
+  ultra: '더 빽빽하게',
 };
+
+// Dot-matrix glyph. Used as the smaller/bigger endpoint icons on the
+// slider; also reads as a visual cue for "this is what density looks
+// like" at a glance. `active` lights up the dots in amber when the
+// slider rests on that endpoint; otherwise they stay muted.
+function DensityGlyph({ dots, active }: { dots: number; active: boolean }) {
+  return (
+    <span
+      className="inline-grid gap-[2px]"
+      style={{
+        gridTemplateColumns: `repeat(${dots}, 3px)`,
+        gridTemplateRows: `repeat(${dots}, 3px)`,
+      }}
+      aria-hidden
+    >
+      {Array.from({ length: dots * dots }).map((_, i) => (
+        <span
+          key={i}
+          className={`w-[3px] h-[3px] rounded-sm ${
+            active ? 'bg-[#e8a020]' : 'bg-gray-500'
+          }`}
+        />
+      ))}
+    </span>
+  );
+}
 
 function DensitySwitcher({
   density,
@@ -643,8 +671,8 @@ function DensitySwitcher({
 }) {
   const current = DENSITY_STEPS.indexOf(density);
   return (
-    <div className="density-slider inline-flex items-center gap-2 text-[11px] text-gray-500">
-      <span aria-hidden title="넉넉하게">넉넉</span>
+    <div className="density-slider inline-flex items-center gap-2">
+      <DensityGlyph dots={2} active={density === 'comfortable'} />
       <div className="relative flex items-center">
         <input
           type="range"
@@ -677,7 +705,7 @@ function DensitySwitcher({
           ))}
         </div>
       </div>
-      <span aria-hidden title="더 빽빽하게">빽빽</span>
+      <DensityGlyph dots={4} active={density === 'ultra'} />
     </div>
   );
 }
