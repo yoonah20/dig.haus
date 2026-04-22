@@ -24,11 +24,13 @@ export interface MyDigUser {
 export interface MyDigWallItem {
   position: number;
   album: MyDigAlbum;
-  // Emoji the page owner picked for their own 50자 평 on this
-  // album, or '💬' if they wrote one without an emoji. Null when
-  // they have no review. Drives the cartoon speech bubble badge
-  // on the wall cover.
-  userReviewEmoji?: string | null;
+  // Full 50자 평 the page owner wrote for this album, null when
+  // they have no review. Shown inside a hover-only speech bubble
+  // that pops up alongside the cover's hover-scale + vinyl peek.
+  userReview?: {
+    body: string;
+    emoji: string | null;
+  } | null;
 }
 
 export interface MyDigGenre {

@@ -406,8 +406,14 @@ function WallSection({ children }: { children: React.ReactNode }) {
     <section
       style={{
         position: 'relative',
-        padding: '28px 12px 40px',
-        overflow: 'hidden',
+        // Top padding is generous so hover-triggered comment
+        // bubbles on the first row have room above the cover
+        // without spilling out of the scene.
+        padding: '72px 12px 40px',
+        // overflow: visible so bubbles and the scaled-up hovered
+        // cover can extend past the nominal section bounds. The
+        // -40 inset gradients bleed slightly into surrounding
+        // page space but the effect reads as ambient, not broken.
       }}
     >
       {/* 1. Vertical warmth — slightly brighter warm top fading to
@@ -684,35 +690,35 @@ function WallCell({
   lpSize: number;
   lampBias: number;
 }) {
-  const { album, userReviewEmoji } = item;
+  const { album, userReview } = item;
   const target = album.slug || album.mbid;
   return (
     <Link
       to={`/album/${target}`}
       title={`${album.artist} — ${album.title}`}
-      className="group relative block hover:z-10"
+      className="group relative block hover:z-20"
       style={{
         width: lpSize,
         height: lpSize,
         textDecoration: 'none',
       }}
     >
-      {/* Vinyl disc — behind the cover, slides right + tilts on
-          hover. Positioned at inset:0 but starts with the cover
-          exactly on top of it. transition-transform drives the
-          whole animation. */}
+      {/* Vinyl disc — behind the cover, peeks ~30% out to the
+          right on hover. Reduced from the earlier 55% peek which
+          read as a full disc ejecting rather than the "just a
+          glimpse" effect the home grid used to have. Rotation
+          stays gentle. */}
       <div
         aria-hidden
-        className="absolute inset-0 z-0 transition-transform duration-[280ms] ease-out group-hover:translate-x-[55%] group-hover:rotate-[8deg] group-hover:scale-[1.02]"
+        className="absolute inset-0 z-0 transition-transform duration-[280ms] ease-out group-hover:translate-x-[32%] group-hover:rotate-[6deg]"
       >
         <VinylDisc size={lpSize} />
       </div>
 
-      {/* Cover — full-size, scales up a touch on hover. Wrapped in
-          its own transform layer so WallLP's internal transforms
-          (lean/perspective inside its sleeve div) don't conflict. */}
+      {/* Cover — scales up noticeably on hover (≈1.12) so the
+          hovered record clearly rises above its neighbours. */}
       <div
-        className="absolute inset-0 z-10 transition-transform duration-[280ms] ease-out group-hover:scale-[1.04]"
+        className="absolute inset-0 z-10 transition-transform duration-[280ms] ease-out group-hover:scale-[1.12]"
       >
         <WallLP size={lpSize} seed={position} lampBias={lampBias}>
           <CoverArt
@@ -724,55 +730,72 @@ function WallCell({
         </WallLP>
       </div>
 
-      {/* Owner has written a 50자 평 — drop a cartoon speech bubble
-          on the top-right of the cover so visitors can see at a
-          glance which albums are annotated. */}
-      {userReviewEmoji && <SpeechBubble emoji={userReviewEmoji} />}
+      {/* Comment bubble — hover-only. Holds the full 50자 평 body
+          (with emoji prefix if present). Hidden by default;
+          fades + scales in when the cell is hovered, in sync
+          with the cover-scale + vinyl peek so all three
+          animations hit together. Positioned above the cover,
+          tail pointing down. */}
+      {userReview && (
+        <CommentBubble body={userReview.body} emoji={userReview.emoji} lpSize={lpSize} />
+      )}
     </Link>
   );
 }
 
-function SpeechBubble({ emoji }: { emoji: string }) {
-  // Cartoon comment bubble — circular body with a small triangle
-  // tail pointing down-left toward the cover. Cream fill + warm
-  // ink text so it reads against dark covers. Pops up via a
-  // subtle scale animation on mount (keyframe in index.css's
-  // .mydig-bubble-pop; falls back to a static display if the
-  // animation is unsupported).
+function CommentBubble({
+  body,
+  emoji,
+  lpSize,
+}: {
+  body: string;
+  emoji: string | null;
+  lpSize: number;
+}) {
+  // Cartoon speech bubble. Sits above the cover (bottom:
+  // calc(100% + 10px)) so the hovering action doesn't get
+  // crowded. Origin-bottom keeps the scale animation grounded
+  // to the tail. max-width scales with the cover so larger
+  // covers get slightly wider bubbles.
   return (
     <div
       aria-hidden
-      className="absolute -top-2 -right-2 z-30 pointer-events-none mydig-bubble-pop"
+      className="absolute z-40 pointer-events-none opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-[220ms] ease-out"
+      style={{
+        bottom: 'calc(100% + 12px)',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        transformOrigin: '50% 100%',
+        width: 'max-content',
+        maxWidth: Math.min(260, lpSize * 1.5),
+      }}
     >
       <div className="relative">
         <div
-          className="flex items-center justify-center rounded-full"
+          className="px-3 py-2 rounded-xl text-[12px] leading-snug font-serif italic"
           style={{
-            width: 26,
-            height: 26,
             background: '#f5e8c8',
+            color: '#141008',
             boxShadow:
-              '0 2px 6px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(20,14,8,0.28)',
-            fontSize: 14,
-            lineHeight: 1,
+              '0 6px 14px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(20,14,8,0.2)',
           }}
         >
-          <span>{emoji}</span>
+          {emoji && <span className="not-italic mr-1.5">{emoji}</span>}
+          {body}
         </div>
-        {/* Tail — rotated square peeking from bottom-left of the
-            bubble. Positioned so it visually merges with the bubble
-            and points toward the cover's top-right corner. */}
+        {/* Tail — rotated square pointing down toward the cover. */}
         <div
           style={{
             position: 'absolute',
-            left: 3,
-            bottom: -2,
-            width: 7,
-            height: 7,
+            left: '50%',
+            bottom: -5,
+            marginLeft: -6,
+            width: 12,
+            height: 12,
             background: '#f5e8c8',
             transform: 'rotate(45deg)',
-            boxShadow: '1px 1px 2px rgba(0,0,0,0.3)',
-            borderTopLeftRadius: 1,
+            boxShadow: '3px 3px 6px rgba(0,0,0,0.3)',
+            clipPath: 'polygon(100% 0%, 100% 100%, 0% 100%)',
           }}
         />
       </div>

@@ -347,41 +347,32 @@ export function WallLP({
   }
   const leanDeg = 5;
   const bias = Math.max(0, Math.min(1, lampBias));
-  // Gap shadow offsets — pushed further from the sleeve when the
-  // LP is near the lamp so the shadow falls "longer" in that
-  // direction. Tiny absolute values keep the effect subtle.
-  const shadowOffsetX = 2 + bias * 3;
-  const shadowOffsetY = 4 + bias * 3;
-  const shadowAlpha = 0.35 + bias * 0.2;
+  // Gap shadow — single tight pass behind the sleeve. Earlier
+  // version had two big blurred shadows that spilled past the
+  // bottom of the record onto the rail, making records read as
+  // "floating over" rather than "resting on" the rail. This is
+  // now a small sideways offset with almost no vertical drop so
+  // the shadow stays on the wall behind the record and doesn't
+  // bleed downward.
+  const shadowOffsetX = 2 + bias * 2;
+  const shadowAlpha = 0.32 + bias * 0.15;
   // Lamp highlight intensity on the sleeve's upper-left corner.
   const highlightAlpha = 0.05 + bias * 0.15;
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
-      {/* gap shadow — blurred, and positioned via two layered rects
-          so the drop has both a tight core (for the sleeve's bottom
-          edge contact) and a wider spill (the directional lamp
-          shadow onto the wall/rail). */}
+      {/* gap shadow — pushed mostly sideways (to the right,
+          matching the upper-left lamp direction) with a small
+          vertical offset. Kept within the LP's own bounding box
+          so the blur doesn't spill onto the wooden rail below. */}
       <div
         style={{
           position: 'absolute',
           left: shadowOffsetX,
-          top: shadowOffsetY,
+          top: 1,
           width: size,
           height: size,
           background: `rgba(20, 10, 3, ${shadowAlpha})`,
-          filter: 'blur(5px)',
-          borderRadius: 1,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          left: 1,
-          top: 3,
-          width: size,
-          height: size,
-          background: 'rgba(15, 8, 3, 0.35)',
-          filter: 'blur(2px)',
+          filter: 'blur(3px)',
           borderRadius: 1,
         }}
       />

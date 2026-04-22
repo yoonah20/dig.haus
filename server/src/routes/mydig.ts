@@ -173,13 +173,18 @@ router.get('/mydig/:username', (req, res, next) => {
     isPublic,
     vinylWallTheme: user.vinyl_wall_theme,
     vinylWall: wallRows.map((r: any) => {
-      // userReviewEmoji: the emoji the page owner picked for their
-      // 50자 평 on this album, OR '💬' if they wrote one without an
-      // emoji. Null if no review. Client uses this flag to conditionally
-      // render the cartoon speech bubble on the cover.
-      let userReviewEmoji: string | null = null;
-      if (r.user_review_emoji) userReviewEmoji = String(r.user_review_emoji);
-      else if (r.user_review_body) userReviewEmoji = '💬';
+      // userReview: whatever 50자 평 the page owner wrote for this
+      // album. Null when there's no review. Client shows the body
+      // in a hover-only speech bubble; the bubble no longer
+      // surfaces by default. Emoji is carried separately so the
+      // client can prepend it inside the bubble.
+      const userReview =
+        r.user_review_body
+          ? {
+              body: String(r.user_review_body),
+              emoji: r.user_review_emoji ? String(r.user_review_emoji) : null,
+            }
+          : null;
       return {
         position: r.position,
         album: {
@@ -195,7 +200,7 @@ router.get('/mydig/:username', (req, res, next) => {
             ? JSON.parse(r.cover_art_fallbacks)
             : [],
         },
-        userReviewEmoji,
+        userReview,
       };
     }),
     shelf: shelfRows.map((r: any) => ({
