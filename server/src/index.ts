@@ -33,6 +33,7 @@ import customCoversRouter from './routes/customCovers.js';
 import sitemapRouter from './routes/sitemap.js';
 import userReviewsRouter from './routes/userReviews.js';
 import meRouter from './routes/me.js';
+import followsRouter from './routes/follows.js';
 import avatarsRouter from './routes/avatars.js';
 import albumRequestsRouter from './routes/albumRequests.js';
 import ownershipRouter from './routes/ownership.js';
@@ -107,6 +108,7 @@ async function start() {
   app.use('/api', purchaseLinksRouter);
   app.use('/api', userReviewsRouter);
   app.use('/api', meRouter);
+  app.use('/api', followsRouter);
   app.use('/api', albumRequestsRouter);
   app.use('/api', ownershipRouter);
   app.use('/api/stats', publicStatsRouter);

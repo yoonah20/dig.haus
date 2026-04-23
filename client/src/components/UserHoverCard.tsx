@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useUserPublic, type UserPublic } from '../hooks/useMe';
+import FollowButton from './FollowButton';
 import { resolveApiUrl } from '../utils/apiUrl';
 
 function formatJoined(iso: string | null): string {
@@ -238,19 +239,26 @@ export default function UserHoverCard({
                   space-y on the column keeps the rhythm even when the
                   user has no instagram handle. */}
               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                <div className="min-w-0">
-                  {/* Slightly larger than the comment-card speaker
-                      (text-sm = 14px) so the popover reads as the
-                      authoritative profile label rather than a
-                      duplicate of the trigger. */}
-                  <div className="text-[15px] font-medium text-white truncate">
-                    {data.user.name || '이름 없음'}
-                  </div>
-                  {data.user.createdAt && (
-                    <div className="text-[10px] text-gray-500">
-                      가입 {formatJoined(data.user.createdAt)}
+                <div className="min-w-0 flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    {/* Slightly larger than the comment-card speaker
+                        (text-sm = 14px) so the popover reads as the
+                        authoritative profile label rather than a
+                        duplicate of the trigger. */}
+                    <div className="text-[15px] font-medium text-white truncate">
+                      {data.user.name || '이름 없음'}
                     </div>
-                  )}
+                    {data.user.createdAt && (
+                      <div className="text-[10px] text-gray-500">
+                        가입 {formatJoined(data.user.createdAt)}
+                      </div>
+                    )}
+                  </div>
+                  <FollowButton
+                    targetUserId={data.user.id}
+                    following={!!data.followingByViewer}
+                    size="sm"
+                  />
                 </div>
 
                 {/* mydig row — direct link to the user's /my/:username
@@ -357,6 +365,14 @@ export default function UserHoverCard({
                         {data.stats.reviewCount}
                       </span>
                     </span>
+                    {(data.stats.followerCount ?? 0) > 0 && (
+                      <span>
+                        <span aria-hidden>👥</span>{' '}
+                        <span className="text-gray-100 font-semibold">
+                          {data.stats.followerCount}
+                        </span>
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

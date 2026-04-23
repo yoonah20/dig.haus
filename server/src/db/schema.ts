@@ -623,6 +623,14 @@ export function initializeDatabase(db: Database.Database): void {
     // tint into a "coloured pressing". Null = not yet extracted /
     // extraction failed; next wall fetch retries.
     'cover_dominant_color TEXT',
+    // Spotify 30-second preview for the mydig hover play-chip. URL
+    // is the raw `preview_url` field from the Spotify track object
+    // (public, no auth, CDN-cached). Name is the display string the
+    // play overlay uses. `lookup_at` is set even on failure so we
+    // don't thrash Spotify re-fetching albums that have no previews.
+    'preview_track_url TEXT',
+    'preview_track_name TEXT',
+    'preview_lookup_at TEXT',
   ]);
 
   // One-time backfill: every album that existed BEFORE we split the
@@ -1283,6 +1291,30 @@ export function initializeDatabase(db: Database.Database): void {
   migrateTable(db, 'vinyl_wall_snapshots', [
     'description TEXT',
   ]);
+
+  // Follows — lightweight directed "I want to keep an eye on this
+  // person's digs" edge. No mutual / friend semantics; follower +
+  // followee are distinct and ordered. Composite PK doubles as
+  // dedup so a second POST is a harmless no-op. CHECK prevents
+  // self-follows server-side; the follow UI gates the button too
+  // but the DB-level guard keeps malicious curl out.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_follows (
+      follower_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      followee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (follower_id, followee_id),
+      CHECK (follower_id != followee_id)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
+     ON user_follows(followee_id, created_at DESC)`
+  );
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_user_follows_follower_created
+     ON user_follows(follower_id, created_at DESC)`
+  );
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS shelf_slots (

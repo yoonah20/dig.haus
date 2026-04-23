@@ -3,6 +3,7 @@ import { queryGet, queryAll, execute, getDb } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
 import { ensureCoverDominantColor } from '../utils/coverColor.js';
+import { ensureAlbumPreview } from '../utils/albumPreview.js';
 
 const router = Router();
 
@@ -72,7 +73,8 @@ router.get('/mydig/:username', (req, res, next) => {
     `SELECT vwi.position, a.id AS album_id, a.mbid, a.slug, a.title,
             a.artist_name, a.release_date, a.release_year,
             a.cover_art_url, a.cover_art_fallbacks,
-            a.cover_dominant_color,
+            a.cover_dominant_color, a.spotify_url,
+            a.preview_track_url, a.preview_track_name, a.preview_lookup_at,
             ur.emoji AS user_review_emoji,
             ur.body AS user_review_body,
             ur.rating AS user_review_rating
@@ -85,14 +87,20 @@ router.get('/mydig/:username', (req, res, next) => {
     [user.id]
   );
 
-  // Fire-and-forget extraction for any wall album whose dominant
-  // colour hasn't been computed yet. Returns immediately with the
-  // current (possibly null) values; the next request after the
-  // async job finishes will carry the extracted colour. Avoids
-  // adding 15 × network-fetch latency to the response.
+  // Fire-and-forget enrichments for any wall album that hasn't
+  // been hydrated yet. Two parallel tracks:
+  //   - dominant colour (tints the hover vinyl disc)
+  //   - Spotify preview URL (powers the hover play chip)
+  // Both short-circuit via their own DB checks + in-process
+  // de-dupe, so calling them every request is cheap once the
+  // data is populated. First render sees nulls; next fetch
+  // carries the values.
   for (const r of wallRows as any[]) {
     if (!r.cover_dominant_color && r.cover_art_url) {
       void ensureCoverDominantColor(r.album_id, r.cover_art_url);
+    }
+    if (!r.preview_track_url && r.spotify_url) {
+      void ensureAlbumPreview(r.album_id, r.spotify_url);
     }
   }
 
@@ -197,6 +205,8 @@ router.get('/mydig/:username', (req, res, next) => {
             ? JSON.parse(r.cover_art_fallbacks)
             : [],
           coverDominantColor: r.cover_dominant_color ?? null,
+          previewTrackUrl: r.preview_track_url ?? null,
+          previewTrackName: r.preview_track_name ?? null,
         },
         userReview,
       };
@@ -917,6 +927,9 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
             a.release_date AS releaseDate, a.release_year AS releaseYear,
             a.cover_art_url AS coverArtUrl, a.cover_art_fallbacks AS coverArtFallbacks,
             a.cover_dominant_color AS coverDominantColor,
+            a.spotify_url AS spotifyUrl,
+            a.preview_track_url AS previewTrackUrl,
+            a.preview_track_name AS previewTrackName,
             ur.body AS user_review_body,
             ur.emoji AS user_review_emoji,
             ur.rating AS user_review_rating
@@ -928,11 +941,13 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
      ORDER BY i.position`,
     [user.id, snap.id]
   ) as Array<any>;
-  // Same fire-and-forget extraction pass the live wall does —
-  // second viewer of a freshly-created snapshot gets tinted discs.
+  // Same fire-and-forget enrichment as the live wall.
   for (const r of items) {
     if (r.album_id && !r.coverDominantColor && r.coverArtUrl) {
       void ensureCoverDominantColor(r.album_id, r.coverArtUrl);
+    }
+    if (r.album_id && !r.previewTrackUrl && r.spotifyUrl) {
+      void ensureAlbumPreview(r.album_id, r.spotifyUrl);
     }
   }
 
@@ -966,6 +981,8 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
             coverArtUrl: r.coverArtUrl,
             coverArtFallbacks: r.coverArtFallbacks ? JSON.parse(r.coverArtFallbacks) : [],
             coverDominantColor: r.coverDominantColor ?? null,
+            previewTrackUrl: r.previewTrackUrl ?? null,
+            previewTrackName: r.previewTrackName ?? null,
           }
         : null,
       userReview: r.user_review_body

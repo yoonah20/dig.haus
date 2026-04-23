@@ -488,6 +488,29 @@ router.get('/users/:id/public', (req, res) => {
       }
     : null;
 
+  // Follow graph — total counts both ways plus the viewer's own
+  // "am I following this user?" flag so the hover card can render
+  // its follow button without a second request. Viewer == null
+  // (anon) short-circuits to false.
+  const followerCount =
+    queryGet(
+      `SELECT COUNT(*) AS c FROM user_follows WHERE followee_id = ?`,
+      [id]
+    )?.c || 0;
+  const followingCount =
+    queryGet(
+      `SELECT COUNT(*) AS c FROM user_follows WHERE follower_id = ?`,
+      [id]
+    )?.c || 0;
+  const viewer = req.user as { id?: number } | undefined;
+  const followingByViewer = viewer?.id
+    ? !!queryGet(
+        `SELECT 1 AS ok FROM user_follows
+         WHERE follower_id = ? AND followee_id = ?`,
+        [viewer.id, id]
+      )
+    : false;
+
   res.json({
     user: {
       id: row.id,
@@ -505,7 +528,10 @@ router.get('/users/:id/public', (req, res) => {
       downvotePct: total > 0 ? Math.round((down / total) * 100) : null,
       ownedCount,
       wantedCount,
+      followerCount,
+      followingCount,
     },
+    followingByViewer,
   });
 });
 

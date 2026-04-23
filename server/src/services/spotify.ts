@@ -171,6 +171,66 @@ export async function searchAlbumsByLabel(
   }
 }
 
+// Pick a 30-second preview for a given album — used by the mydig
+// hover-play chip. Strategy is "first track with a non-null
+// preview_url" because most Spotify albums front-load the lead
+// track, and paying for popularity-weighted scoring (N+1 track
+// lookups per album × 15 albums per wall) wasn't worth the
+// bandwidth. When no track in the album carries a preview_url —
+// common on recent Korean releases — we return null, and the
+// caller's DB row records the lookup so we don't re-try.
+//
+// `albumIdOrUrl` can be a bare Spotify album id (22 chars) or a
+// full open.spotify.com URL; we normalise either to the id.
+export async function fetchAlbumPreview(
+  albumIdOrUrl: string
+): Promise<{ previewUrl: string; trackName: string } | null> {
+  try {
+    const token = await getToken();
+    if (!token) return null;
+    const id = extractSpotifyAlbumId(albumIdOrUrl);
+    if (!id) return null;
+    const res = await axios.get(`${SPOTIFY_API_BASE}/albums/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      httpsAgent,
+      // market=KR nudges Spotify into returning preview_url values
+      // for the user's regional catalogue. Without it, previews
+      // come back null for albums that ARE available in-region,
+      // purely because the endpoint defaults to US and treats the
+      // album as unavailable in that market.
+      params: { market: 'KR' },
+    });
+    const tracks = res.data?.tracks?.items as Array<any> | undefined;
+    if (!Array.isArray(tracks)) return null;
+    for (const t of tracks) {
+      if (typeof t?.preview_url === 'string' && t.preview_url.length > 0) {
+        return {
+          previewUrl: t.preview_url,
+          trackName: String(t.name ?? '').slice(0, 120),
+        };
+      }
+    }
+    return null;
+  } catch (err) {
+    console.warn(
+      '[spotify] fetchAlbumPreview failed:',
+      (err as Error).message
+    );
+    return null;
+  }
+}
+
+function extractSpotifyAlbumId(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  // Bare id — 22 base62 characters.
+  if (/^[A-Za-z0-9]{22}$/.test(trimmed)) return trimmed;
+  // Match open.spotify.com/album/<id>[?si=...]
+  const match = trimmed.match(/open\.spotify\.com\/album\/([A-Za-z0-9]{22})/);
+  if (match) return match[1];
+  return null;
+}
+
 export async function searchTrack(
   artist: string,
   album: string

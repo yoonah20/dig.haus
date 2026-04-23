@@ -161,7 +161,6 @@ export interface UserPublic {
   // title (≥1 item) and a muted "아직 공사 중" label (0 items).
   mydig: {
     username: string;
-    isPublic: boolean;
     theme: string | null;
     wallItemCount: number;
   } | null;
@@ -173,7 +172,12 @@ export interface UserPublic {
     downvotePct: number | null;
     ownedCount?: number;
     wantedCount?: number;
+    followerCount?: number;
+    followingCount?: number;
   };
+  // Viewer's own follow state toward this user. False when the
+  // viewer isn't logged in (or viewing their own card).
+  followingByViewer?: boolean;
 }
 
 export function useUserPublic(id: number | null | undefined, enabled = true) {

@@ -15,6 +15,15 @@ import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
 import GraffitiSnapshotList from '../components/MyDig/GraffitiSnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
 import UserHoverCard from '../components/UserHoverCard';
+import FollowButton from '../components/FollowButton';
+import FollowListModal from '../components/FollowListModal';
+import { useUserPublic } from '../hooks/useMe';
+import {
+  playPreview,
+  stopPreview,
+  usePlayingPreviewUrl,
+  useStopPreviewOnUnmount,
+} from '../hooks/useTrackPreview';
 import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 import { resolveApiUrl } from '../utils/apiUrl';
 
@@ -37,6 +46,9 @@ export default function MyDig() {
   }>();
   const location = useLocation();
   const navigate = useNavigate();
+  // Stop any preview audio playing when the user navigates away
+  // from the mydig page.
+  useStopPreviewOnUnmount();
 
   // Active snapshot is taken from either /my/:u/snap/:s (legacy
   // route kept for share-link compatibility) or the #<slug> hash
@@ -319,6 +331,18 @@ function ProfileHeader({
   const displayThemeText = wallTheme || 'my dig';
   const themePlaceholder = !wallTheme;
   const displayLabel = displayName || username;
+  // Drive follow-related UI off the shared user-public cache so
+  // the counts + follow state stay in sync with the hover card
+  // (mutations invalidate 'user-public' globally). The query is
+  // gated on userId; visitors on a page whose owner hasn't been
+  // resolved yet see no counts until the wall data lands.
+  const publicData = useUserPublic(userId, !!userId);
+  const followerCount = publicData.data?.stats?.followerCount ?? 0;
+  const followingCount = publicData.data?.stats?.followingCount ?? 0;
+  const viewerIsFollowing = !!publicData.data?.followingByViewer;
+  const [followListOpen, setFollowListOpen] = useState<
+    'followers' | 'following' | null
+  >(null);
   const avatarEl = resolvedAvatar ? (
     <img
       src={resolvedAvatar}
@@ -432,6 +456,16 @@ function ProfileHeader({
                 {deleteSnapshotPending ? '삭제 중…' : '🗑 삭제'}
               </button>
             )}
+            {/* Follow button — visible to logged-in visitors who
+                aren't the page owner. FollowButton renders null
+                for the self / anon cases so this is a no-op on
+                the owner's own page view. */}
+            {!isOwner && userId != null && (
+              <FollowButton
+                targetUserId={userId}
+                following={viewerIsFollowing}
+              />
+            )}
             <ShareButton url={shareUrl} label="공유" />
           </div>
         </div>
@@ -450,6 +484,34 @@ function ProfileHeader({
             ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
           </p>
         ) : null}
+        {/* Follower / Following chips — always visible so the
+            owner can reach their own lists and visitors can see
+            the graph. Renders zeros too; counts read as part of
+            the identity line rather than a conditional badge. */}
+        {userId != null && (
+          <div className="flex items-center gap-4 text-[11px] text-gray-400">
+            <button
+              type="button"
+              onClick={() => setFollowListOpen('followers')}
+              className="hover:text-[#e8a020] transition-colors cursor-pointer"
+            >
+              <span className="tabular-nums text-gray-200 font-semibold">
+                {followerCount}
+              </span>{' '}
+              팔로워
+            </button>
+            <button
+              type="button"
+              onClick={() => setFollowListOpen('following')}
+              className="hover:text-[#e8a020] transition-colors cursor-pointer"
+            >
+              <span className="tabular-nums text-gray-200 font-semibold">
+                {followingCount}
+              </span>{' '}
+              팔로잉
+            </button>
+          </div>
+        )}
         {mode === 'snapshot' && snapshotMeta && (
           <div className="flex items-center gap-3 flex-wrap text-[11px]">
             <span className="uppercase tracking-[0.22em] text-[#c9a060]">
@@ -467,6 +529,14 @@ function ProfileHeader({
           </div>
         )}
       </div>
+      {followListOpen && userId != null && (
+        <FollowListModal
+          userId={userId}
+          kind={followListOpen}
+          title={followListOpen === 'followers' ? '팔로워' : '팔로잉'}
+          onClose={() => setFollowListOpen(null)}
+        />
+      )}
     </header>
   );
 }
@@ -727,6 +797,19 @@ function WallCell({
   // very first view of an album (server kicks off async extraction
   // on that same request); subsequent fetches carry the value.
   const discBodyRgb = parseRgbString(album.coverDominantColor ?? null);
+  // Preview URL drives the hover play chip. Null = no chip.
+  const previewUrl = album.previewTrackUrl ?? null;
+  const playingUrl = usePlayingPreviewUrl();
+  const isPlaying = !!previewUrl && playingUrl === previewUrl;
+  const handlePreviewClick = (e: React.MouseEvent) => {
+    // Don't follow the Link when clicking the chip; just toggle
+    // audio. stopPropagation keeps the outer <Link> inert.
+    e.preventDefault();
+    e.stopPropagation();
+    if (!previewUrl) return;
+    if (isPlaying) stopPreview();
+    else playPreview(previewUrl);
+  };
 
   if (mobile) {
     return (
@@ -796,7 +879,70 @@ function WallCell({
           lpSize={lpSize}
         />
       )}
+
+      {previewUrl && (
+        <PreviewPlayChip
+          isPlaying={isPlaying}
+          onClick={handlePreviewClick}
+          trackName={album.previewTrackName ?? null}
+        />
+      )}
     </Link>
+  );
+}
+
+// Small circular overlay that sits bottom-right of the cover and
+// slides in on cell hover. Click toggles the shared audio player.
+// Icon swaps to a stop glyph while this track is the active one,
+// so the same chip doubles as "stop". Pointer events are only
+// live when the chip is visible (hover) — during the resting
+// state the outer Link's tap-to-navigate gesture wins.
+function PreviewPlayChip({
+  isPlaying,
+  onClick,
+  trackName,
+}: {
+  isPlaying: boolean;
+  onClick: (e: React.MouseEvent) => void;
+  trackName: string | null;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={
+        isPlaying
+          ? '미리듣기 정지'
+          : trackName
+            ? `"${trackName}" 미리듣기`
+            : '미리듣기 재생'
+      }
+      title={
+        isPlaying
+          ? '정지'
+          : trackName
+            ? `${trackName} · 미리듣기`
+            : '미리듣기'
+      }
+      className={`absolute z-30 bottom-2 right-2 w-8 h-8 rounded-full bg-[#141008]/85 border border-[#e8a020]/60 text-[#e8a020] flex items-center justify-center shadow-md transition-all duration-200 ${
+        isPlaying
+          ? 'opacity-100 scale-100'
+          : 'opacity-0 scale-90 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto hover:bg-[#1a130a]'
+      }`}
+    >
+      {isPlaying ? (
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+          <rect x="2" y="2" width="8" height="8" fill="currentColor" rx="1" />
+        </svg>
+      ) : (
+        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+          <path
+            d="M3 1.5 L10 6 L3 10.5 Z"
+            fill="currentColor"
+          />
+        </svg>
+      )}
+    </button>
   );
 }
 

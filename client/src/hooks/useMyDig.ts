@@ -20,6 +20,12 @@ export interface MyDigAlbum {
   // first load until the server finishes async extraction; drives
   // the coloured-vinyl tint under the cover on the mydig wall.
   coverDominantColor?: string | null;
+  // Spotify 30-second preview, fetched server-side once per album
+  // from the Spotify Web API's album → tracks response (first
+  // track carrying a non-null preview_url). Null means no preview
+  // is available — hover play chip just doesn't show.
+  previewTrackUrl?: string | null;
+  previewTrackName?: string | null;
 }
 
 export interface MyDigUser {
