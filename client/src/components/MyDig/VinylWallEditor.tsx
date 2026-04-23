@@ -42,10 +42,16 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
   const [source, setSource] = useState<MyDigCandidateSource>('all');
   const [searchInput, setSearchInput] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
-  // Touch-fallback state: tap a candidate (or already-placed slot) →
-  // it becomes `selected`, next tap on a slot resolves. Cancel by
-  // tapping the same source again or pressing Esc.
+  // Selection state for the click/tap path (mobile primary, desktop
+  // secondary-to-drag). A selected album can originate either from the
+  // right-side candidate panel (`selectedSource === null`) or from an
+  // occupied wall slot (`selectedSource === <position>`). The source
+  // distinguishes placement semantics: panel → place-or-overwrite,
+  // wall → swap. This replaces the older single-field selection that
+  // only tracked the album and treated every tap as "overwrite", which
+  // left wall-to-wall rearrangement unreachable for non-drag users.
   const [selectedAlbum, setSelectedAlbum] = useState<MyDigAlbum | null>(null);
+  const [selectedSource, setSelectedSource] = useState<number | null>(null);
   // While native drag-drop is in flight, this holds the source
   // position (if reordering from inside the wall) or `-1` for
   // drags originating in the candidate panel. Only used so
@@ -116,11 +122,43 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
     });
   };
 
-  // Touch-fallback flow: selectAlbum → user taps a slot → we place/swap.
-  const handleSlotTap = (position: number) => {
-    if (!selectedAlbum) return;
-    placeAtSlot(position, selectedAlbum);
+  const clearSelection = () => {
     setSelectedAlbum(null);
+    setSelectedSource(null);
+  };
+
+  // Click/tap on a slot resolves against the current selection state.
+  // Full table of the four cases the wall handles:
+  //
+  //   1. No selection + empty slot       → noop
+  //   2. No selection + filled slot      → pick up (select from wall)
+  //   3. Selection (this slot) + tap it  → deselect
+  //   4. Selection + other slot
+  //      - selectedSource === null       → place/overwrite (panel drop)
+  //      - selectedSource is a position  → swap
+  //
+  // Path (2) is the one that was missing before — without it the click
+  // flow could only place albums from the candidate panel and never
+  // rearrange what was already on the wall.
+  const handleSlotTap = (position: number) => {
+    if (!selectedAlbum) {
+      const pickup = draft[position];
+      if (pickup) {
+        setSelectedAlbum(pickup);
+        setSelectedSource(position);
+      }
+      return;
+    }
+    if (selectedSource === position) {
+      clearSelection();
+      return;
+    }
+    if (selectedSource !== null) {
+      swapSlots(selectedSource, position);
+    } else {
+      placeAtSlot(position, selectedAlbum);
+    }
+    clearSelection();
   };
 
   // Split 22 positions into 4 rows (5-5-6-6).
@@ -191,6 +229,7 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
                         position={position}
                         album={draft[position]}
                         isSelecting={!!selectedAlbum}
+                        isSelectedSource={selectedSource === position}
                         dragSource={dragSource}
                         onDropAlbum={(album) => placeAtSlot(position, album)}
                         onSwap={swapSlots}
@@ -243,12 +282,15 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
             />
             {selectedAlbum ? (
               <div className="mt-2 text-[11px] text-[#e8a020]">
-                선택됨: {selectedAlbum.title} — 빈 슬롯 클릭으로 배치
+                선택됨: {selectedAlbum.title}
+                {selectedSource !== null
+                  ? ' — 다른 슬롯 탭으로 교환'
+                  : ' — 슬롯 탭으로 배치'}
               </div>
             ) : (
               <div className="mt-2 text-[10px] text-gray-600 leading-snug">
                 앨범을 <span className="text-gray-400">드래그</span>해서 벽에 놓거나,
-                클릭해서 선택 후 빈 슬롯을 탭하세요.
+                슬롯/앨범을 탭해 선택 후 다른 슬롯을 탭하세요.
               </div>
             )}
           </div>
@@ -256,11 +298,22 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
           <CandidateList
             candidates={candidates}
             selectedAlbum={selectedAlbum}
-            onSelectAlbum={(album) =>
-              setSelectedAlbum((curr) =>
-                curr?.id === album.id ? null : candidateToAlbum(album)
-              )
-            }
+            selectedSource={selectedSource}
+            onSelectAlbum={(album) => {
+              // Picking from the candidate panel while a wall slot is
+              // already selected replaces the selection — the user's
+              // most recent gesture wins, and the previous wall source
+              // just goes back to its slot untouched.
+              if (
+                selectedAlbum?.id === album.id &&
+                selectedSource === null
+              ) {
+                clearSelection();
+                return;
+              }
+              setSelectedAlbum(candidateToAlbum(album));
+              setSelectedSource(null);
+            }}
             dragSource={dragSource}
             debouncedQ={debouncedQ}
           />
@@ -287,6 +340,7 @@ function EditWallSlot({
   position,
   album,
   isSelecting,
+  isSelectedSource,
   dragSource,
   onDropAlbum,
   onSwap,
@@ -296,6 +350,7 @@ function EditWallSlot({
   position: number;
   album: MyDigAlbum | null;
   isSelecting: boolean;
+  isSelectedSource: boolean;
   dragSource: React.MutableRefObject<number | null>;
   onDropAlbum: (album: MyDigAlbum) => void;
   onSwap: (from: number, to: number) => void;
@@ -353,14 +408,22 @@ function EditWallSlot({
   };
 
   const baseClass =
-    'relative w-full h-full rounded-md overflow-hidden transition-all group';
+    'relative w-full h-full rounded-md overflow-hidden transition-all group cursor-pointer';
+  // Highlight priority: dragOver (hovering a drop target) > selected
+  // source (click/tap selection) > filled > empty. DragOver borrows the
+  // same amber ring as selection — both signal "this slot is active"
+  // and reusing the look keeps the edit canvas quiet. Selected source
+  // dims the slot so the picked-up album visually "lifts off" the wall
+  // while the user decides where to drop it.
   const stateClass = dragOver
     ? 'ring-2 ring-[#e8a020] ring-offset-2 ring-offset-[#0a0703]'
-    : album
-      ? 'bg-[#1a1a1a]'
-      : `border border-dashed bg-white/[0.02] ${
-          isSelecting ? 'border-[#e8a020]/60 hover:border-[#e8a020]' : 'border-white/10'
-        }`;
+    : isSelectedSource
+      ? 'ring-2 ring-[#e8a020] ring-offset-2 ring-offset-[#0a0703] opacity-60'
+      : album
+        ? 'bg-[#1a1a1a]'
+        : `border border-dashed bg-white/[0.02] ${
+            isSelecting ? 'border-[#e8a020]/60 hover:border-[#e8a020]' : 'border-white/10'
+          }`;
 
   return (
     <div
@@ -368,10 +431,7 @@ function EditWallSlot({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      onClick={() => {
-        // Tap routes: empty slot while selecting → place.
-        if (!album && isSelecting) onTap();
-      }}
+      onClick={onTap}
     >
       {album ? (
         <div
@@ -409,12 +469,14 @@ function EditWallSlot({
 function CandidateList({
   candidates,
   selectedAlbum,
+  selectedSource,
   onSelectAlbum,
   dragSource,
   debouncedQ,
 }: {
   candidates: ReturnType<typeof useMyDigCandidates>;
   selectedAlbum: MyDigAlbum | null;
+  selectedSource: number | null;
   onSelectAlbum: (album: MyDigCandidate) => void;
   dragSource: React.MutableRefObject<number | null>;
   debouncedQ: string;
@@ -468,7 +530,14 @@ function CandidateList({
         <CandidateRow
           key={album.id}
           album={album}
-          isSelected={selectedAlbum?.id === album.id}
+          // Only highlight a candidate row when the selection
+          // specifically originated from the panel (source === null).
+          // A wall-origin selection of the same album elsewhere
+          // shouldn't light up the candidate row — they're different
+          // actions even though the album id matches.
+          isSelected={
+            selectedAlbum?.id === album.id && selectedSource === null
+          }
           onSelect={() => onSelectAlbum(album)}
           dragSource={dragSource}
         />
