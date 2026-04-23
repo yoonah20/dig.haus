@@ -358,23 +358,38 @@ function EditWallSlot({
   onTap: () => void;
 }) {
   const [dragOver, setDragOver] = useState(false);
+  const slotRef = useRef<HTMLDivElement>(null);
 
-  const handleDragStart = (e: React.DragEvent) => {
-    if (!album) return;
-    dragSource.current = position;
-    e.dataTransfer.effectAllowed = 'move';
-    const payload = JSON.stringify({ ...album, _sourcePosition: position });
-    e.dataTransfer.setData('application/x-mydig-album', payload);
-    // text/plain fallback — some browsers refuse to enter the
-    // drop phase unless a standard type is present.
-    e.dataTransfer.setData('text/plain', payload);
-    // eslint-disable-next-line no-console
-    console.log('[dnd] dragstart slot', position, {
-      albumId: album.id,
-      payloadLen: payload.length,
-      typesAfterSetData: Array.from(e.dataTransfer.types),
-    });
-  };
+  // Native dragstart listener. React's synthetic onDragStart wasn't
+  // firing in the user's environment — dragover/drop/dragend all
+  // dispatched fine, but dragstart never reached the React handler,
+  // so our setData() calls never ran and drop received empty
+  // dataTransfer. Binding through addEventListener bypasses the
+  // synthetic event system and reliably fires when the browser
+  // initiates the drag.
+  useEffect(() => {
+    const el = slotRef.current;
+    if (!el || !album) return;
+    const handler = (e: DragEvent) => {
+      if (!e.dataTransfer) return;
+      dragSource.current = position;
+      e.dataTransfer.effectAllowed = 'move';
+      const payload = JSON.stringify({
+        ...album,
+        _sourcePosition: position,
+      });
+      e.dataTransfer.setData('application/x-mydig-album', payload);
+      e.dataTransfer.setData('text/plain', payload);
+      // eslint-disable-next-line no-console
+      console.log('[dnd] NATIVE dragstart slot', position, {
+        albumId: album.id,
+        payloadLen: payload.length,
+        typesAfterSetData: Array.from(e.dataTransfer.types),
+      });
+    };
+    el.addEventListener('dragstart', handler);
+    return () => el.removeEventListener('dragstart', handler);
+  }, [album, position, dragSource]);
 
   const handleDragOver = (e: React.DragEvent) => {
     if (dragSource.current === position) return;
@@ -473,8 +488,8 @@ function EditWallSlot({
   // div gets React's event delegation to reliably catch dragstart.
   return (
     <div
+      ref={slotRef}
       draggable={!!album}
-      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -615,18 +630,29 @@ function CandidateRow({
   onSelect: () => void;
   dragSource: React.MutableRefObject<number | null>;
 }) {
-  const handleDragStart = (e: React.DragEvent) => {
-    dragSource.current = -1;
-    e.dataTransfer.effectAllowed = 'copy';
-    const payload = JSON.stringify(candidateToAlbum(album));
-    e.dataTransfer.setData('application/x-mydig-album', payload);
-    e.dataTransfer.setData('text/plain', payload);
-    // eslint-disable-next-line no-console
-    console.log('[dnd] dragstart candidate', album.id, {
-      payloadLen: payload.length,
-      typesAfterSetData: Array.from(e.dataTransfer.types),
-    });
-  };
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // Same native dragstart workaround as EditWallSlot — React's
+  // synthetic onDragStart wasn't firing for either drag source.
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    const handler = (e: DragEvent) => {
+      if (!e.dataTransfer) return;
+      dragSource.current = -1;
+      e.dataTransfer.effectAllowed = 'copy';
+      const payload = JSON.stringify(candidateToAlbum(album));
+      e.dataTransfer.setData('application/x-mydig-album', payload);
+      e.dataTransfer.setData('text/plain', payload);
+      // eslint-disable-next-line no-console
+      console.log('[dnd] NATIVE dragstart candidate', album.id, {
+        payloadLen: payload.length,
+        typesAfterSetData: Array.from(e.dataTransfer.types),
+      });
+    };
+    el.addEventListener('dragstart', handler);
+    return () => el.removeEventListener('dragstart', handler);
+  }, [album, dragSource]);
 
   const handleDragEnd = (e: React.DragEvent) => {
     // eslint-disable-next-line no-console
@@ -638,8 +664,8 @@ function CandidateRow({
 
   return (
     <div
+      ref={rowRef}
       draggable
-      onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={onSelect}
       // cursor-grab signals the row is draggable; it flips to
