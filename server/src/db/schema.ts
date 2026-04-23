@@ -618,6 +618,11 @@ export function initializeDatabase(db: Database.Database): void {
     // — powers the "50 per day" cap and the admin's "리뷰 수집 대기"
     // queue. Admin-registered rows stay NULL.
     'requested_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL',
+    // Stored as "r,g,b" (0-255). Extracted once server-side from the
+    // cover image so the mydig vinyl disc underneath each album can
+    // tint into a "coloured pressing". Null = not yet extracted /
+    // extraction failed; next wall fetch retries.
+    'cover_dominant_color TEXT',
   ]);
 
   // One-time backfill: every album that existed BEFORE we split the

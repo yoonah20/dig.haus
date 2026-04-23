@@ -684,6 +684,11 @@ export default function VinylWallEditor({
         <SnapshotSaveModal
           username={username}
           items={draftItems()}
+          // Pre-fill the snapshot description with whatever the
+          // owner has in the editor's description input so they
+          // don't have to retype it. They can still clear or
+          // rewrite it inside the snapshot modal.
+          initialDescription={descriptionInput.trim() || null}
           onClose={() => setSnapshotModalOpen(false)}
           onSaved={handleAfterSnapshotSaved}
         />

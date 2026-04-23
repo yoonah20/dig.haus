@@ -16,6 +16,10 @@ export interface MyDigAlbum {
   releaseYear?: number | null;
   coverArtUrl: string | null;
   coverArtFallbacks?: string[];
+  // "r,g,b" string extracted server-side once per album. Null on
+  // first load until the server finishes async extraction; drives
+  // the coloured-vinyl tint under the cover on the mydig wall.
+  coverDominantColor?: string | null;
 }
 
 export interface MyDigUser {

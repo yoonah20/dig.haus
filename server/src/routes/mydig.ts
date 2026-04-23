@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { queryGet, queryAll, execute, getDb } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
+import { ensureCoverDominantColor } from '../utils/coverColor.js';
 
 const router = Router();
 
@@ -91,6 +92,7 @@ router.get('/mydig/:username', (req, res, next) => {
     `SELECT vwi.position, a.id AS album_id, a.mbid, a.slug, a.title,
             a.artist_name, a.release_date, a.release_year,
             a.cover_art_url, a.cover_art_fallbacks,
+            a.cover_dominant_color,
             ur.emoji AS user_review_emoji,
             ur.body AS user_review_body,
             ur.rating AS user_review_rating
@@ -102,6 +104,17 @@ router.get('/mydig/:username', (req, res, next) => {
      ORDER BY vwi.position ASC`,
     [user.id]
   );
+
+  // Fire-and-forget extraction for any wall album whose dominant
+  // colour hasn't been computed yet. Returns immediately with the
+  // current (possibly null) values; the next request after the
+  // async job finishes will carry the extracted colour. Avoids
+  // adding 15 × network-fetch latency to the response.
+  for (const r of wallRows as any[]) {
+    if (!r.cover_dominant_color && r.cover_art_url) {
+      void ensureCoverDominantColor(r.album_id, r.cover_art_url);
+    }
+  }
 
   // Shelf — up to 6 bins, each optionally typed to a genre, each
   // holding a flat list of albums in flip-through order.
@@ -204,6 +217,7 @@ router.get('/mydig/:username', (req, res, next) => {
           coverArtFallbacks: r.cover_art_fallbacks
             ? JSON.parse(r.cover_art_fallbacks)
             : [],
+          coverDominantColor: r.cover_dominant_color ?? null,
         },
         userReview,
       };
@@ -929,6 +943,7 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
             a.title, a.artist_name AS artist,
             a.release_date AS releaseDate, a.release_year AS releaseYear,
             a.cover_art_url AS coverArtUrl, a.cover_art_fallbacks AS coverArtFallbacks,
+            a.cover_dominant_color AS coverDominantColor,
             ur.body AS user_review_body,
             ur.emoji AS user_review_emoji,
             ur.rating AS user_review_rating
@@ -940,6 +955,13 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
      ORDER BY i.position`,
     [user.id, snap.id]
   ) as Array<any>;
+  // Same fire-and-forget extraction pass the live wall does —
+  // second viewer of a freshly-created snapshot gets tinted discs.
+  for (const r of items) {
+    if (r.album_id && !r.coverDominantColor && r.coverArtUrl) {
+      void ensureCoverDominantColor(r.album_id, r.coverArtUrl);
+    }
+  }
 
   res.json({
     snapshot: {
@@ -970,6 +992,7 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
             releaseYear: r.releaseYear,
             coverArtUrl: r.coverArtUrl,
             coverArtFallbacks: r.coverArtFallbacks ? JSON.parse(r.coverArtFallbacks) : [],
+            coverDominantColor: r.coverDominantColor ?? null,
           }
         : null,
       userReview: r.user_review_body

@@ -23,6 +23,7 @@ function todayDateLabel(): string {
 export default function SnapshotSaveModal({
   username,
   items,
+  initialDescription = null,
   onClose,
   onSaved,
 }: {
@@ -33,13 +34,18 @@ export default function SnapshotSaveModal({
    *  in-flight wall can be archived without first committing to
    *  vinyl_wall_items. */
   items?: Array<{ position: number; albumId: number }>;
+  /** Pre-fill for the description field — caller usually passes
+   *  the current wall description so the owner doesn't have to
+   *  retype it when capturing a "this is who I am right now"
+   *  snapshot of their live wall. Editable after pre-fill. */
+  initialDescription?: string | null;
   onClose: () => void;
   /** Fires after a successful save. Editor uses it to step into
    *  the "revert or keep" prompt. */
   onSaved?: () => void;
 }) {
   const [name, setName] = useState(todayDateLabel());
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(initialDescription ?? '');
   const [isPublic, setIsPublic] = useState(false);
   const create = useCreateVinylWallSnapshot(username);
 
@@ -101,7 +107,7 @@ export default function SnapshotSaveModal({
           onChange={(e) => setDescription(e.target.value)}
           maxLength={240}
           rows={2}
-          placeholder="이 스냅샷이 어떤 이야기인지 짧게 남겨보세요."
+          placeholder="이 15장의 앨범에 대한 이야기를 짧게 적어보세요."
           className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none leading-snug"
         />
         <p className="text-[10px] text-gray-600 mt-1 text-right">

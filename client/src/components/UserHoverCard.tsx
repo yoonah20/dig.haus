@@ -150,12 +150,20 @@ export default function UserHoverCard({
   }, []);
 
   // Dismiss when clicking outside the trigger/popover on touch devices —
-  // the popover otherwise lingers after the user has moved on.
+  // the popover otherwise lingers after the user has moved on. Must
+  // check BOTH rootRef (the trigger span) AND popoverRef (the
+  // portal'd card) because the card lives on document.body, so a
+  // click on e.g. the mydig Link inside it would otherwise match
+  // "outside" and setOpen(false) on pointerdown — that unmounts
+  // the Link before its click handler fires, killing navigation.
   useEffect(() => {
     if (!open) return;
     const onDocPointer = (e: PointerEvent) => {
       const target = e.target as Element | null;
-      if (rootRef.current && target && !rootRef.current.contains(target)) {
+      if (!target) return;
+      const insideTrigger = rootRef.current?.contains(target) ?? false;
+      const insidePopover = popoverRef.current?.contains(target) ?? false;
+      if (!insideTrigger && !insidePopover) {
         setOpen(false);
       }
     };

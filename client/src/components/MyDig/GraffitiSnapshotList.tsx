@@ -60,11 +60,12 @@ export default function GraffitiSnapshotList({
     </div>
   );
 
-  // Column positioning: pt-10 anchors the start near "10% from
-  // the top of the wall row" without measuring the wall height —
-  // the heading + a short list sit high on the painted column
-  // where a graffito would naturally live.
-  const outer = 'px-2 pt-10 flex flex-col gap-2';
+  // Column positioning: pt-2 keeps the heading aligned close to the
+  // top of the wall's first rail rather than floating mid-column.
+  // The earlier pt-10 pulled the list too far down; sliding it up
+  // puts the graffito near the wall's top edge where the eye
+  // already is.
+  const outer = 'px-2 pt-2 flex flex-col gap-2';
 
   if (snapshots.length === 0) {
     return (
@@ -72,10 +73,10 @@ export default function GraffitiSnapshotList({
         {backToLiveRow}
         {heading}
         <div className="flex flex-col gap-1.5 pl-3">
-          <div className="text-[14px] leading-relaxed text-[#5a4838]">
+          <div className="text-[17px] leading-relaxed text-[#5a4838]">
             {isOwner
-              ? '아직 스냅샷이 없어요. 📸 버튼으로 남겨보세요.'
-              : '아직 스냅샷이 없어요.'}
+              ? '아직 기억하지 않았어요. 📸 버튼으로 남겨보세요.'
+              : '아직 기억하지 않았어요.'}
           </div>
         </div>
       </div>

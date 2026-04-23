@@ -16,7 +16,6 @@ import GraffitiSnapshotList from '../components/MyDig/GraffitiSnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
 import UserHoverCard from '../components/UserHoverCard';
 import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
-import { useCoverDominantColor } from '../hooks/useCoverDominantColor';
 import { resolveApiUrl } from '../utils/apiUrl';
 
 // Phase 3a skeleton — the four-layer placeholder scaffold described
@@ -208,12 +207,13 @@ export default function MyDig() {
           shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
-        {/* Desktop: small left gutter (1fr) pulls the wall + graffiti
-            pair toward the visual center of the page so the composition
-            doesn't read as "pushed left". The wall cell still caps at
-            890px; the graffiti cell still takes the remainder. */}
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,32px)_minmax(0,890px)_minmax(0,1fr)] gap-4 md:gap-8">
-          <div className="hidden md:block" aria-hidden />
+        {/* Desktop grid: wall at max 890px flush to the left edge of
+            the content area, graffiti column takes the remainder.
+            The earlier left-gutter column was removed — the wall
+            sits a touch left-of-centre, which reads better now that
+            the snapshot strip on the right anchors the page's
+            visual mass. */}
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,890px)_minmax(0,1fr)] gap-4 md:gap-8">
           <WallSection>
             {snapLoading ? (
               <div className="text-center py-12 text-sm text-gray-500">
@@ -276,6 +276,7 @@ export default function MyDig() {
         {savingSnapshot && username && (
           <SnapshotSaveModal
             username={username}
+            initialDescription={data.vinylWallDescription ?? null}
             onClose={() => setSavingSnapshot(false)}
             onSaved={() => setSavingSnapshot(false)}
           />
@@ -739,11 +740,11 @@ function WallCell({
 }) {
   const { album, userReview } = item;
   const target = album.slug || album.mbid;
-  // Extract a body tint from the cover so the disc underneath
-  // turns into a "coloured vinyl" pressing matching the album.
-  // Runs once per URL (module-level cache in the hook); null on
-  // CORS-blocked covers, where VinylDisc falls back to black.
-  const discBodyRgb = useCoverDominantColor(album.coverArtUrl);
+  // Server extracts + stores cover_dominant_color once per album
+  // and ships it as a "r,g,b" string on the wall payload. Null on
+  // very first view of an album (server kicks off async extraction
+  // on that same request); subsequent fetches carry the value.
+  const discBodyRgb = parseRgbString(album.coverDominantColor ?? null);
 
   if (mobile) {
     return (
@@ -882,6 +883,20 @@ function CommentBubble({
 // owner captured it, not the UTC instant. Falls back to the raw
 // string if the input can't be parsed so the subtitle never renders
 // as a bare "Invalid Date".
+// Parse the server's "r,g,b" dominant-colour string into a triple.
+// Returns null for null/malformed input; WallCell feeds the result
+// straight into VinylDisc's bodyColor prop, which falls back to
+// classic black when null.
+function parseRgbString(
+  s: string | null
+): [number, number, number] | null {
+  if (!s) return null;
+  const parts = s.split(',').map((x) => Number(x.trim()));
+  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
+  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+  return [clamp(parts[0]), clamp(parts[1]), clamp(parts[2])];
+}
+
 function formatKoreanMemoryDate(input: string | null | undefined): string {
   if (!input) return '';
   const d = new Date(input);
