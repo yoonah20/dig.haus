@@ -267,46 +267,91 @@ export function VinylDisc({ size }: { size: number }) {
       style={{
         display: 'block',
         // Zero vertical offset so the shadow doesn't spill below
-        // the disc onto the wooden rail when the cell is hovered
-        // (hover scales the disc + peeks it to the right; a
-        // Y-offset shadow gets amplified and falls on the rail).
-        // Matches the WallLP gap-shadow style for consistency.
+        // the disc onto the wooden rail when the cell is hovered.
         filter: 'drop-shadow(2px 0 3px rgba(0,0,0,0.45))',
       }}
       aria-hidden
     >
       <defs>
-        <radialGradient id="vinylSheen" cx="0.3" cy="0.3" r="0.8">
-          <stop offset="0" stopColor="#3a3a3a" />
-          <stop offset="0.3" stopColor="#1a1a1a" />
-          <stop offset="1" stopColor="#0a0a0a" />
+        {/* Base vinyl body — slightly brighter at centre → pitch
+            black at the rim. Avoids the "flat paper disc" look
+            the earlier single-gradient version had. */}
+        <radialGradient id="vinylBase" cx="0.5" cy="0.5" r="0.65">
+          <stop offset="0" stopColor="#161616" />
+          <stop offset="0.7" stopColor="#0b0b0b" />
+          <stop offset="1" stopColor="#050505" />
         </radialGradient>
+        {/* Specular crescent — simulates light reflecting off the
+            upper-right. Offset centre (0.72 / 0.28) + soft radial
+            falloff gives the half-moon sheen real vinyl shots
+            have; this is the single biggest thing making the disc
+            read as 3D instead of a flat circle. */}
+        <radialGradient id="vinylSheen" cx="0.72" cy="0.28" r="0.5">
+          <stop offset="0" stopColor="rgba(255,255,255,0.18)" />
+          <stop offset="0.4" stopColor="rgba(255,255,255,0.05)" />
+          <stop offset="1" stopColor="rgba(255,255,255,0)" />
+        </radialGradient>
+        {/* Paper sheen on label — diagonal gradient so the label
+            reads as a printed paper sticker catching light, not a
+            painted flat disc. */}
+        <linearGradient id="vinylLabelSheen" x1="0.2" y1="0.1" x2="0.8" y2="0.9">
+          <stop offset="0" stopColor="rgba(255,255,255,0.14)" />
+          <stop offset="0.5" stopColor="rgba(255,255,255,0)" />
+        </linearGradient>
       </defs>
-      {/* Black disc */}
+
+      {/* Disc body */}
+      <circle cx="50" cy="50" r="50" fill="url(#vinylBase)" />
+
+      {/* Banded grooves — 18 concentric rings with alternating
+          darker/lighter strokes simulate the vinyl's spiralled
+          surface catching ambient light. Not a literal spiral
+          (cheaper to render this way and indistinguishable at
+          small sizes), but the band alternation is what sells
+          the "grooved" texture vs. a smooth disc. */}
+      {Array.from({ length: 18 }, (_, i) => {
+        const r = 16 + i * 1.9;
+        const bright = i % 2 === 0;
+        return (
+          <circle
+            key={i}
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke={bright ? '#1f1f1f' : '#0c0c0c'}
+            strokeWidth={bright ? 0.45 : 0.22}
+          />
+        );
+      })}
+
+      {/* Specular highlight — painted AFTER the grooves so the
+          crescent smooths over them where the light would be
+          bouncing off a real vinyl's surface. */}
       <circle cx="50" cy="50" r="50" fill="url(#vinylSheen)" />
-      {/* Pressed grooves — faint concentric rings */}
-      {[12, 18, 24, 30, 34, 38, 42, 46].map((r) => (
-        <circle
-          key={r}
-          cx="50"
-          cy="50"
-          r={r}
-          fill="none"
-          stroke="#2a2a2a"
-          strokeWidth="0.35"
-        />
-      ))}
-      {/* Centre label — dig.haus amber */}
-      <circle cx="50" cy="50" r="14" fill="#e8a020" />
-      {/* Subtle inner circle for label print */}
+
+      {/* Centre label — dig.haus amber with a paper-sheen overlay
+          + crisp outer/inner boundary rings (printed-sticker edge
+          detail, matches what the sample vinyl shots show). */}
+      <circle cx="50" cy="50" r="15" fill="#e8a020" />
+      <circle cx="50" cy="50" r="15" fill="url(#vinylLabelSheen)" />
       <circle
         cx="50"
         cy="50"
-        r="13"
+        r="15"
         fill="none"
-        stroke="rgba(20,14,8,0.3)"
-        strokeWidth="0.4"
+        stroke="rgba(20,14,8,0.4)"
+        strokeWidth="0.45"
       />
+      <circle
+        cx="50"
+        cy="50"
+        r="13.5"
+        fill="none"
+        stroke="rgba(20,14,8,0.2)"
+        strokeWidth="0.3"
+      />
+
       <text
         x="50"
         y="52"
@@ -322,6 +367,7 @@ export function VinylDisc({ size }: { size: number }) {
       >
         dig
       </text>
+
       {/* Spindle hole */}
       <circle cx="50" cy="50" r="1.6" fill="#0a0503" />
     </svg>
