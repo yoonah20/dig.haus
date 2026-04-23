@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import CoverArt from '../CoverArt';
+import QuickRegister from './QuickRegister';
 import {
   useMyDigCandidates,
   useSaveVinylWall,
@@ -271,6 +272,12 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
               </button>
             ))}
           </div>
+
+          {/* Quick-register appears only on the 전체 tab — the other
+              three tabs are filtered views of the user's own
+              collections, where "this album isn't in dig.haus yet"
+              doesn't apply. */}
+          {source === 'all' && <QuickRegister />}
 
           <div className="p-3 border-b border-white/5">
             <input
