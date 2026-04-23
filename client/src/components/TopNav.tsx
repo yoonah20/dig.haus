@@ -92,42 +92,43 @@ export default function TopNav() {
                 candidates with a per-row [+] button; admins also get
                 a [⚡] that registers + kicks off auto-curation. Less
                 nav chrome, fewer surfaces to maintain. */}
+            {/* Search. Shovel glyph (flaticon shovel-dig PNG, masked to
+                amber so it picks up the nav's color) — "dig" is the
+                active verb of exploring the catalog, so the shovel
+                lives on search. The mydig button across the way
+                switched to a storefront (destination, not action). */}
             <button
               onClick={() => (searchOpen ? closeOverlay() : openOverlay())}
-              className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
+              className="group w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] hover:bg-[#e8a020] transition-colors cursor-pointer"
               title="검색"
               aria-label="검색"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="w-[18px] h-[18px]"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={2}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-                />
-              </svg>
+              <span
+                aria-hidden
+                className="w-[18px] h-[18px] bg-[#e8a020] group-hover:bg-black transition-colors"
+                style={{
+                  WebkitMaskImage: "url('/icons/shovel-dig.png')",
+                  WebkitMaskSize: 'contain',
+                  WebkitMaskRepeat: 'no-repeat',
+                  WebkitMaskPosition: 'center',
+                  maskImage: "url('/icons/shovel-dig.png')",
+                  maskSize: 'contain',
+                  maskRepeat: 'no-repeat',
+                  maskPosition: 'center',
+                }}
+              />
             </button>
             {/* Sort trigger lives inline above the album grid now
                 (Home.tsx's SortTrigger). Keeping the nav cluster
                 down to "find / my store / login" — everything about
                 how the feed is arranged belongs to the feed itself. */}
-            {/* mydig entry. Flaticon shovel outline (PNG) rendered
-                via CSS mask-image so only the icon's alpha shape
-                hits the screen and the pixel color comes from
-                `background-color`. Lets the icon inherit the
-                dig.haus amber the rest of the nav uses, and hover
-                can recolor it with pure Tailwind utilities. The
-                original PNG is monochrome black, which would have
-                been invisible on the dark nav if rendered as a
-                plain <img>. First click with no username opens the
-                UsernameModal; later clicks go to /my/:username.
-                Hidden for guests. */}
+            {/* mydig entry. Storefront glyph (Heroicons building-
+                storefront — awning + shop body) restored after a run
+                of shovel variants. The shovel is now the search
+                button since "dig" is the active verb, and mydig is
+                the destination — "my record store". First click
+                with no username set opens the UsernameModal; later
+                clicks navigate to /my/:username. Hidden for guests. */}
             {user && (
               <button
                 onClick={() => {
@@ -137,24 +138,24 @@ export default function TopNav() {
                     setUsernameModalOpen(true);
                   }
                 }}
-                className="group w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] hover:bg-[#e8a020] transition-colors cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
                 title="mydig으로"
                 aria-label="mydig으로"
               >
-                <span
-                  aria-hidden
-                  className="w-[18px] h-[18px] bg-[#e8a020] group-hover:bg-black transition-colors"
-                  style={{
-                    WebkitMaskImage: "url('/icons/shovel-dig.png')",
-                    WebkitMaskSize: 'contain',
-                    WebkitMaskRepeat: 'no-repeat',
-                    WebkitMaskPosition: 'center',
-                    maskImage: "url('/icons/shovel-dig.png')",
-                    maskSize: 'contain',
-                    maskRepeat: 'no-repeat',
-                    maskPosition: 'center',
-                  }}
-                />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-[18px] h-[18px]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={1.8}
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z"
+                  />
+                </svg>
               </button>
             )}
             <LoginButton />
