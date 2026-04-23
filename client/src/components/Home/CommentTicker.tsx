@@ -156,7 +156,7 @@ export function TickerItem({
             (whitespace-nowrap keeps them glued to the final word and
             to each other) so they read as punctuation rather than a
             separate badge. */}
-        <p className="flex-1 min-w-0 text-gray-100 text-[12px] leading-snug break-words">
+        <p className="flex-1 min-w-0 text-gray-100 text-[13px] leading-snug break-words">
           {item.body}
           {hasBadges && (
             <span className="whitespace-nowrap" aria-hidden>

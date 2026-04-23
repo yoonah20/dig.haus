@@ -140,7 +140,18 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
   const overflow = sorted.length - visible.length;
 
   return (
-    <div className="album-front-decor absolute bottom-2 right-2 flex flex-col items-end gap-1 pointer-events-none">
+    <div
+      className="album-front-decor absolute flex flex-col items-end gap-1 pointer-events-none"
+      // Inset scales with the card's own container width (cqw) so
+      // the price tag hugs the bottom-right at a consistent % from
+      // the corner across density tiers, instead of drifting inward
+      // as the card shrinks. Floors at 2px / caps at 8px (matches
+      // the previous fixed bottom-2/right-2 spacing at full size).
+      style={{
+        bottom: 'clamp(2px, 2.5cqw, 8px)',
+        right: 'clamp(2px, 2.5cqw, 8px)',
+      }}
+    >
       {visible.map((link, i) => {
         const rotation = (i % 2 === 0 ? -1 : 1) * (2 + i);
         const theme = themeForStatus(link.status);

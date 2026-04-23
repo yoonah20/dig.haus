@@ -366,7 +366,18 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               className="w-full h-full object-cover"
             />
             {hasAnyCoverSticker && (
-              <div className="absolute top-2 left-2 flex flex-col items-start gap-1 select-none">
+              <div
+                className="absolute flex flex-col items-start gap-1 select-none"
+                // Inset scales with card width (cqw) so the sticker
+                // stays at a consistent % from the corner instead of
+                // creeping inward on smaller grids. clamp floors at
+                // 2px (always visibly off the edge) and caps at 8px
+                // (the previous fixed top-2/left-2 value).
+                style={{
+                  top: 'clamp(2px, 2.5cqw, 8px)',
+                  left: 'clamp(2px, 2.5cqw, 8px)',
+                }}
+              >
                 {isSoon && (
                   <CoverStickerBadge
                     kind="soon"
