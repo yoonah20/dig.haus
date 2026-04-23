@@ -23,17 +23,20 @@ export default function ActivityRail({
   return (
     <aside aria-label="활동" className="flex flex-col gap-6">
       <section>
-        <div className="flex items-center gap-1.5 mb-2 px-1">
+        <div className="flex items-center gap-2 mb-2 px-1">
           {onClose && (
             <button
               type="button"
               onClick={onClose}
               title="활동 레일 접기"
               aria-label="활동 레일 접기"
-              className="hidden lg:inline-flex items-center justify-center w-4 h-4 rounded text-gray-500 hover:text-gray-200 transition-colors cursor-pointer"
+              className="hidden lg:inline-flex items-center justify-center w-5 h-5 rounded-md border border-white/15 bg-[#1a130a]/40 hover:border-[#e8a020]/60 hover:bg-[#e8a020]/10 text-gray-400 hover:text-[#e8a020] transition-colors cursor-pointer"
             >
-              {/* × close glyph — unambiguous ("close this panel")
-                  in a way the earlier right-pointing chevron wasn't. */}
+              {/* > chevron, styled as a visible pill button so it
+                  reads as "this closes the panel" rather than a
+                  label-direction indicator. The outer row handles
+                  the actual slide-right animation when railOpen
+                  flips false. */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
@@ -45,12 +48,12 @@ export default function ActivityRail({
                 className="w-3 h-3"
                 aria-hidden
               >
-                <path d="M6 18L18 6M6 6l12 12" />
+                <path d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
             </button>
           )}
-          <h3 className="text-[11px] lowercase tracking-wider text-gray-500">
-            mydigs
+          <h3 className="text-[11px] uppercase tracking-wider text-gray-500">
+            FEATURED MYDIGS
           </h3>
         </div>
         <SnapshotFeed count={3} />

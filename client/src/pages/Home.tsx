@@ -20,21 +20,16 @@ interface AlbumListResponse {
   totalPages: number;
 }
 
-// Per-density page sizes, split by whether the activity rail is
-// open (main is 7.5/10 of the viewport) or closed (main is full
-// width). Each size is a multiple of the xl column count so the
-// last row fills completely at the primary desktop breakpoint. At
-// narrower breakpoints (lg, md, sm) the last row may have trailing
-// blanks — tolerated because the xl full-row look is what the user
-// asked for, and the grid shifts shape as the viewport resizes
-// anyway.
+// Per-density page sizes. Single table regardless of rail state —
+// the grid column counts at lg/xl also stay constant per density,
+// so page_size is always an exact multiple of the xl col count
+// (comfortable 6×3, dense 8×4, ultra 10×5) and the last row fills
+// at the primary desktop breakpoints. What DOES change with rail
+// state is card size (main is ~77% width when the rail is open),
+// which is an acceptable trade for keeping the ticker's y-position
+// fixed when the user toggles density.
 const MOBILE_QUERY = '(max-width: 767px)';
-const PAGE_SIZE_RAIL_OPEN: Record<string, number> = {
-  comfortable: 15,
-  dense: 28,
-  ultra: 45,
-};
-const PAGE_SIZE_RAIL_CLOSED: Record<string, number> = {
+const PAGE_SIZE_BY_DENSITY: Record<string, number> = {
   comfortable: 18,
   dense: 32,
   ultra: 50,
@@ -155,11 +150,8 @@ export default function Home() {
   // finishes its first render (which it has by the time Home's
   // effects run).
   const seedReady = sort !== 'random' || seed !== undefined;
-  // Rail-open main area is narrower, so the grid uses lower column
-  // counts and proportionally fewer items per page. Rail-closed mode
-  // goes back to the original 18 / 32 / 50 tiers on the full width.
-  const pageSizeTable = railOpen ? PAGE_SIZE_RAIL_OPEN : PAGE_SIZE_RAIL_CLOSED;
-  const pageSize = pageSizeTable[density] ?? pageSizeTable.comfortable;
+  const pageSize =
+    PAGE_SIZE_BY_DENSITY[density] ?? PAGE_SIZE_BY_DENSITY.comfortable;
 
   const query = useAlbumList(sort, page, pageSize, seedReady, seed);
   const albums: AlbumSearchResult[] = query.data?.albums ?? [];
@@ -194,70 +186,72 @@ export default function Home() {
   const currentSortLabel =
     SORT_OPTIONS.find((o) => o.value === sort)?.label ?? '';
 
-  // Density → grid-cols + gap map. Two full sets: one for rail-open
-  // (main is ~75% of the viewport, so columns drop by 1 at lg/xl to
-  // keep covers at a readable size), one for rail-closed (main is
-  // full width, original tier counts). Below lg the rail stacks
-  // below the grid so main takes full width either way — those
-  // breakpoints share the same column counts across both sets.
-  // Every class is a literal string so Tailwind v4's JIT picks
-  // them up; gaps shrink with density so the grid doesn't look
-  // sparse when the covers themselves are smaller.
-  const GRID_COLS_RAIL_CLOSED: Record<DensityValue, string> = {
+  // Density → grid-cols + gap map. One unified table regardless of
+  // rail state — keeping the lg/xl column counts constant means the
+  // grid's row count per density doesn't shift when the user toggles
+  // the rail, which in turn keeps the ticker below the grid at a
+  // stable y. Card size shrinks proportionally when the rail is
+  // open (main gets 77% of viewport instead of 100%), which is a
+  // visible but expected consequence of the layout change.
+  //
+  // xs grids use 3 cols at every density (previously 2 at comfortable)
+  // so a mobile wall is 3 × page-size/3 = 3×6 for comfortable, which
+  // the user found the sweet spot for phone browsing — denser packs
+  // covers below comfortable tap-target size and more-per-row added
+  // visual noise.
+  //
+  // lg and xl share the same col count per density so the grid
+  // height is stable across that whole desktop breakpoint band.
+  const DESKTOP_GRID_CLASSES: Record<DensityValue, string> = {
     comfortable:
-      'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
+      'grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-6',
     dense:
-      'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8',
+      'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 xl:grid-cols-8',
     ultra:
-      'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10',
-  };
-  const GRID_COLS_RAIL_OPEN: Record<DensityValue, string> = {
-    comfortable:
-      'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5',
-    dense:
-      'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7',
-    ultra:
-      'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9',
+      'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-10 xl:grid-cols-10',
   };
   const DESKTOP_GAP_CLASSES: Record<DensityValue, string> = {
     comfortable: 'gap-5',
     dense: 'gap-3',
     ultra: 'gap-2',
   };
-  const gridColsTable = railOpen ? GRID_COLS_RAIL_OPEN : GRID_COLS_RAIL_CLOSED;
-  const desktopGridCols = gridColsTable[density];
+  const desktopGridCols = DESKTOP_GRID_CLASSES[density];
   const desktopGap = DESKTOP_GAP_CLASSES[density];
 
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
         {/* Two-column home: album grid on the left, activity rail
-            on the right (grid is the heavier surface, so anchoring
-            it to the page's leading edge reads more stable than
-            leading with a rail). Below Tailwind `lg` the layout
-            collapses to a single stacked column — main first, rail
-            below. Grid template (8fr/2fr) only kicks in when the
-            rail is open; when it's collapsed the container falls
-            back to plain flex-col so main takes the full width.
-            `minmax(0, ...)` on both tracks stops a wide album card
-            from blowing past its column and pushing the rail off-
-            screen. */}
+            on the right. Below Tailwind `lg` the layout collapses
+            to a single stacked column — main first, rail below.
+            The grid container is always `lg:grid` at desktop+ so
+            the grid-template-columns transition can animate the
+            rail column from 2fr → 0fr on close (and back on
+            reopen). When the rail is closed the rail column has
+            0 width, so the rail content also slides out rightward
+            via the inner transform. `items-start` prevents the
+            rail from stretching to the grid's min-height when
+            there's less content to fill. */}
         <div
-          className={`flex flex-col gap-6 ${
-            railOpen
-              ? 'lg:grid lg:grid-cols-[minmax(0,8fr)_minmax(0,2fr)] lg:items-start'
-              : ''
-          }`}
+          className="flex flex-col gap-6 lg:grid lg:items-start lg:transition-[grid-template-columns] lg:duration-300"
+          style={{
+            gridTemplateColumns: railOpen
+              ? 'minmax(0, 8fr) minmax(0, 2fr)'
+              : 'minmax(0, 8fr) minmax(0, 0fr)',
+          }}
         >
-          {/* min-h on main pins the comment ticker's y position
-              across density tiers. At xl all three tiers (comfort
-              3×5, dense 4×7, ultra 5×9) land within ~10px of 650px
-              naturally, so 640 is a floor the grid fills on its
-              own and the ticker stops shifting up/down when the
-              user toggles density. Below xl the column counts
-              change enough that variance creeps back — acceptable
-              tradeoff since xl is the dominant desktop breakpoint. */}
-          <main className="order-1 min-w-0 lg:min-h-[640px]">
+          {/* min-h on main pins the ticker's y-position across
+              density tiers. Col count is constant per density at
+              lg/xl, so each density lands at a predictable height
+              — 640 covers the rail-closed case (full-width cards,
+              taller grid), 500 the rail-open case (narrower cards,
+              shorter grid). Switching density within either rail
+              state now keeps the ticker fixed. */}
+          <main
+            className={`order-1 min-w-0 ${
+              railOpen ? 'lg:min-h-[500px]' : 'lg:min-h-[640px]'
+            }`}
+          >
         {/* Grid header — sort trigger on the left, density switcher
             + (when rail is collapsed) a small open-rail handle on
             the right. The rail's close button lives inside the
@@ -352,9 +346,21 @@ export default function Home() {
         )}
 
           </main>
+          {/* Rail wrapper: always mounted so the slide-right
+              animation has somewhere to live. At lg+ the outer
+              grid column shrinks to 0fr when closed — combined
+              with overflow-hidden here and an inner translate +
+              fade, the rail content visibly slides off to the
+              right rather than popping out. Below lg the rail
+              always stacks below main regardless of railOpen
+              (opacity + transform classes are lg:-prefixed). */}
           <div
             id="home-activity-rail"
-            className={`order-2 min-w-0 ${railOpen ? '' : 'lg:hidden'}`}
+            className={`order-2 min-w-0 overflow-hidden lg:transition-[opacity,transform] lg:duration-300 ${
+              railOpen
+                ? 'lg:opacity-100 lg:translate-x-0'
+                : 'lg:opacity-0 lg:translate-x-full lg:pointer-events-none'
+            }`}
           >
             <ActivityRail onClose={() => setRailOpen(false)} />
           </div>

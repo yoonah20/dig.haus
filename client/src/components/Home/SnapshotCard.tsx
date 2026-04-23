@@ -1,30 +1,33 @@
 import { Link } from 'react-router-dom';
 import CoverArt from '../CoverArt';
 import { resolveApiUrl } from '../../utils/apiUrl';
+import { formatRelativeKo } from '../../utils/relativeTime';
 import type { HomeSnapshot } from '../../hooks/useHomeSnapshots';
 
-// Compact teaser: a single row of 5 cells instead of the full 5×3
-// mini-wall. Cells 0-3 show the first four cover thumbnails, cell 4
-// either shows the fifth cover (for walls of exactly 5) or a "+N"
-// counter for the remaining albums (for walls of >5). The earlier
-// full mosaic put a lot of thumbnails in every rail card, which
-// added up to a visually busy rail that competed with the main
-// album grid. One row + overflow count reads as a curated preview
-// rather than a mini dump of the whole wall.
+// Compact teaser: five cells in a single row. Cells 0-3 always show
+// the first four cover thumbnails; cell 4 shows "+N" whenever the
+// snapshot has more than four albums (for a full 15-album wall
+// that's "+11"), or the fifth cover if the snapshot has exactly 5,
+// or empty if it has 4 or fewer. The earlier full mosaic put the
+// whole wall in each rail card, which added up to a second grid
+// competing with the main one. One row + overflow count reads as
+// a curated peek instead of a mini dump.
 const ROW_LENGTH = 5;
+const VISIBLE_COVERS = 4;
 
 export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
   const avatar = resolveApiUrl(snap.user.avatarUrl) ?? null;
   const displayName = snap.user.displayName || snap.user.username;
-  // Items come sorted by position. Pick up to the first 5 that
-  // actually carry an album (skipping any null entries from
-  // deleted albums). The overflow count excludes those same nulls
-  // so "+11" reflects real albums the visitor could click through
-  // to, not placeholders.
+  // Items come sorted by position. Skip any null entries (albums
+  // that were deleted after the snapshot was captured) so the
+  // overflow count reflects actual clickable content, not
+  // placeholders.
   const filledItems = snap.items.filter((it) => it.album != null);
-  const visible = filledItems.slice(0, ROW_LENGTH);
-  const overflow = filledItems.length - ROW_LENGTH;
+  const total = filledItems.length;
+  const visible = filledItems.slice(0, VISIBLE_COVERS);
+  const overflow = total - VISIBLE_COVERS;
   const showOverflow = overflow > 0;
+  const relative = formatRelativeKo(snap.createdAt);
 
   return (
     <Link
@@ -36,20 +39,21 @@ export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
         style={{ gridTemplateColumns: `repeat(${ROW_LENGTH}, minmax(0, 1fr))` }}
       >
         {Array.from({ length: ROW_LENGTH }, (_, i) => {
-          // Last cell is an overflow marker whenever filled count
-          // exceeds 5. Otherwise cell i shows visible[i], or an
-          // empty dark cell if the snapshot has fewer than 5 items.
-          const isLast = i === ROW_LENGTH - 1;
-          if (isLast && showOverflow) {
-            return (
-              <div
-                key={i}
-                className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden flex items-center justify-center text-[11px] font-medium text-[#c9a060] tabular-nums"
-                aria-label={`${overflow}개 더`}
-              >
-                +{overflow}
-              </div>
-            );
+          // Cell 4 (the fifth): "+{overflow}" when the wall holds
+          // more than 4 items; the literal fifth cover when total
+          // is exactly 5; otherwise blank.
+          if (i === VISIBLE_COVERS) {
+            if (showOverflow) {
+              return (
+                <div
+                  key={i}
+                  className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden flex items-center justify-center text-[11px] font-medium text-[#c9a060] tabular-nums"
+                  aria-label={`${overflow}개 더`}
+                >
+                  +{overflow}
+                </div>
+              );
+            }
           }
           const item = visible[i];
           return (
@@ -69,11 +73,10 @@ export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
           );
         })}
       </div>
-      {/* Compact footer — avatar + snapshot name only. Display name
-          and relative-time text used to sit here too, but the
-          homepage already has a dense grid + rail; adding three
-          text lines per card made the whole page feel noisy.
-          Visual identity still comes through via the avatar. */}
+      {/* Compact footer — avatar + snapshot name + relative time on
+          one line. Display-name label was dropped (avatar carries
+          identity + aria-label for screen readers); relative time
+          came back after taking it out made the footer feel empty. */}
       <div className="flex items-center gap-2 min-w-0">
         {avatar ? (
           <img
@@ -92,6 +95,9 @@ export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
         )}
         <div className="flex-1 min-w-0 text-[12px] text-gray-200 truncate">
           {snap.name}
+        </div>
+        <div className="text-[10px] text-gray-500 shrink-0 tabular-nums">
+          {relative}
         </div>
       </div>
     </Link>
