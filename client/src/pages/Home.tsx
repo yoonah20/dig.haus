@@ -240,17 +240,13 @@ export default function Home() {
               : 'minmax(0, 7.7fr) minmax(0, 0fr)',
           }}
         >
-          {/* min-h lingers only for the rail-closed state, where no
-              rail sits next to the grid to anchor the height.
-              Rail-open doesn't need it because the rail itself is
-              the height anchor — see the pagination reshuffle
-              below — and the grid-row height just tracks whichever
-              column ends up tallest. */}
-          <main
-            className={`order-1 min-w-0 ${
-              railOpen ? '' : 'lg:min-h-[730px]'
-            }`}
-          >
+          {/* Main's natural height drives the row now — grid
+              header + album grid, nothing else. Pagination lives
+              outside the row (below). With pagination pulled out,
+              density toggling only shifts the row by a handful of
+              px across comfortable/dense/ultra (cards compensate
+              in size), so the earlier min-h pin isn't needed. */}
+          <main className="order-1 min-w-0">
         {/* Grid header — sort trigger on the left, density switcher
             + (when rail is collapsed) a small open-rail handle on
             the right. The rail's close button lives inside the
