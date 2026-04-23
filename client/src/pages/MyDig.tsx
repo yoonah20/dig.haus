@@ -101,7 +101,7 @@ export default function MyDig() {
             to the leading edge rather than drifting toward the
             track center. Below md the two stack — wall first,
             scribbles below. */}
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4 md:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4 md:gap-4">
           <WallSection>
             <VinylWallGrid
               wallByPosition={wallByPosition}
@@ -201,14 +201,15 @@ function ProfileHeader({
     // separate @username line; now the avatar stack carries the
     // identity in about 100px total.
     <header className="flex items-start gap-4 pt-2 pb-3">
-      <div className="shrink-0 flex flex-col items-center gap-1 w-[76px]">
-        {/* Avatar + @username chip. UserHoverCard still wraps the
-            portrait so the popover (mydig link, instagram, vote
-            counts) surfaces on hover, same as album-detail
-            comment rows. The chip absolutely-positions onto the
-            top-left corner as a small tag — tilted 4° so it
-            reads as "sticker affixed to the portrait" rather
-            than "corner label pinned at 90°". */}
+      {/* Avatar block — two sticker chips overlap the portrait:
+          @username at the top-left as a small amber tag, display
+          name across the bottom edge as a darker label that
+          straddles the avatar / baseline. Both tilted a few
+          degrees so they read as "stuck on" rather than
+          baseline-aligned. pb-4 reserves room for the bottom
+          chip's overhang so the next row in the header doesn't
+          collide with it. */}
+      <div className="shrink-0 pb-4">
         <div className="relative">
           {userId != null ? (
             <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
@@ -222,9 +223,13 @@ function ProfileHeader({
           >
             @{username}
           </span>
-        </div>
-        <div className="text-[11px] text-[#c9a060] max-w-[76px] text-center truncate leading-tight">
-          {displayLabel}
+          <span
+            aria-hidden
+            className="absolute -bottom-2 left-1/2 text-[11px] font-medium text-[#f5e8c8] bg-[#1a1410] border border-[#e8a020]/40 px-2 py-[1px] rounded-[3px] shadow-sm pointer-events-none select-none max-w-[120px] truncate"
+            style={{ transform: 'translateX(-50%) rotate(-1.5deg)' }}
+          >
+            {displayLabel}
+          </span>
         </div>
       </div>
 
@@ -365,7 +370,7 @@ function VinylWallGrid({
       style={{
         position: 'relative',
         width: '100%',
-        maxWidth: 720,
+        maxWidth: 860,
         marginLeft: 0,
         marginRight: 'auto',
         paddingTop: 12,
