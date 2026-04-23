@@ -303,27 +303,52 @@ export function VinylDisc({ size }: { size: number }) {
       {/* Disc body */}
       <circle cx="50" cy="50" r="50" fill="url(#vinylBase)" />
 
-      {/* Banded grooves — 18 concentric rings with alternating
-          darker/lighter strokes simulate the vinyl's spiralled
-          surface catching ambient light. Not a literal spiral
-          (cheaper to render this way and indistinguishable at
-          small sizes), but the band alternation is what sells
-          the "grooved" texture vs. a smooth disc. */}
-      {Array.from({ length: 18 }, (_, i) => {
-        const r = 16 + i * 1.9;
-        const bright = i % 2 === 0;
-        return (
-          <circle
-            key={i}
-            cx="50"
-            cy="50"
-            r={r}
-            fill="none"
-            stroke={bright ? '#1f1f1f' : '#0c0c0c'}
-            strokeWidth={bright ? 0.45 : 0.22}
-          />
-        );
-      })}
+      {/* Groove rings — hand-tuned non-uniform radii so the
+          surface reads as real spiral grooves catching light,
+          not a regular grid. Real vinyl grooves have clusters
+          (tight bands of louder passages) separated by slightly
+          wider gaps; the sequence below approximates that
+          rhythm by alternating close pairs / triples with
+          larger jumps. Light rings (+width/+brightness) land at
+          band boundaries where the naked eye would pick up a
+          brighter edge; dim rings fill inside the bands. */}
+      {[
+        { r: 16.4, bright: true },
+        { r: 17.0, bright: false },
+        { r: 17.7, bright: false },
+        { r: 18.6, bright: true },
+        { r: 20.3, bright: true },
+        { r: 21.0, bright: false },
+        { r: 22.5, bright: true },
+        { r: 23.1, bright: false },
+        { r: 23.8, bright: false },
+        { r: 25.7, bright: true },
+        { r: 27.4, bright: true },
+        { r: 28.3, bright: false },
+        { r: 30.6, bright: true },
+        { r: 32.5, bright: true },
+        { r: 33.2, bright: false },
+        { r: 35.1, bright: true },
+        { r: 36.9, bright: true },
+        { r: 37.6, bright: false },
+        { r: 38.3, bright: false },
+        { r: 40.8, bright: true },
+        { r: 42.6, bright: true },
+        { r: 43.4, bright: false },
+        { r: 45.9, bright: true },
+        { r: 47.5, bright: true },
+        { r: 48.2, bright: false },
+      ].map(({ r, bright }) => (
+        <circle
+          key={r}
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          stroke={bright ? '#1f1f1f' : '#0d0d0d'}
+          strokeWidth={bright ? 0.4 : 0.22}
+        />
+      ))}
 
       {/* Specular highlight — painted AFTER the grooves so the
           crescent smooths over them where the light would be
