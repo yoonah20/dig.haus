@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState, type CSSProperties } from 'react';
 import CoverArt from '../CoverArt';
-import { useUserReviewsFeed, type UserReviewFeedItem } from '../../hooks/useUserReviewsFeed';
+import type { UserReviewFeedItem } from '../../hooks/useUserReviewsFeed';
 import { resolveApiUrl } from '../../utils/apiUrl';
 import { parseServerTimestamp } from '../../utils/relativeTime';
 
@@ -13,15 +13,11 @@ function isFresh(createdAt: string): boolean {
   return Date.now() - ts < DAY_MS;
 }
 
-// Seconds each item is visible during one scroll pass — higher = slower.
-const SECONDS_PER_ITEM = 4.5;
-
 // Upper bound on a ticker card's width. Cards size to content (body
 // wraps to fit), but we cap the maximum so a long 50자 평 wraps to 2–3
 // lines rather than sprawling in a single very wide row. Mobile
 // (fullWidth) ignores this cap and uses the viewport width instead.
 const MAX_ITEM_WIDTH_PX = 370;
-const ITEM_GAP_PX = 16;
 
 const RATING_EMOJI: Record<'up' | 'down' | 'soso', string> = {
   up: '👍',
@@ -216,56 +212,9 @@ export function TickerItem({
   );
 }
 
-export default function CommentTicker() {
-  const { data } = useUserReviewsFeed();
-  const items = data?.items ?? [];
-
-  // Nothing to show — hide the section entirely so we don't leave a
-  // hollow gap in the page flow.
-  if (items.length === 0) return null;
-
-  // Duration scales with content so a longer queue doesn't zoom past.
-  // Track is doubled for the seamless-loop trick, so the real travel is
-  // one copy's width — SECONDS_PER_ITEM × items.length matches that.
-  const durationSec = Math.max(30, items.length * SECONDS_PER_ITEM);
-
-  return (
-    // No visible heading — the ticker speaks for itself below the
-    // pagination nav. aria-label keeps it announced for SR users.
-    // pt-8 to visually separate from the pagination; pb-2 keeps the
-    // emoji overhang from touching the next section.
-    <section className="comment-ticker relative pt-12" aria-label="최근 50자 평">
-      {/* Outer wrapper owns the fade masks so content slides in/out of
-          the gutters gracefully instead of appearing/vanishing at a hard
-          edge. */}
-      <div
-        className="relative overflow-hidden"
-        style={{
-          maskImage:
-            'linear-gradient(to right, transparent, black 48px, black calc(100% - 48px), transparent)',
-          WebkitMaskImage:
-            'linear-gradient(to right, transparent, black 48px, black calc(100% - 48px), transparent)',
-        }}
-      >
-        <div
-          className="comment-ticker-track flex w-max"
-          style={{
-            gap: `${ITEM_GAP_PX}px`,
-            animationDuration: `${durationSec}s`,
-          }}
-        >
-          {items.map((item) => (
-            <TickerItem key={item.id} item={item} />
-          ))}
-          {/* Duplicate for the seamless loop. aria-hidden so SR users
-              don't read each comment twice. */}
-          {items.map((item) => (
-            <div key={`dup-${item.id}`} aria-hidden>
-              <TickerItem item={item} />
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
+// The marquee CommentTicker that used to sit below the album grid
+// is gone — the homepage activity rail renders the 50자 평 feed as a
+// vertical list via CommentList now, so a motion-heavy horizontal
+// ticker on top of that read as noise. TickerItem stays exported
+// because both CommentList and the mobile infinite-scroll batch
+// embed individual cards inline.

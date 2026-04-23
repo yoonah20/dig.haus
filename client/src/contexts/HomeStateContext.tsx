@@ -43,6 +43,27 @@ function readStoredDensity(): DensityValue | null {
   return null;
 }
 
+// Activity rail open/closed — the 3:5 desktop layout splits the home
+// page into an activity rail (snapshots + comments) on the left and
+// the album grid on the right. Users who want a classic wall-of-
+// covers experience can collapse the rail; the main grid returns to
+// full width and the ultra-density tier lines up with its original
+// column count again. Default on: mydig exposure is one of the main
+// reasons the rail exists, and newcomers should see it first.
+const RAIL_STORAGE_KEY = 'dig.haus:homeRailOpen';
+export const DEFAULT_RAIL_OPEN = true;
+
+function readStoredRailOpen(): boolean | null {
+  try {
+    const raw = localStorage.getItem(RAIL_STORAGE_KEY);
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+  } catch {
+    /* private mode etc. */
+  }
+  return null;
+}
+
 interface HomeStateContextValue {
   sort: SortValue;
   setSort: (v: SortValue) => void;
@@ -51,6 +72,8 @@ interface HomeStateContextValue {
   seed: number | undefined;
   density: DensityValue;
   setDensity: (v: DensityValue) => void;
+  railOpen: boolean;
+  setRailOpen: (v: boolean) => void;
 }
 
 const HomeStateContext = createContext<HomeStateContextValue | undefined>(
@@ -71,6 +94,9 @@ export function HomeStateProvider({ children }: { children: ReactNode }) {
   );
   const [density, setDensityState] = useState<DensityValue>(
     () => readStoredDensity() ?? DEFAULT_DENSITY
+  );
+  const [railOpen, setRailOpenState] = useState<boolean>(
+    () => readStoredRailOpen() ?? DEFAULT_RAIL_OPEN
   );
 
   const setSort = useCallback((v: SortValue) => {
@@ -95,9 +121,29 @@ export function HomeStateProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const setRailOpen = useCallback((v: boolean) => {
+    setRailOpenState(v);
+    try {
+      if (v === DEFAULT_RAIL_OPEN) localStorage.removeItem(RAIL_STORAGE_KEY);
+      else localStorage.setItem(RAIL_STORAGE_KEY, String(v));
+    } catch {
+      // private mode — choice still applies for this session
+    }
+  }, []);
+
   return (
     <HomeStateContext.Provider
-      value={{ sort, setSort, page, setPage, seed, density, setDensity }}
+      value={{
+        sort,
+        setSort,
+        page,
+        setPage,
+        seed,
+        density,
+        setDensity,
+        railOpen,
+        setRailOpen,
+      }}
     >
       {children}
     </HomeStateContext.Provider>

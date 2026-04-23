@@ -7,7 +7,8 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
-import CommentTicker, { TickerItem } from '../components/Home/CommentTicker';
+import { TickerItem } from '../components/Home/CommentTicker';
+import ActivityRail from '../components/Home/ActivityRail';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { useInView } from '../hooks/useInView';
@@ -202,8 +203,17 @@ export default function Home() {
   // so the address bar stays at '/'. See contexts/HomeStateContext.tsx
   // for the persistence rules (localStorage for sort, in-memory for
   // page + seed).
-  const { sort, setSort, page, setPage, seed, density, setDensity } =
-    useHomeState();
+  const {
+    sort,
+    setSort,
+    page,
+    setPage,
+    seed,
+    density,
+    setDensity,
+    railOpen,
+    setRailOpen,
+  } = useHomeState();
 
   useDocumentHead({
     title: 'Home | dig.haus',
@@ -378,17 +388,51 @@ export default function Home() {
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
-        {/* Grid header — sort trigger on the left, density switcher on
-            the right. Sort moved out of the nav bar so the top strip
-            stays a pure "find albums" cluster; this header owns
-            everything about how the feed itself is arranged. */}
+        {/* Two-column home: activity rail on the left, album grid on
+            the right. Below Tailwind `lg` the layout collapses to a
+            single stacked column (main first, rail below — mobile
+            rail placement still evolving, see Phase E). The grid
+            template only kicks in when the rail is open; when it's
+            collapsed the container falls back to plain flex-col so
+            main takes the full width. `minmax(0, ...)` on both
+            tracks stops a wide album card from blowing past its
+            column and pushing the rail off-screen. */}
+        <div
+          className={`flex flex-col gap-6 ${
+            railOpen
+              ? 'lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,5fr)]'
+              : ''
+          }`}
+        >
+          <div
+            id="home-activity-rail"
+            className={`order-2 lg:order-1 min-w-0 ${
+              railOpen ? '' : 'lg:hidden'
+            }`}
+          >
+            <ActivityRail />
+          </div>
+          <main className="order-1 lg:order-2 min-w-0">
+        {/* Grid header — rail toggle + sort trigger on the left,
+            density switcher on the right. Sort moved out of the nav
+            bar so the top strip stays a pure "find albums" cluster;
+            this header owns everything about how the feed itself is
+            arranged. Rail toggle is desktop-only; mobile doesn't
+            expose it because the rail-below-grid stack doesn't
+            conflict with the grid view the way a side-by-side rail
+            would. */}
         {albums.length > 0 && (
           <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
-            <SortTrigger
-              sort={sort}
-              onChange={setSort}
-              label={currentSortLabel}
-            />
+            <div className="flex items-center gap-3">
+              {!isMobile && (
+                <RailToggle open={railOpen} onToggle={() => setRailOpen(!railOpen)} />
+              )}
+              <SortTrigger
+                sort={sort}
+                onChange={setSort}
+                label={currentSortLabel}
+              />
+            </div>
             {!isMobile && (
               <DensitySwitcher density={density} onChange={setDensity} />
             )}
@@ -508,10 +552,53 @@ export default function Home() {
           </nav>
         )}
 
-        {/* Desktop-only comment ticker below pagination. */}
-        {!isMobile && albums.length > 0 && <CommentTicker />}
+          </main>
+        </div>
       </section>
     </div>
+  );
+}
+
+// Toggle for the left-side activity rail on desktop. Lives inline in
+// the grid header so the control cluster stays in one place rather
+// than spraying handles around the viewport edges. Chevron direction
+// signals "click me to collapse/expand": ⟨ = close, ⟩ = open. The
+// aria-expanded prop tracks the aside's rendered state for screen
+// readers.
+function RailToggle({
+  open,
+  onToggle,
+}: {
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      aria-controls="home-activity-rail"
+      title={open ? '활동 레일 접기' : '활동 레일 펴기'}
+      className="inline-flex items-center justify-center w-6 h-6 rounded-md border border-white/10 text-gray-500 hover:text-gray-200 hover:border-white/25 transition-colors cursor-pointer"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="w-3.5 h-3.5"
+        aria-hidden
+      >
+        {open ? (
+          <path d="M15.75 19.5L8.25 12l7.5-7.5" />
+        ) : (
+          <path d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        )}
+      </svg>
+    </button>
   );
 }
 
