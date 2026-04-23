@@ -156,6 +156,15 @@ export interface UserPublic {
     instagramHandle: string | null;
     createdAt: string | null;
   };
+  // Present only when the user has claimed a mydig username.
+  // wallItemCount lets the card decide between showing the theme
+  // title (≥1 item) and a muted "아직 공사 중" label (0 items).
+  mydig: {
+    username: string;
+    isPublic: boolean;
+    theme: string | null;
+    wallItemCount: number;
+  } | null;
   stats: {
     reviewCount: number;
     upvoteCount: number;

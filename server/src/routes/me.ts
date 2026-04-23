@@ -436,7 +436,8 @@ router.get('/users/:id/public', (req, res) => {
   }
   const row = queryGet(
     `SELECT id, display_name, name, custom_avatar_url, avatar_url,
-            instagram_handle, created_at
+            instagram_handle, created_at,
+            username, mydig_public, vinyl_wall_theme
      FROM users WHERE id = ?`,
     [id]
   );
@@ -471,6 +472,24 @@ router.get('/users/:id/public', (req, res) => {
       [id]
     )?.c || 0;
 
+  // mydig block. Only populated when the user has claimed a username;
+  // the hover card uses that as the gate to decide whether to show a
+  // mydig row at all. wallItemCount drives the "공사 중" label client-
+  // side — a wall with zero items (regardless of privacy flag) reads
+  // as unfinished; any wall with ≥1 item shows its theme title.
+  const mydig = row.username
+    ? {
+        username: row.username as string,
+        isPublic: row.mydig_public === null || row.mydig_public === 1,
+        theme: (row.vinyl_wall_theme as string | null) || null,
+        wallItemCount:
+          queryGet(
+            `SELECT COUNT(*) AS c FROM vinyl_wall_items WHERE user_id = ?`,
+            [id]
+          )?.c || 0,
+      }
+    : null;
+
   res.json({
     user: {
       id: row.id,
@@ -479,6 +498,7 @@ router.get('/users/:id/public', (req, res) => {
       instagramHandle: row.instagram_handle,
       createdAt: row.created_at,
     },
+    mydig,
     stats: {
       reviewCount,
       upvoteCount: up,
