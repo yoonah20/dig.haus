@@ -115,13 +115,6 @@ const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
     fg: '#15001f',
     lines: ['SOON'],
     aria: '발매 예정',
-    // D-N countdown was the one sticker where Syne's tighter
-    // geometric shapes mangled digits at small sizes. Instead of
-    // swapping the font (would drag NEW/HOT out of the set),
-    // just scale the whole soon chip ~30% larger so digits have
-    // the room they need to stay readable.
-    fontSize: 'clamp(7.8px, 5.5cqw, 10.8px)',
-    padding: 'clamp(1.3px, 1.4cqw, 2.9px) clamp(4px, 3.5cqw, 7px)',
   },
   new: {
     bg: '#5aa9e6',
@@ -175,9 +168,24 @@ function CoverStickerBadge({
       }}
       aria-label={ariaOverride ?? palette.aria}
     >
-      {lines.map((line) => (
-        <span key={line}>{line}</span>
-      ))}
+      {lines.map((line) => {
+        // D-N countdown: keep the 'D-' prefix at the same size as
+        // NEW/HOT/SOLD, scale just the digits up so they're
+        // readable at small densities without changing the chip's
+        // overall footprint. em-relative size means it tracks the
+        // clamp() parent without a second clamp of its own.
+        const dayMatch =
+          kind === 'soon' ? line.match(/^(D-)(\d+)$/) : null;
+        if (dayMatch) {
+          return (
+            <span key={line}>
+              {dayMatch[1]}
+              <span style={{ fontSize: '1.35em' }}>{dayMatch[2]}</span>
+            </span>
+          );
+        }
+        return <span key={line}>{line}</span>;
+      })}
     </span>
   );
 }

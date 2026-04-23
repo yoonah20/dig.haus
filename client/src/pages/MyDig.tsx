@@ -80,7 +80,7 @@ export default function MyDig() {
     // brightness/saturate filter) shows through behind the page
     // content. See App.tsx for the backdrop layer.
     <div className="flex-1">
-      <main className="max-w-[1180px] mx-auto px-4 pt-4 pb-8 space-y-1">
+      <main className="max-w-[1320px] mr-auto ml-0 px-4 pt-4 pb-8 space-y-1">
         <ProfileHeader
           userId={data.user.id ?? null}
           username={data.user.username}
@@ -94,14 +94,15 @@ export default function MyDig() {
           shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
-        {/* Wall left, scribbled snapshot names right. Grid tracks
-            are 1fr / 320px so the scribble column has room to
-            breathe; the wall itself caps at 720px internally +
-            left-aligns (no more mx-auto) so it stays anchored
-            to the leading edge rather than drifting toward the
-            track center. Below md the two stack — wall first,
-            scribbles below. */}
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_230px] gap-4 md:gap-8">
+        {/* Wall flush to the viewport's left edge with the surplus
+            handed to the snapshot column. First track caps at
+            890px (the wall's own maxWidth ceiling) so the wall
+            never grows beyond what its LP grid expects; second
+            track takes 1fr and inherits whatever's left in the
+            1320px content budget, which lands ~360px for the
+            scribble column on wide viewports. Below md the two
+            stack — wall first, scribbles below. */}
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,890px)_1fr] gap-4 md:gap-8">
           <WallSection>
             <VinylWallGrid
               wallByPosition={wallByPosition}
@@ -200,7 +201,7 @@ function ProfileHeader({
     // tight vertically — the header used to eat ~150px with its
     // separate @username line; now the avatar stack carries the
     // identity in about 100px total.
-    <header className="flex items-start gap-6 pt-2 pb-3">
+    <header className="flex items-start gap-8 pt-2 pb-3">
       {/* Avatar block — two sticker chips overlap the portrait:
           @username at the top-left as a small amber tag, display
           name across the bottom edge as a darker label that
@@ -233,7 +234,7 @@ function ProfileHeader({
         </div>
       </div>
 
-      <div className="flex-1 min-w-0 pt-1 flex flex-col gap-1.5">
+      <div className="flex-1 min-w-0 pt-1 flex flex-col gap-2">
         {/* Title + actions share a row so the header stays
             compact. Actions push right; on narrow viewports the
             flex-wrap drops them to the next line rather than
