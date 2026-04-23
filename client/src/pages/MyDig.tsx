@@ -96,13 +96,14 @@ export default function MyDig() {
           shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
-        {/* Wall left, scribbled snapshot names right. Above md
-            the two share a row (1fr wall / ~260px names column);
-            below md the names column stacks under the wall. The
-            wall itself is container-width driven via ResizeObserver
-            so dropping from ~960px to ~820px in the grid track
-            just scales the LPs down without breaking the layout. */}
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_260px] gap-4 md:gap-6">
+        {/* Wall left, scribbled snapshot names right. Grid tracks
+            are 1fr / 320px so the scribble column has room to
+            breathe; the wall itself caps at 720px internally +
+            left-aligns (no more mx-auto) so it stays anchored
+            to the leading edge rather than drifting toward the
+            track center. Below md the two stack — wall first,
+            scribbles below. */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-4 md:gap-6">
           <WallSection>
             <VinylWallGrid
               wallByPosition={wallByPosition}
@@ -189,12 +190,12 @@ function ProfileHeader({
       src={resolvedAvatar}
       alt=""
       aria-hidden
-      className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-white/10"
+      className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover border border-white/10"
       referrerPolicy="no-referrer"
     />
   ) : (
-    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
-      <span className="text-2xl sm:text-3xl text-[#e8a020]/70 font-serif italic">
+    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
+      <span className="text-xl sm:text-2xl text-[#e8a020]/70 font-serif italic">
         {initial}
       </span>
     </div>
@@ -221,7 +222,7 @@ function ProfileHeader({
               inline pencil that swaps into an input via onEditTheme. */}
           <div className="flex items-baseline gap-2 flex-wrap">
             <h1
-              className={`text-2xl sm:text-3xl font-serif italic leading-tight truncate ${
+              className={`text-xl sm:text-2xl font-serif italic leading-tight truncate ${
                 themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
               }`}
               title={displayThemeText}
@@ -461,8 +462,9 @@ function VinylWallGrid({
       style={{
         position: 'relative',
         width: '100%',
-        maxWidth: 960,
-        margin: '0 auto',
+        maxWidth: 720,
+        marginLeft: 0,
+        marginRight: 'auto',
         paddingTop: 12,
         // Very subtle "painted" post-process so the photographic
         // covers and the SVG rails read as closer siblings of the
