@@ -10,11 +10,9 @@ const router = Router();
 // have a clear place to land.
 
 // GET /api/home/snapshots — recent publicly-published wall
-// snapshots across all users, latest first. Gated on BOTH the
-// snapshot's is_public flag AND the owner's mydig_public flag —
-// an owner flipping the whole page private must suppress their
-// individually-public snapshots from the homepage surface too,
-// which matches the behavior in /api/mydig/:username/snapshots.
+// snapshots across all users, latest first. Gated on the
+// snapshot's own is_public flag. The per-user mydig_public page
+// gate was dropped when mydig went public-by-default.
 //
 // `limit` is soft-capped server-side so a malicious query can't
 // pull the whole table. The client typically asks for 3-ish.
@@ -32,7 +30,6 @@ router.get('/home/snapshots', (req, res) => {
      FROM vinyl_wall_snapshots s
      JOIN users u ON u.id = s.user_id
      WHERE s.is_public = 1
-       AND (u.mydig_public IS NULL OR u.mydig_public = 1)
        AND u.username IS NOT NULL
      ORDER BY s.created_at DESC, s.id DESC
      LIMIT ?`,

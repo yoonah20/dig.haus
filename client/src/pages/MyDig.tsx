@@ -91,24 +91,6 @@ export default function MyDig() {
     );
   }
 
-  // Private mode — under-construction placeholder. Preserves the
-  // shop aesthetic instead of showing a cold 403/404.
-  if (!data.isPublic) {
-    return (
-      <div className="flex-1 max-w-[1120px] mx-auto px-4 py-12">
-        <div className="rounded-2xl bg-[#12100d] border border-white/5 p-10 sm:p-16 text-center">
-          <div className="text-5xl mb-4" aria-hidden>🚧</div>
-          <h1 className="text-xl sm:text-2xl font-bold text-white mb-3">
-            {data.user.displayName || data.user.username}님의 가게가 준비 중입니다
-          </h1>
-          <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
-            문 열 준비가 되면 다시 찾아주세요.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   // Snapshot mode: the wall renders that snapshot's captured
   // items (minus any whose album row has since been deleted).
   // Live mode: use the current vinyl_wall_items list.

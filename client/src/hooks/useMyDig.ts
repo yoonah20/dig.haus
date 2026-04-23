@@ -67,7 +67,6 @@ export interface MyDigCrate {
 
 export interface MyDigData {
   user: MyDigUser;
-  isPublic: boolean;
   vinylWallTheme: string | null;
   vinylWallDescription: string | null;
   vinylWall: MyDigWallItem[];

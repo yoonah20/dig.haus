@@ -78,10 +78,8 @@ export interface AuthUser {
   instagramHandle?: string | null;
   // Phase 3 mydig. mydigUsername is null until the onboarding modal
   // completes; once set, the TopNav "내 가게" link routes to
-  // /my/<username> directly. mydigPublic defaults to true (rows
-  // missing the column come back as NULL → true on the server).
+  // /my/<username> directly.
   mydigUsername?: string | null;
-  mydigPublic?: boolean;
   isAdmin: boolean;
 }
 

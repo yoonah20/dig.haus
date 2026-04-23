@@ -13,7 +13,6 @@ const Album = lazy(() => import('./pages/Album'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Profile = lazy(() => import('./pages/Profile'));
 const MyDig = lazy(() => import('./pages/MyDig'));
-const MyDigPreview = lazy(() => import('./pages/MyDigPreview'));
 const ApiConsole = lazy(() => import('./pages/ApiConsole'));
 const LlmCompare = lazy(() => import('./pages/LlmCompare'));
 
@@ -164,8 +163,6 @@ export default function App() {
   const location = useLocation();
   // Routes under `/my/:username` (including snapshots) get the
   // painted wall backdrop across the full page, nav to footer.
-  // `/my-preview` is a separate design-iteration route that does
-  // not share the backdrop.
   const isMydig = location.pathname.startsWith('/my/');
   return (
     <AuthProvider>
@@ -293,7 +290,6 @@ export default function App() {
                   <Route path="/admin/curation" element={<Admin />} />
                   <Route path="/admin/api" element={<Admin />} />
                   <Route path="/profile" element={<Profile />} />
-                  <Route path="/my-preview" element={<MyDigPreview />} />
                   <Route path="/my/:username" element={<MyDig />} />
                   {/* Snapshot viewing is now in-page via #<slug>
                       hash on /my/:username — the separate route

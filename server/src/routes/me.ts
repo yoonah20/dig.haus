@@ -55,7 +55,6 @@ function effectiveUser(row: any) {
     customAvatarUrl: row.custom_avatar_url,
     instagramHandle: row.instagram_handle,
     mydigUsername: row.username ?? null,
-    mydigPublic: row.mydig_public === null ? true : row.mydig_public === 1,
     isAdmin: !!row.is_admin,
     createdAt: row.created_at,
   };
@@ -437,7 +436,7 @@ router.get('/users/:id/public', (req, res) => {
   const row = queryGet(
     `SELECT id, display_name, name, custom_avatar_url, avatar_url,
             instagram_handle, created_at,
-            username, mydig_public, vinyl_wall_theme
+            username, vinyl_wall_theme
      FROM users WHERE id = ?`,
     [id]
   );
@@ -480,7 +479,6 @@ router.get('/users/:id/public', (req, res) => {
   const mydig = row.username
     ? {
         username: row.username as string,
-        isPublic: row.mydig_public === null || row.mydig_public === 1,
         theme: (row.vinyl_wall_theme as string | null) || null,
         wallItemCount:
           queryGet(

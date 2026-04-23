@@ -24,7 +24,6 @@ interface ResolvedUser {
   email: string;
   avatar_url: string | null;
   custom_avatar_url: string | null;
-  mydig_public: number | null;
   vinyl_wall_theme: string | null;
   vinyl_wall_description: string | null;
 }
@@ -32,7 +31,7 @@ interface ResolvedUser {
 function resolveUserByUsername(username: string): ResolvedUser | null {
   return queryGet(
     `SELECT id, username, display_name, name, email, avatar_url,
-            custom_avatar_url, mydig_public, vinyl_wall_theme,
+            custom_avatar_url, vinyl_wall_theme,
             vinyl_wall_description
      FROM users
      WHERE LOWER(username) = LOWER(?)`,
@@ -59,25 +58,6 @@ router.get('/mydig/:username', (req, res, next) => {
 
   const viewer = req.user as AppUser | undefined;
   const isOwner = !!viewer && viewer.id === user.id;
-  const isPublic = user.mydig_public === null || user.mydig_public === 1;
-
-  // Privacy gate — non-owners on a private page get a minimal
-  // identity payload so the client can render the "under
-  // construction" placeholder without crashing.
-  if (!isPublic && !isOwner) {
-    return res.json({
-      user: {
-        username: user.username,
-        displayName: user.display_name || user.name,
-        avatarUrl: user.custom_avatar_url || user.avatar_url,
-        isOwner: false,
-      },
-      isPublic: false,
-      vinylWall: [],
-      shelf: [],
-      crates: [],
-    });
-  }
 
   // Vinyl Wall — items by position. Server returns exactly what's
   // saved (no padding to 15); the client fills blanks when
@@ -186,7 +166,6 @@ router.get('/mydig/:username', (req, res, next) => {
       avatarUrl: user.custom_avatar_url || user.avatar_url,
       isOwner,
     },
-    isPublic,
     vinylWallTheme: user.vinyl_wall_theme,
     vinylWallDescription: user.vinyl_wall_description,
     vinylWall: wallRows.map((r: any) => {
@@ -888,12 +867,6 @@ router.get('/mydig/:username/snapshots', (req, res) => {
 
   const viewer = req.user as AppUser | undefined;
   const isOwner = !!viewer && viewer.id === user.id;
-  const mydigPublic = user.mydig_public === null || user.mydig_public === 1;
-  if (!isOwner && !mydigPublic) {
-    // Whole page is private — don't reveal that there are any
-    // snapshots either.
-    return res.json({ snapshots: [] });
-  }
 
   const whereVis = isOwner ? '' : ' AND is_public = 1';
   const rows = queryAll(
@@ -910,8 +883,9 @@ router.get('/mydig/:username/snapshots', (req, res) => {
 });
 
 // GET /api/mydig/:username/snapshots/:slug — full snapshot
-// detail with joined album metadata. Visitor access gated by
-// both mydig_public and is_public.
+// detail with joined album metadata. Visitor access gated only
+// by the snapshot's own is_public flag now that the per-user
+// mydig_public gate is gone.
 router.get('/mydig/:username/snapshots/:slug', (req, res) => {
   const raw = String(req.params.username || '').trim();
   const slug = String(req.params.slug || '').trim();
@@ -920,7 +894,6 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
 
   const viewer = req.user as AppUser | undefined;
   const isOwner = !!viewer && viewer.id === user.id;
-  const mydigPublic = user.mydig_public === null || user.mydig_public === 1;
 
   const snap = queryGet(
     `SELECT id, slug, name, description, is_public AS isPublic, created_at AS createdAt
@@ -928,7 +901,7 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
     [user.id, slug]
   );
   if (!snap) return res.status(404).json({ error: '스냅샷을 찾을 수 없어요.' });
-  if (!isOwner && (!mydigPublic || snap.isPublic !== 1)) {
+  if (!isOwner && snap.isPublic !== 1) {
     return res.status(404).json({ error: '스냅샷을 찾을 수 없어요.' });
   }
 

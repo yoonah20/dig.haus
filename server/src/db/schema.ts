@@ -665,9 +665,10 @@ export function initializeDatabase(db: Database.Database): void {
     // Phase 3 mydig. `username` is the URL slug (lowercase a-z0-9_-,
     // 3-20 chars) — no UNIQUE in migrateTable (it's ALTER TABLE which
     // doesn't add constraints), so a partial unique index is added
-    // separately below. `mydig_public` is the per-user privacy
-    // master toggle; NULL/1 = public, 0 = private (renders under-
-    // construction placeholder for non-owners).
+    // separately below. `mydig_public` is vestigial: kept so the
+    // migration stays idempotent on existing DBs, but no read or
+    // write path references it any more (mydig is public by default
+    // and snapshots carry their own is_public flag).
     'username TEXT',
     'mydig_public INTEGER DEFAULT 1',
     // Free-form title for the vinyl wall — displays as the h1 on
