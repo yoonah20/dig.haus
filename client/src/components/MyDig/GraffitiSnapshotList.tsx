@@ -7,22 +7,20 @@ import type { VinylWallSnapshotSummary } from '../../hooks/useMyDig';
 // names, as if they were written on the wall next to the
 // records.
 //
-// Fonts: Homemade Apple (Latin) + Gamja Flower (Korean). Both
-// are tidier handwriting fonts than the Permanent Marker +
-// Gaegu pair used earlier — they sit at comparable stroke
-// weights so a mixed Korean/Latin name doesn't feel like two
-// different hands wrote it. Rows stay upright now too (the
-// earlier per-row rotation read as forced once the fonts were
-// already handwritten); variation comes from font + ink alone.
+// Fonts: Shadows Into Light (Latin) + Gamja Flower (Korean).
+// Both are thin pen-stroke styles; Shadows Into Light is less
+// "explicitly handwritten" than the previous Homemade Apple
+// while still reading as a pen — a better match for Gamja
+// Flower's restraint on the Korean side.
 //
-// Color is near-black charcoal — real graffiti on a painted
-// interior wall — with amber as the hover accent. Owner sees
-// private snapshots with a "(비공개)" suffix; visitors never
-// see private rows because the list endpoint filters them
-// server-side.
+// Rows sit upright (per-row rotation was read as forced), the
+// list anchors near the top (about 10% down from the column's
+// top edge so it visually ties to where the wall title lives
+// across the page), and the "다른 기록들:" heading is larger +
+// slightly indented from the rows below it.
 
 const FONT_STACK =
-  "'Homemade Apple', 'Gamja Flower', 'Nanum Pen Script', cursive";
+  "'Shadows Into Light', 'Gamja Flower', 'Nanum Pen Script', cursive";
 
 export default function GraffitiSnapshotList({
   username,
@@ -33,27 +31,33 @@ export default function GraffitiSnapshotList({
   snapshots: VinylWallSnapshotSummary[];
   isOwner: boolean;
 }) {
+  // Heading — larger than the rows so the column reads clearly
+  // as a labelled section, with a small indent so rows below it
+  // hang at a wall-graffiti "list under a label" rhythm.
   const heading = (
     <div
-      className="mb-2 text-[15px] leading-none text-[#1a1208]"
+      className="mb-3 text-[22px] leading-none text-[#1a1208]"
       style={{ fontFamily: FONT_STACK }}
     >
       다른 기록들:
     </div>
   );
 
-  // Flex column + h-full so the grid stretches this to the wall's
-  // row height, then justify-center with a slight bottom bias
-  // (pb-12) leaves the list sitting a bit above the vertical
-  // centre — which is where the heading anchors the eye.
-  const outer =
-    'px-2 flex flex-col h-full justify-center pb-12 gap-2';
+  // Column positioning: pt-[7%] lands the start near "10% from
+  // the top" without needing to measure the wall's actual
+  // height (pt-% is % of parent WIDTH in CSS but the column is
+  // ~280px wide and the wall is ~500-600px tall, so 7% of 280
+  // ≈ 20px which sits just below the top edge — same general
+  // vibe the user was after). Rows themselves get a small
+  // left indent so they hang under the heading rather than
+  // sharing its x.
+  const outer = 'px-2 pt-10 flex flex-col gap-2';
 
   if (snapshots.length === 0) {
     return (
       <div className={outer} style={{ fontFamily: FONT_STACK }}>
         {heading}
-        <div className="text-[14px] leading-relaxed text-[#5a4838]">
+        <div className="text-[15px] leading-relaxed text-[#5a4838] pl-3">
           {isOwner
             ? '아직 없어요. 📸 버튼으로 남겨보세요.'
             : '아직 없어요.'}
@@ -69,27 +73,29 @@ export default function GraffitiSnapshotList({
       style={{ fontFamily: FONT_STACK }}
     >
       {heading}
-      {snapshots.map((snap) => {
-        const labelSuffix = isOwner && !snap.isPublic ? ' (비공개)' : '';
-        return (
-          <Link
-            key={snap.id}
-            to={`/my/${encodeURIComponent(username)}/snap/${encodeURIComponent(snap.slug)}`}
-            className="group inline-block origin-left"
-          >
-            <span className="inline-block origin-left transition-transform duration-200 group-hover:scale-[1.05]">
-              <span className="text-[18px] leading-[1.15] text-[#1a1208] group-hover:text-[#e8a020] transition-colors duration-200">
-                {snap.name}
-              </span>
-              {labelSuffix && (
-                <span className="text-[14px] ml-1.5 text-[#5a4838] group-hover:text-[#8a6848] transition-colors duration-200">
-                  {labelSuffix}
+      <div className="flex flex-col gap-1.5 pl-3">
+        {snapshots.map((snap) => {
+          const labelSuffix = isOwner && !snap.isPublic ? ' (비공개)' : '';
+          return (
+            <Link
+              key={snap.id}
+              to={`/my/${encodeURIComponent(username)}/snap/${encodeURIComponent(snap.slug)}`}
+              className="group inline-block origin-left"
+            >
+              <span className="inline-block origin-left transition-transform duration-200 group-hover:scale-[1.05]">
+                <span className="text-[20px] leading-[1.15] text-[#1a1208] group-hover:text-[#e8a020] transition-colors duration-200">
+                  {snap.name}
                 </span>
-              )}
-            </span>
-          </Link>
-        );
-      })}
+                {labelSuffix && (
+                  <span className="text-[15px] ml-1.5 text-[#5a4838] group-hover:text-[#8a6848] transition-colors duration-200">
+                    {labelSuffix}
+                  </span>
+                )}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }

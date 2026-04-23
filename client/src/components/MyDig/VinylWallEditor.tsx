@@ -6,6 +6,7 @@ import {
   useMyDigCandidates,
   useSaveVinylWall,
   useSaveVinylWallSnapshotItems,
+  useUpdateVinylWallTheme,
   type MyDigAlbum,
   type MyDigCandidate,
   type MyDigCandidateSource,
@@ -38,6 +39,12 @@ interface Props {
   initialWall: MyDigWallItem[];
   onClose: () => void;
   target?: EditTarget;
+  // Wall theme + description live alongside the album editor so
+  // the owner can change everything in one place instead of
+  // hopping between a title pencil and the wall editor. Both
+  // default to null and are ignored in snapshot-edit mode.
+  initialTheme?: string | null;
+  initialDescription?: string | null;
 }
 
 export default function VinylWallEditor({
@@ -45,6 +52,8 @@ export default function VinylWallEditor({
   initialWall,
   onClose,
   target = { kind: 'wall' },
+  initialTheme = null,
+  initialDescription = null,
 }: Props) {
   const isSnapshotTarget = target.kind === 'snapshot';
   // Hydrate the 22-element draft array from the sparse server payload.
@@ -94,6 +103,14 @@ export default function VinylWallEditor({
     target.kind === 'snapshot' ? target.slug : null
   );
   const save = isSnapshotTarget ? snapshotSave : wallSave;
+  const themeUpdate = useUpdateVinylWallTheme(username);
+
+  // Wall title + description inputs. Wall-target only — snapshots
+  // have their own name/public flag handled in SnapshotRenameModal.
+  const [themeInput, setThemeInput] = useState(initialTheme ?? '');
+  const [descriptionInput, setDescriptionInput] = useState(
+    initialDescription ?? ''
+  );
 
   // Snapshot-from-draft flow. Opening the save modal captures the
   // current draft into a server snapshot without touching the live
@@ -104,12 +121,17 @@ export default function VinylWallEditor({
   const [postSnapshotPrompt, setPostSnapshotPrompt] = useState(false);
   const [revertPending, setRevertPending] = useState(false);
 
-  const dirty = draft.some((slot, idx) => {
+  const itemsDirty = draft.some((slot, idx) => {
     const serverItem = initialWall.find((it) => it.position === idx);
     if (!slot && !serverItem) return false;
     if (!slot || !serverItem) return true;
     return slot.id !== serverItem.album.id;
   });
+  const themeDirty =
+    !isSnapshotTarget &&
+    (themeInput.trim() !== (initialTheme ?? '') ||
+      descriptionInput.trim() !== (initialDescription ?? ''));
+  const dirty = itemsDirty || themeDirty;
 
   // Draft → flat items payload, shared by wall-save and
   // snapshot-from-draft paths.
@@ -121,9 +143,30 @@ export default function VinylWallEditor({
       .filter((x): x is { position: number; albumId: number } => x !== null);
 
   const handleSave = async () => {
-    if (save.isPending) return;
+    if (save.isPending || themeUpdate.isPending) return;
     try {
-      await save.mutateAsync(draftItems());
+      // Theme + description are only relevant for wall mode.
+      // Persist first so that if the items PUT fails the header
+      // text is at least already up to date; the reverse (items
+      // saved, theme not) would leave the page showing stale
+      // text on top of fresh records. Only PATCH what changed.
+      if (!isSnapshotTarget) {
+        const body: { theme?: string | null; description?: string | null } = {};
+        const themeTrimmed = themeInput.trim();
+        const descTrimmed = descriptionInput.trim();
+        if (themeTrimmed !== (initialTheme ?? '')) {
+          body.theme = themeTrimmed.length > 0 ? themeTrimmed : null;
+        }
+        if (descTrimmed !== (initialDescription ?? '')) {
+          body.description = descTrimmed.length > 0 ? descTrimmed : null;
+        }
+        if (body.theme !== undefined || body.description !== undefined) {
+          await themeUpdate.mutateAsync(body);
+        }
+      }
+      if (itemsDirty) {
+        await save.mutateAsync(draftItems());
+      }
       onClose();
     } catch (err: any) {
       alert(err?.response?.data?.error || '저장 실패');
@@ -297,7 +340,7 @@ export default function VinylWallEditor({
           <button
             type="button"
             onClick={handleCancel}
-            disabled={save.isPending}
+            disabled={save.isPending || themeUpdate.isPending}
             className="text-xs text-gray-400 hover:text-white px-3 py-1.5 disabled:opacity-40 cursor-pointer"
           >
             취소
@@ -305,10 +348,10 @@ export default function VinylWallEditor({
           <button
             type="button"
             onClick={handleSave}
-            disabled={save.isPending || !dirty}
+            disabled={save.isPending || themeUpdate.isPending || !dirty}
             className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
-            {save.isPending ? '저장 중…' : '저장'}
+            {save.isPending || themeUpdate.isPending ? '저장 중…' : '저장'}
           </button>
         </div>
       </header>
@@ -319,6 +362,42 @@ export default function VinylWallEditor({
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="max-w-[780px] mx-auto flex flex-col gap-3 sm:gap-4">
+            {/* Wall title + description — wall-target only. Putting
+                them at the top of the editor means the owner can
+                edit the header text and the albums in one trip,
+                instead of hopping between a title pencil on the
+                page and the album editor. Snapshot mode hides this
+                block because snapshots have their own name/public
+                controls in SnapshotRenameModal. */}
+            {!isSnapshotTarget && (
+              <div className="flex flex-col gap-2 pb-3 border-b border-white/10">
+                <label className="block text-[10px] uppercase tracking-wider text-gray-500">
+                  벽 제목
+                </label>
+                <input
+                  type="text"
+                  value={themeInput}
+                  onChange={(e) => setThemeInput(e.target.value)}
+                  maxLength={80}
+                  placeholder="예: 2026년 4월의 최애"
+                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600"
+                />
+                <label className="block text-[10px] uppercase tracking-wider text-gray-500 mt-1">
+                  벽 설명
+                </label>
+                <textarea
+                  value={descriptionInput}
+                  onChange={(e) => setDescriptionInput(e.target.value)}
+                  maxLength={240}
+                  rows={2}
+                  placeholder="예: 4월 내내 열심히 듣고 있는 앨범들입니다."
+                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none leading-snug"
+                />
+                <p className="text-[10px] text-gray-600 text-right">
+                  {descriptionInput.length}/240
+                </p>
+              </div>
+            )}
             {rows.map((positions, rowIdx) => (
               <div
                 key={rowIdx}
