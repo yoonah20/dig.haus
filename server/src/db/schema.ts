@@ -671,6 +671,12 @@ export function initializeDatabase(db: Database.Database): void {
     // for the user to frame the theme of their current wall
     // ("2026 spring picks", "raining sunday", etc.).
     'vinyl_wall_theme TEXT',
+    // Optional longer subtitle shown under the vinyl-wall theme
+    // on /my/:username. Owner-editable; null renders nothing.
+    // Separate from the one-line theme because owners want a
+    // short title AND a sentence of context ("what I've been
+    // hooked on this month") without cramming both into the h1.
+    'vinyl_wall_description TEXT',
   ]);
 
   // Partial unique index — enforces uniqueness only on rows that have

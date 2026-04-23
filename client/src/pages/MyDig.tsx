@@ -90,6 +90,7 @@ export default function MyDig() {
           avatarUrl={data.user.avatarUrl}
           isOwner={data.user.isOwner}
           wallTheme={data.vinylWallTheme}
+          wallDescription={data.vinylWallDescription}
           onEdit={() => setEditingWall(true)}
           onSaveSnapshot={() => setSavingSnapshot(true)}
           onEditTheme={() => setEditingTheme(true)}
@@ -137,7 +138,8 @@ export default function MyDig() {
         {editingTheme && username && (
           <ThemeEditModal
             username={username}
-            initialValue={data.vinylWallTheme}
+            initialTheme={data.vinylWallTheme}
+            initialDescription={data.vinylWallDescription}
             onClose={() => setEditingTheme(false)}
           />
         )}
@@ -165,6 +167,7 @@ function ProfileHeader({
   avatarUrl,
   isOwner,
   wallTheme,
+  wallDescription,
   onEdit,
   onSaveSnapshot,
   onEditTheme,
@@ -176,6 +179,7 @@ function ProfileHeader({
   avatarUrl: string | null;
   isOwner: boolean;
   wallTheme: string | null;
+  wallDescription: string | null;
   onEdit: () => void;
   onSaveSnapshot: () => void;
   onEditTheme: () => void;
@@ -185,136 +189,149 @@ function ProfileHeader({
   const resolvedAvatar = resolveApiUrl(avatarUrl);
   const displayThemeText = wallTheme || 'my dig';
   const themePlaceholder = !wallTheme;
+  const hasDistinctDisplayName =
+    !!displayName && displayName.toLowerCase() !== username.toLowerCase();
   const avatarEl = resolvedAvatar ? (
     <img
       src={resolvedAvatar}
       alt=""
       aria-hidden
-      className="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover border border-white/10"
+      className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border border-white/10"
       referrerPolicy="no-referrer"
     />
   ) : (
-    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
+    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
       <span className="text-xl sm:text-2xl text-[#e8a020]/70 font-serif italic">
         {initial}
       </span>
     </div>
   );
   return (
-    <header className="flex items-start gap-4 pt-2 pb-3">
-      {/* Avatar wraps in the same UserHoverCard used on album-detail
-          comment rows — the popover surfaces gauche/badge counts, a
-          mydig link, and the @instagram handle without the viewer
-          having to click through. Skipped when the server didn't
-          hand us an id (e.g. an older payload shape), since the
-          hover endpoint is id-keyed. */}
-      <div className="shrink-0">
-        {userId != null ? (
-          <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
-        ) : (
-          avatarEl
+    <header className="pt-2 pb-3 flex flex-col gap-2">
+      {/* Avatar + @username sit on one compact row. The separate
+          "@ line under the title" the earlier layout had is gone —
+          visitors read identity once, up top, attached to the
+          portrait, and the theme + description below get all the
+          vertical space. Avatar wraps in UserHoverCard so the
+          same popover that surfaces on album-detail comment rows
+          works here too. */}
+      <div className="flex items-center gap-3">
+        <div className="shrink-0">
+          {userId != null ? (
+            <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
+          ) : (
+            avatarEl
+          )}
+        </div>
+        <div className="min-w-0 text-sm truncate">
+          <span className="text-[#e8a020]">@{username}</span>
+          <span className="text-[#c9a060]">
+            {hasDistinctDisplayName
+              ? ` · ${displayName}의 mydig`
+              : '의 mydig'}
+          </span>
+        </div>
+      </div>
+
+      {/* Theme title + its edit pencil. Own row so the h1 has
+          room without a name line next to it. */}
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <h1
+          className={`text-xl sm:text-2xl font-serif italic leading-tight truncate ${
+            themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
+          }`}
+          title={displayThemeText}
+        >
+          {displayThemeText}
+        </h1>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={onEditTheme}
+            className="text-[11px] text-gray-400 hover:text-[#e8a020] cursor-pointer transition-colors"
+            title="제목 / 설명 수정"
+          >
+            ✏️
+          </button>
         )}
       </div>
 
-      <div className="flex-1 min-w-0 pt-1 flex flex-col sm:flex-row sm:items-start gap-3">
-        <div className="flex-1 min-w-0">
-          {/* Primary: wall theme (italic serif h1). Owner gets a tiny
-              inline pencil that swaps into an input via onEditTheme. */}
-          <div className="flex items-baseline gap-2 flex-wrap">
-            <h1
-              className={`text-xl sm:text-2xl font-serif italic leading-tight truncate ${
-                themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
-              }`}
-              title={displayThemeText}
-            >
-              {displayThemeText}
-            </h1>
-            {isOwner && (
-              <button
-                type="button"
-                onClick={onEditTheme}
-                className="text-[11px] text-gray-400 hover:text-[#e8a020] cursor-pointer transition-colors"
-                title="벽 제목 수정"
-              >
-                ✏️
-              </button>
-            )}
-          </div>
+      {/* Description — smaller, muted. Shown to everyone when the
+          owner has filled one in; when empty, we render nothing
+          for visitors and a faint placeholder hint for the
+          owner so the affordance is discoverable. */}
+      {wallDescription ? (
+        <p className="text-[13px] text-[#c9a060]/90 leading-relaxed max-w-[640px]">
+          {wallDescription}
+        </p>
+      ) : isOwner ? (
+        <p className="text-[12px] text-gray-600 italic">
+          ✏️ 버튼으로 간단한 설명을 추가할 수 있어요.
+        </p>
+      ) : null}
 
-          {/* Secondary: @username · {displayName}의 mydig (or just
-              "@username의 mydig" when no distinct display name). */}
-          <div className="mt-1.5 text-sm truncate">
-            <span className="text-[#e8a020]">@{username}</span>
-            <span className="text-[#c9a060]">
-              {displayName && displayName.toLowerCase() !== username.toLowerCase()
-                ? ` · ${displayName}의 mydig`
-                : '의 mydig'}
-            </span>
-          </div>
-        </div>
-
-        {/* Actions cluster — right-aligned on sm+ so the wall rail
-            can start right below the title block. On mobile this
-            block naturally wraps to its own line (sm:flex-row →
-            flex-col parent). flex-wrap + justify-end lets three or
-            four chips tile gracefully if the viewport narrows but
-            stays above the mobile breakpoint. */}
-        <div className="flex items-center gap-2 flex-wrap sm:justify-end shrink-0">
-          <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-[#e8a020]">
-            <span
-              aria-hidden
-              className="w-1.5 h-1.5 rounded-full bg-[#e8a020]"
-              style={{ boxShadow: '0 0 5px rgba(232, 160, 32, 0.7)' }}
-            />
-            open
-          </span>
-          {isOwner && (
-            <>
-              <button
-                type="button"
-                onClick={onEdit}
-                className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-              >
-                ✏️ 편집
-              </button>
-              <button
-                type="button"
-                onClick={onSaveSnapshot}
-                className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-                title="현재 벽을 스냅샷으로 저장"
-              >
-                📸 스냅샷
-              </button>
-            </>
-          )}
+      {/* Owner action cluster — tucked below the description line,
+          right-aligned in the header row. Visibly separate from
+          identity (avatar + @username) and content (theme +
+          description) but close enough that the edit gesture is
+          still tied to the page header. OPEN indicator is gone —
+          it was ornament without information. */}
+      {isOwner && (
+        <div className="flex items-center gap-2 flex-wrap justify-end -mt-1">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+          >
+            ✏️ 편집
+          </button>
+          <button
+            type="button"
+            onClick={onSaveSnapshot}
+            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            title="현재 벽을 스냅샷으로 저장"
+          >
+            📸 스냅샷
+          </button>
           <ShareButton url={shareUrl} label="공유" />
         </div>
-      </div>
+      )}
+      {!isOwner && (
+        <div className="flex items-center gap-2 flex-wrap justify-end -mt-1">
+          <ShareButton url={shareUrl} label="공유" />
+        </div>
+      )}
     </header>
   );
 }
 
-// ─── Theme edit modal ────────────────────────────────────────
-// Mirrors SnapshotSaveModal's shape so the two edit surfaces feel
-// like siblings. Submits a PATCH; server persists to users.
-// vinyl_wall_theme. Empty input clears the theme back to the
-// "my dig" fallback.
+// ─── Theme + description edit modal ──────────────────────────
+// One modal for both fields — they live side by side under the
+// wall title so editing them together reads more naturally than
+// two separate dialogs. Empty values clear back to defaults
+// (theme falls back to "my dig"; description just hides).
 function ThemeEditModal({
   username,
-  initialValue,
+  initialTheme,
+  initialDescription,
   onClose,
 }: {
   username: string;
-  initialValue: string | null;
+  initialTheme: string | null;
+  initialDescription: string | null;
   onClose: () => void;
 }) {
-  const [value, setValue] = useState(initialValue ?? '');
+  const [theme, setTheme] = useState(initialTheme ?? '');
+  const [description, setDescription] = useState(initialDescription ?? '');
   const update = useUpdateVinylWallTheme(username);
 
   const handleSave = async () => {
     if (update.isPending) return;
     try {
-      await update.mutateAsync(value.trim() ? value.trim() : null);
+      await update.mutateAsync({
+        theme: theme.trim() ? theme.trim() : null,
+        description: description.trim() ? description.trim() : null,
+      });
       onClose();
     } catch (err) {
       // Surfaced in the red error line below via update.error;
@@ -332,28 +349,44 @@ function ThemeEditModal({
         className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg text-white font-serif italic mb-1">벽 제목</h2>
+        <h2 className="text-lg text-white font-serif italic mb-1">벽 정보</h2>
         <p className="text-xs text-gray-500 mb-4">
-          지금 벽의 주제를 한 줄로 적어주세요. 비워두면 "my dig"로 돌아가요.
+          벽의 제목과 짧은 설명을 적어주세요. 비워두면 기본값으로 돌아가요.
         </p>
+
+        <label className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
+          제목
+        </label>
         <input
           type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
+          value={theme}
+          onChange={(e) => setTheme(e.target.value)}
           maxLength={80}
           autoFocus
           className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-[#e8a020] focus:outline-none"
           placeholder="예: 2026년 4월의 최애"
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              handleSave();
-            } else if (e.key === 'Escape') {
+            if (e.key === 'Escape') {
               e.preventDefault();
               onClose();
             }
           }}
         />
+
+        <label className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1 mt-4">
+          설명
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          maxLength={240}
+          rows={3}
+          className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-[#e8a020] focus:outline-none resize-none"
+          placeholder="예: 4월 내내 열심히 듣고 있는 앨범들입니다."
+        />
+        <p className="text-[10px] text-gray-600 mt-1">
+          {description.length}/240
+        </p>
         {update.isError && (
           <p className="text-xs text-red-400 mt-3">
             저장 실패: {(update.error as any)?.response?.data?.error
@@ -514,7 +547,17 @@ function VinylWallGrid({
               );
             })}
           </div>
-          <div style={{ position: 'relative', marginTop: 0 }}>
+          {/* Per-row horizontal offset so the three rails don't
+              sit in perfectly lined-up positions. Small deltas
+              only — the wall still reads as one wall, just with
+              the rails clearly not joined seams. */}
+          <div
+            style={{
+              position: 'relative',
+              marginTop: 0,
+              transform: `translateX(${[0, 10, -5][ri] ?? 0}px)`,
+            }}
+          >
             <WallRail
               width={railWidth}
               seed={ri * 37 + 13}
@@ -658,7 +701,7 @@ function CommentBubble({
     >
       <div className="relative">
         <div
-          className="px-3 py-2 rounded-xl text-[12px] leading-snug font-serif italic"
+          className="px-3 py-2 rounded-xl text-[11px] leading-snug font-serif italic"
           style={{
             background: '#f5e8c8',
             color: '#141008',

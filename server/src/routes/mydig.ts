@@ -25,12 +25,14 @@ interface ResolvedUser {
   custom_avatar_url: string | null;
   mydig_public: number | null;
   vinyl_wall_theme: string | null;
+  vinyl_wall_description: string | null;
 }
 
 function resolveUserByUsername(username: string): ResolvedUser | null {
   return queryGet(
     `SELECT id, username, display_name, name, email, avatar_url,
-            custom_avatar_url, mydig_public, vinyl_wall_theme
+            custom_avatar_url, mydig_public, vinyl_wall_theme,
+            vinyl_wall_description
      FROM users
      WHERE LOWER(username) = LOWER(?)`,
     [username]
@@ -173,6 +175,7 @@ router.get('/mydig/:username', (req, res, next) => {
     },
     isPublic,
     vinylWallTheme: user.vinyl_wall_theme,
+    vinylWallDescription: user.vinyl_wall_description,
     vinylWall: wallRows.map((r: any) => {
       // userReview: whatever 50자 평 the page owner wrote for this
       // album. Null when there's no review. Client shows the body
@@ -268,19 +271,61 @@ router.get('/mydig/:username', (req, res, next) => {
 // back to "my dig" on render when cleared).
 router.patch('/mydig/vinyl-wall/theme', requireAuth, (req, res) => {
   const me = req.user as AppUser;
-  const body = (req.body ?? {}) as { theme?: unknown };
-  let theme: string | null;
-  if (body.theme === null || body.theme === undefined) {
-    theme = null;
-  } else if (typeof body.theme === 'string') {
-    const trimmed = body.theme.trim().slice(0, 80);
-    theme = trimmed.length > 0 ? trimmed : null;
-  } else {
-    return res.status(400).json({ error: 'theme은 문자열 또는 null이어야 해요.' });
+  const body = (req.body ?? {}) as { theme?: unknown; description?: unknown };
+
+  // Theme (one-line h1 title). null/undefined = no change. Empty
+  // string from the client is treated as "clear back to default".
+  let themePatch: { value: string | null } | null = null;
+  if (body.theme !== undefined) {
+    if (body.theme === null) {
+      themePatch = { value: null };
+    } else if (typeof body.theme === 'string') {
+      const trimmed = body.theme.trim().slice(0, 80);
+      themePatch = { value: trimmed.length > 0 ? trimmed : null };
+    } else {
+      return res.status(400).json({ error: 'theme은 문자열 또는 null이어야 해요.' });
+    }
   }
+
+  // Description (longer subtitle). Same null-or-string rules,
+  // wider cap because this is a sentence of context, not a
+  // label.
+  let descriptionPatch: { value: string | null } | null = null;
+  if (body.description !== undefined) {
+    if (body.description === null) {
+      descriptionPatch = { value: null };
+    } else if (typeof body.description === 'string') {
+      const trimmed = body.description.trim().slice(0, 240);
+      descriptionPatch = { value: trimmed.length > 0 ? trimmed : null };
+    } else {
+      return res
+        .status(400)
+        .json({ error: 'description은 문자열 또는 null이어야 해요.' });
+    }
+  }
+
+  if (!themePatch && !descriptionPatch) {
+    return res.status(400).json({ error: '변경사항이 없어요.' });
+  }
+
   try {
-    execute(`UPDATE users SET vinyl_wall_theme = ? WHERE id = ?`, [theme, me.id]);
-    res.json({ ok: true, theme });
+    const sets: string[] = [];
+    const values: any[] = [];
+    if (themePatch) {
+      sets.push('vinyl_wall_theme = ?');
+      values.push(themePatch.value);
+    }
+    if (descriptionPatch) {
+      sets.push('vinyl_wall_description = ?');
+      values.push(descriptionPatch.value);
+    }
+    values.push(me.id);
+    execute(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`, values);
+    res.json({
+      ok: true,
+      theme: themePatch?.value,
+      description: descriptionPatch?.value,
+    });
   } catch (err) {
     console.error('[mydig/theme] patch failed:', err);
     res.status(500).json({ error: '테마 저장 실패' });

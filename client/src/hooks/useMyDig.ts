@@ -65,6 +65,7 @@ export interface MyDigData {
   user: MyDigUser;
   isPublic: boolean;
   vinylWallTheme: string | null;
+  vinylWallDescription: string | null;
   vinylWall: MyDigWallItem[];
   shelf: MyDigShelfSlot[];
   crates: MyDigCrate[];
@@ -132,9 +133,15 @@ export function useMyDigCandidates(
 
 export function useUpdateVinylWallTheme(username: string | undefined) {
   const qc = useQueryClient();
-  return useMutation<{ ok: boolean; theme: string | null }, unknown, string | null>({
-    mutationFn: async (theme) => {
-      const { data } = await axios.patch('/api/mydig/vinyl-wall/theme', { theme });
+  return useMutation<
+    { ok: boolean; theme?: string | null; description?: string | null },
+    unknown,
+    // Either field can be omitted — the server treats missing as
+    // "don't touch". Null = clear back to default.
+    { theme?: string | null; description?: string | null }
+  >({
+    mutationFn: async (body) => {
+      const { data } = await axios.patch('/api/mydig/vinyl-wall/theme', body);
       return data;
     },
     onSuccess: () => {
