@@ -22,10 +22,21 @@ function todayDateLabel(): string {
 
 export default function SnapshotSaveModal({
   username,
+  items,
   onClose,
+  onSaved,
 }: {
   username: string;
+  /** Optional explicit item list — when supplied, the snapshot
+   *  captures this arrangement instead of the owner's live wall.
+   *  Editor's "scratch" flow passes the current draft here so the
+   *  in-flight wall can be archived without first committing to
+   *  vinyl_wall_items. */
+  items?: Array<{ position: number; albumId: number }>;
   onClose: () => void;
+  /** Fires after a successful save. Editor uses it to step into
+   *  the "revert or keep" prompt. */
+  onSaved?: () => void;
 }) {
   const [name, setName] = useState(todayDateLabel());
   const [isPublic, setIsPublic] = useState(false);
@@ -37,8 +48,10 @@ export default function SnapshotSaveModal({
       await create.mutateAsync({
         name: name.trim() || undefined,
         isPublic,
+        items,
       });
-      onClose();
+      if (onSaved) onSaved();
+      else onClose();
     } catch (err) {
       // Red banner below renders the server error via create.error;
       // log it here too so devtools show the full response.

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import CoverArt from '../CoverArt';
 import QuickRegister from './QuickRegister';
+import SnapshotSaveModal from './SnapshotSaveModal';
 import {
   useMyDigCandidates,
   useSaveVinylWall,
@@ -68,6 +69,15 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
   const candidates = useMyDigCandidates(source, debouncedQ, true);
   const save = useSaveVinylWall(username);
 
+  // Snapshot-from-draft flow. Opening the save modal captures the
+  // current draft into a server snapshot without touching the live
+  // wall. After it saves, a follow-up prompt asks whether to commit
+  // the draft to the wall or roll back to what the wall was when
+  // the editor opened.
+  const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
+  const [postSnapshotPrompt, setPostSnapshotPrompt] = useState(false);
+  const [revertPending, setRevertPending] = useState(false);
+
   const dirty = draft.some((slot, idx) => {
     const serverItem = initialWall.find((it) => it.position === idx);
     if (!slot && !serverItem) return false;
@@ -75,15 +85,19 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
     return slot.id !== serverItem.album.id;
   });
 
-  const handleSave = async () => {
-    if (save.isPending) return;
-    const items = draft
+  // Draft → flat items payload, shared by wall-save and
+  // snapshot-from-draft paths.
+  const draftItems = () =>
+    draft
       .map((slot, position) =>
         slot ? { position, albumId: slot.id } : null
       )
       .filter((x): x is { position: number; albumId: number } => x !== null);
+
+  const handleSave = async () => {
+    if (save.isPending) return;
     try {
-      await save.mutateAsync(items);
+      await save.mutateAsync(draftItems());
       onClose();
     } catch (err: any) {
       alert(err?.response?.data?.error || '저장 실패');
@@ -94,6 +108,49 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
     if (save.isPending) return;
     if (dirty && !confirm('편집 내용을 버리고 닫을까요?')) return;
     onClose();
+  };
+
+  const handleClearAll = () => {
+    // Fast path to a scratch wall — the owner typically hits this
+    // right before building a themed snapshot that has nothing to
+    // do with what's currently on the live wall. Confirm when the
+    // current draft already has anything on it so the click isn't
+    // destructive.
+    const hasAnything = draft.some((s) => s != null);
+    if (hasAnything && !confirm('벽의 15장을 모두 비울까요?')) return;
+    setDraft(new Array(WALL_TOTAL).fill(null));
+    clearSelection();
+  };
+
+  // Revert vs. keep, called after a snapshot save succeeds.
+  const handleRevertAfterSnapshot = () => {
+    // Discard the draft: re-hydrate from initialWall and close.
+    // No server call — the editor opened against initialWall and
+    // we haven't touched vinyl_wall_items yet, so the wall is
+    // already at the "original" state the prompt promised.
+    const reset: DraftSlot[] = new Array(WALL_TOTAL).fill(null);
+    for (const it of initialWall) {
+      if (it.position >= 0 && it.position < WALL_TOTAL) {
+        reset[it.position] = it.album;
+      }
+    }
+    setDraft(reset);
+    setPostSnapshotPrompt(false);
+    onClose();
+  };
+
+  const handleKeepAfterSnapshot = async () => {
+    if (save.isPending || revertPending) return;
+    setRevertPending(true);
+    try {
+      await save.mutateAsync(draftItems());
+      setPostSnapshotPrompt(false);
+      onClose();
+    } catch (err: any) {
+      alert(err?.response?.data?.error || '벽 저장 실패');
+    } finally {
+      setRevertPending(false);
+    }
   };
 
   const placeAtSlot = (targetPosition: number, album: MyDigAlbum) => {
@@ -172,7 +229,12 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
 
   return (
     <div className="fixed inset-0 z-40 bg-[#0a0703] flex flex-col">
-      {/* Header bar — title, dirty indicator, 저장/취소 actions. */}
+      {/* Header bar — title + dirty indicator on the left, build
+          tools (🧹 다 지우기, 📸 스냅샷) in the middle, exit
+          actions (취소, 저장) on the right. The snapshot button
+          stays usable even when the draft is unsaved; the "save
+          snapshot → revert or keep" prompt handles both outcomes
+          on close. */}
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/5 bg-[#12100d]">
         <div className="flex items-center gap-3">
           <span className="text-sm uppercase tracking-wider text-[#e8a020]">
@@ -185,6 +247,25 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleClearAll}
+            disabled={save.isPending || !draft.some((s) => s != null)}
+            className="text-xs text-gray-400 hover:text-white px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            title="벽의 15장 모두 비우기"
+          >
+            🧹 다 지우기
+          </button>
+          <button
+            type="button"
+            onClick={() => setSnapshotModalOpen(true)}
+            disabled={save.isPending}
+            className="text-xs text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+            title="지금 상태를 스냅샷으로 저장"
+          >
+            📸 스냅샷
+          </button>
+          <span className="mx-1 h-4 w-px bg-white/10" aria-hidden />
           <button
             type="button"
             onClick={handleCancel}
@@ -325,6 +406,72 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
             debouncedQ={debouncedQ}
           />
         </aside>
+      </div>
+
+      {snapshotModalOpen && (
+        <SnapshotSaveModal
+          username={username}
+          items={draftItems()}
+          onClose={() => setSnapshotModalOpen(false)}
+          onSaved={() => {
+            setSnapshotModalOpen(false);
+            setPostSnapshotPrompt(true);
+          }}
+        />
+      )}
+
+      {postSnapshotPrompt && (
+        <RevertOrKeepPrompt
+          pending={revertPending || save.isPending}
+          onRevert={handleRevertAfterSnapshot}
+          onKeep={handleKeepAfterSnapshot}
+        />
+      )}
+    </div>
+  );
+}
+
+function RevertOrKeepPrompt({
+  pending,
+  onRevert,
+  onKeep,
+}: {
+  pending: boolean;
+  onRevert: () => void;
+  onKeep: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal
+    >
+      <div className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5">
+        <h2 className="text-lg text-white font-serif italic mb-1">
+          스냅샷 저장됨
+        </h2>
+        <p className="text-xs text-gray-400 mb-5 leading-relaxed">
+          원래 벽으로 돌아갈까요? 예를 선택하면 편집 전 상태로 돌아가고,
+          아니요를 선택하면 지금 상태가 벽에 그대로 남아요.
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onKeep}
+            disabled={pending}
+            className="text-xs text-gray-300 hover:text-white px-3 py-1.5 rounded-md border border-white/10 hover:border-white/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {pending ? '저장 중…' : '아니요, 이 상태 유지'}
+          </button>
+          <button
+            type="button"
+            onClick={onRevert}
+            disabled={pending}
+            className="text-xs text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            네, 원래대로
+          </button>
+        </div>
       </div>
     </div>
   );

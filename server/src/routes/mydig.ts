@@ -533,12 +533,25 @@ function resolveSnapshotSlug(db: ReturnType<typeof getDb>, userId: number, base:
   return `${base}-${Date.now().toString(36)}`;
 }
 
-// POST /api/mydig/vinyl-wall/snapshots — capture current wall
-// as a snapshot. Name is optional (defaults to today's date);
+// POST /api/mydig/vinyl-wall/snapshots — capture a wall state as
+// a snapshot. Name is optional (defaults to today's date);
 // isPublic defaults to false.
+//
+// By default the snapshot mirrors the owner's live wall. When the
+// editor wants to save an in-flight draft (e.g. a "scratch" wall
+// the owner built without committing to the live wall yet), it
+// can pass `items: [{ position, albumId }, …]` in the body and the
+// snapshot will capture that arrangement instead of reading from
+// vinyl_wall_items. Positions outside 0..14 and unknown album ids
+// are filtered out server-side so a bad client can't land garbage
+// rows.
 router.post('/mydig/vinyl-wall/snapshots', requireAuth, (req, res) => {
   const me = req.user as AppUser;
-  const body = (req.body ?? {}) as { name?: unknown; isPublic?: unknown };
+  const body = (req.body ?? {}) as {
+    name?: unknown;
+    isPublic?: unknown;
+    items?: unknown;
+  };
 
   // Name: trim + cap at 60 chars. Fall back to today's date.
   let name = typeof body.name === 'string' ? body.name.trim() : '';
@@ -546,6 +559,31 @@ router.post('/mydig/vinyl-wall/snapshots', requireAuth, (req, res) => {
   if (!name) name = todayDateSlug();
   const isPublic = body.isPublic === true ? 1 : 0;
   const baseSlug = slugifyName(name);
+
+  // Draft items, if supplied. Validated as the same shape the wall
+  // PUT endpoint accepts — a trust-but-verify pass so we don't
+  // insert rows with invalid positions or non-integer album ids.
+  let draftItems: Array<{ position: number; album_id: number }> | null = null;
+  if (Array.isArray(body.items)) {
+    const cleaned: Array<{ position: number; album_id: number }> = [];
+    for (const raw of body.items) {
+      if (!raw || typeof raw !== 'object') continue;
+      const rec = raw as Record<string, unknown>;
+      const position = Number(rec.position);
+      const albumId = Number(rec.albumId);
+      if (
+        !Number.isInteger(position) ||
+        position < 0 ||
+        position >= 15 ||
+        !Number.isInteger(albumId) ||
+        albumId <= 0
+      ) {
+        continue;
+      }
+      cleaned.push({ position, album_id: albumId });
+    }
+    draftItems = cleaned;
+  }
 
   const db = getDb();
   try {
@@ -558,18 +596,26 @@ router.post('/mydig/vinyl-wall/snapshots', requireAuth, (req, res) => {
       const snapInfo = snapStmt.run(me.id, slug, name, isPublic);
       const snapId = snapInfo.lastInsertRowid as number;
 
-      const currentItems = db.prepare(
-        `SELECT album_id, position FROM vinyl_wall_items WHERE user_id = ? ORDER BY position`
-      ).all(me.id) as Array<{ album_id: number; position: number }>;
+      // Source the items from the supplied draft when one was sent;
+      // otherwise read the live wall. Either way it's a flat list
+      // of { position, album_id } rows we insert in order.
+      const sourceItems: Array<{ album_id: number; position: number }> =
+        draftItems !== null
+          ? draftItems
+          : (db
+              .prepare(
+                `SELECT album_id, position FROM vinyl_wall_items WHERE user_id = ? ORDER BY position`
+              )
+              .all(me.id) as Array<{ album_id: number; position: number }>);
 
-      if (currentItems.length > 0) {
+      if (sourceItems.length > 0) {
         const itemStmt = db.prepare(
           `INSERT INTO vinyl_wall_snapshot_items (snapshot_id, album_id, position) VALUES (?, ?, ?)`
         );
-        for (const it of currentItems) itemStmt.run(snapId, it.album_id, it.position);
+        for (const it of sourceItems) itemStmt.run(snapId, it.album_id, it.position);
       }
 
-      return { snapId, itemCount: currentItems.length };
+      return { snapId, itemCount: sourceItems.length };
     });
 
     const { snapId, itemCount } = tx();

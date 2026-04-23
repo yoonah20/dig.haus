@@ -229,7 +229,15 @@ export function useCreateVinylWallSnapshot(username: string | undefined) {
   return useMutation<
     VinylWallSnapshotSummary,
     unknown,
-    { name?: string; isPublic?: boolean }
+    {
+      name?: string;
+      isPublic?: boolean;
+      // Optional explicit item list — when present the server
+      // snapshots this arrangement instead of the owner's live
+      // wall. Used by the editor's "scratch" flow so the draft
+      // can be saved without first committing it to the live wall.
+      items?: Array<{ position: number; albumId: number }>;
+    }
   >({
     mutationFn: async (body) => {
       const { data } = await axios.post('/api/mydig/vinyl-wall/snapshots', body);
