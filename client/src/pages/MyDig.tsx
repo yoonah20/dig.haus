@@ -379,8 +379,8 @@ function ProfileHeader({
           baseline-aligned. pb-4 reserves room for the bottom
           chip's overhang so the next row in the header doesn't
           collide with it. */}
-      <div className="shrink-0 pb-4">
-        <div className="relative">
+      <div className="shrink-0 flex flex-col items-center gap-2.5">
+        <div className="relative pb-2">
           {userId != null ? (
             <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
           ) : (
@@ -401,6 +401,11 @@ function ProfileHeader({
             {displayLabel}
           </span>
         </div>
+        {/* Follower/following chips are deliberately not rendered
+            here while the placement is still being decided. The
+            hover card still surfaces the count, and the list modal
+            stays wired below so we can re-enable a trigger without
+            digging state back out. */}
       </div>
 
       <div className="flex-1 min-w-0 pt-1 flex flex-col gap-2">
@@ -489,34 +494,6 @@ function ProfileHeader({
             ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
           </p>
         ) : null}
-        {/* Follower / Following chips — always visible so the
-            owner can reach their own lists and visitors can see
-            the graph. Renders zeros too; counts read as part of
-            the identity line rather than a conditional badge. */}
-        {userId != null && (
-          <div className="flex items-center gap-4 text-[11px] text-gray-400">
-            <button
-              type="button"
-              onClick={() => setFollowListOpen('followers')}
-              className="hover:text-[#e8a020] transition-colors cursor-pointer"
-            >
-              <span className="tabular-nums text-gray-200 font-semibold">
-                {followerCount}
-              </span>{' '}
-              팔로워
-            </button>
-            <button
-              type="button"
-              onClick={() => setFollowListOpen('following')}
-              className="hover:text-[#e8a020] transition-colors cursor-pointer"
-            >
-              <span className="tabular-nums text-gray-200 font-semibold">
-                {followingCount}
-              </span>{' '}
-              팔로잉
-            </button>
-          </div>
-        )}
         {mode === 'snapshot' && snapshotMeta && (
           <div className="flex items-center gap-3 flex-wrap text-[11px]">
             <span className="uppercase tracking-[0.22em] text-[#c9a060]">
