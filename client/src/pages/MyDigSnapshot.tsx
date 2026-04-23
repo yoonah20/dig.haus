@@ -117,7 +117,7 @@ function SnapshotHeader({
       <div className="flex-1 min-w-0">
         <Link
           to={`/my/${encodeURIComponent(username)}`}
-          className="text-[11px] text-gray-500 hover:text-[#e8a020] tracking-wider"
+          className="text-[11px] text-[#c9a060] hover:text-[#e8a020] tracking-wider"
         >
           ← {name}의 my dig
         </Link>
@@ -128,14 +128,14 @@ function SnapshotHeader({
           {snapshotName}
         </h1>
         <div className="flex items-center gap-3 mt-1.5 flex-wrap text-[11px]">
-          <span className="uppercase tracking-[0.22em] text-gray-500 tabular-nums">
+          <span className="uppercase tracking-[0.22em] text-[#c9a060] tabular-nums">
             {formatDate(createdAt)}
           </span>
           <span
             className={
               isPublic
                 ? 'uppercase tracking-[0.22em] text-[#e8a020]'
-                : 'uppercase tracking-[0.22em] text-gray-600'
+                : 'uppercase tracking-[0.22em] text-[#8a7250]'
             }
           >
             · {isPublic ? 'public' : 'private'}
