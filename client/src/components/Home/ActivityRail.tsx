@@ -1,7 +1,7 @@
 import SnapshotFeed from './SnapshotFeed';
 import CommentList from './CommentList';
 
-// Left-side activity rail for the home page. Desktop layout is
+// Right-side activity rail for the home page. Desktop layout is
 // done by the parent grid (fraction of the viewport); this
 // component is just the stacked section contents. Mobile placement
 // is also handled by the parent — on narrow widths the rail slots
@@ -10,7 +10,9 @@ import CommentList from './CommentList';
 // Order is fixed: snapshots up top (visual, quick to scan from a
 // distance), comments below (text, requires actually reading). The
 // lighter surface up top pulls the eye into the rail; the denser
-// text block sits where it naturally settles.
+// text block sits where it naturally settles. Count props were
+// dropped — each section picks its own visible count (3 snapshots,
+// 4 rotating comments).
 export default function ActivityRail() {
   return (
     <aside aria-label="활동" className="flex flex-col gap-6">
@@ -24,7 +26,7 @@ export default function ActivityRail() {
         <h3 className="text-[11px] uppercase tracking-wider text-gray-500 mb-2 px-1">
           최근 코멘트
         </h3>
-        <CommentList count={5} />
+        <CommentList />
       </section>
     </aside>
   );
