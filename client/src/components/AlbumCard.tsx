@@ -115,6 +115,13 @@ const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
     fg: '#15001f',
     lines: ['SOON'],
     aria: '발매 예정',
+    // D-N countdown was the one sticker where Syne's tighter
+    // geometric shapes mangled digits at small sizes. Instead of
+    // swapping the font (would drag NEW/HOT out of the set),
+    // just scale the whole soon chip ~30% larger so digits have
+    // the room they need to stay readable.
+    fontSize: 'clamp(7.8px, 5.5cqw, 10.8px)',
+    padding: 'clamp(1.3px, 1.4cqw, 2.9px) clamp(4px, 3.5cqw, 7px)',
   },
   new: {
     bg: '#5aa9e6',
@@ -150,12 +157,7 @@ function CoverStickerBadge({
       style={{
         background: palette.bg,
         color: palette.fg,
-        // Space Grotesk (bold) reads much cleaner at small sizes
-        // for the D-N countdown digits than Syne — Syne's tighter
-        // geometric curves obscured the '0' / '6' / '9' shapes at
-        // sticker scale. Same modern-geometric family so the
-        // NEW/HOT/SALE stickers next to it still feel like a set.
-        fontFamily: "'Space Grotesk', 'Syne', 'Inter', sans-serif",
+        fontFamily: "'Syne', 'Inter', sans-serif",
         // Scale the sticker with the card container (see containerType:
         // inline-size on the Link root). Floor at 6px so labels stay
         // legible on the tightest ultra-density tier; max at the

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
@@ -33,12 +34,72 @@ export default function UserHoverCard({
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLSpanElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const qc = useQueryClient();
 
   const { data } = useUserPublic(userId, open);
+
+  // Popover is rendered through a portal into document.body so
+  // overflow-hidden / clip-path contexts along the DOM path (e.g.
+  // the home CommentTicker's marquee) don't clip it. Position is
+  // computed from the trigger's viewport rect with a flip to above
+  // when there isn't room below. Measured against the popover's
+  // actual rendered height after mount so a tall payload doesn't
+  // fall off the edge either.
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    placement: 'below' | 'above';
+  } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !rootRef.current) {
+      setPos(null);
+      return;
+    }
+    const measure = () => {
+      const trigger = rootRef.current?.getBoundingClientRect();
+      if (!trigger) return;
+      const GAP = 8;
+      // Popover height isn't known until it mounts + lays out.
+      // First pass: guess (200px), measure once rendered, then
+      // re-run with the real number. Keeps positioning accurate
+      // without a flicker.
+      const popH = popoverRef.current?.offsetHeight ?? 200;
+      const spaceBelow = window.innerHeight - trigger.bottom;
+      const placement: 'below' | 'above' =
+        spaceBelow >= popH + GAP || trigger.top < popH + GAP
+          ? 'below'
+          : 'above';
+      const top =
+        placement === 'below'
+          ? trigger.bottom + GAP
+          : trigger.top - popH - GAP;
+      // Clamp left so a popover near the right edge doesn't
+      // overflow; 288px matches w-72 below.
+      const rightEdge = window.innerWidth - 288 - 8;
+      const left = Math.max(8, Math.min(trigger.left, rightEdge));
+      setPos({ top, left, placement });
+    };
+    measure();
+    // Re-measure on scroll/resize while open so the popover tracks
+    // the trigger if the user scrolls the underlying page with the
+    // card visible (e.g. because they're hovering).
+    const onScroll = () => measure();
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    // Measure again after a beat so we get the real popover height
+    // once content has loaded.
+    const t = setTimeout(measure, 0);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [open, data]);
 
   // Avatar/trigger click — navigate to the user's mydig page. Uses
   // whatever's already cached from the hover-triggered useUserPublic
@@ -130,52 +191,21 @@ export default function UserHoverCard({
     setOpen((v) => !v);
   };
 
-  return (
-    <span
-      ref={rootRef}
-      className={`relative inline-flex items-center ${className}`}
-      onMouseEnter={scheduleShow}
-      onMouseLeave={scheduleHide}
-      onFocus={scheduleShow}
-      onBlur={scheduleHide}
-    >
-      <span
-        // Same className as the outer wrapper so caller-supplied utility
-        // classes (gap-X, flex-1, min-w-0) actually reach the element
-        // that directly wraps the trigger children — the outer only has
-        // one flex child, so gap-* there would be a no-op otherwise.
-        className={`inline-flex items-center cursor-pointer ${className}`}
-        onClick={(e) => {
-          // Touch devices: the hover popover doesn't exist on no-hover
-          // inputs, so a tap should open the card instead of
-          // short-circuiting straight to navigation. Desktop (hover
-          // media) skips the popover and navigates directly to the
-          // user's mydig page — the card is already discoverable via
-          // hover, so an additional click gesture that just opens it
-          // would feel redundant.
-          if (window.matchMedia('(hover: none)').matches) {
-            e.stopPropagation();
-            e.preventDefault();
-            toggleOnTap();
-            return;
-          }
-          handleTriggerClick(e);
-        }}
-      >
-        {children}
-      </span>
-
-      {open && (
-        <div
-          role="tooltip"
-          // Wider (w-72) than the old w-64 because the layout is now
-          // [big avatar | info column] side-by-side rather than a
-          // stacked header + body. Still comfortably fits under a
-          // comment card in the 3-card 50자 평 row.
-          className="absolute z-30 top-full left-0 mt-2 w-72 bg-[#0f0a05] border border-[#e8a020]/25 rounded-xl shadow-xl p-3 text-xs text-gray-200 animate-[fadeInUp_150ms_ease-out] pointer-events-auto"
-          onMouseEnter={scheduleShow}
-          onMouseLeave={scheduleHide}
-        >
+  const popover =
+    open && pos
+      ? createPortal(
+          <div
+            ref={popoverRef}
+            role="tooltip"
+            // Wider (w-72) than the old w-64 because the layout is
+            // [big avatar | info column] side-by-side. Fixed-positioned
+            // via the measured rect so this lives outside any ancestor
+            // overflow-hidden (e.g. the marquee) and never clips.
+            className="fixed z-[60] w-72 bg-[#0f0a05] border border-[#e8a020]/25 rounded-xl shadow-xl p-3 text-xs text-gray-200 animate-[fadeInUp_150ms_ease-out] pointer-events-auto"
+            style={{ top: pos.top, left: pos.left }}
+            onMouseEnter={scheduleShow}
+            onMouseLeave={scheduleHide}
+          >
           {!data ? (
             <div className="text-gray-500 py-2 text-center">불러오는 중…</div>
           ) : (
@@ -324,8 +354,46 @@ export default function UserHoverCard({
               </div>
             </div>
           )}
-        </div>
-      )}
+          </div>,
+          document.body
+        )
+      : null;
+
+  return (
+    <span
+      ref={rootRef}
+      className={`relative inline-flex items-center ${className}`}
+      onMouseEnter={scheduleShow}
+      onMouseLeave={scheduleHide}
+      onFocus={scheduleShow}
+      onBlur={scheduleHide}
+    >
+      <span
+        // Same className as the outer wrapper so caller-supplied utility
+        // classes (gap-X, flex-1, min-w-0) actually reach the element
+        // that directly wraps the trigger children — the outer only has
+        // one flex child, so gap-* there would be a no-op otherwise.
+        className={`inline-flex items-center cursor-pointer ${className}`}
+        onClick={(e) => {
+          // Touch devices: the hover popover doesn't exist on no-hover
+          // inputs, so a tap should open the card instead of
+          // short-circuiting straight to navigation. Desktop (hover
+          // media) skips the popover and navigates directly to the
+          // user's mydig page — the card is already discoverable via
+          // hover, so an additional click gesture that just opens it
+          // would feel redundant.
+          if (window.matchMedia('(hover: none)').matches) {
+            e.stopPropagation();
+            e.preventDefault();
+            toggleOnTap();
+            return;
+          }
+          handleTriggerClick(e);
+        }}
+      >
+        {children}
+      </span>
+      {popover}
     </span>
   );
 }
