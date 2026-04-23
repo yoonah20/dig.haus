@@ -54,6 +54,9 @@ export async function ensureAlbumPreview(
            WHERE id = ?`,
           [result.previewUrl, result.trackName, albumId]
         );
+        console.log(
+          `[albumPreview] stored "${result.trackName}" for album ${albumId}`
+        );
       } else {
         // Stamp lookup_at so re-lookups back off; leave URL/name
         // null so the client keeps the disc without a play chip.
@@ -63,7 +66,15 @@ export async function ensureAlbumPreview(
            WHERE id = ?`,
           [albumId]
         );
+        console.log(
+          `[albumPreview] no preview found for album ${albumId} (${spotifyUrl})`
+        );
       }
+    } catch (err) {
+      console.error(
+        `[albumPreview] ensure failed for album ${albumId}:`,
+        (err as Error).message
+      );
     } finally {
       inflight.delete(albumId);
     }

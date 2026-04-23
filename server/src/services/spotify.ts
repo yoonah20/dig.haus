@@ -187,9 +187,19 @@ export async function fetchAlbumPreview(
 ): Promise<{ previewUrl: string; trackName: string } | null> {
   try {
     const token = await getToken();
-    if (!token) return null;
+    if (!token) {
+      console.warn(
+        '[spotify] fetchAlbumPreview skipped — no token (check SPOTIFY_CLIENT_ID / SPOTIFY_CLIENT_SECRET)'
+      );
+      return null;
+    }
     const id = extractSpotifyAlbumId(albumIdOrUrl);
-    if (!id) return null;
+    if (!id) {
+      console.warn(
+        `[spotify] fetchAlbumPreview unparseable input: ${albumIdOrUrl}`
+      );
+      return null;
+    }
     const res = await axios.get(`${SPOTIFY_API_BASE}/albums/${id}`, {
       headers: { Authorization: `Bearer ${token}` },
       httpsAgent,

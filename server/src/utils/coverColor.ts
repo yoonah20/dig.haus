@@ -26,19 +26,53 @@ const FETCH_TIMEOUT_MS = 3500;
 // concurrently, only run one extraction. Keyed by album id.
 const inflight = new Map<number, Promise<string | null>>();
 
+// Resolve the fetchable URL. Custom covers come out of the DB as
+// relative paths like /api/custom-covers/<hash>.webp because they
+// live on disk behind the same Express server; native fetch can't
+// load a relative URL from inside Node, so we prefix with the
+// public origin. PUBLIC_URL is the already-deployed origin on
+// Railway; local dev falls back to the server's own port so the
+// extractor can still round-trip through its own static handler.
+function resolveFetchableCoverUrl(url: string): string | null {
+  if (/^https?:\/\//i.test(url)) return url;
+  if (url.startsWith('/')) {
+    const base =
+      process.env.PUBLIC_URL ||
+      process.env.RAILWAY_PUBLIC_DOMAIN ||
+      `http://localhost:${process.env.PORT || 3001}`;
+    const prefix = base.startsWith('http') ? base : `https://${base}`;
+    return `${prefix.replace(/\/+$/, '')}${url}`;
+  }
+  return null;
+}
+
 async function fetchImageBuffer(url: string): Promise<Buffer | null> {
+  const fetchUrl = resolveFetchableCoverUrl(url);
+  if (!fetchUrl) {
+    console.warn('[coverColor] unfetchable url:', url);
+    return null;
+  }
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    const res = await fetch(url, {
+    const res = await fetch(fetchUrl, {
       signal: controller.signal,
       headers: { 'User-Agent': 'dig.haus/1.0 (cover-color extractor)' },
     });
     clearTimeout(timer);
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn(
+        `[coverColor] fetch failed ${res.status} for ${fetchUrl}`
+      );
+      return null;
+    }
     const arr = await res.arrayBuffer();
     return Buffer.from(arr);
-  } catch {
+  } catch (err) {
+    console.warn(
+      `[coverColor] fetch error for ${fetchUrl}:`,
+      (err as Error).message
+    );
     return null;
   }
 }
@@ -98,8 +132,16 @@ export async function extractDominantColor(url: string): Promise<string | null> 
       .raw()
       .toBuffer({ resolveWithObject: true });
     const rgb = pickDominantRGB(data, info.width, info.height, info.channels);
-    return rgb ? `${rgb[0]},${rgb[1]},${rgb[2]}` : null;
-  } catch {
+    if (!rgb) {
+      console.log(`[coverColor] no vibrant bucket for ${url}`);
+      return null;
+    }
+    return `${rgb[0]},${rgb[1]},${rgb[2]}`;
+  } catch (err) {
+    console.warn(
+      `[coverColor] sharp error for ${url}:`,
+      (err as Error).message
+    );
     return null;
   }
 }
@@ -128,8 +170,15 @@ export async function ensureCoverDominantColor(
           `UPDATE albums SET cover_dominant_color = ? WHERE id = ?`,
           [color, albumId]
         );
+        console.log(`[coverColor] stored ${color} for album ${albumId}`);
       }
       return color;
+    } catch (err) {
+      console.error(
+        `[coverColor] ensure failed for album ${albumId}:`,
+        (err as Error).message
+      );
+      return null;
     } finally {
       inflight.delete(albumId);
     }
