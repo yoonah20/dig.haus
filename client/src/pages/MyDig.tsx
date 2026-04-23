@@ -12,6 +12,7 @@ import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
 import SnapshotList from '../components/MyDig/SnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
+import UserHoverCard from '../components/UserHoverCard';
 import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 import { resolveApiUrl } from '../utils/apiUrl';
 
@@ -83,6 +84,7 @@ export default function MyDig() {
     <div className="flex-1">
       <main className="max-w-[1120px] mx-auto px-4 pt-4 pb-8 space-y-1">
         <ProfileHeader
+          userId={data.user.id ?? null}
           username={data.user.username}
           displayName={data.user.displayName}
           avatarUrl={data.user.avatarUrl}
@@ -136,22 +138,20 @@ export default function MyDig() {
   );
 }
 
-// ─── Profile header ────────────────────────────────────────────
-// Avatar + name block that sits above the shop scene. Avatar is a
-// circle portrait; right column stacks the @username breadcrumb,
-// the italic-serif display name, and a warm amber "open" indicator
-// that matches the dig.haus accent colour elsewhere.
 // ─── Profile header ──────────────────────────────────────────
-// Hierarchy:
-//   [avatar]  WALL THEME (big italic serif — primary focus)
-//             @username · displayName (medium muted line)
-//             · open ·  [edit] [snapshot] [share]  (small meta row)
+// Hierarchy on wide viewports:
+//   [avatar]  WALL THEME (big italic serif)        [·open· 편집 📸 공유]
+//             @username · displayName
 //
-// The theme replaces the earlier "{name}의 my dig" hybrid title
-// that mixed italic + non-italic inside a single h1 and read as
-// cluttered. Now only one italic block, one readable-size handle
-// line, one compact meta row. Each element has one clear size.
+// Actions (open indicator + owner controls + share) used to sit in a
+// third row below the username, which forced the wall to start well
+// below the avatar's bottom edge. Moving them into a right-aligned
+// cluster on the same line as the title lets the header collapse to
+// avatar-height and the wall rail starts ~40–50px higher. On narrow
+// viewports the cluster wraps below the title block so none of it
+// gets squashed.
 function ProfileHeader({
+  userId,
   username,
   displayName,
   avatarUrl,
@@ -162,6 +162,7 @@ function ProfileHeader({
   onEditTheme,
   shareUrl,
 }: {
+  userId: number | null;
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
@@ -176,64 +177,81 @@ function ProfileHeader({
   const resolvedAvatar = resolveApiUrl(avatarUrl);
   const displayThemeText = wallTheme || 'my dig';
   const themePlaceholder = !wallTheme;
+  const avatarEl = resolvedAvatar ? (
+    <img
+      src={resolvedAvatar}
+      alt=""
+      aria-hidden
+      className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-white/10"
+      referrerPolicy="no-referrer"
+    />
+  ) : (
+    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
+      <span className="text-2xl sm:text-3xl text-[#e8a020]/70 font-serif italic">
+        {initial}
+      </span>
+    </div>
+  );
   return (
-    <header className="flex items-start gap-4 pt-2 pb-6">
+    <header className="flex items-start gap-4 pt-2 pb-3">
+      {/* Avatar wraps in the same UserHoverCard used on album-detail
+          comment rows — the popover surfaces gauche/badge counts, a
+          mydig link, and the @instagram handle without the viewer
+          having to click through. Skipped when the server didn't
+          hand us an id (e.g. an older payload shape), since the
+          hover endpoint is id-keyed. */}
       <div className="shrink-0">
-        {resolvedAvatar ? (
-          <img
-            src={resolvedAvatar}
-            alt=""
-            aria-hidden
-            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover border border-white/10"
-            referrerPolicy="no-referrer"
-          />
+        {userId != null ? (
+          <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
         ) : (
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
-            <span className="text-2xl sm:text-3xl text-[#e8a020]/70 font-serif italic">
-              {initial}
-            </span>
-          </div>
+          avatarEl
         )}
       </div>
-      <div className="flex-1 min-w-0 pt-1">
-        {/* Primary: wall theme (italic serif h1). Owner gets a tiny
-            inline pencil that swaps into an input via onEditTheme. */}
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <h1
-            className={`text-2xl sm:text-3xl font-serif italic leading-tight truncate ${
-              themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
-            }`}
-            title={displayThemeText}
-          >
-            {displayThemeText}
-          </h1>
-          {isOwner && (
-            <button
-              type="button"
-              onClick={onEditTheme}
-              className="text-[11px] text-gray-400 hover:text-[#e8a020] cursor-pointer transition-colors"
-              title="벽 제목 수정"
+
+      <div className="flex-1 min-w-0 pt-1 flex flex-col sm:flex-row sm:items-start gap-3">
+        <div className="flex-1 min-w-0">
+          {/* Primary: wall theme (italic serif h1). Owner gets a tiny
+              inline pencil that swaps into an input via onEditTheme. */}
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h1
+              className={`text-2xl sm:text-3xl font-serif italic leading-tight truncate ${
+                themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
+              }`}
+              title={displayThemeText}
             >
-              ✏️
-            </button>
-          )}
+              {displayThemeText}
+            </h1>
+            {isOwner && (
+              <button
+                type="button"
+                onClick={onEditTheme}
+                className="text-[11px] text-gray-400 hover:text-[#e8a020] cursor-pointer transition-colors"
+                title="벽 제목 수정"
+              >
+                ✏️
+              </button>
+            )}
+          </div>
+
+          {/* Secondary: @username · {displayName}의 mydig (or just
+              "@username의 mydig" when no distinct display name). */}
+          <div className="mt-1.5 text-sm truncate">
+            <span className="text-[#e8a020]">@{username}</span>
+            <span className="text-[#c9a060]">
+              {displayName && displayName.toLowerCase() !== username.toLowerCase()
+                ? ` · ${displayName}의 mydig`
+                : '의 mydig'}
+            </span>
+          </div>
         </div>
 
-        {/* Secondary: @username · {displayName}의 mydig (or just
-            "@username의 mydig" when no distinct display name).
-            Warmer amber tones than the earlier gray — reads clearly
-            on the painted beige wall without a text-shadow halo. */}
-        <div className="mt-1.5 text-sm truncate">
-          <span className="text-[#e8a020]">@{username}</span>
-          <span className="text-[#c9a060]">
-            {displayName && displayName.toLowerCase() !== username.toLowerCase()
-              ? ` · ${displayName}의 mydig`
-              : '의 mydig'}
-          </span>
-        </div>
-
-        {/* Meta row: status + owner actions + share */}
-        <div className="flex items-center gap-2 mt-3 flex-wrap">
+        {/* Actions cluster — right-aligned on sm+ so the wall rail
+            can start right below the title block. On mobile this
+            block naturally wraps to its own line (sm:flex-row →
+            flex-col parent). flex-wrap + justify-end lets three or
+            four chips tile gracefully if the viewport narrows but
+            stays above the mobile breakpoint. */}
+        <div className="flex items-center gap-2 flex-wrap sm:justify-end shrink-0">
           <span className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.22em] text-[#e8a020]">
             <span
               aria-hidden
