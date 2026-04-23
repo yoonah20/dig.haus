@@ -1269,6 +1269,15 @@ export function initializeDatabase(db: Database.Database): void {
      ON vinyl_wall_snapshot_items(snapshot_id, position)`
   );
 
+  // Snapshots grew a description field alongside the live wall's
+  // own description: the owner can now explain what a given
+  // archived wall was about, which would otherwise be stuck in the
+  // snapshot name. Existing rows stay at NULL → rendered as no
+  // subtitle.
+  migrateTable(db, 'vinyl_wall_snapshots', [
+    'description TEXT',
+  ]);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS shelf_slots (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -39,6 +39,7 @@ export default function SnapshotSaveModal({
   onSaved?: () => void;
 }) {
   const [name, setName] = useState(todayDateLabel());
+  const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
   const create = useCreateVinylWallSnapshot(username);
 
@@ -47,6 +48,7 @@ export default function SnapshotSaveModal({
     try {
       await create.mutateAsync({
         name: name.trim() || undefined,
+        description: description.trim() || null,
         isPublic,
         items,
       });
@@ -69,10 +71,10 @@ export default function SnapshotSaveModal({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg text-white font-serif italic mb-1">
-          벽을 스냅샷으로 저장
+          현재 구성을 '기억'하기
         </h2>
         <p className="text-xs text-gray-500 mb-4">
-          지금 걸린 15장을 그대로 보관합니다. 편집해도 이 기록은 남아요.
+          지금 걸린 15장을 그대로 기억합니다. 언제든지 수정, 삭제 할 수 있어요.
         </p>
 
         <label className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
@@ -89,6 +91,21 @@ export default function SnapshotSaveModal({
         />
         <p className="text-[10px] text-gray-600 mt-1">
           비워두면 오늘 날짜가 들어가요.
+        </p>
+
+        <label className="block text-[11px] uppercase tracking-wider text-gray-500 mt-4 mb-1">
+          설명 (선택)
+        </label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          maxLength={240}
+          rows={2}
+          placeholder="이 스냅샷이 어떤 이야기인지 짧게 남겨보세요."
+          className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none leading-snug"
+        />
+        <p className="text-[10px] text-gray-600 mt-1 text-right">
+          {description.length}/240
         </p>
 
         <label className="flex items-center gap-2 mt-4 cursor-pointer">

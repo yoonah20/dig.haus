@@ -6,6 +6,7 @@ import {
   useMyDigCandidates,
   useSaveVinylWall,
   useSaveVinylWallSnapshotItems,
+  useUpdateVinylWallSnapshot,
   useUpdateVinylWallTheme,
   type MyDigAlbum,
   type MyDigCandidate,
@@ -23,6 +24,23 @@ import {
 const WALL_ROW_SIZES = [5, 5, 5] as const;
 const WALL_TOTAL = 15;
 
+// Header title builder. Wall target → "현재 마이딕 편집"; snapshot
+// target → "{name} ({YYYY년 M월 D일}) 편집" (falls back to
+// name-only if no date). Kept inline instead of hoisted to a utils
+// file since it's the only place that formats this phrasing.
+function editorTitle(
+  isSnapshotTarget: boolean,
+  name: string | null,
+  createdAt: string | null
+): string {
+  if (!isSnapshotTarget) return '현재 마이딕 편집';
+  const displayName = name?.trim() || '스냅샷';
+  if (!createdAt) return `${displayName} 편집`;
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return `${displayName} 편집`;
+  return `${displayName} (${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일) 편집`;
+}
+
 type DraftSlot = MyDigAlbum | null;
 
 // What the editor is editing. The default target is the owner's
@@ -39,12 +57,21 @@ interface Props {
   initialWall: MyDigWallItem[];
   onClose: () => void;
   target?: EditTarget;
-  // Wall theme + description live alongside the album editor so
-  // the owner can change everything in one place instead of
-  // hopping between a title pencil and the wall editor. Both
-  // default to null and are ignored in snapshot-edit mode.
+  // Shared "wall header" fields. For a wall target these come from
+  // `users.vinyl_wall_theme` / `users.vinyl_wall_description`; for a
+  // snapshot target they come from the snapshot row itself. The
+  // editor treats both the same way so name + description + albums
+  // are a single "편집" surface regardless of target.
   initialTheme?: string | null;
   initialDescription?: string | null;
+  // Snapshot-target only — starting public flag. The editor shows a
+  // public toggle alongside the title/description block when the
+  // target is a snapshot.
+  initialIsPublic?: boolean;
+  // Snapshot-target only — ISO timestamp of when the snapshot was
+  // captured. Drives the "{name} ({YYYY년 M월 D일}) 편집" header
+  // title; optional so we can fall back to name-only if missing.
+  initialSnapshotDate?: string | null;
 }
 
 export default function VinylWallEditor({
@@ -54,6 +81,8 @@ export default function VinylWallEditor({
   target = { kind: 'wall' },
   initialTheme = null,
   initialDescription = null,
+  initialIsPublic = false,
+  initialSnapshotDate = null,
 }: Props) {
   const isSnapshotTarget = target.kind === 'snapshot';
   // Hydrate the 22-element draft array from the sparse server payload.
@@ -92,6 +121,47 @@ export default function VinylWallEditor({
     return () => clearTimeout(t);
   }, [searchInput]);
 
+  // Browser-back support for the edit modal. We pushState a marker
+  // entry on mount so pressing Back pops that entry instead of
+  // leaving /my/:u. The popstate handler closes the editor in that
+  // case; programmatic close (from 취소 / 저장) explicitly pops the
+  // entry so forward history stays tidy.
+  //
+  // onCloseRef / skipHistoryPopRef dance:
+  //   - popstate → flip `skip` and call onClose. React unmounts the
+  //     editor → cleanup runs, sees `skip=true`, skips its own
+  //     history.back() (the entry is already popped).
+  //   - close-button → onClose runs, unmount → cleanup runs with
+  //     `skip=false` → history.back() pops the marker so the URL
+  //     returns to the pre-edit state.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+  const skipHistoryPopRef = useRef(false);
+  useEffect(() => {
+    const prevState = window.history.state;
+    window.history.pushState(
+      { ...(prevState ?? {}), myDigEditOpen: true },
+      '',
+      window.location.href
+    );
+    const onPopstate = () => {
+      skipHistoryPopRef.current = true;
+      onCloseRef.current();
+    };
+    window.addEventListener('popstate', onPopstate);
+    return () => {
+      window.removeEventListener('popstate', onPopstate);
+      if (!skipHistoryPopRef.current) {
+        const state = window.history.state as { myDigEditOpen?: boolean } | null;
+        if (state?.myDigEditOpen) {
+          window.history.back();
+        }
+      }
+    };
+  }, []);
+
   const candidates = useMyDigCandidates(source, debouncedQ, true);
   // Both save hooks share the same (items) => Promise shape, so the
   // rest of the editor can stay agnostic — the target just picks
@@ -104,22 +174,30 @@ export default function VinylWallEditor({
   );
   const save = isSnapshotTarget ? snapshotSave : wallSave;
   const themeUpdate = useUpdateVinylWallTheme(username);
+  const snapshotMetaUpdate = useUpdateVinylWallSnapshot(username);
 
-  // Wall title + description inputs. Wall-target only — snapshots
-  // have their own name/public flag handled in SnapshotRenameModal.
+  // Title + description + (snapshot-only) public flag. Shared by
+  // both targets so the owner edits name + description + albums in
+  // one modal regardless of whether they're editing the live wall
+  // or an archived snapshot.
   const [themeInput, setThemeInput] = useState(initialTheme ?? '');
   const [descriptionInput, setDescriptionInput] = useState(
     initialDescription ?? ''
   );
+  const [isPublicInput, setIsPublicInput] = useState(initialIsPublic);
 
-  // Snapshot-from-draft flow. Opening the save modal captures the
-  // current draft into a server snapshot without touching the live
-  // wall. After it saves, a follow-up prompt asks whether to commit
-  // the draft to the wall or roll back to what the wall was when
-  // the editor opened.
+  // Save flow. 저장 opens `saveChoicePrompt` first (wall target
+  // only), asking whether to also capture the draft as a snapshot.
+  // 기억하며 저장 → `snapshotModalOpen` opens the snapshot metadata
+  // form. After the snapshot saves, `postSnapshotPrompt` asks
+  // whether to revert the wall to its pre-edit state (the snapshot
+  // already preserved this moment) or keep the current draft on
+  // the wall. 그냥 저장 commits wall directly. Snapshot-target
+  // skips the entire flow because "save a snapshot edit as another
+  // snapshot" is nonsense.
+  const [saveChoicePrompt, setSaveChoicePrompt] = useState(false);
   const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
   const [postSnapshotPrompt, setPostSnapshotPrompt] = useState(false);
-  const [revertPending, setRevertPending] = useState(false);
 
   const itemsDirty = draft.some((slot, idx) => {
     const serverItem = initialWall.find((it) => it.position === idx);
@@ -127,11 +205,14 @@ export default function VinylWallEditor({
     if (!slot || !serverItem) return true;
     return slot.id !== serverItem.album.id;
   });
-  const themeDirty =
-    !isSnapshotTarget &&
-    (themeInput.trim() !== (initialTheme ?? '') ||
-      descriptionInput.trim() !== (initialDescription ?? ''));
-  const dirty = itemsDirty || themeDirty;
+  // Title/description dirty applies to both targets. Public flag
+  // only changes in snapshot mode (wall mode handles mydig_public
+  // via a different surface).
+  const metaDirty =
+    themeInput.trim() !== (initialTheme ?? '') ||
+    descriptionInput.trim() !== (initialDescription ?? '') ||
+    (isSnapshotTarget && isPublicInput !== initialIsPublic);
+  const dirty = itemsDirty || metaDirty;
 
   // Draft → flat items payload, shared by wall-save and
   // snapshot-from-draft paths.
@@ -142,35 +223,101 @@ export default function VinylWallEditor({
       )
       .filter((x): x is { position: number; albumId: number } => x !== null);
 
-  const handleSave = async () => {
-    if (save.isPending || themeUpdate.isPending) return;
+  // Core commit path — runs after the snapshot-or-not choice is
+  // resolved. Persists meta (title/description and, for snapshots,
+  // the public flag) first so a mid-flow failure on items doesn't
+  // leave the header desynced. Only patches fields that actually
+  // changed — the PATCH handlers treat missing fields as "don't
+  // touch".
+  const commitWall = async () => {
+    const themeTrimmed = themeInput.trim();
+    const descTrimmed = descriptionInput.trim();
+    const themeChanged = themeTrimmed !== (initialTheme ?? '');
+    const descChanged = descTrimmed !== (initialDescription ?? '');
+    if (!isSnapshotTarget) {
+      const body: { theme?: string | null; description?: string | null } = {};
+      if (themeChanged) {
+        body.theme = themeTrimmed.length > 0 ? themeTrimmed : null;
+      }
+      if (descChanged) {
+        body.description = descTrimmed.length > 0 ? descTrimmed : null;
+      }
+      if (body.theme !== undefined || body.description !== undefined) {
+        await themeUpdate.mutateAsync(body);
+      }
+    } else if (target.kind === 'snapshot') {
+      const body: {
+        id: number;
+        name?: string;
+        description?: string | null;
+        isPublic?: boolean;
+      } = { id: target.id };
+      if (themeChanged) {
+        // Snapshot names can't be blank — fall back to the prior
+        // name if the input was emptied.
+        body.name =
+          themeTrimmed.length > 0 ? themeTrimmed : (initialTheme ?? '');
+      }
+      if (descChanged) {
+        body.description = descTrimmed.length > 0 ? descTrimmed : null;
+      }
+      if (isPublicInput !== initialIsPublic) {
+        body.isPublic = isPublicInput;
+      }
+      if (
+        body.name !== undefined ||
+        body.description !== undefined ||
+        body.isPublic !== undefined
+      ) {
+        await snapshotMetaUpdate.mutateAsync(body);
+      }
+    }
+    if (itemsDirty) {
+      await save.mutateAsync(draftItems());
+    }
+  };
+
+  const handleSave = () => {
+    if (
+      save.isPending ||
+      themeUpdate.isPending ||
+      snapshotMetaUpdate.isPending
+    ) {
+      return;
+    }
+    // Snapshot target saves directly — no "also snapshot?" prompt.
+    if (isSnapshotTarget) {
+      void (async () => {
+        try {
+          await commitWall();
+          onClose();
+        } catch (err: any) {
+          alert(err?.response?.data?.error || '저장 실패');
+        }
+      })();
+      return;
+    }
+    // Wall target: ask whether to also save a snapshot before
+    // committing. The modal handles the branch from here.
+    setSaveChoicePrompt(true);
+  };
+
+  const handleSaveWithoutSnapshot = async () => {
+    setSaveChoicePrompt(false);
     try {
-      // Theme + description are only relevant for wall mode.
-      // Persist first so that if the items PUT fails the header
-      // text is at least already up to date; the reverse (items
-      // saved, theme not) would leave the page showing stale
-      // text on top of fresh records. Only PATCH what changed.
-      if (!isSnapshotTarget) {
-        const body: { theme?: string | null; description?: string | null } = {};
-        const themeTrimmed = themeInput.trim();
-        const descTrimmed = descriptionInput.trim();
-        if (themeTrimmed !== (initialTheme ?? '')) {
-          body.theme = themeTrimmed.length > 0 ? themeTrimmed : null;
-        }
-        if (descTrimmed !== (initialDescription ?? '')) {
-          body.description = descTrimmed.length > 0 ? descTrimmed : null;
-        }
-        if (body.theme !== undefined || body.description !== undefined) {
-          await themeUpdate.mutateAsync(body);
-        }
-      }
-      if (itemsDirty) {
-        await save.mutateAsync(draftItems());
-      }
+      await commitWall();
       onClose();
     } catch (err: any) {
       alert(err?.response?.data?.error || '저장 실패');
     }
+  };
+
+  const handleSaveWithSnapshot = () => {
+    // Flip from choice prompt → snapshot metadata modal. The modal
+    // saves the snapshot first; its onSaved callback then commits
+    // the wall and closes the editor.
+    setSaveChoicePrompt(false);
+    setSnapshotModalOpen(true);
   };
 
   const handleCancel = () => {
@@ -191,34 +338,31 @@ export default function VinylWallEditor({
     clearSelection();
   };
 
-  // Revert vs. keep, called after a snapshot save succeeds.
+  // After the snapshot saves, ask whether to revert the wall to its
+  // pre-edit state (snapshot already preserved the in-flight draft
+  // so it's safe to discard) or keep the draft on the wall.
+  const handleAfterSnapshotSaved = () => {
+    setSnapshotModalOpen(false);
+    setPostSnapshotPrompt(true);
+  };
+
+  // Revert → close without touching the wall. The snapshot is
+  // already saved, so the moment isn't lost; the wall just stays
+  // at whatever it was before the editor opened.
   const handleRevertAfterSnapshot = () => {
-    // Discard the draft: re-hydrate from initialWall and close.
-    // No server call — the editor opened against initialWall and
-    // we haven't touched vinyl_wall_items yet, so the wall is
-    // already at the "original" state the prompt promised.
-    const reset: DraftSlot[] = new Array(WALL_TOTAL).fill(null);
-    for (const it of initialWall) {
-      if (it.position >= 0 && it.position < WALL_TOTAL) {
-        reset[it.position] = it.album;
-      }
-    }
-    setDraft(reset);
     setPostSnapshotPrompt(false);
     onClose();
   };
 
+  // Keep → commit the wall (items + theme/description) with the
+  // current draft + inputs.
   const handleKeepAfterSnapshot = async () => {
-    if (save.isPending || revertPending) return;
-    setRevertPending(true);
+    setPostSnapshotPrompt(false);
     try {
-      await save.mutateAsync(draftItems());
-      setPostSnapshotPrompt(false);
+      await commitWall();
       onClose();
     } catch (err: any) {
       alert(err?.response?.data?.error || '벽 저장 실패');
-    } finally {
-      setRevertPending(false);
     }
   };
 
@@ -299,15 +443,19 @@ export default function VinylWallEditor({
   return (
     <div className="fixed inset-0 z-40 bg-[#0a0703] flex flex-col">
       {/* Header bar — title + dirty indicator on the left, build
-          tools (🧹 다 지우기, 📸 스냅샷) in the middle, exit
-          actions (취소, 저장) on the right. 📸 스냅샷 is
-          wall-target-only — already editing a snapshot, so the
-          "save as snapshot" action is meaningless. 🧹 stays since
-          a bulk-clear is still useful mid-rebuild in either mode. */}
+          tools (🧹 다 지우기) in the middle, exit actions (취소,
+          저장) on the right. 저장 opens a "also save as snapshot?"
+          prompt for wall targets; snapshot targets save directly.
+          The standalone 📸 스냅샷 button was removed in favour of
+          that flow so there's one obvious "I'm done" action. */}
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/5 bg-[#12100d]">
         <div className="flex items-center gap-3">
-          <span className="text-sm uppercase tracking-wider text-[#e8a020]">
-            {isSnapshotTarget ? '스냅샷 편집' : 'Vinyl Wall 편집'}
+          <span className="text-sm text-[#e8a020]">
+            {editorTitle(
+              isSnapshotTarget,
+              initialTheme,
+              initialSnapshotDate
+            )}
           </span>
           {dirty && (
             <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
@@ -325,22 +473,11 @@ export default function VinylWallEditor({
           >
             🧹 다 지우기
           </button>
-          {!isSnapshotTarget && (
-            <button
-              type="button"
-              onClick={() => setSnapshotModalOpen(true)}
-              disabled={save.isPending}
-              className="text-xs text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
-              title="지금 상태를 스냅샷으로 저장"
-            >
-              📸 스냅샷
-            </button>
-          )}
           <span className="mx-1 h-4 w-px bg-white/10" aria-hidden />
           <button
             type="button"
             onClick={handleCancel}
-            disabled={save.isPending || themeUpdate.isPending}
+            disabled={save.isPending || themeUpdate.isPending || snapshotMetaUpdate.isPending}
             className="text-xs text-gray-400 hover:text-white px-3 py-1.5 disabled:opacity-40 cursor-pointer"
           >
             취소
@@ -348,10 +485,10 @@ export default function VinylWallEditor({
           <button
             type="button"
             onClick={handleSave}
-            disabled={save.isPending || themeUpdate.isPending || !dirty}
+            disabled={save.isPending || themeUpdate.isPending || snapshotMetaUpdate.isPending || !dirty}
             className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
-            {save.isPending || themeUpdate.isPending ? '저장 중…' : '저장'}
+            {save.isPending || themeUpdate.isPending || snapshotMetaUpdate.isPending ? '저장 중…' : '저장'}
           </button>
         </div>
       </header>
@@ -362,42 +499,57 @@ export default function VinylWallEditor({
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="max-w-[780px] mx-auto flex flex-col gap-3 sm:gap-4">
-            {/* Wall title + description — wall-target only. Putting
-                them at the top of the editor means the owner can
-                edit the header text and the albums in one trip,
-                instead of hopping between a title pencil on the
-                page and the album editor. Snapshot mode hides this
-                block because snapshots have their own name/public
-                controls in SnapshotRenameModal. */}
-            {!isSnapshotTarget && (
-              <div className="flex flex-col gap-2 pb-3 border-b border-white/10">
-                <label className="block text-[10px] uppercase tracking-wider text-gray-500">
-                  벽 제목
+            {/* Title + description + (snapshot-only) public flag.
+                Same block for both targets so the owner edits header
+                text and albums in one trip; for snapshots the same
+                PATCH also renames the snapshot + flips public, which
+                previously lived in a separate SnapshotRenameModal. */}
+            <div className="flex flex-col gap-2 pb-3 border-b border-white/10">
+              <label className="block text-[10px] uppercase tracking-wider text-gray-500">
+                {isSnapshotTarget ? '스냅샷 이름' : '벽 제목'}
+              </label>
+              <input
+                type="text"
+                value={themeInput}
+                onChange={(e) => setThemeInput(e.target.value)}
+                maxLength={isSnapshotTarget ? 60 : 80}
+                placeholder={
+                  isSnapshotTarget
+                    ? '예: 2026년 봄 플레이리스트'
+                    : '예: 2026년 4월의 최애'
+                }
+                className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600"
+              />
+              <label className="block text-[10px] uppercase tracking-wider text-gray-500 mt-1">
+                {isSnapshotTarget ? '스냅샷 설명' : '벽 설명'}
+              </label>
+              <textarea
+                value={descriptionInput}
+                onChange={(e) => setDescriptionInput(e.target.value)}
+                maxLength={240}
+                rows={2}
+                placeholder={
+                  isSnapshotTarget
+                    ? '이 스냅샷이 어떤 순간인지 짧게 남겨보세요.'
+                    : '예: 4월 내내 열심히 듣고 있는 앨범들입니다.'
+                }
+                className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none leading-snug"
+              />
+              <p className="text-[10px] text-gray-600 text-right">
+                {descriptionInput.length}/240
+              </p>
+              {isSnapshotTarget && (
+                <label className="flex items-center gap-2 mt-1 cursor-pointer text-xs text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={isPublicInput}
+                    onChange={(e) => setIsPublicInput(e.target.checked)}
+                    className="w-3.5 h-3.5 accent-[#e8a020] cursor-pointer"
+                  />
+                  공개 (방문자도 볼 수 있어요)
                 </label>
-                <input
-                  type="text"
-                  value={themeInput}
-                  onChange={(e) => setThemeInput(e.target.value)}
-                  maxLength={80}
-                  placeholder="예: 2026년 4월의 최애"
-                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600"
-                />
-                <label className="block text-[10px] uppercase tracking-wider text-gray-500 mt-1">
-                  벽 설명
-                </label>
-                <textarea
-                  value={descriptionInput}
-                  onChange={(e) => setDescriptionInput(e.target.value)}
-                  maxLength={240}
-                  rows={2}
-                  placeholder="예: 4월 내내 열심히 듣고 있는 앨범들입니다."
-                  className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none leading-snug"
-                />
-                <p className="text-[10px] text-gray-600 text-right">
-                  {descriptionInput.length}/240
-                </p>
-              </div>
-            )}
+              )}
+            </div>
             {rows.map((positions, rowIdx) => (
               <div
                 key={rowIdx}
@@ -436,14 +588,15 @@ export default function VinylWallEditor({
         <aside className="w-full lg:w-80 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-white/5 bg-[#12100d] flex flex-col max-h-[50vh] lg:max-h-none">
           {/* Source tabs. 굿굿 first surfaces albums the user has
               already endorsed — a natural starting point for wall
-              curation. 살거 was dropped: the wall is identity
-              expression, not shopping list. '내 상자' renames the
-              earlier '내 Crate' to match dig.haus's Korean lexicon. */}
+              curation. '내 상자' (crate) was dropped from the picker
+              while the public crate tier is shelved per the Phase 3
+              storefront pivot; 살거 stays as a candidate pool even
+              though the wall itself isn't a shopping list. */}
           <div className="flex border-b border-white/5 text-xs">
             {([
               { key: 'upvote', label: '굿굿' },
               { key: 'collection', label: '샀음' },
-              { key: 'crate', label: '내 상자' },
+              { key: 'wantlist', label: '살거' },
               { key: 'all', label: '전체' },
             ] as const).map((t) => (
               <button
@@ -518,21 +671,27 @@ export default function VinylWallEditor({
       {/* Scratch-snapshot machinery — wall-target only. Editing a
           snapshot itself doesn't need the "save as snapshot" detour
           or the "revert vs keep" follow-up. */}
+      {!isSnapshotTarget && saveChoicePrompt && (
+        <SaveChoicePrompt
+          pending={save.isPending || themeUpdate.isPending || snapshotMetaUpdate.isPending}
+          onWallOnly={handleSaveWithoutSnapshot}
+          onWithSnapshot={handleSaveWithSnapshot}
+          onCancel={() => setSaveChoicePrompt(false)}
+        />
+      )}
+
       {!isSnapshotTarget && snapshotModalOpen && (
         <SnapshotSaveModal
           username={username}
           items={draftItems()}
           onClose={() => setSnapshotModalOpen(false)}
-          onSaved={() => {
-            setSnapshotModalOpen(false);
-            setPostSnapshotPrompt(true);
-          }}
+          onSaved={handleAfterSnapshotSaved}
         />
       )}
 
       {!isSnapshotTarget && postSnapshotPrompt && (
         <RevertOrKeepPrompt
-          pending={revertPending || save.isPending}
+          pending={save.isPending || themeUpdate.isPending}
           onRevert={handleRevertAfterSnapshot}
           onKeep={handleKeepAfterSnapshot}
         />
@@ -541,6 +700,10 @@ export default function VinylWallEditor({
   );
 }
 
+// After 기억하며 저장 finishes the snapshot half, ask whether to
+// roll the wall back or keep the draft. Snapshot captured the
+// moment already, so "roll back" costs nothing — it just skips the
+// wall PUT / theme PATCH. "Keep" commits the draft normally.
 function RevertOrKeepPrompt({
   pending,
   onRevert,
@@ -558,11 +721,11 @@ function RevertOrKeepPrompt({
     >
       <div className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5">
         <h2 className="text-lg text-white font-serif italic mb-1">
-          스냅샷 저장됨
+          기억 저장됨
         </h2>
         <p className="text-xs text-gray-400 mb-5 leading-relaxed">
-          원래 벽으로 돌아갈까요? 예를 선택하면 편집 전 상태로 돌아가고,
-          아니요를 선택하면 지금 상태가 벽에 그대로 남아요.
+          '기억'을 남겼으니 편집 하기 전 상태로 돌아갈까요? 아니라고
+          하시면 지금의 구성이 현재 마이딕에 그대로 남아요.
         </p>
         <div className="flex items-center justify-end gap-2">
           <button
@@ -580,6 +743,62 @@ function RevertOrKeepPrompt({
             className="text-xs text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             네, 원래대로
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SaveChoicePrompt({
+  pending,
+  onWallOnly,
+  onWithSnapshot,
+  onCancel,
+}: {
+  pending: boolean;
+  onWallOnly: () => void;
+  onWithSnapshot: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal
+    >
+      <div className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5">
+        <h2 className="text-lg text-white font-serif italic mb-1">
+          저장하기
+        </h2>
+        <p className="text-xs text-gray-400 mb-5 leading-relaxed">
+          지금의 앨범 구성을 '기억'할까요? 그렇게 하면 기록이 남아
+          추후에 언제든지 이 구성을 확인할 수 있어요.
+        </p>
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={pending}
+            className="text-xs text-gray-500 hover:text-gray-300 px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={onWallOnly}
+            disabled={pending}
+            className="text-xs text-gray-300 hover:text-white px-3 py-1.5 rounded-md border border-white/10 hover:border-white/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {pending ? '저장 중…' : '그냥 저장'}
+          </button>
+          <button
+            type="button"
+            onClick={onWithSnapshot}
+            disabled={pending}
+            className="text-xs text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            📸 기억하며 저장
           </button>
         </div>
       </div>

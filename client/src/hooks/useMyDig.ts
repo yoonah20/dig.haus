@@ -87,7 +87,6 @@ export type MyDigCandidateSource =
   | 'all'
   | 'collection'
   | 'wantlist'
-  | 'crate'
   | 'upvote';
 
 export interface MyDigCandidate {
@@ -175,6 +174,7 @@ export interface VinylWallSnapshotSummary {
   id: number;
   slug: string;
   name: string;
+  description: string | null;
   isPublic: boolean;
   createdAt: string;
   itemCount: number;
@@ -185,6 +185,7 @@ export interface VinylWallSnapshotDetail {
     id: number;
     slug: string;
     name: string;
+    description: string | null;
     isPublic: boolean;
     createdAt: string;
   };
@@ -197,6 +198,16 @@ export interface VinylWallSnapshotDetail {
   items: Array<{
     position: number;
     album: MyDigAlbum | null;
+    // Owner's 50자 평 for this album (if any) — surfaced so the
+    // snapshot renders the same hover bubble the live wall does.
+    // Lives outside the snapshot row on the server, so it always
+    // reflects the current review, not what was written at
+    // snapshot time.
+    userReview: {
+      body: string;
+      emoji: string | null;
+      rating: string | null;
+    } | null;
   }>;
 }
 
@@ -238,6 +249,7 @@ export function useCreateVinylWallSnapshot(username: string | undefined) {
     unknown,
     {
       name?: string;
+      description?: string | null;
       isPublic?: boolean;
       // Optional explicit item list — when present the server
       // snapshots this arrangement instead of the owner's live
@@ -261,7 +273,7 @@ export function useUpdateVinylWallSnapshot(username: string | undefined) {
   return useMutation<
     VinylWallSnapshotSummary,
     unknown,
-    { id: number; name?: string; isPublic?: boolean }
+    { id: number; name?: string; description?: string | null; isPublic?: boolean }
   >({
     mutationFn: async ({ id, ...body }) => {
       const { data } = await axios.patch(

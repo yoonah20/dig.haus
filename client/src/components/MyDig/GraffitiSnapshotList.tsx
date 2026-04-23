@@ -32,12 +32,31 @@ export default function GraffitiSnapshotList({
   onSelect: (slug: string) => void;
   onClear: () => void;
 }) {
+  // Shown only in snapshot mode (activeSlug !== null). Acts as
+  // the escape hatch back to the live wall — sits ABOVE the
+  // "다른 기억들:" heading so it reads as the user's "way home"
+  // rather than another snapshot to pick from. In live mode this
+  // row is hidden entirely; the URL already reflects that state.
+  const backToLiveRow = activeSlug !== null ? (
+    <button
+      type="button"
+      onClick={onClear}
+      className="group inline-block origin-left text-left mb-4"
+    >
+      <span className="inline-block origin-left transition-transform duration-200 group-hover:scale-[1.05]">
+        <span className="text-[20px] leading-[1.15] text-[#1a1208] group-hover:text-[#e8a020] transition-colors duration-200">
+          ← 현재 마이딕으로…
+        </span>
+      </span>
+    </button>
+  ) : null;
+
   const heading = (
     <div
       className="mb-3 text-[22px] leading-none text-[#1a1208]"
       style={{ fontFamily: FONT_STACK }}
     >
-      다른 기록들:
+      다른 기억들:
     </div>
   );
 
@@ -47,38 +66,12 @@ export default function GraffitiSnapshotList({
   // where a graffito would naturally live.
   const outer = 'px-2 pt-10 flex flex-col gap-2';
 
-  // First entry is always "현재 마이딕 보기" — click resets the
-  // URL to the live wall. Active when no snapshot is picked
-  // (activeSlug === null). Rendered slightly larger than the
-  // other rows so it reads as a distinct baseline, not "just
-  // another snapshot title".
-  const liveRow = (
-    <button
-      type="button"
-      onClick={onClear}
-      disabled={activeSlug === null}
-      className="group inline-block origin-left text-left"
-    >
-      <span className="inline-block origin-left transition-transform duration-200 group-hover:scale-[1.05]">
-        <span
-          className={`text-[20px] leading-[1.15] transition-colors duration-200 ${
-            activeSlug === null
-              ? 'text-[#e8a020]'
-              : 'text-[#1a1208] group-hover:text-[#e8a020]'
-          }`}
-        >
-          현재 마이딕 보기
-        </span>
-      </span>
-    </button>
-  );
-
   if (snapshots.length === 0) {
     return (
       <div className={outer} style={{ fontFamily: FONT_STACK }}>
+        {backToLiveRow}
         {heading}
         <div className="flex flex-col gap-1.5 pl-3">
-          {liveRow}
           <div className="text-[14px] leading-relaxed text-[#5a4838]">
             {isOwner
               ? '아직 스냅샷이 없어요. 📸 버튼으로 남겨보세요.'
@@ -95,9 +88,9 @@ export default function GraffitiSnapshotList({
       className={outer}
       style={{ fontFamily: FONT_STACK }}
     >
+      {backToLiveRow}
       {heading}
       <div className="flex flex-col gap-1.5 pl-3">
-        {liveRow}
         {snapshots.map((snap) => {
           const labelSuffix = isOwner && !snap.isPublic ? ' (비공개)' : '';
           const isActive = activeSlug === snap.slug;

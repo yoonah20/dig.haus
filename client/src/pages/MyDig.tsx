@@ -12,11 +12,11 @@ import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
-import SnapshotRenameModal from '../components/MyDig/SnapshotRenameModal';
 import GraffitiSnapshotList from '../components/MyDig/GraffitiSnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
 import UserHoverCard from '../components/UserHoverCard';
 import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
+import { useCoverDominantColor } from '../hooks/useCoverDominantColor';
 import { resolveApiUrl } from '../utils/apiUrl';
 
 // Phase 3a skeleton — the four-layer placeholder scaffold described
@@ -58,8 +58,10 @@ export default function MyDig() {
   const deleteSnap = useDeleteVinylWallSnapshot(username);
 
   const [editingWall, setEditingWall] = useState(false);
+  // "기억 남기기" surfaces SnapshotSaveModal directly against the
+  // live wall — no editing detour. Available on live mode only;
+  // snapshot mode keeps the 편집 / 🗑 pair.
   const [savingSnapshot, setSavingSnapshot] = useState(false);
-  const [editingSnapshotName, setEditingSnapshotName] = useState(false);
 
   // When a legacy /my/:u/snap/:s URL lands here, rewrite the bar
   // to the in-page hash form so refresh / share / back all operate
@@ -119,7 +121,17 @@ export default function MyDig() {
   const wallByPosition = new Map<number, MyDigWallItem>();
   if (isSnapshotMode) {
     for (const it of snapItems!) {
-      if (it.album) wallByPosition.set(it.position, { position: it.position, album: it.album });
+      if (it.album) {
+        wallByPosition.set(it.position, {
+          position: it.position,
+          album: it.album,
+          // Forward the server-joined userReview so snapshot hovers
+          // render the same bubble the live wall does. null cases
+          // fall through as undefined which matches MyDigWallItem's
+          // optional `userReview` shape.
+          userReview: it.userReview ?? undefined,
+        });
+      }
     }
   } else {
     for (const it of data.vinylWall) wallByPosition.set(it.position, it);
@@ -146,9 +158,17 @@ export default function MyDig() {
       await deleteSnap.mutateAsync(snap.id);
       // Drop back to the live wall view after a successful delete.
       handleClearSnapshot();
-    } catch (err) {
+    } catch (err: any) {
+      // Surface the server error text so regressions (e.g. FK
+      // cascade, missing column after a half-applied migration)
+      // show up in the alert instead of a generic "failed" toast.
       console.error('[mydig/snapshots] delete failed:', err);
-      alert('스냅샷 삭제 실패');
+      const serverError =
+        err?.response?.data?.error ??
+        err?.response?.statusText ??
+        err?.message ??
+        '알 수 없는 오류';
+      alert(`스냅샷 삭제 실패: ${serverError}`);
     }
   };
 
@@ -162,13 +182,16 @@ export default function MyDig() {
           avatarUrl={data.user.avatarUrl}
           isOwner={data.user.isOwner}
           wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
+          // Snapshots reuse the wall-description slot so the
+          // subtitle renders the same way whether the viewer is on
+          // a live wall or an archived snapshot.
           wallDescription={
             isSnapshotMode
-              ? null
+              ? snap?.description ?? null
               : data.vinylWallDescription
           }
           // Snapshot mode carries its own meta line (date + public
-          // flag); live mode keeps the description subtitle.
+          // flag) on top of the description.
           snapshotMeta={
             isSnapshotMode
               ? {
@@ -180,29 +203,34 @@ export default function MyDig() {
           mode={isSnapshotMode ? 'snapshot' : 'live'}
           onEdit={() => setEditingWall(true)}
           onSaveSnapshot={() => setSavingSnapshot(true)}
-          onRenameSnapshot={() => setEditingSnapshotName(true)}
           onDeleteSnapshot={handleDeleteSnapshot}
           deleteSnapshotPending={deleteSnap.isPending}
           shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,890px)_1fr] gap-4 md:gap-8">
+        {/* Desktop: small left gutter (1fr) pulls the wall + graffiti
+            pair toward the visual center of the page so the composition
+            doesn't read as "pushed left". The wall cell still caps at
+            890px; the graffiti cell still takes the remainder. */}
+        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,32px)_minmax(0,890px)_minmax(0,1fr)] gap-4 md:gap-8">
+          <div className="hidden md:block" aria-hidden />
           <WallSection>
             {snapLoading ? (
               <div className="text-center py-12 text-sm text-gray-500">
                 스냅샷 불러오는 중…
               </div>
             ) : (
-              // key on activeSlug triggers a remount when the user
-              // swaps between live and any snapshot — the LPs
-              // re-animate their drop-in entrance so the swap
-              // reads as "records being changed out" instead of a
-              // silent content flip.
+              // cellKey scopes the remount to individual LPs only —
+              // the VinylWallGrid stays mounted (so the wooden rail
+              // SVGs don't re-paint their shadows, which looked like
+              // a flicker every swap) but each cell receives a new
+              // React key that changes with the active view, which
+              // restarts the .album-reveal drop-in animation.
               <VinylWallGrid
-                key={activeSlug ?? 'live'}
                 wallByPosition={wallByPosition}
                 isOwner={data.user.isOwner}
                 emptyHint={isSnapshotMode ? 'snapshot' : 'live'}
+                cellKey={activeSlug ?? 'live'}
               />
             )}
           </WallSection>
@@ -222,8 +250,20 @@ export default function MyDig() {
           <VinylWallEditor
             username={username}
             initialWall={initialWallForEditor}
-            initialTheme={isSnapshotMode ? null : data.vinylWallTheme}
-            initialDescription={isSnapshotMode ? null : data.vinylWallDescription}
+            initialTheme={
+              isSnapshotMode && snap
+                ? snap.name
+                : data.vinylWallTheme
+            }
+            initialDescription={
+              isSnapshotMode && snap
+                ? snap.description ?? null
+                : data.vinylWallDescription
+            }
+            initialIsPublic={isSnapshotMode && snap ? snap.isPublic : false}
+            initialSnapshotDate={
+              isSnapshotMode && snap ? snap.createdAt : null
+            }
             target={
               isSnapshotMode && snap
                 ? { kind: 'snapshot', id: snap.id, slug: snap.slug }
@@ -237,16 +277,7 @@ export default function MyDig() {
           <SnapshotSaveModal
             username={username}
             onClose={() => setSavingSnapshot(false)}
-          />
-        )}
-
-        {editingSnapshotName && username && snap && (
-          <SnapshotRenameModal
-            username={username}
-            snapshotId={snap.id}
-            initialName={snap.name}
-            initialIsPublic={snap.isPublic}
-            onClose={() => setEditingSnapshotName(false)}
+            onSaved={() => setSavingSnapshot(false)}
           />
         )}
       </main>
@@ -278,7 +309,6 @@ function ProfileHeader({
   mode,
   onEdit,
   onSaveSnapshot,
-  onRenameSnapshot,
   onDeleteSnapshot,
   deleteSnapshotPending,
   shareUrl,
@@ -293,8 +323,10 @@ function ProfileHeader({
   snapshotMeta: { createdAt: string; isPublic: boolean } | null;
   mode: 'live' | 'snapshot';
   onEdit: () => void;
+  // Live-mode only — opens the snapshot-save modal straight from
+  // the header so the owner can capture the current wall without
+  // going through the full editor flow.
   onSaveSnapshot: () => void;
-  onRenameSnapshot: () => void;
   onDeleteSnapshot: () => void;
   deleteSnapshotPending: boolean;
   shareUrl: string;
@@ -374,67 +406,71 @@ function ProfileHeader({
             {displayThemeText}
           </h1>
           <div className="flex items-center gap-2 shrink-0">
+            {/* Single unified 편집 action for both modes. Live opens
+                the wall editor (title + description + albums); the
+                same editor in snapshot mode edits the snapshot's
+                name + description + public flag + albums. The old
+                split of 📸 / ✏️ 이름 / ✏️ 앨범 is gone — one
+                obvious "edit this thing" button regardless of
+                whether the user is looking at the live wall or a
+                saved snapshot. */}
+            {isOwner && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+                title={
+                  mode === 'snapshot'
+                    ? '스냅샷 이름·설명·앨범 편집'
+                    : '벽 제목·설명·앨범 편집'
+                }
+              >
+                ✏️ 편집
+              </button>
+            )}
             {isOwner && mode === 'live' && (
-              <>
-                <button
-                  type="button"
-                  onClick={onEdit}
-                  className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-                  title="벽 제목·설명·앨범 편집"
-                >
-                  ✏️ 편집
-                </button>
-                <button
-                  type="button"
-                  onClick={onSaveSnapshot}
-                  className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-                  title="현재 벽을 스냅샷으로 저장"
-                >
-                  📸 스냅샷
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={onSaveSnapshot}
+                className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+                title="현재 구성을 기억으로 남기기"
+              >
+                📸 기억 남기기
+              </button>
             )}
             {isOwner && mode === 'snapshot' && (
-              <>
-                <button
-                  type="button"
-                  onClick={onRenameSnapshot}
-                  className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-                  title="스냅샷 이름 / 공개 여부 수정"
-                >
-                  ✏️ 이름
-                </button>
-                <button
-                  type="button"
-                  onClick={onEdit}
-                  className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-                  title="스냅샷의 앨범 편집"
-                >
-                  ✏️ 앨범
-                </button>
-                <button
-                  type="button"
-                  onClick={onDeleteSnapshot}
-                  disabled={deleteSnapshotPending}
-                  className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="스냅샷 삭제"
-                >
-                  {deleteSnapshotPending ? '삭제 중…' : '🗑 삭제'}
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={onDeleteSnapshot}
+                disabled={deleteSnapshotPending}
+                className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="스냅샷 삭제"
+              >
+                {deleteSnapshotPending ? '삭제 중…' : '🗑 삭제'}
+              </button>
             )}
             <ShareButton url={shareUrl} label="공유" />
           </div>
         </div>
 
-        {/* Subtitle line — description (live mode) or date +
-            public/private tag (snapshot mode). Live + empty +
-            owner gets a hint pointing at the edit button where
-            theme + description + albums all edit together. */}
-        {mode === 'snapshot' && snapshotMeta ? (
+        {/* Subtitle order: description first, then the snapshot
+            meta strip (date + public/private). Live mode shows
+            description + owner hint only — no meta strip. The date
+            is rendered as "YYYY년 M월 D일의 기억" to read as a
+            memory tag rather than a timestamp. */}
+        {wallDescription ? (
+          <p className="text-[13px] text-[#c9a060]/90 leading-relaxed max-w-[640px]">
+            {wallDescription}
+          </p>
+        ) : mode === 'live' && isOwner ? (
+          <p className="text-[12px] text-gray-600 italic">
+            ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
+          </p>
+        ) : null}
+        {mode === 'snapshot' && snapshotMeta && (
           <div className="flex items-center gap-3 flex-wrap text-[11px]">
-            <span className="uppercase tracking-[0.22em] text-[#c9a060] tabular-nums">
-              {snapshotMeta.createdAt.slice(0, 10)}
+            <span className="uppercase tracking-[0.22em] text-[#c9a060]">
+              {formatKoreanMemoryDate(snapshotMeta.createdAt)}
             </span>
             <span
               className={
@@ -446,15 +482,7 @@ function ProfileHeader({
               · {snapshotMeta.isPublic ? 'public' : 'private'}
             </span>
           </div>
-        ) : wallDescription ? (
-          <p className="text-[13px] text-[#c9a060]/90 leading-relaxed max-w-[640px]">
-            {wallDescription}
-          </p>
-        ) : isOwner ? (
-          <p className="text-[12px] text-gray-600 italic">
-            ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
-          </p>
-        ) : null}
+        )}
       </div>
     </header>
   );
@@ -492,6 +520,7 @@ function VinylWallGrid({
   wallByPosition,
   isOwner,
   emptyHint = 'live',
+  cellKey = 'live',
 }: {
   wallByPosition: Map<number, MyDigWallItem>;
   isOwner: boolean;
@@ -499,6 +528,11 @@ function VinylWallGrid({
    *  filling their wall; 'snapshot' reads as factual since a
    *  visitor/owner can't act on the empty state there. */
   emptyHint?: 'live' | 'snapshot';
+  /** When this string changes, every cell's React key flips — the
+   *  rail container stays mounted (so the shadow SVG doesn't
+   *  flicker), but each LP remounts, which restarts the drop-in
+   *  animation on a swap. */
+  cellKey?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(880);
@@ -537,6 +571,11 @@ function VinylWallGrid({
     const h = Math.abs(((seed * 2654435761) >>> 0) % 10000) / 10000;
     return h * 2 - 1;
   };
+  // 0..1 range variant for drop-delay seeding — same hash, just
+  // without the ±1 centering.
+  const variancePositive = (seed: number) => {
+    return Math.abs(((seed * 2654435761) >>> 0) % 10000) / 10000;
+  };
 
   return (
     <div
@@ -571,47 +610,42 @@ function VinylWallGrid({
               const item = wallByPosition.get(position);
               const lampBias = 1 - Math.min(1, (ri * cols + ci) / (rowCount * cols));
               const jx = variance(ri * 131 + ci * 17 + 1) * (mobile ? 2 : 4);
-              // Stagger the drop-in per cell so swapping between
-              // live and a snapshot (which remounts this grid via
-              // key=activeSlug in the parent) reads as a wave of
-              // records landing one-after-another instead of all 15
-              // popping in simultaneously. 30ms × position index
-              // → ~420ms spread across the whole wall.
-              const dropStyle = {
-                marginLeft: jx,
-                animationDelay: `${(ri * cols + ci) * 30}ms`,
-              };
-              if (!item) {
-                return (
-                  <div
-                    key={position}
-                    className="album-reveal"
-                    style={dropStyle}
-                  >
+              // Random drop-in delay (0-500ms) seeded off cellKey
+              // + position so the pattern stays stable within one
+              // view but changes between swaps. Feels like records
+              // landing one at a time in no particular order.
+              const dropDelay = Math.floor(
+                variancePositive(
+                  `${cellKey}-${position}`.split('').reduce(
+                    (acc, c) => (acc * 31 + c.charCodeAt(0)) >>> 0,
+                    17
+                  )
+                ) * 500
+              );
+              return (
+                <CellAnim
+                  key={`${cellKey}-${position}`}
+                  delayMs={dropDelay}
+                  offsetX={jx}
+                >
+                  {!item ? (
                     <WallLP
                       size={lpSize}
                       seed={position}
                       empty
                       lampBias={lampBias}
                     />
-                  </div>
-                );
-              }
-              return (
-                <div
-                  key={position}
-                  className="album-reveal"
-                  style={dropStyle}
-                >
-                  <WallCell
-                    item={item}
-                    position={position}
-                    lpSize={lpSize}
-                    lampBias={lampBias}
-                    mobile={mobile}
-                    offsetX={0}
-                  />
-                </div>
+                  ) : (
+                    <WallCell
+                      item={item}
+                      position={position}
+                      lpSize={lpSize}
+                      lampBias={lampBias}
+                      mobile={mobile}
+                      offsetX={0}
+                    />
+                  )}
+                </CellAnim>
               );
             })}
           </div>
@@ -648,6 +682,41 @@ function VinylWallGrid({
   );
 }
 
+// Per-cell drop-in wrapper. `.album-reveal` animates opacity +
+// translateY with `animation-fill-mode: both`, which leaves a
+// `transform: translateY(0)` on the element after the animation
+// ends — that creates a new stacking context and traps the cell's
+// `hover:z-20` below neighbours with their own retained
+// transforms. Stripping the class once the animation fires
+// `onAnimationEnd` drops the residual transform so the hover-peek
+// vinyl disc can actually rise above adjacent covers.
+//
+// `offsetX` is applied via marginLeft (not transform) for the
+// same reason: no stacking context on the static element.
+function CellAnim({
+  delayMs,
+  offsetX,
+  children,
+}: {
+  delayMs: number;
+  offsetX: number;
+  children: React.ReactNode;
+}) {
+  const [done, setDone] = useState(false);
+  return (
+    <div
+      className={done ? undefined : 'album-reveal'}
+      style={{
+        marginLeft: offsetX,
+        animationDelay: done ? undefined : `${delayMs}ms`,
+      }}
+      onAnimationEnd={() => setDone(true)}
+    >
+      {children}
+    </div>
+  );
+}
+
 // ─── Wall cell ────────────────────────────────────────────────
 // One filled slot. Desktop: hover triggers vinyl-peek + cover
 // scale (bottom-origin so the record grows upward from the rail)
@@ -670,6 +739,11 @@ function WallCell({
 }) {
   const { album, userReview } = item;
   const target = album.slug || album.mbid;
+  // Extract a body tint from the cover so the disc underneath
+  // turns into a "coloured vinyl" pressing matching the album.
+  // Runs once per URL (module-level cache in the hook); null on
+  // CORS-blocked covers, where VinylDisc falls back to black.
+  const discBodyRgb = useCoverDominantColor(album.coverArtUrl);
 
   if (mobile) {
     return (
@@ -715,7 +789,7 @@ function WallCell({
         aria-hidden
         className="absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out group-hover:translate-x-[24%] group-hover:rotate-[6deg] group-hover:scale-[1.2]"
       >
-        <VinylDisc size={lpSize} />
+        <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
       </div>
 
       {/* Cover — scales up 1.2× on hover, bottom-pinned so the
@@ -800,5 +874,18 @@ function CommentBubble({
       </div>
     </div>
   );
+}
+
+// Server timestamps are UTC ISO strings. Parse + reformat into
+// "YYYY년 M월 D일의 기억" using the local (KST for most of this
+// audience) calendar date — the snapshot is anchored to the day the
+// owner captured it, not the UTC instant. Falls back to the raw
+// string if the input can't be parsed so the subtitle never renders
+// as a bare "Invalid Date".
+function formatKoreanMemoryDate(input: string | null | undefined): string {
+  if (!input) return '';
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return input;
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일의 기억`;
 }
 

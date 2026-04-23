@@ -249,16 +249,66 @@ export function WallRail({
 // Default 1 = full lamp (matches the original bright look). Wall
 // function passes a value that decreases from 1 at slot (0,0) to
 // near 0 at the bottom-right slot.
+// Scale an [r,g,b] triple toward black by `factor` in 0..1 — 1
+// keeps the colour, 0 snaps to black. Used to derive the vinyl
+// body's three gradient stops from a single extracted hue so the
+// disc still reads as dark plastic (real coloured pressings are
+// deeply saturated but light-absorbent, not neon).
+function scaleRGB(
+  rgb: [number, number, number],
+  factor: number
+): string {
+  const [r, g, b] = rgb;
+  const clamp = (v: number) =>
+    Math.max(0, Math.min(255, Math.round(v * factor)));
+  return `rgb(${clamp(r)}, ${clamp(g)}, ${clamp(b)})`;
+}
+
 // ─── Vinyl disc ────────────────────────────────────────────────
-// Black 12" LP record with amber centre label + pressed grooves,
-// sized to the same square as the cover sleeve. Mounted behind
-// the cover by the WallCell so a group-hover on the cell slides
-// it partway out to the right (the "peek" interaction the home
-// grid used to have at 3036c13^). No spin animation — that one
-// read as too flashy on the home grid and got removed; here the
-// peek happens for an instant on hover and a still-life disc is
-// plenty. Amber label text reads "dig" in the dig.haus accent.
-export function VinylDisc({ size }: { size: number }) {
+// 12" LP record with amber centre label + pressed grooves, sized
+// to the same square as the cover sleeve. Body defaults to black;
+// when WallCell hands it a cover-derived RGB the disc turns into
+// a "coloured vinyl" pressing tinted to match the album.
+// Mounted behind the cover by the WallCell so a group-hover on
+// the cell slides it partway out to the right (the "peek"
+// interaction the home grid used to have at 3036c13^). No spin
+// animation — that one read as too flashy on the home grid and
+// got removed; here the peek happens for an instant on hover and
+// a still-life disc is plenty. Amber label text reads "dig" in
+// the dig.haus accent.
+export function VinylDisc({
+  size,
+  bodyColor = null,
+}: {
+  size: number;
+  // Optional [r, g, b] to tint the vinyl body — "coloured vinyl"
+  // pressing, pulled from the album cover's dominant hue. Null →
+  // classic black. The label stays dig.haus amber regardless.
+  bodyColor?: [number, number, number] | null;
+}) {
+  // Derive three gradient stops from the tint. Kept low-brightness
+  // across the board so the disc still reads as a vinyl record
+  // and not a coloured plastic chip — coloured pressings in real
+  // life are deeply saturated but light-absorbent, not neon. The
+  // rim is darkest (shadow-under-rim), the middle carries most of
+  // the hue, and the centre gets a touch of lift toward the label.
+  //
+  // Factors: centre ×0.45 / mid ×0.30 / rim ×0.18. Groove ring
+  // colour piggybacks on the rim stop one step darker so the
+  // grooves read as recessed lines rather than painted stripes.
+  const stops = bodyColor
+    ? {
+        centre: scaleRGB(bodyColor, 0.45),
+        mid: scaleRGB(bodyColor, 0.3),
+        rim: scaleRGB(bodyColor, 0.18),
+        groove: scaleRGB(bodyColor, 0.3),
+      }
+    : {
+        centre: '#161616',
+        mid: '#0b0b0b',
+        rim: '#050505',
+        groove: '#1b1b1b',
+      };
   return (
     <svg
       viewBox="0 0 100 100"
@@ -273,13 +323,13 @@ export function VinylDisc({ size }: { size: number }) {
       aria-hidden
     >
       <defs>
-        {/* Base vinyl body — slightly brighter at centre → pitch
-            black at the rim. Avoids the "flat paper disc" look
-            the earlier single-gradient version had. */}
+        {/* Base vinyl body — tinted "coloured vinyl" if we have an
+            extracted cover hue, otherwise the classic black. Stops
+            go centre → mid → rim so the disc still reads as 3D. */}
         <radialGradient id="vinylBase" cx="0.5" cy="0.5" r="0.65">
-          <stop offset="0" stopColor="#161616" />
-          <stop offset="0.7" stopColor="#0b0b0b" />
-          <stop offset="1" stopColor="#050505" />
+          <stop offset="0" stopColor={stops.centre} />
+          <stop offset="0.7" stopColor={stops.mid} />
+          <stop offset="1" stopColor={stops.rim} />
         </radialGradient>
         {/* Specular crescent — simulates light reflecting off the
             upper-right. Offset centre (0.72 / 0.28) + soft radial
@@ -316,7 +366,7 @@ export function VinylDisc({ size }: { size: number }) {
           cy="50"
           r={r}
           fill="none"
-          stroke="#1b1b1b"
+          stroke={stops.groove}
           strokeWidth="0.32"
         />
       ))}
@@ -326,9 +376,9 @@ export function VinylDisc({ size }: { size: number }) {
           bouncing off a real vinyl's surface. */}
       <circle cx="50" cy="50" r="50" fill="url(#vinylSheen)" />
 
-      {/* Centre label — dig.haus amber with a paper-sheen overlay
-          + crisp outer/inner boundary rings (printed-sticker edge
-          detail, matches what the sample vinyl shots show). */}
+      {/* Centre label — dig.haus amber (fixed). The vinyl body is
+          what takes the cover-derived tint; the label stays house
+          brand so every disc still reads as a dig.haus pressing. */}
       <circle cx="50" cy="50" r="15" fill="#e8a020" />
       <circle cx="50" cy="50" r="15" fill="url(#vinylLabelSheen)" />
       <circle

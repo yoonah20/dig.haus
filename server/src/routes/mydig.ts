@@ -594,6 +594,7 @@ router.post('/mydig/vinyl-wall/snapshots', requireAuth, (req, res) => {
   const me = req.user as AppUser;
   const body = (req.body ?? {}) as {
     name?: unknown;
+    description?: unknown;
     isPublic?: unknown;
     items?: unknown;
   };
@@ -602,6 +603,13 @@ router.post('/mydig/vinyl-wall/snapshots', requireAuth, (req, res) => {
   let name = typeof body.name === 'string' ? body.name.trim() : '';
   if (name.length > 60) name = name.slice(0, 60);
   if (!name) name = todayDateSlug();
+  // Description: trim + cap at 240 chars (same as live wall). Empty
+  // string collapses to null so the renderer can skip the subtitle.
+  let description: string | null = null;
+  if (typeof body.description === 'string') {
+    const trimmed = body.description.trim().slice(0, 240);
+    description = trimmed.length > 0 ? trimmed : null;
+  }
   const isPublic = body.isPublic === true ? 1 : 0;
   const baseSlug = slugifyName(name);
 
@@ -636,9 +644,9 @@ router.post('/mydig/vinyl-wall/snapshots', requireAuth, (req, res) => {
 
     const tx = db.transaction(() => {
       const snapStmt = db.prepare(
-        `INSERT INTO vinyl_wall_snapshots (user_id, slug, name, is_public) VALUES (?, ?, ?, ?)`
+        `INSERT INTO vinyl_wall_snapshots (user_id, slug, name, description, is_public) VALUES (?, ?, ?, ?, ?)`
       );
-      const snapInfo = snapStmt.run(me.id, slug, name, isPublic);
+      const snapInfo = snapStmt.run(me.id, slug, name, description, isPublic);
       const snapId = snapInfo.lastInsertRowid as number;
 
       // Source the items from the supplied draft when one was sent;
@@ -668,6 +676,7 @@ router.post('/mydig/vinyl-wall/snapshots', requireAuth, (req, res) => {
       id: snapId,
       slug,
       name,
+      description,
       isPublic: isPublic === 1,
       itemCount,
       createdAt: new Date().toISOString(),
@@ -687,7 +696,11 @@ router.patch('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
   if (!Number.isInteger(id) || id <= 0) {
     return res.status(400).json({ error: 'Invalid snapshot id' });
   }
-  const body = (req.body ?? {}) as { name?: unknown; isPublic?: unknown };
+  const body = (req.body ?? {}) as {
+    name?: unknown;
+    description?: unknown;
+    isPublic?: unknown;
+  };
 
   const existing = queryGet(
     `SELECT id, user_id, name, is_public FROM vinyl_wall_snapshots WHERE id = ?`,
@@ -706,6 +719,24 @@ router.patch('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
     patches.push('name = ?');
     values.push(name);
   }
+  // description: string → trimmed/capped (empty collapses to null),
+  // null → explicit clear, undefined → leave alone. Matches the
+  // wall-theme PATCH semantics so clients can reuse the same
+  // "only send what changed" pattern.
+  if (body.description !== undefined) {
+    if (body.description === null) {
+      patches.push('description = ?');
+      values.push(null);
+    } else if (typeof body.description === 'string') {
+      const trimmed = body.description.trim().slice(0, 240);
+      patches.push('description = ?');
+      values.push(trimmed.length > 0 ? trimmed : null);
+    } else {
+      return res.status(400).json({
+        error: 'description은 문자열 또는 null이어야 해요.',
+      });
+    }
+  }
   if (typeof body.isPublic === 'boolean') {
     patches.push('is_public = ?');
     values.push(body.isPublic ? 1 : 0);
@@ -721,7 +752,7 @@ router.patch('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
       values
     );
     const updated = queryGet(
-      `SELECT id, slug, name, is_public AS isPublic, created_at AS createdAt FROM vinyl_wall_snapshots WHERE id = ?`,
+      `SELECT id, slug, name, description, is_public AS isPublic, created_at AS createdAt FROM vinyl_wall_snapshots WHERE id = ?`,
       [id]
     );
     res.json({
@@ -819,9 +850,16 @@ router.delete('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
   try {
     execute(`DELETE FROM vinyl_wall_snapshots WHERE id = ?`, [id]);
     res.json({ ok: true });
-  } catch (err) {
+  } catch (err: any) {
+    // Surface the sqlite error text in the response so the client
+    // alert carries the actual reason (e.g. FK constraint,
+    // missing-column after a partial migration). Kept behind a
+    // 500 because it's still a server failure — the message just
+    // isn't generic any more.
     console.error('[mydig/snapshots] delete failed:', err);
-    res.status(500).json({ error: '스냅샷 삭제 실패' });
+    res.status(500).json({
+      error: `스냅샷 삭제 실패: ${err?.message ?? 'unknown'}`,
+    });
   }
 });
 
@@ -845,7 +883,7 @@ router.get('/mydig/:username/snapshots', (req, res) => {
 
   const whereVis = isOwner ? '' : ' AND is_public = 1';
   const rows = queryAll(
-    `SELECT s.id, s.slug, s.name, s.is_public AS isPublic, s.created_at AS createdAt,
+    `SELECT s.id, s.slug, s.name, s.description, s.is_public AS isPublic, s.created_at AS createdAt,
             (SELECT COUNT(*) FROM vinyl_wall_snapshot_items i WHERE i.snapshot_id = s.id) AS itemCount
      FROM vinyl_wall_snapshots s
      WHERE s.user_id = ?${whereVis}
@@ -871,7 +909,7 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
   const mydigPublic = user.mydig_public === null || user.mydig_public === 1;
 
   const snap = queryGet(
-    `SELECT id, slug, name, is_public AS isPublic, created_at AS createdAt
+    `SELECT id, slug, name, description, is_public AS isPublic, created_at AS createdAt
      FROM vinyl_wall_snapshots WHERE user_id = ? AND slug = ?`,
     [user.id, slug]
   );
@@ -880,16 +918,27 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
     return res.status(404).json({ error: '스냅샷을 찾을 수 없어요.' });
   }
 
+  // LEFT JOIN user_reviews on the page owner's own 50자 평 so the
+  // snapshot view can render the same hover bubbles the live wall
+  // does. Reviews themselves aren't snapshotted — the bubble
+  // reflects what the owner currently thinks of the album, not
+  // what they said at snapshot time — but that matches how the
+  // bubble works everywhere else on the site.
   const items = queryAll(
     `SELECT i.position, a.id AS album_id, a.mbid, a.slug AS album_slug,
             a.title, a.artist_name AS artist,
             a.release_date AS releaseDate, a.release_year AS releaseYear,
-            a.cover_art_url AS coverArtUrl, a.cover_art_fallbacks AS coverArtFallbacks
+            a.cover_art_url AS coverArtUrl, a.cover_art_fallbacks AS coverArtFallbacks,
+            ur.body AS user_review_body,
+            ur.emoji AS user_review_emoji,
+            ur.rating AS user_review_rating
      FROM vinyl_wall_snapshot_items i
      LEFT JOIN albums a ON a.id = i.album_id
+     LEFT JOIN user_reviews ur
+       ON ur.album_id = i.album_id AND ur.user_id = ?
      WHERE i.snapshot_id = ?
      ORDER BY i.position`,
-    [snap.id]
+    [user.id, snap.id]
   ) as Array<any>;
 
   res.json({
@@ -897,6 +946,7 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
       id: snap.id,
       slug: snap.slug,
       name: snap.name,
+      description: snap.description ?? null,
       isPublic: snap.isPublic === 1,
       createdAt: snap.createdAt,
     },
@@ -920,6 +970,13 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
             releaseYear: r.releaseYear,
             coverArtUrl: r.coverArtUrl,
             coverArtFallbacks: r.coverArtFallbacks ? JSON.parse(r.coverArtFallbacks) : [],
+          }
+        : null,
+      userReview: r.user_review_body
+        ? {
+            body: String(r.user_review_body),
+            emoji: r.user_review_emoji ? String(r.user_review_emoji) : null,
+            rating: r.user_review_rating ? String(r.user_review_rating) : null,
           }
         : null,
     })),
