@@ -447,7 +447,7 @@ function EditWallSlot({
   };
 
   const baseClass =
-    'relative w-full h-full rounded-md overflow-hidden transition-all group cursor-pointer';
+    'relative w-full h-full rounded-md overflow-hidden transition-all group';
   // Highlight priority: dragOver (hovering a drop target) > selected
   // source (click/tap selection) > filled > empty. DragOver borrows the
   // same amber ring as selection — both signal "this slot is active"
@@ -464,21 +464,28 @@ function EditWallSlot({
             isSelecting ? 'border-[#e8a020]/60 hover:border-[#e8a020]' : 'border-white/10'
           }`;
 
+  // Single element handles both drag source (when the slot holds an
+  // album) and drop target. The earlier nested `<div draggable>`
+  // inside the drop-target div was failing to fire its onDragStart
+  // in some browsers — the browser would start a native drag on the
+  // element, bypassing React's synthetic onDragStart, so setData()
+  // never ran and drop received an empty payload. Collapsing to one
+  // div gets React's event delegation to reliably catch dragstart.
   return (
     <div
-      className={`${baseClass} ${stateClass}`}
+      draggable={!!album}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onClick={onTap}
+      className={`${baseClass} ${stateClass} ${
+        album ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'
+      }`}
     >
       {album ? (
-        <div
-          draggable
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-          className="w-full h-full cursor-grab active:cursor-grabbing"
-        >
+        <>
           <CoverArt
             src={album.coverArtUrl}
             fallbacks={album.coverArtFallbacks}
@@ -496,7 +503,7 @@ function EditWallSlot({
           >
             ×
           </button>
-        </div>
+        </>
       ) : (
         <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-700">
           {position + 1}
