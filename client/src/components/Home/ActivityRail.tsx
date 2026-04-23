@@ -53,7 +53,7 @@ export default function ActivityRail({
             </button>
           )}
           <h3 className="text-[10px] uppercase tracking-wider text-gray-500">
-            FEATURED MYDIGS
+            LATEST MYDIGS
           </h3>
         </div>
         <SnapshotFeed count={5} />
