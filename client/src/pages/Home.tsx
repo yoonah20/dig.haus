@@ -236,7 +236,7 @@ export default function Home() {
             it to the page's leading edge reads more stable than
             leading with a rail). Below Tailwind `lg` the layout
             collapses to a single stacked column — main first, rail
-            below. Grid template (7.5fr/2.5fr) only kicks in when the
+            below. Grid template (8fr/2fr) only kicks in when the
             rail is open; when it's collapsed the container falls
             back to plain flex-col so main takes the full width.
             `minmax(0, ...)` on both tracks stops a wide album card
@@ -245,7 +245,7 @@ export default function Home() {
         <div
           className={`flex flex-col gap-6 ${
             railOpen
-              ? 'lg:grid lg:grid-cols-[minmax(0,7.5fr)_minmax(0,2.5fr)]'
+              ? 'lg:grid lg:grid-cols-[minmax(0,8fr)_minmax(0,2fr)]'
               : ''
           }`}
         >
@@ -343,15 +343,6 @@ export default function Home() {
           </nav>
         )}
 
-        {/* Marquee 50자 평 ticker below the pagination. Went away
-            briefly when the rail tried to own the comment feed —
-            the vertical list in a narrow rail read as awkward.
-            Back below the grid where the horizontal scroll has
-            room to breathe. Sits inside <main> so rail-open vs
-            rail-closed width changes sweep the ticker with the
-            grid rather than letting it hang off the right of a
-            narrower main. */}
-        {albums.length > 0 && <CommentTicker />}
           </main>
           <div
             id="home-activity-rail"
@@ -360,6 +351,14 @@ export default function Home() {
             <ActivityRail onClose={() => setRailOpen(false)} />
           </div>
         </div>
+
+        {/* Marquee 50자 평 ticker below the grid+rail row, spanning
+            the full 1280px section — the earlier placement inside
+            <main> left it boxed at 8fr width when the rail was open,
+            which felt pinched next to the rail's dead space below
+            the snapshot cards. Full-width lets the horizontal scroll
+            read the way a shop's "now playing" crawl does. */}
+        {albums.length > 0 && <CommentTicker />}
       </section>
     </div>
   );
