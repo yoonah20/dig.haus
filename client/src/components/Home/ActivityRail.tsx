@@ -52,11 +52,11 @@ export default function ActivityRail({
               </svg>
             </button>
           )}
-          <h3 className="text-[11px] uppercase tracking-wider text-gray-500">
+          <h3 className="text-[10px] uppercase tracking-wider text-gray-500">
             FEATURED MYDIGS
           </h3>
         </div>
-        <SnapshotFeed count={3} />
+        <SnapshotFeed count={5} />
       </section>
     </aside>
   );

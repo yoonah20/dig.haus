@@ -380,10 +380,9 @@ export default function Home() {
 
 // Small open-rail handle. Only renders when the rail is collapsed
 // on desktop — the rail's own close button (inside its section
-// header) handles the other direction. Kept visually quiet (no
-// border, just a left-chevron glyph) so it reads as a utility
-// affordance rather than a control that competes with sort +
-// density to the left.
+// header) handles the other direction. Styled identically to the
+// close button so the two affordances feel like a paired set
+// rather than two unrelated glyphs.
 function OpenRailHandle({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -393,17 +392,17 @@ function OpenRailHandle({ onClick }: { onClick: () => void }) {
       aria-controls="home-activity-rail"
       title="활동 레일 펴기"
       aria-label="활동 레일 펴기"
-      className="inline-flex items-center justify-center w-6 h-6 rounded text-gray-500 hover:text-gray-200 transition-colors cursor-pointer"
+      className="inline-flex items-center justify-center w-5 h-5 rounded-md border border-white/15 bg-[#1a130a]/40 hover:border-[#e8a020]/60 hover:bg-[#e8a020]/10 text-gray-400 hover:text-[#e8a020] transition-colors cursor-pointer"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth={2}
+        strokeWidth={2.2}
         strokeLinecap="round"
         strokeLinejoin="round"
-        className="w-3.5 h-3.5"
+        className="w-3 h-3"
         aria-hidden
       >
         <path d="M15.75 19.5L8.25 12l7.5-7.5" />
