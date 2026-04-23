@@ -24,6 +24,11 @@ import {
   usePlayingPreviewUrl,
   useStopPreviewOnUnmount,
 } from '../hooks/useTrackPreview';
+import {
+  setActiveWallCellId,
+  useActiveWallCellId,
+  useClearActiveWallCellOnOutsideTap,
+} from '../hooks/useActiveWallCell';
 import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 import { resolveApiUrl } from '../utils/apiUrl';
 
@@ -588,6 +593,18 @@ function VinylWallGrid({
   cellKey?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // Mobile tap-to-activate: tapping outside the grid drops the
+  // currently-active cell back to its resting state. Registered
+  // at the grid level so every WallCell can share the same
+  // outside-tap detection without each one duplicating it.
+  useClearActiveWallCellOnOutsideTap(containerRef);
+  // Snapshot swaps remount every cell via cellKey but the active
+  // id in the module store would otherwise persist, landing on
+  // the same position in the new view with no tap. Clearing
+  // on cellKey change keeps the active state scoped to one view.
+  useEffect(() => {
+    setActiveWallCellId(null);
+  }, [cellKey]);
   const [width, setWidth] = useState(880);
   useEffect(() => {
     const el = containerRef.current;
@@ -810,28 +827,77 @@ function WallCell({
     if (isPlaying) stopPreview();
     else playPreview(previewUrl);
   };
+  // Mobile tap-to-activate. First tap on the cell reveals the
+  // vinyl peek + comment bubble + play chip; second tap (on the
+  // cover) navigates to the album. Shared store means tapping a
+  // different cell swaps the active one automatically, so at most
+  // one cell is in the "lifted" state at any time.
+  const cellId = `cell-${position}`;
+  const activeId = useActiveWallCellId();
+  const isActive = activeId === cellId;
 
   if (mobile) {
+    const handleMobileTap = (e: React.MouseEvent) => {
+      if (!isActive) {
+        e.preventDefault();
+        setActiveWallCellId(cellId);
+      }
+      // Already active → fall through; <Link> navigates.
+    };
     return (
       <Link
         to={`/album/${target}`}
         title={`${album.artist} — ${album.title}`}
-        className="relative block"
+        className={`relative block ${isActive ? 'z-20' : ''}`}
         style={{
           width: lpSize,
           height: lpSize,
           marginLeft: offsetX,
           textDecoration: 'none',
         }}
+        onClick={handleMobileTap}
       >
-        <WallLP size={lpSize} seed={position} lampBias={lampBias}>
-          <CoverArt
-            src={album.coverArtUrl}
-            fallbacks={album.coverArtFallbacks}
-            alt={album.title}
-            className="w-full h-full object-cover"
+        {/* Vinyl peek — same geometry as the desktop hover state,
+            but triggered by the tap-activated `isActive` flag. */}
+        <div
+          aria-hidden
+          className={`absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out ${
+            isActive ? 'translate-x-[24%] rotate-[6deg] scale-[1.2]' : ''
+          }`}
+        >
+          <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
+        </div>
+        <div
+          className={`absolute inset-0 z-10 origin-bottom transition-transform duration-[280ms] ease-out ${
+            isActive ? 'scale-[1.2]' : ''
+          }`}
+        >
+          <WallLP size={lpSize} seed={position} lampBias={lampBias}>
+            <CoverArt
+              src={album.coverArtUrl}
+              fallbacks={album.coverArtFallbacks}
+              alt={album.title}
+              className="w-full h-full object-cover"
+            />
+          </WallLP>
+        </div>
+        {userReview && isActive && (
+          <CommentBubble
+            body={userReview.body}
+            emoji={userReview.emoji}
+            rating={userReview.rating}
+            lpSize={lpSize}
+            forceShow
           />
-        </WallLP>
+        )}
+        {previewUrl && (
+          <PreviewPlayChip
+            isPlaying={isPlaying}
+            onClick={handlePreviewClick}
+            trackName={album.previewTrackName ?? null}
+            forceShow={isActive}
+          />
+        )}
       </Link>
     );
   }
@@ -892,20 +958,36 @@ function WallCell({
 }
 
 // Small circular overlay that sits bottom-right of the cover and
-// slides in on cell hover. Click toggles the shared audio player.
-// Icon swaps to a stop glyph while this track is the active one,
-// so the same chip doubles as "stop". Pointer events are only
-// live when the chip is visible (hover) — during the resting
-// state the outer Link's tap-to-navigate gesture wins.
+// slides in on cell hover (desktop) or tap-activation (mobile).
+// Click toggles the shared audio player. Icon swaps to a stop
+// glyph while this track is active so the same chip doubles as
+// "stop". Pointer events are only live while visible so the outer
+// Link's tap-to-navigate gesture wins in the resting state.
+//
+// `forceShow` is the mobile path — when the parent cell is in its
+// tap-activated state, the chip renders fully visible regardless
+// of group-hover (which won't fire on touch). Desktop leaves it
+// undefined/false and the group-hover classes take over.
 function PreviewPlayChip({
   isPlaying,
   onClick,
   trackName,
+  forceShow = false,
 }: {
   isPlaying: boolean;
   onClick: (e: React.MouseEvent) => void;
   trackName: string | null;
+  forceShow?: boolean;
 }) {
+  // Three visibility modes stacked on top of each other:
+  // - isPlaying: always visible + interactive (so you can hit
+  //   stop without needing to re-hover / re-tap)
+  // - forceShow (mobile active cell): visible + interactive
+  // - otherwise: hidden until the outer .group hovers
+  const visibilityClasses =
+    isPlaying || forceShow
+      ? 'opacity-100 scale-100 pointer-events-auto'
+      : 'opacity-0 scale-90 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto';
   return (
     <button
       type="button"
@@ -924,11 +1006,7 @@ function PreviewPlayChip({
             ? `${trackName} · 미리듣기`
             : '미리듣기'
       }
-      className={`absolute z-30 bottom-2 right-2 w-8 h-8 rounded-full bg-[#141008]/85 border border-[#e8a020]/60 text-[#e8a020] flex items-center justify-center shadow-md transition-all duration-200 ${
-        isPlaying
-          ? 'opacity-100 scale-100'
-          : 'opacity-0 scale-90 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto hover:bg-[#1a130a]'
-      }`}
+      className={`absolute z-30 bottom-2 right-2 w-8 h-8 rounded-full bg-[#141008]/85 border border-[#e8a020]/60 text-[#e8a020] flex items-center justify-center shadow-md transition-all duration-200 hover:bg-[#1a130a] ${visibilityClasses}`}
     >
       {isPlaying ? (
         <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
@@ -951,18 +1029,26 @@ function CommentBubble({
   emoji,
   rating,
   lpSize,
+  forceShow = false,
 }: {
   body: string;
   emoji: string | null;
   rating: string | null;
   lpSize: number;
+  // Mobile path: the outer cell is in its tap-activated state and
+  // group-hover won't fire on touch. forceShow flips the bubble
+  // fully visible without needing :hover on an ancestor.
+  forceShow?: boolean;
 }) {
   const ratingIcon =
     rating === 'up' ? '👍' : rating === 'down' ? '👎' : null;
+  const visibilityClasses = forceShow
+    ? 'opacity-100 scale-100'
+    : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100';
   return (
     <div
       aria-hidden
-      className="absolute z-40 pointer-events-none opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100 transition-all duration-[220ms] ease-out"
+      className={`absolute z-40 pointer-events-none transition-all duration-[220ms] ease-out ${visibilityClasses}`}
       style={{
         bottom: 'calc(100% + 12px)',
         left: '50%',
