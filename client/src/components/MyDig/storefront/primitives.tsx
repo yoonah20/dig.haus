@@ -303,13 +303,13 @@ export function VinylDisc({ size }: { size: number }) {
       {/* Disc body */}
       <circle cx="50" cy="50" r="50" fill="url(#vinylBase)" />
 
-      {/* Groove rings — only 5 visible from label to rim, which is
-          how many an eye actually picks out of a real LP at this
-          size. Radii are non-uniformly spaced (4.6 → 7.5 delta
-          across the set) so the rings don't feel like a ruled
-          grid; the specular highlight above picks some of them up
-          more than others to finish the "real vinyl" feel. */}
-      {[18.2, 24.0, 31.5, 39.0, 46.8].map((r) => (
+      {/* Groove rings — 5 rings from label to rim, what an eye
+          actually picks out on a real LP at this size. Gap
+          sequence (5.8 / 7.5 / 4.0 / 9.0) keeps every spacing
+          distinct so the rings don't read as a ruled grid; the
+          specular highlight above catches some more than others
+          to finish the "real vinyl" feel. */}
+      {[18.2, 24.0, 31.5, 35.5, 44.5].map((r) => (
         <circle
           key={r}
           cx="50"
