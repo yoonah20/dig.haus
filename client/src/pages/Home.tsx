@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
 import ActivityRail from '../components/Home/ActivityRail';
+import CommentTicker from '../components/Home/CommentTicker';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { useHomeState, type DensityValue } from '../contexts/HomeStateContext';
@@ -19,15 +20,21 @@ interface AlbumListResponse {
   totalPages: number;
 }
 
-// Per-density page sizes. Comfortable stays at 18 (~3 rows on the
-// old 6-col grid). Dense and ultra ask for more per page so the user
-// can see the payoff of the tighter layout — otherwise packing tiny
-// covers just reveals more empty space below. Page sizes apply to
-// every viewport now; mobile used to run a separate 10-item infinite-
-// scroll batch strategy but the activity rail owns the "comments
-// between rows" job now, so the grid is uniform pagination everywhere.
+// Per-density page sizes, split by whether the activity rail is
+// open (main is 7.5/10 of the viewport) or closed (main is full
+// width). Each size is a multiple of the xl column count so the
+// last row fills completely at the primary desktop breakpoint. At
+// narrower breakpoints (lg, md, sm) the last row may have trailing
+// blanks — tolerated because the xl full-row look is what the user
+// asked for, and the grid shifts shape as the viewport resizes
+// anyway.
 const MOBILE_QUERY = '(max-width: 767px)';
-const DESKTOP_PAGE_SIZE_BY_DENSITY: Record<string, number> = {
+const PAGE_SIZE_RAIL_OPEN: Record<string, number> = {
+  comfortable: 15,
+  dense: 28,
+  ultra: 45,
+};
+const PAGE_SIZE_RAIL_CLOSED: Record<string, number> = {
   comfortable: 18,
   dense: 32,
   ultra: 50,
@@ -148,8 +155,11 @@ export default function Home() {
   // finishes its first render (which it has by the time Home's
   // effects run).
   const seedReady = sort !== 'random' || seed !== undefined;
-  const pageSize =
-    DESKTOP_PAGE_SIZE_BY_DENSITY[density] ?? DESKTOP_PAGE_SIZE_BY_DENSITY.comfortable;
+  // Rail-open main area is narrower, so the grid uses lower column
+  // counts and proportionally fewer items per page. Rail-closed mode
+  // goes back to the original 18 / 32 / 50 tiers on the full width.
+  const pageSizeTable = railOpen ? PAGE_SIZE_RAIL_OPEN : PAGE_SIZE_RAIL_CLOSED;
+  const pageSize = pageSizeTable[density] ?? pageSizeTable.comfortable;
 
   const query = useAlbumList(sort, page, pageSize, seedReady, seed);
   const albums: AlbumSearchResult[] = query.data?.albums ?? [];
@@ -184,14 +194,16 @@ export default function Home() {
   const currentSortLabel =
     SORT_OPTIONS.find((o) => o.value === sort)?.label ?? '';
 
-  // Density → grid-cols + gap map. Every class listed here is a
-  // literal string so Tailwind v4's JIT picks them up. Mobile default
-  // always stays at 2 cols regardless of density — anything tighter
-  // packs covers below comfortable tap-target size on a phone. Ultra
-  // caps at 10 cols at xl (user-confirmed upper bound; 12 was too
-  // much). Gaps shrink with density so the grid doesn't look sparse
-  // when the covers themselves are smaller.
-  const DESKTOP_GRID_CLASSES: Record<DensityValue, string> = {
+  // Density → grid-cols + gap map. Two full sets: one for rail-open
+  // (main is ~75% of the viewport, so columns drop by 1 at lg/xl to
+  // keep covers at a readable size), one for rail-closed (main is
+  // full width, original tier counts). Below lg the rail stacks
+  // below the grid so main takes full width either way — those
+  // breakpoints share the same column counts across both sets.
+  // Every class is a literal string so Tailwind v4's JIT picks
+  // them up; gaps shrink with density so the grid doesn't look
+  // sparse when the covers themselves are smaller.
+  const GRID_COLS_RAIL_CLOSED: Record<DensityValue, string> = {
     comfortable:
       'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6',
     dense:
@@ -199,12 +211,21 @@ export default function Home() {
     ultra:
       'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10',
   };
+  const GRID_COLS_RAIL_OPEN: Record<DensityValue, string> = {
+    comfortable:
+      'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5',
+    dense:
+      'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7',
+    ultra:
+      'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-9',
+  };
   const DESKTOP_GAP_CLASSES: Record<DensityValue, string> = {
     comfortable: 'gap-5',
     dense: 'gap-3',
     ultra: 'gap-2',
   };
-  const desktopGridCols = DESKTOP_GRID_CLASSES[density];
+  const gridColsTable = railOpen ? GRID_COLS_RAIL_OPEN : GRID_COLS_RAIL_CLOSED;
+  const desktopGridCols = gridColsTable[density];
   const desktopGap = DESKTOP_GAP_CLASSES[density];
 
   return (
@@ -215,7 +236,7 @@ export default function Home() {
             it to the page's leading edge reads more stable than
             leading with a rail). Below Tailwind `lg` the layout
             collapses to a single stacked column — main first, rail
-            below. Grid template (8fr/2fr) only kicks in when the
+            below. Grid template (7.5fr/2.5fr) only kicks in when the
             rail is open; when it's collapsed the container falls
             back to plain flex-col so main takes the full width.
             `minmax(0, ...)` on both tracks stops a wide album card
@@ -224,34 +245,33 @@ export default function Home() {
         <div
           className={`flex flex-col gap-6 ${
             railOpen
-              ? 'lg:grid lg:grid-cols-[minmax(0,8fr)_minmax(0,2fr)]'
+              ? 'lg:grid lg:grid-cols-[minmax(0,7.5fr)_minmax(0,2.5fr)]'
               : ''
           }`}
         >
           <main className="order-1 min-w-0">
-        {/* Grid header — rail toggle + sort trigger on the left,
-            density switcher on the right. Sort moved out of the nav
-            bar so the top strip stays a pure "find albums" cluster;
-            this header owns everything about how the feed itself is
-            arranged. Rail toggle is desktop-only; mobile doesn't
-            expose it because the rail-below-grid stack doesn't
-            conflict with the grid view the way a side-by-side rail
-            would. */}
+        {/* Grid header — sort trigger on the left, density switcher
+            + (when rail is collapsed) a small open-rail handle on
+            the right. The rail's close button lives inside the
+            rail's own section header now, so this strip only carries
+            the rail toggle when the rail itself isn't visible on
+            desktop. Mobile skips the rail toggle entirely since the
+            rail stacks below rather than beside. */}
         {albums.length > 0 && (
           <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
+            <SortTrigger
+              sort={sort}
+              onChange={setSort}
+              label={currentSortLabel}
+            />
             <div className="flex items-center gap-3">
               {!isMobile && (
-                <RailToggle open={railOpen} onToggle={() => setRailOpen(!railOpen)} />
+                <DensitySwitcher density={density} onChange={setDensity} />
               )}
-              <SortTrigger
-                sort={sort}
-                onChange={setSort}
-                label={currentSortLabel}
-              />
+              {!isMobile && !railOpen && (
+                <OpenRailHandle onClick={() => setRailOpen(true)} />
+              )}
             </div>
-            {!isMobile && (
-              <DensitySwitcher density={density} onChange={setDensity} />
-            )}
           </div>
         )}
         {isLoading && albums.length === 0 ? (
@@ -323,12 +343,21 @@ export default function Home() {
           </nav>
         )}
 
+        {/* Marquee 50자 평 ticker below the pagination. Went away
+            briefly when the rail tried to own the comment feed —
+            the vertical list in a narrow rail read as awkward.
+            Back below the grid where the horizontal scroll has
+            room to breathe. Sits inside <main> so rail-open vs
+            rail-closed width changes sweep the ticker with the
+            grid rather than letting it hang off the right of a
+            narrower main. */}
+        {albums.length > 0 && <CommentTicker />}
           </main>
           <div
             id="home-activity-rail"
             className={`order-2 min-w-0 ${railOpen ? '' : 'lg:hidden'}`}
           >
-            <ActivityRail />
+            <ActivityRail onClose={() => setRailOpen(false)} />
           </div>
         </div>
       </section>
@@ -336,28 +365,22 @@ export default function Home() {
   );
 }
 
-// Toggle for the right-side activity rail on desktop. Lives inline
-// in the grid header so the control cluster stays in one place
-// rather than spraying handles around the viewport edges. Chevron
-// direction signals "click me to collapse/expand" from the grid's
-// perspective: ⟩ = close rail (main expands right), ⟨ = open rail
-// back up. The aria-expanded prop tracks the aside's rendered state
-// for screen readers.
-function RailToggle({
-  open,
-  onToggle,
-}: {
-  open: boolean;
-  onToggle: () => void;
-}) {
+// Small open-rail handle. Only renders when the rail is collapsed
+// on desktop — the rail's own close button (inside its section
+// header) handles the other direction. Kept visually quiet (no
+// border, just a left-chevron glyph) so it reads as a utility
+// affordance rather than a control that competes with sort +
+// density to the left.
+function OpenRailHandle({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
-      onClick={onToggle}
-      aria-expanded={open}
+      onClick={onClick}
+      aria-expanded={false}
       aria-controls="home-activity-rail"
-      title={open ? '활동 레일 접기' : '활동 레일 펴기'}
-      className="inline-flex items-center justify-center w-6 h-6 rounded-md border border-white/10 text-gray-500 hover:text-gray-200 hover:border-white/25 transition-colors cursor-pointer"
+      title="활동 레일 펴기"
+      aria-label="활동 레일 펴기"
+      className="inline-flex items-center justify-center w-6 h-6 rounded text-gray-500 hover:text-gray-200 transition-colors cursor-pointer"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"
@@ -370,11 +393,7 @@ function RailToggle({
         className="w-3.5 h-3.5"
         aria-hidden
       >
-        {open ? (
-          <path d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-        ) : (
-          <path d="M15.75 19.5L8.25 12l7.5-7.5" />
-        )}
+        <path d="M15.75 19.5L8.25 12l7.5-7.5" />
       </svg>
     </button>
   );
