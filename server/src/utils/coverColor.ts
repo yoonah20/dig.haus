@@ -1,5 +1,6 @@
 import sharp from 'sharp';
 import { execute, queryGet } from '../db/index.js';
+import { fetchSpotifyAlbumCover } from '../services/spotify.js';
 
 // Cover-art dominant-colour extraction. Runs server-side (not
 // client-side canvas) so we're not gated on whether an external
@@ -152,9 +153,10 @@ export async function extractDominantColor(url: string): Promise<string | null> 
 // vibrant bucket). Dedupes concurrent callers for the same album.
 export async function ensureCoverDominantColor(
   albumId: number,
-  coverUrl: string | null
+  coverUrl: string | null,
+  spotifyUrl: string | null = null
 ): Promise<string | null> {
-  if (!coverUrl) return null;
+  if (!coverUrl && !spotifyUrl) return null;
   const existing = queryGet(
     `SELECT cover_dominant_color FROM albums WHERE id = ?`,
     [albumId]
@@ -164,7 +166,25 @@ export async function ensureCoverDominantColor(
   if (pending) return pending;
   const promise = (async () => {
     try {
-      const color = await extractDominantColor(coverUrl);
+      // Try the stored cover URL first. Cover Art Archive hosts a
+      // lot of the older MusicBrainz-sourced covers and a chunk of
+      // those 404 now because the archive moved/resized them
+      // without the client being notified. Fall back to Spotify's
+      // image (available whenever the album has a spotify_url) so
+      // the tint still lands even when CAA has forgotten.
+      let color: string | null = null;
+      if (coverUrl) {
+        color = await extractDominantColor(coverUrl);
+      }
+      if (!color && spotifyUrl) {
+        const fallbackUrl = await fetchSpotifyAlbumCover(spotifyUrl);
+        if (fallbackUrl) {
+          console.log(
+            `[coverColor] falling back to Spotify cover for album ${albumId}`
+          );
+          color = await extractDominantColor(fallbackUrl);
+        }
+      }
       if (color) {
         execute(
           `UPDATE albums SET cover_dominant_color = ? WHERE id = ?`,

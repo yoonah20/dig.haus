@@ -96,8 +96,12 @@ router.get('/mydig/:username', (req, res, next) => {
   // data is populated. First render sees nulls; next fetch
   // carries the values.
   for (const r of wallRows as any[]) {
-    if (!r.cover_dominant_color && r.cover_art_url) {
-      void ensureCoverDominantColor(r.album_id, r.cover_art_url);
+    if (!r.cover_dominant_color && (r.cover_art_url || r.spotify_url)) {
+      void ensureCoverDominantColor(
+        r.album_id,
+        r.cover_art_url,
+        r.spotify_url ?? null
+      );
     }
     if (!r.preview_track_url && r.spotify_url) {
       void ensureAlbumPreview(r.album_id, r.spotify_url);
@@ -943,8 +947,16 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
   ) as Array<any>;
   // Same fire-and-forget enrichment as the live wall.
   for (const r of items) {
-    if (r.album_id && !r.coverDominantColor && r.coverArtUrl) {
-      void ensureCoverDominantColor(r.album_id, r.coverArtUrl);
+    if (
+      r.album_id &&
+      !r.coverDominantColor &&
+      (r.coverArtUrl || r.spotifyUrl)
+    ) {
+      void ensureCoverDominantColor(
+        r.album_id,
+        r.coverArtUrl,
+        r.spotifyUrl ?? null
+      );
     }
     if (r.album_id && !r.previewTrackUrl && r.spotifyUrl) {
       void ensureAlbumPreview(r.album_id, r.spotifyUrl);

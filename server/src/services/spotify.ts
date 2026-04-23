@@ -230,6 +230,43 @@ export async function fetchAlbumPreview(
   }
 }
 
+// Sibling of fetchAlbumPreview — pulls the album cover URL from
+// the same /albums/{id} payload. Used as the fallback when the
+// stored cover_art_url (usually Cover Art Archive) 404s, which
+// happens often on older MusicBrainz releases whose art archive
+// entries got deleted or re-sized without updating the DB.
+export async function fetchSpotifyAlbumCover(
+  albumIdOrUrl: string
+): Promise<string | null> {
+  try {
+    const token = await getToken();
+    if (!token) return null;
+    const id = extractSpotifyAlbumId(albumIdOrUrl);
+    if (!id) return null;
+    const res = await axios.get(`${SPOTIFY_API_BASE}/albums/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      httpsAgent,
+    });
+    const images = res.data?.images as Array<any> | undefined;
+    if (!Array.isArray(images) || images.length === 0) return null;
+    // Largest first (Spotify typically returns 640 / 300 / 64).
+    // 640 is plenty for a 32×32 dominant-colour resize; no point
+    // fetching the 64 thumbnail and risking blocky colour data.
+    return (
+      images.find((i: any) => i.width === 640)?.url ||
+      images.find((i: any) => i.width === 300)?.url ||
+      images[0]?.url ||
+      null
+    );
+  } catch (err) {
+    console.warn(
+      '[spotify] fetchSpotifyAlbumCover failed:',
+      (err as Error).message
+    );
+    return null;
+  }
+}
+
 function extractSpotifyAlbumId(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
