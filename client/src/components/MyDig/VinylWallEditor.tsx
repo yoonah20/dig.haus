@@ -5,6 +5,7 @@ import SnapshotSaveModal from './SnapshotSaveModal';
 import {
   useMyDigCandidates,
   useSaveVinylWall,
+  useSaveVinylWallSnapshotItems,
   type MyDigAlbum,
   type MyDigCandidate,
   type MyDigCandidateSource,
@@ -23,13 +24,29 @@ const WALL_TOTAL = 15;
 
 type DraftSlot = MyDigAlbum | null;
 
+// What the editor is editing. The default target is the owner's
+// live wall (PUT /api/mydig/vinyl-wall/items + backed by the
+// `vinyl_wall_items` table). Snapshot mode points the save action
+// at a specific saved snapshot instead, so the owner can re-open
+// and rearrange a previously archived wall from its detail page.
+export type EditTarget =
+  | { kind: 'wall' }
+  | { kind: 'snapshot'; id: number; slug: string };
+
 interface Props {
   username: string;
   initialWall: MyDigWallItem[];
   onClose: () => void;
+  target?: EditTarget;
 }
 
-export default function VinylWallEditor({ username, initialWall, onClose }: Props) {
+export default function VinylWallEditor({
+  username,
+  initialWall,
+  onClose,
+  target = { kind: 'wall' },
+}: Props) {
+  const isSnapshotTarget = target.kind === 'snapshot';
   // Hydrate the 22-element draft array from the sparse server payload.
   const [draft, setDraft] = useState<DraftSlot[]>(() => {
     const arr: DraftSlot[] = new Array(WALL_TOTAL).fill(null);
@@ -67,7 +84,16 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
   }, [searchInput]);
 
   const candidates = useMyDigCandidates(source, debouncedQ, true);
-  const save = useSaveVinylWall(username);
+  // Both save hooks share the same (items) => Promise shape, so the
+  // rest of the editor can stay agnostic — the target just picks
+  // which endpoint the PUT hits.
+  const wallSave = useSaveVinylWall(username);
+  const snapshotSave = useSaveVinylWallSnapshotItems(
+    username,
+    target.kind === 'snapshot' ? target.id : null,
+    target.kind === 'snapshot' ? target.slug : null
+  );
+  const save = isSnapshotTarget ? snapshotSave : wallSave;
 
   // Snapshot-from-draft flow. Opening the save modal captures the
   // current draft into a server snapshot without touching the live
@@ -231,14 +257,14 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
     <div className="fixed inset-0 z-40 bg-[#0a0703] flex flex-col">
       {/* Header bar — title + dirty indicator on the left, build
           tools (🧹 다 지우기, 📸 스냅샷) in the middle, exit
-          actions (취소, 저장) on the right. The snapshot button
-          stays usable even when the draft is unsaved; the "save
-          snapshot → revert or keep" prompt handles both outcomes
-          on close. */}
+          actions (취소, 저장) on the right. 📸 스냅샷 is
+          wall-target-only — already editing a snapshot, so the
+          "save as snapshot" action is meaningless. 🧹 stays since
+          a bulk-clear is still useful mid-rebuild in either mode. */}
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/5 bg-[#12100d]">
         <div className="flex items-center gap-3">
           <span className="text-sm uppercase tracking-wider text-[#e8a020]">
-            Vinyl Wall 편집
+            {isSnapshotTarget ? '스냅샷 편집' : 'Vinyl Wall 편집'}
           </span>
           {dirty && (
             <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
@@ -256,15 +282,17 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
           >
             🧹 다 지우기
           </button>
-          <button
-            type="button"
-            onClick={() => setSnapshotModalOpen(true)}
-            disabled={save.isPending}
-            className="text-xs text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
-            title="지금 상태를 스냅샷으로 저장"
-          >
-            📸 스냅샷
-          </button>
+          {!isSnapshotTarget && (
+            <button
+              type="button"
+              onClick={() => setSnapshotModalOpen(true)}
+              disabled={save.isPending}
+              className="text-xs text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-md px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+              title="지금 상태를 스냅샷으로 저장"
+            >
+              📸 스냅샷
+            </button>
+          )}
           <span className="mx-1 h-4 w-px bg-white/10" aria-hidden />
           <button
             type="button"
@@ -408,7 +436,10 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
         </aside>
       </div>
 
-      {snapshotModalOpen && (
+      {/* Scratch-snapshot machinery — wall-target only. Editing a
+          snapshot itself doesn't need the "save as snapshot" detour
+          or the "revert vs keep" follow-up. */}
+      {!isSnapshotTarget && snapshotModalOpen && (
         <SnapshotSaveModal
           username={username}
           items={draftItems()}
@@ -420,7 +451,7 @@ export default function VinylWallEditor({ username, initialWall, onClose }: Prop
         />
       )}
 
-      {postSnapshotPrompt && (
+      {!isSnapshotTarget && postSnapshotPrompt && (
         <RevertOrKeepPrompt
           pending={revertPending || save.isPending}
           onRevert={handleRevertAfterSnapshot}

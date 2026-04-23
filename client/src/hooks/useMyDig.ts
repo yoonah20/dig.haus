@@ -274,6 +274,45 @@ export function useUpdateVinylWallSnapshot(username: string | undefined) {
   });
 }
 
+export function useSaveVinylWallSnapshotItems(
+  username: string | undefined,
+  snapshotId: number | null,
+  slug: string | null
+) {
+  const qc = useQueryClient();
+  return useMutation<
+    { ok: boolean; count: number },
+    unknown,
+    Array<{ position: number; albumId: number }>
+  >({
+    mutationFn: async (items) => {
+      if (!snapshotId) {
+        throw new Error('snapshot id missing');
+      }
+      const { data } = await axios.put(
+        `/api/mydig/vinyl-wall/snapshots/${snapshotId}/items`,
+        { items }
+      );
+      return data;
+    },
+    onSuccess: () => {
+      // Refetch the snapshot detail (what the snapshot page renders)
+      // + the owner's snapshot list (item count rollup). Invalidates
+      // with just `username` as the second key so every slug scoped
+      // to this user refetches — simpler than juggling the active
+      // slug through the mutation.
+      if (username) {
+        qc.invalidateQueries({ queryKey: ['mydig-snapshot', username] });
+        qc.invalidateQueries({ queryKey: ['mydig-snapshots', username] });
+      }
+      // Silence unused — slug is kept in the hook signature so the
+      // caller's query key can stay in sync if we ever want per-slug
+      // granularity here.
+      void slug;
+    },
+  });
+}
+
 export function useDeleteVinylWallSnapshot(username: string | undefined) {
   const qc = useQueryClient();
   return useMutation<{ ok: boolean }, unknown, number>({

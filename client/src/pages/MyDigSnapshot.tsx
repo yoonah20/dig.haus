@@ -3,27 +3,35 @@ import { useParams, Link } from 'react-router-dom';
 import {
   useVinylWallSnapshot,
   type MyDigAlbum,
+  type MyDigWallItem,
 } from '../hooks/useMyDig';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import ShareButton from '../components/MyDig/ShareButton';
-import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
+import VinylWallEditor from '../components/MyDig/VinylWallEditor';
+import SnapshotRenameModal from '../components/MyDig/SnapshotRenameModal';
+import {
+  VinylDisc,
+  WallLP,
+  WallRail,
+} from '../components/MyDig/storefront/primitives';
 import { resolveApiUrl } from '../utils/apiUrl';
 
-// Read-only snapshot viewer. URL = /my/:username/snap/:slug.
-// Mirrors the /my/:username page shell (header + wall) but fed
-// entirely from the snapshot payload so the wall reflects the
-// moment it was saved. No edit button — the snapshot is
-// immutable from this screen. Owner can delete / toggle-public
-// from the snapshot list on /my/:username, not here.
+// Snapshot viewer at /my/:username/snap/:slug. Renders the saved
+// wall exactly as it was captured. Owners get an edit surface:
+// rename (✏️) for name + public-flag tweaks, and 편집 to re-open
+// the VinylWallEditor with this snapshot as the save target.
 //
 // Empty slots (positions without an item, or items whose album
-// was deleted after the snapshot was saved) render as blank wall,
-// same as the live page.
+// was deleted after capture) render as blank wall, same as the
+// live page.
 
 export default function MyDigSnapshot() {
   const { username, slug } = useParams<{ username: string; slug: string }>();
   const { data, isLoading, error } = useVinylWallSnapshot(username, slug);
+
+  const [editingItems, setEditingItems] = useState(false);
+  const [editingName, setEditingName] = useState(false);
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -53,6 +61,14 @@ export default function MyDigSnapshot() {
   const byPosition = new Map<number, MyDigAlbum | null>();
   for (const it of items) byPosition.set(it.position, it.album);
 
+  // initialWall payload for the VinylWallEditor, shaped the same
+  // way /api/mydig/:username returns its vinyl wall. Drops null
+  // album entries so the editor opens with a clean draft — if the
+  // owner wants those slots back they'll fill them in by hand.
+  const initialWall: MyDigWallItem[] = items
+    .filter((it): it is typeof it & { album: MyDigAlbum } => it.album != null)
+    .map((it) => ({ position: it.position, album: it.album }));
+
   return (
     // Transparent — backdrop lives on the app-root. See App.tsx.
     <div className="flex-1">
@@ -61,16 +77,38 @@ export default function MyDigSnapshot() {
           username={user.username}
           displayName={user.displayName}
           avatarUrl={user.avatarUrl}
+          isOwner={user.isOwner}
           snapshotName={snapshot.name}
           createdAt={snapshot.createdAt}
           isPublic={snapshot.isPublic}
           shareUrl={shareUrl}
+          onRename={() => setEditingName(true)}
+          onEditItems={() => setEditingItems(true)}
         />
 
         <WallSection>
           <SnapshotWallGrid byPosition={byPosition} />
         </WallSection>
       </main>
+
+      {editingName && username && (
+        <SnapshotRenameModal
+          username={username}
+          snapshotId={snapshot.id}
+          initialName={snapshot.name}
+          initialIsPublic={snapshot.isPublic}
+          onClose={() => setEditingName(false)}
+        />
+      )}
+
+      {editingItems && username && (
+        <VinylWallEditor
+          username={username}
+          initialWall={initialWall}
+          onClose={() => setEditingItems(false)}
+          target={{ kind: 'snapshot', id: snapshot.id, slug: snapshot.slug }}
+        />
+      )}
     </div>
   );
 }
@@ -79,18 +117,24 @@ function SnapshotHeader({
   username,
   displayName,
   avatarUrl,
+  isOwner,
   snapshotName,
   createdAt,
   isPublic,
   shareUrl,
+  onRename,
+  onEditItems,
 }: {
   username: string;
   displayName: string | null;
   avatarUrl: string | null;
+  isOwner: boolean;
   snapshotName: string;
   createdAt: string;
   isPublic: boolean;
   shareUrl: string;
+  onRename: () => void;
+  onEditItems: () => void;
 }) {
   const initial = (displayName || username).charAt(0).toUpperCase();
   const resolvedAvatar = resolveApiUrl(avatarUrl);
@@ -121,12 +165,24 @@ function SnapshotHeader({
         >
           ← {name}의 my dig
         </Link>
-        <h1
-          className="text-xl sm:text-2xl font-serif italic text-[#f5e8c8] leading-tight truncate mt-0.5"
-          title={snapshotName}
-        >
-          {snapshotName}
-        </h1>
+        <div className="flex items-baseline gap-2 flex-wrap mt-0.5">
+          <h1
+            className="text-xl sm:text-2xl font-serif italic text-[#f5e8c8] leading-tight truncate"
+            title={snapshotName}
+          >
+            {snapshotName}
+          </h1>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={onRename}
+              className="text-[11px] text-gray-400 hover:text-[#e8a020] cursor-pointer transition-colors"
+              title="이름 / 공개 여부 수정"
+            >
+              ✏️
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-3 mt-1.5 flex-wrap text-[11px]">
           <span className="uppercase tracking-[0.22em] text-[#c9a060] tabular-nums">
             {formatDate(createdAt)}
@@ -140,6 +196,16 @@ function SnapshotHeader({
           >
             · {isPublic ? 'public' : 'private'}
           </span>
+          {isOwner && (
+            <button
+              type="button"
+              onClick={onEditItems}
+              className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+              title="포함된 앨범 편집"
+            >
+              ✏️ 편집
+            </button>
+          )}
           <ShareButton url={shareUrl} label="공유" />
         </div>
       </div>
@@ -165,10 +231,11 @@ function WallSection({ children }: { children: React.ReactNode }) {
 }
 
 // ─── Snapshot wall grid ───────────────────────────────────────
-// Read-only mirror of VinylWallGrid in MyDig.tsx. Same layout
-// (5×3 desktop / 3×5 mobile) + same rail treatment; no hover
-// bubbles because snapshots don't carry user reviews. Empty
-// slots (album === null after deletion) render as blank wall.
+// Mirrors VinylWallGrid in MyDig.tsx — same 5×3 desktop / 3×5
+// mobile layout + rail treatment + hover vinyl-peek. Owner's 50자
+// 평 bubble is intentionally skipped (snapshots don't carry
+// reviews). Empty slots (album === null after deletion) render as
+// blank wall.
 function SnapshotWallGrid({
   byPosition,
 }: {
@@ -244,29 +311,16 @@ function SnapshotWallGrid({
                   </div>
                 );
               }
-              const target = album.slug || album.mbid;
               return (
-                <Link
+                <SnapshotWallCell
                   key={position}
-                  to={`/album/${target}`}
-                  title={`${album.artist} — ${album.title}`}
-                  style={{
-                    display: 'block',
-                    width: lpSize,
-                    height: lpSize,
-                    marginLeft: jx,
-                    textDecoration: 'none',
-                  }}
-                >
-                  <WallLP size={lpSize} seed={position} lampBias={lampBias}>
-                    <CoverArt
-                      src={album.coverArtUrl}
-                      fallbacks={album.coverArtFallbacks}
-                      alt={album.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </WallLP>
-                </Link>
+                  album={album}
+                  position={position}
+                  lpSize={lpSize}
+                  lampBias={lampBias}
+                  mobile={mobile}
+                  offsetX={jx}
+                />
               );
             })}
           </div>
@@ -281,5 +335,86 @@ function SnapshotWallGrid({
         </div>
       ))}
     </div>
+  );
+}
+
+// Filled snapshot cell — mirrors MyDig's WallCell (desktop hover
+// vinyl-peek + cover scale-up) minus the comment bubble since
+// snapshot items don't carry user reviews.
+function SnapshotWallCell({
+  album,
+  position,
+  lpSize,
+  lampBias,
+  mobile,
+  offsetX,
+}: {
+  album: MyDigAlbum;
+  position: number;
+  lpSize: number;
+  lampBias: number;
+  mobile: boolean;
+  offsetX: number;
+}) {
+  const target = album.slug || album.mbid;
+
+  if (mobile) {
+    return (
+      <Link
+        to={`/album/${target}`}
+        title={`${album.artist} — ${album.title}`}
+        className="relative block"
+        style={{
+          width: lpSize,
+          height: lpSize,
+          marginLeft: offsetX,
+          textDecoration: 'none',
+        }}
+      >
+        <WallLP size={lpSize} seed={position} lampBias={lampBias}>
+          <CoverArt
+            src={album.coverArtUrl}
+            fallbacks={album.coverArtFallbacks}
+            alt={album.title}
+            className="w-full h-full object-cover"
+          />
+        </WallLP>
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      to={`/album/${target}`}
+      title={`${album.artist} — ${album.title}`}
+      className="group relative block hover:z-20"
+      style={{
+        width: lpSize,
+        height: lpSize,
+        marginLeft: offsetX,
+        textDecoration: 'none',
+      }}
+    >
+      {/* Vinyl disc behind the cover — peeks out to the right on
+          hover, same motion as the live wall so the two pages
+          have matching feel. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out group-hover:translate-x-[24%] group-hover:rotate-[6deg] group-hover:scale-[1.2]"
+      >
+        <VinylDisc size={lpSize} />
+      </div>
+
+      <div className="absolute inset-0 z-10 origin-bottom transition-transform duration-[280ms] ease-out group-hover:scale-[1.2]">
+        <WallLP size={lpSize} seed={position} lampBias={lampBias}>
+          <CoverArt
+            src={album.coverArtUrl}
+            fallbacks={album.coverArtFallbacks}
+            alt={album.title}
+            className="w-full h-full object-cover"
+          />
+        </WallLP>
+      </div>
+    </Link>
   );
 }

@@ -689,6 +689,73 @@ router.patch('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
   }
 });
 
+// PUT /api/mydig/vinyl-wall/snapshots/:id/items — owner-only. Bulk
+// replace a snapshot's item list, same validation + transaction
+// shape as the live-wall PUT. Used when the owner re-opens a
+// saved snapshot and rearranges it from the edit surface.
+router.put('/mydig/vinyl-wall/snapshots/:id/items', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid snapshot id' });
+  }
+  const body = (req.body ?? {}) as { items?: unknown };
+  if (!Array.isArray(body.items)) {
+    return res.status(400).json({ error: 'items array 필요' });
+  }
+
+  const snap = queryGet(
+    `SELECT user_id FROM vinyl_wall_snapshots WHERE id = ?`,
+    [id]
+  );
+  if (!snap) return res.status(404).json({ error: '스냅샷을 찾을 수 없어요.' });
+  if (snap.user_id !== me.id) {
+    return res.status(403).json({ error: '권한이 없어요.' });
+  }
+
+  // Same validation pass as the live-wall PUT — refuse anything out
+  // of 0..14 range or duplicate positions so the snapshot can't end
+  // up in a shape the renderer doesn't expect.
+  const normalised: Array<{ position: number; albumId: number }> = [];
+  const seenPositions = new Set<number>();
+  for (const raw of body.items) {
+    if (!raw || typeof raw !== 'object') continue;
+    const position = (raw as any).position;
+    const albumId = (raw as any).albumId;
+    if (!Number.isInteger(position) || position < 0 || position >= 15) {
+      return res.status(400).json({ error: `position은 0-14 정수여야 해요 (${position})` });
+    }
+    if (!Number.isInteger(albumId) || albumId <= 0) {
+      return res.status(400).json({ error: 'albumId가 잘못되었어요.' });
+    }
+    if (seenPositions.has(position)) {
+      return res.status(400).json({ error: `중복된 position ${position}` });
+    }
+    seenPositions.add(position);
+    normalised.push({ position, albumId });
+  }
+
+  const db = getDb();
+  const tx = db.transaction((items: typeof normalised) => {
+    db.prepare(
+      `DELETE FROM vinyl_wall_snapshot_items WHERE snapshot_id = ?`
+    ).run(id);
+    const insert = db.prepare(
+      `INSERT INTO vinyl_wall_snapshot_items (snapshot_id, album_id, position)
+       VALUES (?, ?, ?)`
+    );
+    for (const it of items) insert.run(id, it.albumId, it.position);
+  });
+
+  try {
+    tx(normalised);
+    res.json({ ok: true, count: normalised.length });
+  } catch (err) {
+    console.error('[mydig/snapshots] items replace failed:', err);
+    res.status(500).json({ error: '스냅샷 저장 실패' });
+  }
+});
+
 // DELETE /api/mydig/vinyl-wall/snapshots/:id — owner-only.
 router.delete('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
   const me = req.user as AppUser;
