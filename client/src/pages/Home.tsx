@@ -236,20 +236,20 @@ export default function Home() {
           className="flex flex-col gap-6 lg:grid lg:items-start lg:transition-[grid-template-columns] lg:duration-300"
           style={{
             gridTemplateColumns: railOpen
-              ? 'minmax(0, 8fr) minmax(0, 2fr)'
-              : 'minmax(0, 8fr) minmax(0, 0fr)',
+              ? 'minmax(0, 7.7fr) minmax(0, 2.3fr)'
+              : 'minmax(0, 7.7fr) minmax(0, 0fr)',
           }}
         >
           {/* min-h on main pins the ticker's y-position across
               density tiers. Col count is constant per density at
-              lg/xl, so each density lands at a predictable height
-              — 640 covers the rail-closed case (full-width cards,
-              taller grid), 500 the rail-open case (narrower cards,
-              shorter grid). Switching density within either rail
-              state now keeps the ticker fixed. */}
+              lg/xl, so each density lands at a predictable height.
+              Values target the tallest density per rail state at xl
+              (rail-open ultra ≈ 580px, rail-closed dense ≈ 725px)
+              so lower densities pad to the same y and the ticker
+              below stays put when the user toggles density. */}
           <main
             className={`order-1 min-w-0 ${
-              railOpen ? 'lg:min-h-[500px]' : 'lg:min-h-[640px]'
+              railOpen ? 'lg:min-h-[580px]' : 'lg:min-h-[730px]'
             }`}
           >
         {/* Grid header — sort trigger on the left, density switcher

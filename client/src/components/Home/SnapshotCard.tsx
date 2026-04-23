@@ -4,16 +4,16 @@ import { resolveApiUrl } from '../../utils/apiUrl';
 import { formatRelativeKo } from '../../utils/relativeTime';
 import type { HomeSnapshot } from '../../hooks/useHomeSnapshots';
 
-// Compact teaser: five cells in a single row. Cells 0-3 always show
-// the first four cover thumbnails; cell 4 shows "+N" whenever the
-// snapshot has more than four albums (for a full 15-album wall
-// that's "+11"), or the fifth cover if the snapshot has exactly 5,
-// or empty if it has 4 or fewer. The earlier full mosaic put the
-// whole wall in each rail card, which added up to a second grid
-// competing with the main one. One row + overflow count reads as
-// a curated peek instead of a mini dump.
-const ROW_LENGTH = 5;
-const VISIBLE_COVERS = 4;
+// Compact teaser: six cells in a single row. Cells 0-4 always show
+// the first five cover thumbnails; cell 5 shows "+N" whenever the
+// snapshot has more than five albums (for a full 15-album wall
+// that's "+10"), or stays empty for walls of exactly five or
+// fewer. The earlier full mosaic put the whole wall in each rail
+// card, which added up to a second grid competing with the main
+// one. One row + overflow count reads as a curated peek instead
+// of a mini dump.
+const ROW_LENGTH = 6;
+const VISIBLE_COVERS = 5;
 
 export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
   const avatar = resolveApiUrl(snap.user.avatarUrl) ?? null;
@@ -39,9 +39,10 @@ export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
         style={{ gridTemplateColumns: `repeat(${ROW_LENGTH}, minmax(0, 1fr))` }}
       >
         {Array.from({ length: ROW_LENGTH }, (_, i) => {
-          // Cell 4 (the fifth): "+{overflow}" when the wall holds
-          // more than 4 items; the literal fifth cover when total
-          // is exactly 5; otherwise blank.
+          // Cell 5 (the sixth): "+{overflow}" when the wall holds
+          // more than 5 items; blank for walls of exactly 5 or
+          // fewer. Cells 0-4 render covers (or blank when the wall
+          // has fewer than 5 items).
           if (i === VISIBLE_COVERS) {
             if (showOverflow) {
               return (
@@ -54,6 +55,12 @@ export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
                 </div>
               );
             }
+            return (
+              <div
+                key={i}
+                className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden"
+              />
+            );
           }
           const item = visible[i];
           return (

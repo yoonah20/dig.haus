@@ -17,7 +17,7 @@ function isFresh(createdAt: string): boolean {
 }
 
 // Seconds each item is visible during one scroll pass — higher = slower.
-const SECONDS_PER_ITEM = 4.5;
+const SECONDS_PER_ITEM = 5.5;
 
 // Upper bound on a ticker card's width. Cards size to content (body
 // wraps to fit), but we cap the maximum so a long 50자 평 wraps to 2–3
@@ -156,7 +156,7 @@ export function TickerItem({
             (whitespace-nowrap keeps them glued to the final word and
             to each other) so they read as punctuation rather than a
             separate badge. */}
-        <p className="flex-1 min-w-0 text-gray-100 text-[13px] leading-snug break-words">
+        <p className="flex-1 min-w-0 text-gray-100 text-[12px] leading-snug break-words">
           {item.body}
           {hasBadges && (
             <span className="whitespace-nowrap" aria-hidden>
