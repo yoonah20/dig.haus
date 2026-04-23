@@ -197,7 +197,13 @@ export default function App() {
                       zIndex: -1,
                       backgroundImage: "url('/backdrops/wall2.webp')",
                       backgroundSize: 'cover',
-                      backgroundPosition: 'center',
+                      // Anchor to the bottom so the floor/baseboard
+                      // of the painted wall stays visible at every
+                      // viewport height — a shorter window crops
+                      // the ceiling instead of the footer area,
+                      // matching how you'd look at a real shop
+                      // wall (eye level stays at the bottom).
+                      backgroundPosition: 'center bottom',
                       backgroundRepeat: 'no-repeat',
                       filter: 'brightness(0.55) saturate(0.85)',
                     }}

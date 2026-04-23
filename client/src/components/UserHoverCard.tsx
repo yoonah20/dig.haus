@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useUserPublic } from '../hooks/useMe';
+import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import axios from '../lib/axios';
+import { useUserPublic, type UserPublic } from '../hooks/useMe';
 import { resolveApiUrl } from '../utils/apiUrl';
 
 function formatJoined(iso: string | null): string {
@@ -33,8 +35,51 @@ export default function UserHoverCard({
   const rootRef = useRef<HTMLSpanElement | null>(null);
   const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigate = useNavigate();
+  const qc = useQueryClient();
 
   const { data } = useUserPublic(userId, open);
+
+  // Avatar/trigger click — navigate to the user's mydig page. Uses
+  // whatever's already cached from the hover-triggered useUserPublic
+  // first; if the user clicked without hovering (and the query hasn't
+  // run yet), kick off a one-shot fetchQuery and navigate on resolve.
+  // preventDefault + stopPropagation is always applied so this click
+  // beats any ancestor <Link> (e.g. the TickerItem wraps the avatar
+  // in a card-wide Link to the album — we want the avatar-specific
+  // gesture to win).
+  const handleTriggerClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const cached =
+      data ?? qc.getQueryData<UserPublic>(['user-public', userId]);
+    if (cached?.mydig?.username) {
+      navigate(`/my/${cached.mydig.username}`);
+      return;
+    }
+    // Not cached / mydig not yet known — fetch, then navigate if the
+    // resolved payload actually carries a mydig username. If the
+    // user hasn't claimed one we silently do nothing (fall-through
+    // hover popover still shows vote counts + instagram so the
+    // click isn't totally wasted — they can read the card instead).
+    try {
+      const fresh = await qc.fetchQuery<UserPublic>({
+        queryKey: ['user-public', userId],
+        queryFn: async () => {
+          const { data: res } = await axios.get(
+            `/api/users/${userId}/public`
+          );
+          return res;
+        },
+        staleTime: 1000 * 60 * 5,
+      });
+      if (fresh?.mydig?.username) {
+        navigate(`/my/${fresh.mydig.username}`);
+      }
+    } catch (err) {
+      console.error('[avatar-click] failed', err);
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -99,15 +144,22 @@ export default function UserHoverCard({
         // classes (gap-X, flex-1, min-w-0) actually reach the element
         // that directly wraps the trigger children — the outer only has
         // one flex child, so gap-* there would be a no-op otherwise.
-        className={`inline-flex items-center ${className}`}
+        className={`inline-flex items-center cursor-pointer ${className}`}
         onClick={(e) => {
-          // Touch devices: tapping the avatar opens the card instead of
-          // firing whatever click the parent intended.
+          // Touch devices: the hover popover doesn't exist on no-hover
+          // inputs, so a tap should open the card instead of
+          // short-circuiting straight to navigation. Desktop (hover
+          // media) skips the popover and navigates directly to the
+          // user's mydig page — the card is already discoverable via
+          // hover, so an additional click gesture that just opens it
+          // would feel redundant.
           if (window.matchMedia('(hover: none)').matches) {
             e.stopPropagation();
             e.preventDefault();
             toggleOnTap();
+            return;
           }
+          handleTriggerClick(e);
         }}
       >
         {children}

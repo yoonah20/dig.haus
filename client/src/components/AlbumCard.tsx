@@ -150,7 +150,12 @@ function CoverStickerBadge({
       style={{
         background: palette.bg,
         color: palette.fg,
-        fontFamily: "'Syne', 'Inter', sans-serif",
+        // Space Grotesk (bold) reads much cleaner at small sizes
+        // for the D-N countdown digits than Syne — Syne's tighter
+        // geometric curves obscured the '0' / '6' / '9' shapes at
+        // sticker scale. Same modern-geometric family so the
+        // NEW/HOT/SALE stickers next to it still feel like a set.
+        fontFamily: "'Space Grotesk', 'Syne', 'Inter', sans-serif",
         // Scale the sticker with the card container (see containerType:
         // inline-size on the Link root). Floor at 6px so labels stay
         // legible on the tightest ultra-density tier; max at the

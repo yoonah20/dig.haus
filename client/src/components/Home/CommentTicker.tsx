@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useState, type CSSProperties } from 'react';
 import CoverArt from '../CoverArt';
+import UserHoverCard from '../UserHoverCard';
 import {
   useUserReviewsFeed,
   type UserReviewFeedItem,
@@ -135,7 +136,18 @@ export function TickerItem({
           tail's hard-coded y≈30 (index.css) still aligns with the
           avatar's vertical center. */}
       <div className="flex flex-col items-center shrink-0 pt-1 w-[56px]">
-        <Avatar src={item.userAvatar} name={item.userName} size={52} />
+        {item.userId != null ? (
+          // Wrap in UserHoverCard so clicking the avatar navigates to
+          // the commenter's mydig instead of firing the card-wide
+          // Link to the album. The marquee's overflow-hidden still
+          // clips the hover popover visually, but the click handler
+          // runs regardless — which is the gesture that matters here.
+          <UserHoverCard userId={item.userId}>
+            <Avatar src={item.userAvatar} name={item.userName} size={52} />
+          </UserHoverCard>
+        ) : (
+          <Avatar src={item.userAvatar} name={item.userName} size={52} />
+        )}
       </div>
 
       {/* Speech bubble — body on the left (flex-1), blurred cover
