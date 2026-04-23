@@ -896,6 +896,7 @@ function WallCell({
             onClick={handlePreviewClick}
             trackName={album.previewTrackName ?? null}
             forceShow={isActive}
+            lpSize={lpSize}
           />
         )}
       </Link>
@@ -951,76 +952,118 @@ function WallCell({
           isPlaying={isPlaying}
           onClick={handlePreviewClick}
           trackName={album.previewTrackName ?? null}
+          lpSize={lpSize}
         />
       )}
     </Link>
   );
 }
 
-// Small circular overlay that sits bottom-right of the cover and
-// slides in on cell hover (desktop) or tap-activation (mobile).
-// Click toggles the shared audio player. Icon swaps to a stop
-// glyph while this track is active so the same chip doubles as
-// "stop". Pointer events are only live while visible so the outer
-// Link's tap-to-navigate gesture wins in the resting state.
+// Centered play button over the cover. Sized to be unmissable
+// (lpSize · 40%), with a soft dark scrim behind so the glyph
+// stays legible against any cover art underneath. Slides in on
+// hover (desktop) or tap-activation (mobile); while a track is
+// playing the same button turns into the stop glyph and stays
+// visible regardless of hover state.
 //
-// `forceShow` is the mobile path — when the parent cell is in its
-// tap-activated state, the chip renders fully visible regardless
-// of group-hover (which won't fire on touch). Desktop leaves it
-// undefined/false and the group-hover classes take over.
+// `forceShow` is the mobile path — the parent cell is in its
+// tap-activated state and group-hover won't fire on touch. Desktop
+// leaves this undefined/false and the group-hover classes take
+// over for the reveal.
 function PreviewPlayChip({
   isPlaying,
   onClick,
   trackName,
   forceShow = false,
+  lpSize,
 }: {
   isPlaying: boolean;
   onClick: (e: React.MouseEvent) => void;
   trackName: string | null;
   forceShow?: boolean;
+  lpSize: number;
 }) {
-  // Three visibility modes stacked on top of each other:
-  // - isPlaying: always visible + interactive (so you can hit
-  //   stop without needing to re-hover / re-tap)
-  // - forceShow (mobile active cell): visible + interactive
-  // - otherwise: hidden until the outer .group hovers
   const visibilityClasses =
     isPlaying || forceShow
       ? 'opacity-100 scale-100 pointer-events-auto'
       : 'opacity-0 scale-90 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto';
+
+  // Button sizes proportionally to the cover so it reads the
+  // same across the 3-col mobile grid and the 5-col desktop grid.
+  // 42% of lpSize lands around 60-80px in typical conditions —
+  // large enough to be an obvious affordance, small enough to
+  // leave the cover identifiable underneath.
+  const buttonSize = Math.round(lpSize * 0.42);
+  const iconSize = Math.round(buttonSize * 0.42);
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={
-        isPlaying
-          ? '미리듣기 정지'
-          : trackName
-            ? `"${trackName}" 미리듣기`
-            : '미리듣기 재생'
-      }
-      title={
-        isPlaying
-          ? '정지'
-          : trackName
-            ? `${trackName} · 미리듣기`
-            : '미리듣기'
-      }
-      className={`absolute z-30 bottom-2 right-2 w-8 h-8 rounded-full bg-[#141008]/85 border border-[#e8a020]/60 text-[#e8a020] flex items-center justify-center shadow-md transition-all duration-200 hover:bg-[#1a130a] ${visibilityClasses}`}
+    <div
+      aria-hidden={!isPlaying && !forceShow}
+      className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-200 ${
+        isPlaying || forceShow
+          ? 'opacity-100 pointer-events-auto'
+          : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+      }`}
     >
-      {isPlaying ? (
-        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-          <rect x="2" y="2" width="8" height="8" fill="currentColor" rx="1" />
-        </svg>
-      ) : (
-        <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-          <path
-            d="M3 1.5 L10 6 L3 10.5 Z"
-            fill="currentColor"
-          />
-        </svg>
-      )}
-    </button>
+      {/* Scrim: a radial dark wash behind the button so the
+          amber glyph keeps contrast against covers that happen
+          to have amber / beige tones of their own. */}
+      <div
+        aria-hidden
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(circle at center, rgba(10,7,3,0.45) 0%, rgba(10,7,3,0.15) 45%, transparent 70%)',
+        }}
+      />
+      <button
+        type="button"
+        onClick={onClick}
+        aria-label={
+          isPlaying
+            ? '미리듣기 정지'
+            : trackName
+              ? `"${trackName}" 미리듣기`
+              : '미리듣기 재생'
+        }
+        title={
+          isPlaying
+            ? '정지'
+            : trackName
+              ? `${trackName} · 미리듣기`
+              : '미리듣기'
+        }
+        style={{ width: buttonSize, height: buttonSize }}
+        className={`relative rounded-full bg-[#141008]/85 border-2 border-[#e8a020] text-[#e8a020] flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.55)] hover:bg-[#e8a020] hover:text-[#141008] transition-all duration-200 cursor-pointer ${visibilityClasses}`}
+      >
+        {isPlaying ? (
+          <svg
+            width={iconSize}
+            height={iconSize}
+            viewBox="0 0 12 12"
+            aria-hidden
+          >
+            <rect x="3" y="2.5" width="2.2" height="7" fill="currentColor" rx="0.5" />
+            <rect x="6.8" y="2.5" width="2.2" height="7" fill="currentColor" rx="0.5" />
+          </svg>
+        ) : (
+          <svg
+            width={iconSize}
+            height={iconSize}
+            viewBox="0 0 12 12"
+            aria-hidden
+          >
+            {/* Slight x-offset so the triangle's optical centre
+                aligns with the circle's geometric centre — the
+                classic play-button trick. */}
+            <path
+              d="M3.8 2 L9.6 6 L3.8 10 Z"
+              fill="currentColor"
+            />
+          </svg>
+        )}
+      </button>
+    </div>
   );
 }
 
