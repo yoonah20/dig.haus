@@ -10,7 +10,7 @@ import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
-import SnapshotList from '../components/MyDig/SnapshotList';
+import GraffitiSnapshotList from '../components/MyDig/GraffitiSnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
 import UserHoverCard from '../components/UserHoverCard';
 import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
@@ -96,20 +96,27 @@ export default function MyDig() {
           shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
-        <WallSection>
-          <VinylWallGrid
-            wallByPosition={wallByPosition}
-            isOwner={data.user.isOwner}
-          />
-        </WallSection>
-
-        {username && (
-          <SnapshotList
-            username={username}
-            snapshots={snapshotsQuery.data?.snapshots ?? []}
-            isOwner={data.user.isOwner}
-          />
-        )}
+        {/* Wall left, scribbled snapshot names right. Above md
+            the two share a row (1fr wall / ~260px names column);
+            below md the names column stacks under the wall. The
+            wall itself is container-width driven via ResizeObserver
+            so dropping from ~960px to ~820px in the grid track
+            just scales the LPs down without breaking the layout. */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_260px] gap-4 md:gap-6">
+          <WallSection>
+            <VinylWallGrid
+              wallByPosition={wallByPosition}
+              isOwner={data.user.isOwner}
+            />
+          </WallSection>
+          {username && (
+            <GraffitiSnapshotList
+              username={username}
+              snapshots={snapshotsQuery.data?.snapshots ?? []}
+              isOwner={data.user.isOwner}
+            />
+          )}
+        </div>
 
         {editingWall && username && (
           <VinylWallEditor

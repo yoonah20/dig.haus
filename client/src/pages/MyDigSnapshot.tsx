@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   useVinylWallSnapshot,
+  useDeleteVinylWallSnapshot,
   type MyDigAlbum,
   type MyDigWallItem,
 } from '../hooks/useMyDig';
@@ -28,7 +29,9 @@ import { resolveApiUrl } from '../utils/apiUrl';
 
 export default function MyDigSnapshot() {
   const { username, slug } = useParams<{ username: string; slug: string }>();
+  const navigate = useNavigate();
   const { data, isLoading, error } = useVinylWallSnapshot(username, slug);
+  const deleteSnap = useDeleteVinylWallSnapshot(username);
 
   const [editingItems, setEditingItems] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -84,6 +87,23 @@ export default function MyDigSnapshot() {
           shareUrl={shareUrl}
           onRename={() => setEditingName(true)}
           onEditItems={() => setEditingItems(true)}
+          onDelete={async () => {
+            if (deleteSnap.isPending) return;
+            if (
+              !confirm(
+                `"${snapshot.name}" 스냅샷을 삭제할까요? 되돌릴 수 없어요.`
+              )
+            )
+              return;
+            try {
+              await deleteSnap.mutateAsync(snapshot.id);
+              navigate(`/my/${encodeURIComponent(user.username)}`);
+            } catch (err) {
+              console.error('[mydig/snapshots] delete failed:', err);
+              alert('스냅샷 삭제 실패');
+            }
+          }}
+          deletePending={deleteSnap.isPending}
         />
 
         <WallSection>
@@ -124,6 +144,8 @@ function SnapshotHeader({
   shareUrl,
   onRename,
   onEditItems,
+  onDelete,
+  deletePending,
 }: {
   username: string;
   displayName: string | null;
@@ -135,6 +157,8 @@ function SnapshotHeader({
   shareUrl: string;
   onRename: () => void;
   onEditItems: () => void;
+  onDelete: () => void;
+  deletePending: boolean;
 }) {
   const initial = (displayName || username).charAt(0).toUpperCase();
   const resolvedAvatar = resolveApiUrl(avatarUrl);
@@ -197,14 +221,25 @@ function SnapshotHeader({
             · {isPublic ? 'public' : 'private'}
           </span>
           {isOwner && (
-            <button
-              type="button"
-              onClick={onEditItems}
-              className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-              title="포함된 앨범 편집"
-            >
-              ✏️ 편집
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={onEditItems}
+                className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+                title="포함된 앨범 편집"
+              >
+                ✏️ 편집
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={deletePending}
+                className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title="스냅샷 삭제"
+              >
+                {deletePending ? '삭제 중…' : '🗑 삭제'}
+              </button>
+            </>
           )}
           <ShareButton url={shareUrl} label="공유" />
         </div>
