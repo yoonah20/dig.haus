@@ -101,7 +101,7 @@ export default function MyDig() {
             to the leading edge rather than drifting toward the
             track center. Below md the two stack — wall first,
             scribbles below. */}
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4 md:gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_230px] gap-4 md:gap-8">
           <WallSection>
             <VinylWallGrid
               wallByPosition={wallByPosition}
@@ -200,7 +200,7 @@ function ProfileHeader({
     // tight vertically — the header used to eat ~150px with its
     // separate @username line; now the avatar stack carries the
     // identity in about 100px total.
-    <header className="flex items-start gap-4 pt-2 pb-3">
+    <header className="flex items-start gap-6 pt-2 pb-3">
       {/* Avatar block — two sticker chips overlap the portrait:
           @username at the top-left as a small amber tag, display
           name across the bottom edge as a darker label that
@@ -370,7 +370,7 @@ function VinylWallGrid({
       style={{
         position: 'relative',
         width: '100%',
-        maxWidth: 860,
+        maxWidth: 890,
         marginLeft: 0,
         marginRight: 'auto',
         paddingTop: 12,
