@@ -233,23 +233,22 @@ export default function Home() {
             rail from stretching to the grid's min-height when
             there's less content to fill. */}
         <div
-          className="flex flex-col gap-6 lg:grid lg:items-start lg:transition-[grid-template-columns] lg:duration-300"
+          className="flex flex-col gap-6 lg:grid lg:items-stretch lg:transition-[grid-template-columns] lg:duration-300"
           style={{
             gridTemplateColumns: railOpen
               ? 'minmax(0, 7.7fr) minmax(0, 2.3fr)'
               : 'minmax(0, 7.7fr) minmax(0, 0fr)',
           }}
         >
-          {/* min-h on main pins the ticker's y-position across
-              density tiers. Col count is constant per density at
-              lg/xl, so each density lands at a predictable height.
-              Values target the tallest density per rail state at xl
-              (rail-open ultra ≈ 580px, rail-closed dense ≈ 725px)
-              so lower densities pad to the same y and the ticker
-              below stays put when the user toggles density. */}
+          {/* min-h lingers only for the rail-closed state, where no
+              rail sits next to the grid to anchor the height.
+              Rail-open doesn't need it because the rail itself is
+              the height anchor — see the pagination reshuffle
+              below — and the grid-row height just tracks whichever
+              column ends up tallest. */}
           <main
             className={`order-1 min-w-0 ${
-              railOpen ? 'lg:min-h-[580px]' : 'lg:min-h-[730px]'
+              railOpen ? '' : 'lg:min-h-[730px]'
             }`}
           >
         {/* Grid header — sort trigger on the left, density switcher
@@ -306,8 +305,35 @@ export default function Home() {
           </div>
         )}
 
+          </main>
+          {/* Rail wrapper: always mounted so the slide-right
+              animation has somewhere to live. At lg+ the outer
+              grid column shrinks to 0fr when closed — combined
+              with overflow-hidden here and an inner translate +
+              fade, the rail content visibly slides off to the
+              right rather than popping out. Below lg the rail
+              always stacks below main regardless of railOpen
+              (opacity + transform classes are lg:-prefixed). */}
+          <div
+            id="home-activity-rail"
+            className={`order-2 min-w-0 overflow-hidden lg:transition-[opacity,transform] lg:duration-300 ${
+              railOpen
+                ? 'lg:opacity-100 lg:translate-x-0'
+                : 'lg:opacity-0 lg:translate-x-full lg:pointer-events-none'
+            }`}
+          >
+            <ActivityRail onClose={() => setRailOpen(false)} />
+          </div>
+        </div>
+
+        {/* Pagination sits OUTSIDE the grid+rail row so it doesn't
+            push the main column past the rail's height. Album grid
+            bottom ≈ snapshot cards bottom by design (natural heights
+            within ~5px across all three densities), and pagination
+            is a full-width control below the row. `mt-8` matches
+            the spacing the pagination used to get inside main. */}
         {totalPages > 1 && (
-          <nav className="mt-12 flex items-center justify-center gap-1 flex-wrap" aria-label="Pagination">
+          <nav className="mt-8 flex items-center justify-center gap-1 flex-wrap" aria-label="Pagination">
             <button
               onClick={() => goToPage(page - 1)}
               disabled={page <= 1}
@@ -344,27 +370,6 @@ export default function Home() {
             </button>
           </nav>
         )}
-
-          </main>
-          {/* Rail wrapper: always mounted so the slide-right
-              animation has somewhere to live. At lg+ the outer
-              grid column shrinks to 0fr when closed — combined
-              with overflow-hidden here and an inner translate +
-              fade, the rail content visibly slides off to the
-              right rather than popping out. Below lg the rail
-              always stacks below main regardless of railOpen
-              (opacity + transform classes are lg:-prefixed). */}
-          <div
-            id="home-activity-rail"
-            className={`order-2 min-w-0 overflow-hidden lg:transition-[opacity,transform] lg:duration-300 ${
-              railOpen
-                ? 'lg:opacity-100 lg:translate-x-0'
-                : 'lg:opacity-0 lg:translate-x-full lg:pointer-events-none'
-            }`}
-          >
-            <ActivityRail onClose={() => setRailOpen(false)} />
-          </div>
-        </div>
 
         {/* Marquee 50자 평 ticker below the grid+rail row, spanning
             the full 1280px section — the earlier placement inside
