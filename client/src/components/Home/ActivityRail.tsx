@@ -10,9 +10,11 @@ import SnapshotFeed from './SnapshotFeed';
 // viewport); this component is just the stacked section. Mobile
 // placement is also parent-driven — on narrow widths the rail
 // slots below the album grid rather than beside it. The close
-// button lives inside the section header via the onClose prop,
-// hidden on mobile via `hidden lg:inline-flex` since mobile
-// doesn't offer a collapse affordance (rail always stacks).
+// button lives at the LEFT of the section header via the onClose
+// prop — a chevron on the right end of "mydigs" read too much like
+// a "go to" arrow pointing at the label rather than a collapse
+// action. Hidden on mobile via `hidden lg:inline-flex` since
+// mobile doesn't offer a collapse affordance (rail always stacks).
 export default function ActivityRail({
   onClose,
 }: {
@@ -21,33 +23,35 @@ export default function ActivityRail({
   return (
     <aside aria-label="활동" className="flex flex-col gap-6">
       <section>
-        <div className="flex items-center justify-between gap-2 mb-2 px-1">
-          <h3 className="text-[11px] uppercase tracking-wider text-gray-500">
-            최근 mydig
-          </h3>
+        <div className="flex items-center gap-1.5 mb-2 px-1">
           {onClose && (
             <button
               type="button"
               onClick={onClose}
               title="활동 레일 접기"
               aria-label="활동 레일 접기"
-              className="hidden lg:inline-flex items-center justify-center w-5 h-5 rounded text-gray-500 hover:text-gray-200 transition-colors cursor-pointer"
+              className="hidden lg:inline-flex items-center justify-center w-4 h-4 rounded text-gray-500 hover:text-gray-200 transition-colors cursor-pointer"
             >
+              {/* × close glyph — unambiguous ("close this panel")
+                  in a way the earlier right-pointing chevron wasn't. */}
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth={2}
+                strokeWidth={2.2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="w-3.5 h-3.5"
+                className="w-3 h-3"
                 aria-hidden
               >
-                <path d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                <path d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           )}
+          <h3 className="text-[11px] lowercase tracking-wider text-gray-500">
+            mydigs
+          </h3>
         </div>
         <SnapshotFeed count={3} />
       </section>

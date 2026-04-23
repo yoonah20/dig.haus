@@ -245,11 +245,19 @@ export default function Home() {
         <div
           className={`flex flex-col gap-6 ${
             railOpen
-              ? 'lg:grid lg:grid-cols-[minmax(0,8fr)_minmax(0,2fr)]'
+              ? 'lg:grid lg:grid-cols-[minmax(0,8fr)_minmax(0,2fr)] lg:items-start'
               : ''
           }`}
         >
-          <main className="order-1 min-w-0">
+          {/* min-h on main pins the comment ticker's y position
+              across density tiers. At xl all three tiers (comfort
+              3×5, dense 4×7, ultra 5×9) land within ~10px of 650px
+              naturally, so 640 is a floor the grid fills on its
+              own and the ticker stops shifting up/down when the
+              user toggles density. Below xl the column counts
+              change enough that variance creeps back — acceptable
+              tradeoff since xl is the dominant desktop breakpoint. */}
+          <main className="order-1 min-w-0 lg:min-h-[640px]">
         {/* Grid header — sort trigger on the left, density switcher
             + (when rail is collapsed) a small open-rail handle on
             the right. The rail's close button lives inside the

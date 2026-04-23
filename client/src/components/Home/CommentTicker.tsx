@@ -91,11 +91,6 @@ function Avatar({
   );
 }
 
-// Any CJK char (Hangul / Kana / Han) in the display name — used to pick
-// a narrower max-width for CJK names (since each glyph is ~em-wide)
-// and a looser one for Latin names (much narrower per-glyph, so 8–10
-// chars still fit on one line without forcing weird 4-char wraps).
-const CJK_RE = /[\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]/;
 
 export function TickerItem({
   item,
@@ -111,7 +106,6 @@ export function TickerItem({
 }) {
   const isAnon = item.userId == null;
   const displayName = isAnon ? '탈퇴한 사용자' : item.userName || '익명';
-  const isCjk = CJK_RE.test(displayName);
   const ratingEmoji = item.rating ? RATING_EMOJI[item.rating] : null;
   const feelingEmoji = item.emoji;
   const hasBadges = !!(ratingEmoji || feelingEmoji);
@@ -132,40 +126,16 @@ export function TickerItem({
       style={fullWidth ? undefined : { maxWidth: MAX_ITEM_WIDTH_PX }}
       aria-label={`${displayName}의 50자 평: ${item.body}. ${item.albumArtist ?? ''} — ${item.albumTitle} 로 이동`}
     >
-      {/* Left column — avatar + display name. Column width is locked
-          to the avatar's footprint (52 + 2px padding each side); pt-1
-          puts the avatar centre at the same y as the bubble's tail
-          (tail centre hard-coded at y≈30 in index.css). The name
-          span happily overflows the 56px column horizontally — the
-          overlap lands below the tail's vertical band so nothing
-          collides. */}
-      <div className="flex flex-col items-center gap-1.5 shrink-0 pt-1 w-[56px]">
+      {/* Left column — just the avatar. The display-name label
+          underneath used to sit here too, but once the home page
+          gained a dense grid + activity rail the extra text per
+          ticker card read as noise. Identity still comes through
+          the avatar image; aria-label keeps the name available to
+          screen readers. Column width stays 56px so the bubble
+          tail's hard-coded y≈30 (index.css) still aligns with the
+          avatar's vertical center. */}
+      <div className="flex flex-col items-center shrink-0 pt-1 w-[56px]">
         <Avatar src={item.userAvatar} name={item.userName} size={52} />
-        {/* Two layouts for name rendering:
-            - CJK: glyphs are ~em-wide, so cap at 44px and let it
-              wrap up to 2 lines (break-all → glyph-boundary breaks).
-            - Latin: whitespace-nowrap keeps the whole name on one
-              line (fixes the "fabric fabric" case where the trailing
-              'c' was wrapping when break-all + a numeric max-w was
-              fighting it). max-w + text-ellipsis truncates anything
-              ridiculously long instead of forcing a second row. */}
-        {isCjk ? (
-          <span
-            className={`text-[11px] text-center leading-tight line-clamp-2 break-all max-w-[44px] ${
-              isAnon ? 'italic text-gray-600' : 'text-gray-400'
-            }`}
-          >
-            {displayName}
-          </span>
-        ) : (
-          <span
-            className={`text-[11px] text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-[120px] ${
-              isAnon ? 'italic text-gray-600' : 'text-gray-400'
-            }`}
-          >
-            {displayName}
-          </span>
-        )}
       </div>
 
       {/* Speech bubble — body on the left (flex-1), blurred cover
