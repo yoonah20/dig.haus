@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   useMyDig,
   useVinylWallSnapshots,
+  useVinylWallSnapshot,
+  useDeleteVinylWallSnapshot,
+  type MyDigAlbum,
   type MyDigWallItem,
 } from '../hooks/useMyDig';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
+import SnapshotRenameModal from '../components/MyDig/SnapshotRenameModal';
 import GraffitiSnapshotList from '../components/MyDig/GraffitiSnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
 import UserHoverCard from '../components/UserHoverCard';
@@ -28,11 +32,48 @@ import { resolveApiUrl } from '../utils/apiUrl';
 // scaffold without touching the layout logic.
 
 export default function MyDig() {
-  const { username } = useParams<{ username: string }>();
+  const { username, slug: pathSlug } = useParams<{
+    username: string;
+    slug?: string;
+  }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Active snapshot is taken from either /my/:u/snap/:s (legacy
+  // route kept for share-link compatibility) or the #<slug> hash
+  // on /my/:u (the canonical shape now that snapshots render
+  // in-place instead of a separate page). Hash is URL-encoded at
+  // set-time so we decode back here; null means "live wall".
+  const hashSlug = location.hash
+    ? decodeURIComponent(location.hash.slice(1))
+    : null;
+  const activeSlug = pathSlug ?? hashSlug;
+
   const { data, isLoading, error } = useMyDig(username);
+  const snapshotsQuery = useVinylWallSnapshots(username);
+  const snapshotDetail = useVinylWallSnapshot(
+    username,
+    activeSlug ?? undefined
+  );
+  const deleteSnap = useDeleteVinylWallSnapshot(username);
+
   const [editingWall, setEditingWall] = useState(false);
   const [savingSnapshot, setSavingSnapshot] = useState(false);
-  const snapshotsQuery = useVinylWallSnapshots(username);
+  const [editingSnapshotName, setEditingSnapshotName] = useState(false);
+
+  // When a legacy /my/:u/snap/:s URL lands here, rewrite the bar
+  // to the in-page hash form so refresh / share / back all operate
+  // on the same (cleaner) URL shape.
+  useEffect(() => {
+    if (pathSlug && username) {
+      navigate(`/my/${encodeURIComponent(username)}#${encodeURIComponent(pathSlug)}`, {
+        replace: true,
+      });
+    }
+    // username/pathSlug are route params — intentionally not
+    // depending on navigate (stable).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathSlug, username]);
 
   if (isLoading) return <LoadingSkeleton />;
 
@@ -50,9 +91,7 @@ export default function MyDig() {
   }
 
   // Private mode — under-construction placeholder. Preserves the
-  // shop aesthetic instead of showing a cold 403/404. Per CLAUDE.md
-  // the visual should read as "fabric drape over the storefront +
-  // A4 notice taped on"; the full illustration lands in 3a polish.
+  // shop aesthetic instead of showing a cold 403/404.
   if (!data.isPublic) {
     return (
       <div className="flex-1 max-w-[1120px] mx-auto px-4 py-12">
@@ -69,16 +108,51 @@ export default function MyDig() {
     );
   }
 
-  // Wall items come back sparse (position → item). Build a map
-  // keyed by slot position; WallScene looks up slots by position
-  // and renders empty slots as bare wall.
+  // Snapshot mode: the wall renders that snapshot's captured
+  // items (minus any whose album row has since been deleted).
+  // Live mode: use the current vinyl_wall_items list.
+  const snap = activeSlug ? snapshotDetail.data?.snapshot : null;
+  const snapItems = activeSlug ? snapshotDetail.data?.items ?? [] : null;
+  const isSnapshotMode = !!snap && !!snapItems;
+  const snapLoading = !!activeSlug && snapshotDetail.isLoading;
+
   const wallByPosition = new Map<number, MyDigWallItem>();
-  for (const it of data.vinylWall) wallByPosition.set(it.position, it);
+  if (isSnapshotMode) {
+    for (const it of snapItems!) {
+      if (it.album) wallByPosition.set(it.position, { position: it.position, album: it.album });
+    }
+  } else {
+    for (const it of data.vinylWall) wallByPosition.set(it.position, it);
+  }
+
+  const initialWallForEditor: MyDigWallItem[] = isSnapshotMode
+    ? (snapItems ?? [])
+        .filter((it): it is typeof it & { album: MyDigAlbum } => it.album != null)
+        .map((it) => ({ position: it.position, album: it.album }))
+    : data.vinylWall;
+
+  const handleSelectSnapshot = (slug: string) => {
+    navigate(`#${encodeURIComponent(slug)}`);
+  };
+  const handleClearSnapshot = () => {
+    navigate(location.pathname);
+  };
+  const handleDeleteSnapshot = async () => {
+    if (!snap) return;
+    if (deleteSnap.isPending) return;
+    if (!confirm(`"${snap.name}" 스냅샷을 삭제할까요? 되돌릴 수 없어요.`))
+      return;
+    try {
+      await deleteSnap.mutateAsync(snap.id);
+      // Drop back to the live wall view after a successful delete.
+      handleClearSnapshot();
+    } catch (err) {
+      console.error('[mydig/snapshots] delete failed:', err);
+      alert('스냅샷 삭제 실패');
+    }
+  };
 
   return (
-    // Transparent so the app-root backdrop (painted wall image +
-    // brightness/saturate filter) shows through behind the page
-    // content. See App.tsx for the backdrop layer.
     <div className="flex-1">
       <main className="max-w-[1280px] mx-auto px-4 pt-4 pb-8 space-y-1">
         <ProfileHeader
@@ -87,33 +161,59 @@ export default function MyDig() {
           displayName={data.user.displayName}
           avatarUrl={data.user.avatarUrl}
           isOwner={data.user.isOwner}
-          wallTheme={data.vinylWallTheme}
-          wallDescription={data.vinylWallDescription}
+          wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
+          wallDescription={
+            isSnapshotMode
+              ? null
+              : data.vinylWallDescription
+          }
+          // Snapshot mode carries its own meta line (date + public
+          // flag); live mode keeps the description subtitle.
+          snapshotMeta={
+            isSnapshotMode
+              ? {
+                  createdAt: snap!.createdAt,
+                  isPublic: snap!.isPublic,
+                }
+              : null
+          }
+          mode={isSnapshotMode ? 'snapshot' : 'live'}
           onEdit={() => setEditingWall(true)}
           onSaveSnapshot={() => setSavingSnapshot(true)}
+          onRenameSnapshot={() => setEditingSnapshotName(true)}
+          onDeleteSnapshot={handleDeleteSnapshot}
+          deleteSnapshotPending={deleteSnap.isPending}
           shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
-        {/* Wall flush to the viewport's left edge with the surplus
-            handed to the snapshot column. First track caps at
-            890px (the wall's own maxWidth ceiling) so the wall
-            never grows beyond what its LP grid expects; second
-            track takes 1fr and inherits whatever's left in the
-            1320px content budget, which lands ~360px for the
-            scribble column on wide viewports. Below md the two
-            stack — wall first, scribbles below. */}
         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,890px)_1fr] gap-4 md:gap-8">
           <WallSection>
-            <VinylWallGrid
-              wallByPosition={wallByPosition}
-              isOwner={data.user.isOwner}
-            />
+            {snapLoading ? (
+              <div className="text-center py-12 text-sm text-gray-500">
+                스냅샷 불러오는 중…
+              </div>
+            ) : (
+              // key on activeSlug triggers a remount when the user
+              // swaps between live and any snapshot — the LPs
+              // re-animate their drop-in entrance so the swap
+              // reads as "records being changed out" instead of a
+              // silent content flip.
+              <VinylWallGrid
+                key={activeSlug ?? 'live'}
+                wallByPosition={wallByPosition}
+                isOwner={data.user.isOwner}
+                emptyHint={isSnapshotMode ? 'snapshot' : 'live'}
+              />
+            )}
           </WallSection>
           {username && (
             <GraffitiSnapshotList
               username={username}
               snapshots={snapshotsQuery.data?.snapshots ?? []}
               isOwner={data.user.isOwner}
+              activeSlug={activeSlug}
+              onSelect={handleSelectSnapshot}
+              onClear={handleClearSnapshot}
             />
           )}
         </div>
@@ -121,9 +221,14 @@ export default function MyDig() {
         {editingWall && username && (
           <VinylWallEditor
             username={username}
-            initialWall={data.vinylWall}
-            initialTheme={data.vinylWallTheme}
-            initialDescription={data.vinylWallDescription}
+            initialWall={initialWallForEditor}
+            initialTheme={isSnapshotMode ? null : data.vinylWallTheme}
+            initialDescription={isSnapshotMode ? null : data.vinylWallDescription}
+            target={
+              isSnapshotMode && snap
+                ? { kind: 'snapshot', id: snap.id, slug: snap.slug }
+                : { kind: 'wall' }
+            }
             onClose={() => setEditingWall(false)}
           />
         )}
@@ -132,6 +237,16 @@ export default function MyDig() {
           <SnapshotSaveModal
             username={username}
             onClose={() => setSavingSnapshot(false)}
+          />
+        )}
+
+        {editingSnapshotName && username && snap && (
+          <SnapshotRenameModal
+            username={username}
+            snapshotId={snap.id}
+            initialName={snap.name}
+            initialIsPublic={snap.isPublic}
+            onClose={() => setEditingSnapshotName(false)}
           />
         )}
       </main>
@@ -159,8 +274,13 @@ function ProfileHeader({
   isOwner,
   wallTheme,
   wallDescription,
+  snapshotMeta,
+  mode,
   onEdit,
   onSaveSnapshot,
+  onRenameSnapshot,
+  onDeleteSnapshot,
+  deleteSnapshotPending,
   shareUrl,
 }: {
   userId: number | null;
@@ -170,8 +290,13 @@ function ProfileHeader({
   isOwner: boolean;
   wallTheme: string | null;
   wallDescription: string | null;
+  snapshotMeta: { createdAt: string; isPublic: boolean } | null;
+  mode: 'live' | 'snapshot';
   onEdit: () => void;
   onSaveSnapshot: () => void;
+  onRenameSnapshot: () => void;
+  onDeleteSnapshot: () => void;
+  deleteSnapshotPending: boolean;
   shareUrl: string;
 }) {
   const initial = (displayName || username).charAt(0).toUpperCase();
@@ -249,7 +374,7 @@ function ProfileHeader({
             {displayThemeText}
           </h1>
           <div className="flex items-center gap-2 shrink-0">
-            {isOwner && (
+            {isOwner && mode === 'live' && (
               <>
                 <button
                   type="button"
@@ -269,16 +394,59 @@ function ProfileHeader({
                 </button>
               </>
             )}
+            {isOwner && mode === 'snapshot' && (
+              <>
+                <button
+                  type="button"
+                  onClick={onRenameSnapshot}
+                  className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+                  title="스냅샷 이름 / 공개 여부 수정"
+                >
+                  ✏️ 이름
+                </button>
+                <button
+                  type="button"
+                  onClick={onEdit}
+                  className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+                  title="스냅샷의 앨범 편집"
+                >
+                  ✏️ 앨범
+                </button>
+                <button
+                  type="button"
+                  onClick={onDeleteSnapshot}
+                  disabled={deleteSnapshotPending}
+                  className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="스냅샷 삭제"
+                >
+                  {deleteSnapshotPending ? '삭제 중…' : '🗑 삭제'}
+                </button>
+              </>
+            )}
             <ShareButton url={shareUrl} label="공유" />
           </div>
         </div>
 
-        {/* Description — smaller, muted. Shown to everyone when
-            the owner has filled one in; when empty, visitors see
-            nothing and the owner gets a hint pointing at the
-            edit button (where theme + description + albums now
-            all edit together). */}
-        {wallDescription ? (
+        {/* Subtitle line — description (live mode) or date +
+            public/private tag (snapshot mode). Live + empty +
+            owner gets a hint pointing at the edit button where
+            theme + description + albums all edit together. */}
+        {mode === 'snapshot' && snapshotMeta ? (
+          <div className="flex items-center gap-3 flex-wrap text-[11px]">
+            <span className="uppercase tracking-[0.22em] text-[#c9a060] tabular-nums">
+              {snapshotMeta.createdAt.slice(0, 10)}
+            </span>
+            <span
+              className={
+                snapshotMeta.isPublic
+                  ? 'uppercase tracking-[0.22em] text-[#e8a020]'
+                  : 'uppercase tracking-[0.22em] text-[#8a7250]'
+              }
+            >
+              · {snapshotMeta.isPublic ? 'public' : 'private'}
+            </span>
+          </div>
+        ) : wallDescription ? (
           <p className="text-[13px] text-[#c9a060]/90 leading-relaxed max-w-[640px]">
             {wallDescription}
           </p>
@@ -323,9 +491,14 @@ function WallSection({ children }: { children: React.ReactNode }) {
 function VinylWallGrid({
   wallByPosition,
   isOwner,
+  emptyHint = 'live',
 }: {
   wallByPosition: Map<number, MyDigWallItem>;
   isOwner: boolean;
+  /** Tweaks the "no items" copy — 'live' speaks to the owner about
+   *  filling their wall; 'snapshot' reads as factual since a
+   *  visitor/owner can't act on the empty state there. */
+  emptyHint?: 'live' | 'snapshot';
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(880);
@@ -398,9 +571,23 @@ function VinylWallGrid({
               const item = wallByPosition.get(position);
               const lampBias = 1 - Math.min(1, (ri * cols + ci) / (rowCount * cols));
               const jx = variance(ri * 131 + ci * 17 + 1) * (mobile ? 2 : 4);
+              // Stagger the drop-in per cell so swapping between
+              // live and a snapshot (which remounts this grid via
+              // key=activeSlug in the parent) reads as a wave of
+              // records landing one-after-another instead of all 15
+              // popping in simultaneously. 30ms × position index
+              // → ~420ms spread across the whole wall.
+              const dropStyle = {
+                marginLeft: jx,
+                animationDelay: `${(ri * cols + ci) * 30}ms`,
+              };
               if (!item) {
                 return (
-                  <div key={position} style={{ marginLeft: jx }}>
+                  <div
+                    key={position}
+                    className="album-reveal"
+                    style={dropStyle}
+                  >
                     <WallLP
                       size={lpSize}
                       seed={position}
@@ -411,15 +598,20 @@ function VinylWallGrid({
                 );
               }
               return (
-                <WallCell
+                <div
                   key={position}
-                  item={item}
-                  position={position}
-                  lpSize={lpSize}
-                  lampBias={lampBias}
-                  mobile={mobile}
-                  offsetX={jx}
-                />
+                  className="album-reveal"
+                  style={dropStyle}
+                >
+                  <WallCell
+                    item={item}
+                    position={position}
+                    lpSize={lpSize}
+                    lampBias={lampBias}
+                    mobile={mobile}
+                    offsetX={0}
+                  />
+                </div>
               );
             })}
           </div>
@@ -445,9 +637,11 @@ function VinylWallGrid({
       ))}
       {wallByPosition.size === 0 && (
         <p className="text-center text-xs text-gray-600 pt-2">
-          {isOwner
-            ? '아직 벽이 비어 있어요. 편집 버튼으로 앨범을 걸어보세요.'
-            : '이 벽은 아직 비어 있어요.'}
+          {emptyHint === 'snapshot'
+            ? '이 스냅샷은 비어 있어요.'
+            : isOwner
+              ? '아직 벽이 비어 있어요. 편집 버튼으로 앨범을 걸어보세요.'
+              : '이 벽은 아직 비어 있어요.'}
         </p>
       )}
     </div>

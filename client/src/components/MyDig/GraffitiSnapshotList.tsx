@@ -1,39 +1,37 @@
-import { Link } from 'react-router-dom';
 import type { VinylWallSnapshotSummary } from '../../hooks/useMyDig';
 
-// Handwritten-style snapshot list that sits to the right of the
-// vinyl wall. The wall is pushed left and this column fills the
-// resulting gap with a vertical list of scribbled snapshot
-// names, as if they were written on the wall next to the
-// records.
+// Handwritten-style snapshot switcher. Sits to the right of the
+// vinyl wall — clicking a row swaps the wall's 15 records to the
+// selected snapshot (or back to the live wall via the "현재
+// 마이딕 보기" entry up top). Active row is amber; inactive rows
+// are near-black ink on the painted wall backdrop.
 //
-// Fonts: Shadows Into Light (Latin) + Gamja Flower (Korean).
-// Both are thin pen-stroke styles; Shadows Into Light is less
-// "explicitly handwritten" than the previous Homemade Apple
-// while still reading as a pen — a better match for Gamja
-// Flower's restraint on the Korean side.
+// Fonts: Shadows Into Light (Latin) + Gamja Flower (Korean). Both
+// restrained pen strokes that mix without one side feeling
+// louder. Rows stay upright — the earlier per-row rotation read
+// as forced once the fonts were already handwritten.
 //
-// Rows sit upright (per-row rotation was read as forced), the
-// list anchors near the top (about 10% down from the column's
-// top edge so it visually ties to where the wall title lives
-// across the page), and the "다른 기록들:" heading is larger +
-// slightly indented from the rows below it.
+// Owner sees private snapshots with a "(비공개)" suffix; visitors
+// never see private rows because the list endpoint filters them
+// server-side.
 
 const FONT_STACK =
   "'Shadows Into Light', 'Gamja Flower', 'Nanum Pen Script', cursive";
 
 export default function GraffitiSnapshotList({
-  username,
   snapshots,
   isOwner,
+  activeSlug,
+  onSelect,
+  onClear,
 }: {
   username: string;
   snapshots: VinylWallSnapshotSummary[];
   isOwner: boolean;
+  activeSlug: string | null;
+  onSelect: (slug: string) => void;
+  onClear: () => void;
 }) {
-  // Heading — larger than the rows so the column reads clearly
-  // as a labelled section, with a small indent so rows below it
-  // hang at a wall-graffiti "list under a label" rhythm.
   const heading = (
     <div
       className="mb-3 text-[22px] leading-none text-[#1a1208]"
@@ -43,24 +41,49 @@ export default function GraffitiSnapshotList({
     </div>
   );
 
-  // Column positioning: pt-[7%] lands the start near "10% from
-  // the top" without needing to measure the wall's actual
-  // height (pt-% is % of parent WIDTH in CSS but the column is
-  // ~280px wide and the wall is ~500-600px tall, so 7% of 280
-  // ≈ 20px which sits just below the top edge — same general
-  // vibe the user was after). Rows themselves get a small
-  // left indent so they hang under the heading rather than
-  // sharing its x.
+  // Column positioning: pt-10 anchors the start near "10% from
+  // the top of the wall row" without measuring the wall height —
+  // the heading + a short list sit high on the painted column
+  // where a graffito would naturally live.
   const outer = 'px-2 pt-10 flex flex-col gap-2';
+
+  // First entry is always "현재 마이딕 보기" — click resets the
+  // URL to the live wall. Active when no snapshot is picked
+  // (activeSlug === null). Rendered slightly larger than the
+  // other rows so it reads as a distinct baseline, not "just
+  // another snapshot title".
+  const liveRow = (
+    <button
+      type="button"
+      onClick={onClear}
+      disabled={activeSlug === null}
+      className="group inline-block origin-left text-left"
+    >
+      <span className="inline-block origin-left transition-transform duration-200 group-hover:scale-[1.05]">
+        <span
+          className={`text-[20px] leading-[1.15] transition-colors duration-200 ${
+            activeSlug === null
+              ? 'text-[#e8a020]'
+              : 'text-[#1a1208] group-hover:text-[#e8a020]'
+          }`}
+        >
+          현재 마이딕 보기
+        </span>
+      </span>
+    </button>
+  );
 
   if (snapshots.length === 0) {
     return (
       <div className={outer} style={{ fontFamily: FONT_STACK }}>
         {heading}
-        <div className="text-[15px] leading-relaxed text-[#5a4838] pl-3">
-          {isOwner
-            ? '아직 없어요. 📸 버튼으로 남겨보세요.'
-            : '아직 없어요.'}
+        <div className="flex flex-col gap-1.5 pl-3">
+          {liveRow}
+          <div className="text-[14px] leading-relaxed text-[#5a4838]">
+            {isOwner
+              ? '아직 스냅샷이 없어요. 📸 버튼으로 남겨보세요.'
+              : '아직 스냅샷이 없어요.'}
+          </div>
         </div>
       </div>
     );
@@ -74,25 +97,41 @@ export default function GraffitiSnapshotList({
     >
       {heading}
       <div className="flex flex-col gap-1.5 pl-3">
+        {liveRow}
         {snapshots.map((snap) => {
           const labelSuffix = isOwner && !snap.isPublic ? ' (비공개)' : '';
+          const isActive = activeSlug === snap.slug;
           return (
-            <Link
+            <button
+              type="button"
               key={snap.id}
-              to={`/my/${encodeURIComponent(username)}/snap/${encodeURIComponent(snap.slug)}`}
-              className="group inline-block origin-left"
+              onClick={() => onSelect(snap.slug)}
+              disabled={isActive}
+              className="group inline-block origin-left text-left"
             >
               <span className="inline-block origin-left transition-transform duration-200 group-hover:scale-[1.05]">
-                <span className="text-[20px] leading-[1.15] text-[#1a1208] group-hover:text-[#e8a020] transition-colors duration-200">
+                <span
+                  className={`text-[18px] leading-[1.15] transition-colors duration-200 ${
+                    isActive
+                      ? 'text-[#e8a020]'
+                      : 'text-[#1a1208] group-hover:text-[#e8a020]'
+                  }`}
+                >
                   {snap.name}
                 </span>
                 {labelSuffix && (
-                  <span className="text-[15px] ml-1.5 text-[#5a4838] group-hover:text-[#8a6848] transition-colors duration-200">
+                  <span
+                    className={`text-[14px] ml-1.5 transition-colors duration-200 ${
+                      isActive
+                        ? 'text-[#c9a060]'
+                        : 'text-[#5a4838] group-hover:text-[#8a6848]'
+                    }`}
+                  >
                     {labelSuffix}
                   </span>
                 )}
               </span>
-            </Link>
+            </button>
           );
         })}
       </div>
