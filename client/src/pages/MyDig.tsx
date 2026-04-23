@@ -80,7 +80,7 @@ export default function MyDig() {
     // brightness/saturate filter) shows through behind the page
     // content. See App.tsx for the backdrop layer.
     <div className="flex-1">
-      <main className="max-w-[1320px] mr-auto ml-0 px-4 pt-4 pb-8 space-y-1">
+      <main className="max-w-[1280px] mx-auto px-4 pt-4 pb-8 space-y-1">
         <ProfileHeader
           userId={data.user.id ?? null}
           username={data.user.username}
