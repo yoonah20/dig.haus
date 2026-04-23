@@ -303,50 +303,21 @@ export function VinylDisc({ size }: { size: number }) {
       {/* Disc body */}
       <circle cx="50" cy="50" r="50" fill="url(#vinylBase)" />
 
-      {/* Groove rings — hand-tuned non-uniform radii so the
-          surface reads as real spiral grooves catching light,
-          not a regular grid. Real vinyl grooves have clusters
-          (tight bands of louder passages) separated by slightly
-          wider gaps; the sequence below approximates that
-          rhythm by alternating close pairs / triples with
-          larger jumps. Light rings (+width/+brightness) land at
-          band boundaries where the naked eye would pick up a
-          brighter edge; dim rings fill inside the bands. */}
-      {[
-        { r: 16.4, bright: true },
-        { r: 17.0, bright: false },
-        { r: 17.7, bright: false },
-        { r: 18.6, bright: true },
-        { r: 20.3, bright: true },
-        { r: 21.0, bright: false },
-        { r: 22.5, bright: true },
-        { r: 23.1, bright: false },
-        { r: 23.8, bright: false },
-        { r: 25.7, bright: true },
-        { r: 27.4, bright: true },
-        { r: 28.3, bright: false },
-        { r: 30.6, bright: true },
-        { r: 32.5, bright: true },
-        { r: 33.2, bright: false },
-        { r: 35.1, bright: true },
-        { r: 36.9, bright: true },
-        { r: 37.6, bright: false },
-        { r: 38.3, bright: false },
-        { r: 40.8, bright: true },
-        { r: 42.6, bright: true },
-        { r: 43.4, bright: false },
-        { r: 45.9, bright: true },
-        { r: 47.5, bright: true },
-        { r: 48.2, bright: false },
-      ].map(({ r, bright }) => (
+      {/* Groove rings — only 5 visible from label to rim, which is
+          how many an eye actually picks out of a real LP at this
+          size. Radii are non-uniformly spaced (4.6 → 7.5 delta
+          across the set) so the rings don't feel like a ruled
+          grid; the specular highlight above picks some of them up
+          more than others to finish the "real vinyl" feel. */}
+      {[18.2, 24.0, 31.5, 39.0, 46.8].map((r) => (
         <circle
           key={r}
           cx="50"
           cy="50"
           r={r}
           fill="none"
-          stroke={bright ? '#1f1f1f' : '#0d0d0d'}
-          strokeWidth={bright ? 0.4 : 0.22}
+          stroke="#1b1b1b"
+          strokeWidth="0.32"
         />
       ))}
 
