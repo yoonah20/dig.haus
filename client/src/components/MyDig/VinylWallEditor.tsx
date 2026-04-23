@@ -360,13 +360,11 @@ function EditWallSlot({
   const [dragOver, setDragOver] = useState(false);
   const slotRef = useRef<HTMLDivElement>(null);
 
-  // Native dragstart listener. React's synthetic onDragStart wasn't
-  // firing in the user's environment — dragover/drop/dragend all
-  // dispatched fine, but dragstart never reached the React handler,
-  // so our setData() calls never ran and drop received empty
-  // dataTransfer. Binding through addEventListener bypasses the
-  // synthetic event system and reliably fires when the browser
-  // initiates the drag.
+  // Native dragstart listener. React's synthetic onDragStart
+  // doesn't fire reliably here (confirmed via tracing) — binding
+  // through addEventListener bypasses the synthetic event system
+  // and fires when the browser initiates the drag. Other drag
+  // phases (over, leave, drop, end) stay on React handlers.
   useEffect(() => {
     const el = slotRef.current;
     if (!el || !album) return;
@@ -379,13 +377,9 @@ function EditWallSlot({
         _sourcePosition: position,
       });
       e.dataTransfer.setData('application/x-mydig-album', payload);
+      // text/plain fallback — some browsers refuse to enter the
+      // drop phase unless a standard type is present.
       e.dataTransfer.setData('text/plain', payload);
-      // eslint-disable-next-line no-console
-      console.log('[dnd] NATIVE dragstart slot', position, {
-        albumId: album.id,
-        payloadLen: payload.length,
-        typesAfterSetData: Array.from(e.dataTransfer.types),
-      });
     };
     el.addEventListener('dragstart', handler);
     return () => el.removeEventListener('dragstart', handler);
@@ -396,19 +390,9 @@ function EditWallSlot({
     e.preventDefault();
     // Match dropEffect to the source's effectAllowed. A copy-from-
     // candidate (source = -1) must show dropEffect='copy' or the
-    // browser rejects the drop outright and onDrop never fires —
-    // the primary reason drag-from-right-to-left appeared broken.
+    // browser rejects the drop outright and onDrop never fires.
     // Slot-to-slot drags are semantically moves.
     e.dataTransfer.dropEffect = dragSource.current === -1 ? 'copy' : 'move';
-    if (!dragOver) {
-      // Log only once per slot per drag to avoid dragover spam.
-      // eslint-disable-next-line no-console
-      console.log('[dnd] dragover enter slot', position, {
-        dragSource: dragSource.current,
-        dropEffect: e.dataTransfer.dropEffect,
-        types: Array.from(e.dataTransfer.types),
-      });
-    }
     setDragOver(true);
   };
 
@@ -417,47 +401,27 @@ function EditWallSlot({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const customData = e.dataTransfer.getData('application/x-mydig-album');
-    const textData = e.dataTransfer.getData('text/plain');
-    // eslint-disable-next-line no-console
-    console.log('[dnd] drop on slot', position, {
-      types: Array.from(e.dataTransfer.types),
-      customLen: customData.length,
-      textLen: textData.length,
-      customPreview: customData.slice(0, 60),
-      textPreview: textData.slice(0, 60),
-      dragSourceAtDrop: dragSource.current,
-    });
-    const data = customData || textData;
+    const data =
+      e.dataTransfer.getData('application/x-mydig-album') ||
+      e.dataTransfer.getData('text/plain');
     if (!data) {
-      // eslint-disable-next-line no-console
-      console.warn('[dnd] drop: no payload — early return');
       dragSource.current = null;
       return;
     }
     try {
       const payload = JSON.parse(data) as MyDigAlbum & { _sourcePosition?: number };
       if (typeof payload._sourcePosition === 'number') {
-        // eslint-disable-next-line no-console
-        console.log('[dnd] → swap', payload._sourcePosition, '↔', position);
         onSwap(payload._sourcePosition, position);
       } else {
-        // eslint-disable-next-line no-console
-        console.log('[dnd] → place', payload.id, 'at', position);
         onDropAlbum(payload);
       }
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[dnd] parse failure', err, { rawLen: data.length });
+    } catch {
+      /* malformed payload; ignore */
     }
     dragSource.current = null;
   };
 
-  const handleDragEnd = (e: React.DragEvent) => {
-    // eslint-disable-next-line no-console
-    console.log('[dnd] dragend slot', position, {
-      dropEffect: e.dataTransfer.dropEffect,
-    });
+  const handleDragEnd = () => {
     dragSource.current = null;
   };
 
@@ -632,8 +596,7 @@ function CandidateRow({
 }) {
   const rowRef = useRef<HTMLDivElement>(null);
 
-  // Same native dragstart workaround as EditWallSlot — React's
-  // synthetic onDragStart wasn't firing for either drag source.
+  // Same native dragstart workaround as EditWallSlot.
   useEffect(() => {
     const el = rowRef.current;
     if (!el) return;
@@ -644,21 +607,12 @@ function CandidateRow({
       const payload = JSON.stringify(candidateToAlbum(album));
       e.dataTransfer.setData('application/x-mydig-album', payload);
       e.dataTransfer.setData('text/plain', payload);
-      // eslint-disable-next-line no-console
-      console.log('[dnd] NATIVE dragstart candidate', album.id, {
-        payloadLen: payload.length,
-        typesAfterSetData: Array.from(e.dataTransfer.types),
-      });
     };
     el.addEventListener('dragstart', handler);
     return () => el.removeEventListener('dragstart', handler);
   }, [album, dragSource]);
 
-  const handleDragEnd = (e: React.DragEvent) => {
-    // eslint-disable-next-line no-console
-    console.log('[dnd] dragend candidate', album.id, {
-      dropEffect: e.dataTransfer.dropEffect,
-    });
+  const handleDragEnd = () => {
     dragSource.current = null;
   };
 
