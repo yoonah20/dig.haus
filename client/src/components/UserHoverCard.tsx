@@ -199,10 +199,10 @@ export default function UserHoverCard({
                       <path d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
                     </svg>
                     {data.mydig.wallItemCount === 0 ? (
-                      <span className="truncate italic">mydig · 아직 공사 중</span>
+                      <span className="truncate italic">아직 공사 중</span>
                     ) : (
                       <span className="truncate">
-                        mydig: {data.mydig.theme || 'my dig'}
+                        {data.mydig.theme || 'my dig'}
                       </span>
                     )}
                   </Link>
@@ -235,57 +235,39 @@ export default function UserHoverCard({
                   </a>
                 )}
 
-                <div className="pt-1.5 border-t border-white/5 tabular-nums space-y-0.5">
-                  {/* Vote + 50자 평 counts merged into one row — 💬
-                      lands at the end so the three metrics read as a
-                      single breath. flex-wrap handles the case where
-                      both percentages + a big review count push past
-                      the 192px right-column budget on ultra-wide
-                      names; each span stays intact and wraps to the
-                      next line rather than splitting mid-count. */}
-                  <div className="flex items-center gap-x-3 gap-y-0.5 flex-wrap">
-                    <span>
-                      👍{' '}
-                      <span className="text-[#e8a020] font-semibold">
-                        {data.stats.upvoteCount}
+                {/* Collection + comment counts. 굿굿/별루 counts were
+                    pulled out because they already appear on every
+                    comment card the user lands on before the popover
+                    ever opens — duplicating them here pushed the row
+                    onto two lines. 💿 / 🎯 stay conditional (hidden
+                    when zero — nobody reads "0장 샀음" as a stat),
+                    💬 always shows since reviews are how most users
+                    actually participate even with no collection. */}
+                <div className="pt-1.5 border-t border-white/5 tabular-nums">
+                  <div className="flex items-center gap-3">
+                    {(data.stats.ownedCount ?? 0) > 0 && (
+                      <span>
+                        <span aria-hidden>💿</span>{' '}
+                        <span className="text-gray-100 font-semibold">
+                          {data.stats.ownedCount}
+                        </span>
                       </span>
-                      {data.stats.upvotePct != null && (
-                        <span className="text-gray-500"> ({data.stats.upvotePct}%)</span>
-                      )}
-                    </span>
-                    <span>
-                      👎{' '}
-                      <span className="text-gray-200 font-semibold">
-                        {data.stats.downvoteCount}
+                    )}
+                    {(data.stats.wantedCount ?? 0) > 0 && (
+                      <span>
+                        <span aria-hidden>🎯</span>{' '}
+                        <span className="text-gray-200 font-semibold">
+                          {data.stats.wantedCount}
+                        </span>
                       </span>
-                      {data.stats.downvotePct != null && (
-                        <span className="text-gray-500"> ({data.stats.downvotePct}%)</span>
-                      )}
-                    </span>
+                    )}
                     <span>
-                      💬{' '}
+                      <span aria-hidden>💬</span>{' '}
                       <span className="text-gray-100 font-semibold">
                         {data.stats.reviewCount}
                       </span>
                     </span>
                   </div>
-                  {((data.stats.ownedCount ?? 0) > 0 ||
-                    (data.stats.wantedCount ?? 0) > 0) && (
-                    <div className="flex items-center gap-3">
-                      <span>
-                        <span aria-hidden>💿</span>{' '}
-                        <span className="text-gray-100 font-semibold">
-                          {data.stats.ownedCount ?? 0}
-                        </span>
-                      </span>
-                      <span>
-                        <span aria-hidden>🎯</span>{' '}
-                        <span className="text-gray-200 font-semibold">
-                          {data.stats.wantedCount ?? 0}
-                        </span>
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
