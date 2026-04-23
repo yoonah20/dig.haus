@@ -57,12 +57,25 @@ export function useFollowMutation() {
     { prev: any }
   >({
     mutationFn: async ({ userId, follow }) => {
-      if (follow) {
-        const { data } = await axios.post(`/api/users/${userId}/follow`);
+      try {
+        if (follow) {
+          const { data } = await axios.post(`/api/users/${userId}/follow`);
+          return data;
+        }
+        const { data } = await axios.delete(`/api/users/${userId}/follow`);
         return data;
+      } catch (err: any) {
+        // Surface the server error so users see "please log in"
+        // etc. rather than a silent optimistic rollback that
+        // looks like the click did nothing.
+        const msg =
+          err?.response?.data?.error ??
+          err?.response?.statusText ??
+          err?.message ??
+          '알 수 없는 오류';
+        console.error('[follow] mutation failed:', err?.response?.status, msg);
+        throw err;
       }
-      const { data } = await axios.delete(`/api/users/${userId}/follow`);
-      return data;
     },
     onMutate: async ({ userId, follow }) => {
       await qc.cancelQueries({ queryKey: ['user-public', userId] });
@@ -84,10 +97,16 @@ export function useFollowMutation() {
       });
       return { prev };
     },
-    onError: (_err, { userId }, ctx) => {
+    onError: (err: any, { userId }, ctx) => {
       if (ctx?.prev !== undefined) {
         qc.setQueryData(['user-public', userId], ctx.prev);
       }
+      const msg =
+        err?.response?.data?.error ??
+        err?.response?.statusText ??
+        err?.message ??
+        '알 수 없는 오류';
+      alert(`팔로우 실패: ${msg}`);
     },
     onSettled: (_data, _err, { userId }) => {
       qc.invalidateQueries({ queryKey: ['user-public', userId] });

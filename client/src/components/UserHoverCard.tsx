@@ -343,6 +343,17 @@ export default function UserHoverCard({
                     actually participate even with no collection. */}
                 <div className="pt-1.5 border-t border-white/5 tabular-nums">
                   <div className="flex items-center gap-3">
+                    {/* Followers lead — the social metric is the
+                        most-immediately-actionable read for a
+                        hover-card, so it sits first. Always
+                        renders (even 0) so the row anchors on the
+                        same metric regardless of activity level. */}
+                    <span>
+                      <span aria-hidden>👥</span>{' '}
+                      <span className="text-gray-100 font-semibold">
+                        {data.stats.followerCount ?? 0}
+                      </span>
+                    </span>
                     {(data.stats.ownedCount ?? 0) > 0 && (
                       <span>
                         <span aria-hidden>💿</span>{' '}
@@ -365,14 +376,6 @@ export default function UserHoverCard({
                         {data.stats.reviewCount}
                       </span>
                     </span>
-                    {(data.stats.followerCount ?? 0) > 0 && (
-                      <span>
-                        <span aria-hidden>👥</span>{' '}
-                        <span className="text-gray-100 font-semibold">
-                          {data.stats.followerCount}
-                        </span>
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
