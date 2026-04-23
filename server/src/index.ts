@@ -27,6 +27,7 @@ import adminRouter from './routes/admin.js';
 import labelFeedRouter from './routes/labelFeed.js';
 import reviewsRouter from './routes/reviews.js';
 import mydigRouter from './routes/mydig.js';
+import homeRouter from './routes/home.js';
 import coverRouter from './routes/cover.js';
 import customCoversRouter from './routes/customCovers.js';
 import sitemapRouter from './routes/sitemap.js';
@@ -122,6 +123,7 @@ async function start() {
   app.use('/api/admin', labelFeedRouter);
   app.use('/api/reviews', reviewsRouter);
   app.use('/api', mydigRouter);
+  app.use('/api', homeRouter);
   app.use('/api/cover', coverRouter);
   app.use('/api/custom-covers', customCoversRouter);
   app.use(sitemapRouter);
