@@ -201,7 +201,7 @@ export default function MyDig() {
       {/* pb-24 reserves space under the wall so the last row
           clears the fixed `pinned` SiteFooter overlay when the
           page scrolls. */}
-      <main className="max-w-[1280px] mx-auto px-4 pt-4 pb-24 space-y-1">
+      <main className="max-w-[1280px] mx-auto px-4 pt-7 pb-24 space-y-1">
         {/* Mobile header: lives above the wall in horizontal
             layout. Hidden on md+ since the desktop variant lives
             inside the right sidebar below. */}
@@ -539,20 +539,46 @@ function ProfileHeader({
   // so they're gone; anyone who wants that surface lands on
   // /profile where it's the primary content.
   if (vertical) {
+    // Signature line becomes the hover target for UserHoverCard
+    // so the page owner's identity surface (avatar, join date,
+    // collection stats, vote counts) is reachable even though the
+    // dedicated person card is gone. Userless fallback stays as
+    // plain text.
+    const signatureText = `${displayLabel}의`;
+    const signatureNode =
+      userId != null ? (
+        <UserHoverCard userId={userId}>
+          <span className="inline-block cursor-help hover:text-[#1a1208] transition-colors">
+            {signatureText}
+          </span>
+        </UserHoverCard>
+      ) : (
+        <span>{signatureText}</span>
+      );
+
     return (
-      <div className="flex flex-col gap-3 min-w-0">
+      <div className="flex flex-col gap-3 min-w-0 pt-4">
+        {/* Actions row — top of sidebar, right-aligned. Keeps the
+            interactive controls out of the handwritten block so
+            they don't compete with the signature below. Non-owner
+            viewers get [팔로우 공유]; owner viewers get
+            [편집 · 기억/삭제 · 공유]. */}
+        <div className="flex items-center gap-2 flex-wrap justify-end px-1">
+          {renderActions()}
+        </div>
+
         {/* Wall signature + info — handwritten register. The
             "{displayName}의" line reads as the wall's signed
             author; the theme follows as the main heading, then
-            the description. All the same script so the block
-            reads as one piece of graffiti the wall's owner wrote
-            on the backdrop. */}
+            the description. Hover on the signature opens
+            UserHoverCard so the nav-bar identity is still
+            accessible without a dedicated person card here. */}
         <div
           className="flex flex-col gap-1.5 px-2"
           style={{ fontFamily: GRAFFITI_FONT_STACK }}
         >
           <div className="text-[18px] text-[#3a2818] leading-tight">
-            {displayLabel}의
+            {signatureNode}
           </div>
           <div
             className={`text-[26px] leading-[1.15] ${
@@ -573,17 +599,17 @@ function ProfileHeader({
           ) : null}
           {mode === 'snapshot' && snapshotMeta && (
             <div
-              className="flex items-center gap-2 flex-wrap text-[11px] pt-1"
+              className="flex items-center gap-2 flex-wrap text-[11px] pt-1 font-semibold"
               style={{ fontFamily: 'sans-serif' }}
             >
-              <span className="uppercase tracking-[0.22em] text-[#5a4838]">
+              <span className="uppercase tracking-[0.22em] text-[#1a1208]">
                 {formatKoreanMemoryDate(snapshotMeta.createdAt)}
               </span>
               <span
                 className={
                   snapshotMeta.isPublic
-                    ? 'uppercase tracking-[0.22em] text-[#8a6838]'
-                    : 'uppercase tracking-[0.22em] text-[#7a5838]'
+                    ? 'uppercase tracking-[0.22em] text-[#6a3a10]'
+                    : 'uppercase tracking-[0.22em] text-[#4a2810]'
                 }
               >
                 · {snapshotMeta.isPublic ? 'public' : 'private'}
@@ -591,14 +617,6 @@ function ProfileHeader({
             </div>
           )}
         </div>
-
-        {/* Actions sit below the signature block, drop back to
-            sans-serif so "edit" / "snapshot" / "share" read as
-            interactive controls rather than more scribble. */}
-        <div className="flex items-center gap-2 flex-wrap px-2 pt-2">
-          {renderActions()}
-        </div>
-
       </div>
     );
   }
