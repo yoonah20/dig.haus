@@ -574,14 +574,14 @@ function ProfileHeader({
             UserHoverCard so the nav-bar identity is still
             accessible without a dedicated person card here. */}
         <div
-          className="flex flex-col gap-1.5 px-2"
+          className="flex flex-col gap-1.5 px-2 font-bold"
           style={{ fontFamily: GRAFFITI_FONT_STACK }}
         >
-          <div className="text-[18px] text-[#3a2818] leading-tight">
+          <div className="text-[20px] text-[#3a2818] leading-tight">
             {signatureNode}
           </div>
           <div
-            className={`text-[26px] leading-[1.15] ${
+            className={`text-[30px] leading-[1.15] ${
               themePlaceholder ? 'text-[#5a4838]' : 'text-[#1a1208]'
             }`}
             title={displayThemeText}
@@ -589,11 +589,11 @@ function ProfileHeader({
             {displayThemeText}
           </div>
           {wallDescription ? (
-            <div className="text-[16px] text-[#3a2818] leading-relaxed pt-1">
+            <div className="text-[18px] text-[#3a2818] leading-relaxed pt-1">
               {wallDescription}
             </div>
           ) : mode === 'live' && isOwner ? (
-            <div className="text-[14px] text-[#5a4838] italic pt-1">
+            <div className="text-[15px] text-[#5a4838] italic pt-1 font-normal">
               ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
             </div>
           ) : null}

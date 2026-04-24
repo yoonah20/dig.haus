@@ -19,8 +19,15 @@ import type { VinylWallSnapshotSummary } from '../../hooks/useMyDig';
 // description, action chips) can sit in the same handwritten
 // register and visually read as "also written on the wall",
 // matching the graffiti snapshot list below.
+//
+// Poor Story leads — a casual Korean handwritten face with less
+// childlike roundness than Gamja Flower and more stroke weight
+// than Nanum Pen Script, so it holds up against the painted-wall
+// backdrop while still reading as personal writing. Previous
+// stack kept as fallback for Latin / number glyphs Poor Story
+// doesn't cover.
 export const GRAFFITI_FONT_STACK =
-  "'Shadows Into Light', 'Gamja Flower', 'Nanum Pen Script', cursive";
+  "'Poor Story', 'Shadows Into Light', 'Gamja Flower', 'Nanum Pen Script', cursive";
 const FONT_STACK = GRAFFITI_FONT_STACK;
 
 export default function GraffitiSnapshotList({
@@ -49,7 +56,7 @@ export default function GraffitiSnapshotList({
       className="group inline-block origin-left text-left mb-4"
     >
       <span className="inline-block origin-left transition-transform duration-200 group-hover:scale-[1.05]">
-        <span className="text-[20px] leading-[1.15] text-[#1a1208] group-hover:text-[#e8a020] transition-colors duration-200">
+        <span className="text-[22px] font-bold leading-[1.15] text-[#1a1208] group-hover:text-[#e8a020] transition-colors duration-200">
           ← 현재 마이딕으로…
         </span>
       </span>
@@ -58,7 +65,7 @@ export default function GraffitiSnapshotList({
 
   const heading = (
     <div
-      className="mb-3 text-[22px] leading-none text-[#1a1208]"
+      className="mb-3 text-[24px] font-bold leading-none text-[#1a1208]"
       style={{ fontFamily: FONT_STACK }}
     >
       다른 기억들:
@@ -78,7 +85,7 @@ export default function GraffitiSnapshotList({
         {backToLiveRow}
         {heading}
         <div className="flex flex-col gap-1.5 pl-3">
-          <div className="text-[17px] leading-relaxed text-[#5a4838]">
+          <div className="text-[18px] font-bold leading-relaxed text-[#5a4838]">
             {isOwner
               ? '아직 기억하지 않았어요. 📸 버튼으로 남겨보세요.'
               : '아직 기억하지 않았어요.'}
@@ -110,7 +117,7 @@ export default function GraffitiSnapshotList({
             >
               <span className="inline-block origin-left transition-transform duration-200 group-hover:scale-[1.05]">
                 <span
-                  className={`text-[18px] leading-[1.15] transition-colors duration-200 ${
+                  className={`text-[20px] font-bold leading-[1.15] transition-colors duration-200 ${
                     isActive
                       ? 'text-[#e8a020]'
                       : 'text-[#1a1208] group-hover:text-[#e8a020]'
@@ -120,7 +127,7 @@ export default function GraffitiSnapshotList({
                 </span>
                 {labelSuffix && (
                   <span
-                    className={`text-[14px] ml-1.5 transition-colors duration-200 ${
+                    className={`text-[15px] font-bold ml-1.5 transition-colors duration-200 ${
                       isActive
                         ? 'text-[#c9a060]'
                         : 'text-[#5a4838] group-hover:text-[#8a6848]'
