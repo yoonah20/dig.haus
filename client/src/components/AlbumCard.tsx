@@ -577,7 +577,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               spotifyUrl={album.spotifyUrl ?? null}
               title={album.title}
               artist={album.artist}
-              size={32}
+              size={26}
               alwaysVisible
             />
           </div>

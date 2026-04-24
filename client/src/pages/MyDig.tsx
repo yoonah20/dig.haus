@@ -1111,7 +1111,7 @@ function WallCell({
               spotifyUrl={spotifyUrl}
               title={album.title}
               artist={album.artist}
-              size={Math.round(lpSize * 0.26)}
+              size={Math.round(lpSize * 0.208)}
               alwaysVisible={isActive}
             />
           )}
@@ -1317,7 +1317,7 @@ function WallCell({
             spotifyUrl={spotifyUrl}
             title={album.title}
             artist={album.artist}
-            size={Math.round(lpSize * 0.26)}
+            size={Math.round(lpSize * 0.208)}
           />
         )}
       </div>

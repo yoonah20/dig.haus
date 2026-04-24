@@ -38,7 +38,8 @@ interface PlayChipProps {
   spotifyUrl: string | null | undefined;
   title: string;
   artist: string;
-  /** Visual diameter in px. Default 36 suits ~150–250px covers. */
+  /** Visual diameter in px. Default 29 (≈80% of the previous 36)
+   *  suits ~150–250px covers at a less-dominant footprint. */
   size?: number;
   /** When true, chip is always visible (no hover gate). Used when
    *  the parent handles visibility itself — e.g. AlbumCard's back
@@ -62,7 +63,7 @@ export default function PlayChip({
   spotifyUrl,
   title,
   artist,
-  size = 36,
+  size = 29,
   alwaysVisible = false,
   hoverGroup = 'group-hover',
   className = '',
@@ -110,7 +111,7 @@ export default function PlayChip({
         bottom: '6%',
         ...style,
       }}
-      className={`absolute z-20 rounded-full bg-white/90 border border-white/60 text-[#141008] flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.45)] hover:bg-white transition-opacity duration-200 cursor-pointer ${visibility} ${className}`}
+      className={`absolute z-20 rounded-full bg-[#141008]/85 border-2 border-[#e8a020] text-[#e8a020] hover:bg-[#e8a020] hover:text-[#141008] flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.55)] transition-all duration-200 cursor-pointer ${visibility} ${className}`}
     >
       {isPlaying ? (
         <svg

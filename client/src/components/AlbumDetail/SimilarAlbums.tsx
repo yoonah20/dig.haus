@@ -278,7 +278,7 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
             spotifyUrl={album.spotifyUrl}
             title={album.title}
             artist={album.artist}
-            size={32}
+            size={26}
             hoverGroup="group-hover/card"
           />
         </div>

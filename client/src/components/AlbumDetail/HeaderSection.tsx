@@ -696,7 +696,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             spotifyUrl={streaming.spotify}
             title={album.title}
             artist={album.artist}
-            size={44}
+            size={35}
             hoverGroup="group-hover/cover"
           />
           {user?.isAdmin && !editingCover && (
