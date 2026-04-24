@@ -15,8 +15,13 @@ import type { VinylWallSnapshotSummary } from '../../hooks/useMyDig';
 // never see private rows because the list endpoint filters them
 // server-side.
 
-const FONT_STACK =
+// Exported so other mydig sidebar elements (wall theme,
+// description, action chips) can sit in the same handwritten
+// register and visually read as "also written on the wall",
+// matching the graffiti snapshot list below.
+export const GRAFFITI_FONT_STACK =
   "'Shadows Into Light', 'Gamja Flower', 'Nanum Pen Script', cursive";
+const FONT_STACK = GRAFFITI_FONT_STACK;
 
 export default function GraffitiSnapshotList({
   snapshots,

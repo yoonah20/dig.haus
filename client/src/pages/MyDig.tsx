@@ -13,7 +13,9 @@ import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
-import GraffitiSnapshotList from '../components/MyDig/GraffitiSnapshotList';
+import GraffitiSnapshotList, {
+  GRAFFITI_FONT_STACK,
+} from '../components/MyDig/GraffitiSnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
 import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
@@ -452,11 +454,6 @@ function ProfileHeader({
   const publicUser = publicData.data?.user;
   const followerCount = publicStats?.followerCount ?? 0;
   const followingCount = publicStats?.followingCount ?? 0;
-  const ownedCount = publicStats?.ownedCount ?? 0;
-  const wantedCount = publicStats?.wantedCount ?? 0;
-  const reviewCount = publicStats?.reviewCount ?? 0;
-  const upvoteCount = publicStats?.upvoteCount ?? 0;
-  const downvoteCount = publicStats?.downvoteCount ?? 0;
   const viewerIsFollowing = !!publicData.data?.followingByViewer;
   const [followListOpen, setFollowListOpen] = useState<
     'followers' | 'following' | null
@@ -592,207 +589,137 @@ function ProfileHeader({
     </div>
   );
 
-  // Vertical sidebar layout — split into two separate cards so
-  // the semantic units don't blur:
-  //   1. Person card: identity (avatar, handles, join date, stats
-  //      that describe the user — owned, wanted, reviews, votes).
-  //   2. Wall card: the current mydig wall's theme, description,
-  //      snapshot meta, and owner actions (edit / save snapshot /
-  //      share).
-  // The previous single-card treatment stuffed the wall title next
-  // to the avatar, which read as "this wall IS the user", eliding
-  // the distinction between a user and one of their snapshots.
+  // Vertical sidebar layout — two visually-distinct regions:
+  //   1. Person card: tight landscape row (avatar left, identity
+  //      + follow controls right). Matches UserHoverCard's shape
+  //      so the sidebar reads as a persistent "who am I looking
+  //      at" header.
+  //   2. Wall info + graffiti snapshots: rendered DIRECTLY on the
+  //      backdrop — no card frame — in the handwritten script
+  //      that GraffitiSnapshotList established. A separate
+  //      rounded card next to the "written on the wall" graffiti
+  //      read as two different visual registers fighting each
+  //      other; dropping the frame so the wall metadata sits in
+  //      the same register fixes that.
   if (vertical) {
     const joinedLabel = formatJoinedMonth(publicUser?.createdAt ?? null);
-    const instagramHandle = publicUser?.instagramHandle ?? null;
-    // Share button lives in the wall card; edit / snapshot
-    // actions are owner-only. Follow button moves to the person
-    // card alongside the identity stats.
     return (
-      <div className="flex flex-col gap-4 min-w-0">
-        {/* ─── Person card ───────────────────────────────── */}
-        <div className="rounded-2xl p-5 border border-white/5 bg-[#120c05]/55 backdrop-blur-[2px] flex flex-col gap-3 min-w-0">
-          <div className="flex flex-col items-center gap-2">
-            <div className="relative">
-              {userId != null ? (
-                <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
-              ) : (
-                avatarEl
+      <div className="flex flex-col gap-5 min-w-0">
+        {/* ─── Person card (landscape, compact) ──────────── */}
+        <div className="rounded-2xl p-4 border border-white/5 bg-[#120c05]/55 backdrop-blur-[2px] flex items-start gap-3 min-w-0">
+          <div className="relative shrink-0">
+            {userId != null ? (
+              <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
+            ) : (
+              avatarEl
+            )}
+            <span
+              aria-hidden
+              className="absolute -top-1 -left-2 text-[10px] font-semibold text-[#141008] bg-[#e8a020] px-1.5 py-[1px] rounded-[3px] shadow-sm pointer-events-none select-none"
+              style={{ transform: 'rotate(-4deg)' }}
+            >
+              @{username}
+            </span>
+          </div>
+          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[14px] font-medium text-[#f5e8c8] truncate">
+                  {displayLabel}
+                </div>
+                {joinedLabel && (
+                  <div className="text-[10px] text-gray-500">
+                    가입 {joinedLabel}
+                  </div>
+                )}
+              </div>
+              {!isOwner && userId != null && (
+                <FollowButton
+                  targetUserId={userId}
+                  following={viewerIsFollowing}
+                  size="sm"
+                />
               )}
-              <span
-                aria-hidden
-                className="absolute -top-1 -left-2 text-[10px] font-semibold text-[#141008] bg-[#e8a020] px-1.5 py-[1px] rounded-[3px] shadow-sm pointer-events-none select-none"
-                style={{ transform: 'rotate(-4deg)' }}
-              >
-                @{username}
-              </span>
             </div>
-            <div className="text-[14px] font-medium text-[#f5e8c8] text-center break-words max-w-full">
-              {displayLabel}
-            </div>
-            {joinedLabel && (
-              <div className="text-[10px] text-gray-500">
-                가입 {joinedLabel}
+            {userId != null && (
+              <div className="flex items-center gap-2 text-[12px]">
+                <button
+                  type="button"
+                  onClick={() => setFollowListOpen('followers')}
+                  className="px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  <span className="text-[#f5d89a] font-semibold">
+                    {followerCount.toLocaleString()}
+                  </span>
+                  <span className="text-gray-500 ml-1">팔로워</span>
+                </button>
+                <span className="text-gray-700">·</span>
+                <button
+                  type="button"
+                  onClick={() => setFollowListOpen('following')}
+                  className="px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer"
+                >
+                  <span className="text-[#f5d89a] font-semibold">
+                    {followingCount.toLocaleString()}
+                  </span>
+                  <span className="text-gray-500 ml-1">팔로잉</span>
+                </button>
               </div>
             )}
           </div>
-
-          {instagramHandle && (
-            <a
-              href={`https://instagram.com/${instagramHandle}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 text-[12px] text-[#e8a020] hover:text-[#f0b040] truncate"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="w-3.5 h-3.5 shrink-0"
-                aria-hidden
-              >
-                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-              </svg>
-              <span className="truncate">@{instagramHandle}</span>
-            </a>
-          )}
-
-          {/* Follower / following — clickable to open the
-              FollowListModal. These are the "social" pair so
-              they get a line of their own above the collection/
-              review row. */}
-          {userId != null && (
-            <div className="flex items-center justify-center gap-3 text-[12px] border-t border-white/5 pt-3">
-              <button
-                type="button"
-                onClick={() => setFollowListOpen('followers')}
-                className="px-2 py-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer"
-              >
-                <span className="text-[#f5d89a] font-semibold">
-                  {followerCount.toLocaleString()}
-                </span>
-                <span className="text-gray-500 ml-1">팔로워</span>
-              </button>
-              <span className="text-gray-700">·</span>
-              <button
-                type="button"
-                onClick={() => setFollowListOpen('following')}
-                className="px-2 py-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer"
-              >
-                <span className="text-[#f5d89a] font-semibold">
-                  {followingCount.toLocaleString()}
-                </span>
-                <span className="text-gray-500 ml-1">팔로잉</span>
-              </button>
-            </div>
-          )}
-
-          {/* Collection + review / vote counts — compact emoji
-              row. Conditionals mirror UserHoverCard's "hide zero
-              stat if irrelevant" rule so the card doesn't read
-              as a wall of 0's for a fresh account. */}
-          {userId != null && (
-            <div className="flex items-center justify-center gap-3 flex-wrap text-[12px] tabular-nums">
-              {ownedCount > 0 && (
-                <span title={`${ownedCount}장 샀음`}>
-                  <span aria-hidden>💿</span>{' '}
-                  <span className="text-gray-200 font-semibold">
-                    {ownedCount}
-                  </span>
-                </span>
-              )}
-              {wantedCount > 0 && (
-                <span title={`${wantedCount}장 살거`}>
-                  <span aria-hidden>🎯</span>{' '}
-                  <span className="text-gray-200 font-semibold">
-                    {wantedCount}
-                  </span>
-                </span>
-              )}
-              <span title={`${reviewCount}개 코멘트`}>
-                <span aria-hidden>💬</span>{' '}
-                <span className="text-gray-200 font-semibold">
-                  {reviewCount}
-                </span>
-              </span>
-              <span title={`${upvoteCount} 굿굿`}>
-                <span aria-hidden>👍</span>{' '}
-                <span className="text-gray-200 font-semibold">
-                  {upvoteCount}
-                </span>
-              </span>
-              {downvoteCount > 0 && (
-                <span title={`${downvoteCount} 별루`}>
-                  <span aria-hidden>👎</span>{' '}
-                  <span className="text-gray-400 font-semibold">
-                    {downvoteCount}
-                  </span>
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Follow button — non-owner only. Sits at the bottom
-              of the person card so the identity block reads
-              top-to-bottom and the action is the last thing the
-              viewer encounters. */}
-          {!isOwner && userId != null && (
-            <div className="flex justify-center pt-1">
-              <FollowButton
-                targetUserId={userId}
-                following={viewerIsFollowing}
-              />
-            </div>
-          )}
         </div>
 
-        {/* ─── Wall card ─────────────────────────────────── */}
-        <div className="rounded-2xl p-5 border border-white/5 bg-[#120c05]/55 backdrop-blur-[2px] flex flex-col gap-3 min-w-0">
-          <h2
-            className={`text-lg font-serif italic leading-tight break-words ${
-              themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
+        {/* ─── Wall info in handwritten register ─────────── */}
+        <div
+          className="flex flex-col gap-3 px-2"
+          style={{ fontFamily: GRAFFITI_FONT_STACK }}
+        >
+          <div
+            className={`text-[26px] leading-[1.15] ${
+              themePlaceholder ? 'text-[#5a4838]' : 'text-[#1a1208]'
             }`}
             title={displayThemeText}
           >
             {displayThemeText}
-          </h2>
+          </div>
           {wallDescription ? (
-            <p className="text-[13px] text-[#c9a060]/90 leading-relaxed break-words">
+            <div className="text-[16px] text-[#3a2818] leading-relaxed">
               {wallDescription}
-            </p>
+            </div>
           ) : mode === 'live' && isOwner ? (
-            <p className="text-[12px] text-gray-600 italic">
+            <div className="text-[14px] text-[#5a4838] italic">
               ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
-            </p>
+            </div>
           ) : null}
           {mode === 'snapshot' && snapshotMeta && (
-            <div className="flex items-center gap-2 flex-wrap text-[11px]">
-              <span className="uppercase tracking-[0.22em] text-[#c9a060]">
+            <div
+              className="flex items-center gap-2 flex-wrap text-[11px]"
+              style={{ fontFamily: 'inherit' }}
+            >
+              <span className="uppercase tracking-[0.22em] text-[#5a4838]">
                 {formatKoreanMemoryDate(snapshotMeta.createdAt)}
               </span>
               <span
                 className={
                   snapshotMeta.isPublic
-                    ? 'uppercase tracking-[0.22em] text-[#e8a020]'
-                    : 'uppercase tracking-[0.22em] text-[#8a7250]'
+                    ? 'uppercase tracking-[0.22em] text-[#8a6838]'
+                    : 'uppercase tracking-[0.22em] text-[#7a5838]'
                 }
               >
                 · {snapshotMeta.isPublic ? 'public' : 'private'}
               </span>
             </div>
           )}
-
-          {/* Wall-scoped actions: edit + save snapshot (owner
-              only) + share. Follow button is intentionally NOT
-              here — it's a person action, not a wall action, and
-              lives in the person card above. */}
-          <div className="flex items-center gap-2 flex-wrap pt-1">
+          {/* Actions sit in the same column but drop out of the
+              handwritten register — they're interactive controls,
+              and reading "edit" in handwriting risks looking like
+              just another scribble. Keep the pill treatment but
+              make it quieter so it doesn't compete with the
+              graffiti above + below. */}
+          <div
+            className="flex items-center gap-2 flex-wrap"
+            style={{ fontFamily: 'sans-serif' }}
+          >
             {renderWallActions()}
           </div>
         </div>
