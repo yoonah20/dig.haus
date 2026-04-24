@@ -87,17 +87,20 @@ export default function PersistentNowPlayingPlayer() {
   const [hostEl, setHostEl] = useState<HTMLDivElement | null>(null);
   const controllerRef = useRef<SpotifyController | null>(null);
 
-  // Init + URI switching via destroy + recreate. `loadUri` would
-  // be one network call cheaper, but it triggers Spotify's
-  // internal pushState and pollutes browser back-button history —
-  // each track change ends up as a history entry the user has to
-  // back-press through. Destroying the controller and creating a
-  // fresh one (initial iframe load, not a navigation) skips that.
-  // Autoplay is preserved because each new controller fires
-  // `ready` after init and we immediately `play()` on that event.
-  // Trade: ~300–500ms slower first-frame on track change, in
-  // exchange for the browser back button going where the user
-  // expects.
+  // Init. `loadUri` would be one call cheaper but pushes to the
+  // browser's session history, which left the back button stepping
+  // through previously-played albums. Instead, the host div below
+  // has `key={albumMbid}` — React unmounts + remounts the host on
+  // each track change, which destroys the old iframe entirely and
+  // lets Spotify's API create a brand-new one (initial document,
+  // no navigation, no history entry). Autoplay is preserved via
+  // the `ready` listener on each fresh controller.
+  //
+  // Two earlier approaches both failed: `loadUri` polluted
+  // history, and manual destroy + createController cycles broke
+  // on the second track swap because Spotify's teardown left
+  // postMessage listeners in an inconsistent state. React's own
+  // unmount/mount lifecycle sidesteps both.
   useEffect(() => {
     if (!hostEl || !nowPlaying) return;
     const albumId = extractSpotifyAlbumId(nowPlaying.spotifyUrl);
@@ -109,33 +112,6 @@ export default function PersistentNowPlayingPlayer() {
     (async () => {
       const api = await loadSpotifyApi();
       if (cancelled) return;
-
-      // Tear down the previous controller (and its iframe) before
-      // spinning up the new one. Two things matter for this to
-      // work reliably back-to-back:
-      //   1. Empty the host after destroy — Spotify's teardown
-      //      can leave wrapper nodes behind, and createController
-      //      silently noops on a "dirty" host (observed as the
-      //      player just vanishing after the second track swap).
-      //   2. Wait a beat so postMessage channels from the old
-      //      controller fully close before the new one opens. 80ms
-      //      is short enough that the player-gap reads as a swap
-      //      animation and long enough that Spotify's internals
-      //      register the destroy.
-      if (controllerRef.current) {
-        try {
-          controllerRef.current.destroy();
-        } catch {
-          // controller may already be partially torn down in HMR
-        }
-        controllerRef.current = null;
-        while (hostEl.firstChild) {
-          hostEl.removeChild(hostEl.firstChild);
-        }
-        await new Promise<void>((r) => setTimeout(r, 80));
-        if (cancelled) return;
-      }
-
       api.createController(
         hostEl,
         { uri, width: '100%', height: 80 },
@@ -162,17 +138,22 @@ export default function PersistentNowPlayingPlayer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hostEl, nowPlaying?.albumMbid]);
 
-  // Pause when the user dismisses the player. Keeps the controller
-  // alive so the next ▶ click reuses it without a fresh init.
+  // When the host element itself changes (album swap triggers a
+  // React remount via the host div's `key`), forget the previous
+  // controller — its iframe was torn down with the old host, and
+  // call destroy() to kick Spotify's parent-side listener cleanup.
   useEffect(() => {
-    if (!nowPlaying && controllerRef.current) {
-      try {
-        controllerRef.current.pause();
-      } catch {
-        // controller may be mid-teardown on HMR; ignore
+    return () => {
+      if (controllerRef.current) {
+        try {
+          controllerRef.current.destroy();
+        } catch {
+          // controller may already be partially torn down in HMR
+        }
+        controllerRef.current = null;
       }
-    }
-  }, [nowPlaying]);
+    };
+  }, [hostEl]);
 
   const mode: 'anchored' | 'floating' = anchor ? 'anchored' : 'floating';
 
@@ -258,6 +239,15 @@ export default function PersistentNowPlayingPlayer() {
     >
       <div className="pointer-events-auto relative group/np">
         <div
+          // key on albumMbid forces a full DOM unmount + remount
+          // on track change. React tears down the old iframe
+          // (stops audio, closes postMessage channel) and mounts
+          // a fresh host div, which the effect above then populates
+          // with a new Spotify controller. Route changes don't
+          // touch albumMbid, so the host stays alive and the
+          // iframe keeps playing across navigation — which is the
+          // whole reason the persistent player exists.
+          key={nowPlaying?.albumMbid ?? 'idle'}
           ref={setHostEl}
           className="rounded-lg bg-[#2a1a0d] border overflow-hidden"
           style={{
