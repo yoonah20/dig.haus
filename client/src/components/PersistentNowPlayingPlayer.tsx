@@ -218,41 +218,58 @@ export default function PersistentNowPlayingPlayer() {
     };
   }, [mode, anchor]);
 
-  // On switching back to floating, reset the anchor-derived inline
-  // styles — otherwise stale left/top/width from the anchored
-  // phase would override the default layout.
-  useEffect(() => {
-    if (mode !== 'floating' || !wrapperRef.current) return;
-    const wrapper = wrapperRef.current;
-    wrapper.style.left = '50%';
-    wrapper.style.top = 'auto';
-    wrapper.style.bottom = '16px';
-    wrapper.style.right = 'auto';
-    wrapper.style.transform = 'translateX(-50%)';
-    wrapper.style.width = '70%';
-    wrapper.style.maxWidth = '640px';
-    wrapper.style.minWidth = '280px';
-  }, [mode]);
-
   // Host stays mounted even when hidden so hostEl is populated
   // before the first ▶ click and so the iframe doesn't get torn
   // down between plays. `visibility: hidden` keeps the DOM subtree
   // alive (vs. display: none which would zero-out the iframe).
   const visible = !!nowPlaying;
 
+  // Wrapper position — every position-related key lives on the
+  // React style prop so React's style diff guarantees a clean
+  // reset when `mode` flips. Leaving any key out of the floating
+  // variant used to let stale anchor-derived values (set via
+  // direct style mutation while anchored) survive the transition,
+  // which parked the wrapper somewhere offscreen on admin /
+  // profile routes — the player "disappeared" while audio kept
+  // playing. The anchored tracking effect still mutates left/top/
+  // width directly for scroll-follow perf, but since those keys
+  // are also in the style prop, React's next render with the
+  // floating variant overwrites them cleanly.
+  const wrapperStyle: React.CSSProperties = {
+    visibility: visible ? 'visible' : 'hidden',
+    ...(mode === 'floating'
+      ? {
+          left: '50%',
+          top: 'auto',
+          bottom: '16px',
+          right: 'auto',
+          transform: 'translateX(-50%)',
+          width: '70%',
+          maxWidth: '640px',
+          minWidth: '280px',
+        }
+      : {
+          // Anchored mode: the tracking effect overwrites these
+          // via direct style mutation. Including them as keys
+          // here (even with neutral values) means React will diff
+          // them on the way OUT of anchored mode and restore the
+          // floating defaults.
+          left: 'auto',
+          top: 'auto',
+          bottom: 'auto',
+          right: 'auto',
+          transform: 'none',
+          width: 'auto',
+          maxWidth: 'none',
+          minWidth: 'auto',
+        }),
+  };
+
   return (
     <div
       ref={wrapperRef}
       className="fixed z-30 pointer-events-none"
-      style={{
-        visibility: visible ? 'visible' : 'hidden',
-        left: '50%',
-        bottom: '16px',
-        transform: 'translateX(-50%)',
-        width: '70%',
-        maxWidth: '640px',
-        minWidth: '280px',
-      }}
+      style={wrapperStyle}
       aria-label="지금 재생 중"
       aria-hidden={!visible}
     >
