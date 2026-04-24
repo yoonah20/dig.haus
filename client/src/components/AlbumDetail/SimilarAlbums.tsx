@@ -6,6 +6,7 @@ import type { SimilarAlbum } from '../../types';
 import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import CardOverlayButton from '../CardOverlayButton';
+import PlayChip from '../PlayChip';
 
 function SpotifyIcon() {
   return (
@@ -265,6 +266,19 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
             </div>
           )}
           <ServiceIcons album={album} />
+          {/* ▶ chip bottom-right matches the home grid + album
+              hero placement. Falls back to spotifyUrl as the
+              identity key when mbid is null (similar picks can
+              lack a local mbid when they're not in our DB yet) —
+              PlayChip hides itself if neither is usable. */}
+          <PlayChip
+            albumMbid={album.mbid ?? album.spotifyUrl ?? ''}
+            spotifyUrl={album.spotifyUrl}
+            title={album.title}
+            artist={album.artist}
+            size={32}
+            alwaysVisible
+          />
         </div>
         {/* flex-1 lets this block fill the leftover height of the
             tallest card in the row — items-stretch on the grid
