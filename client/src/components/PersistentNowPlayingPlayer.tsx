@@ -87,17 +87,10 @@ export default function PersistentNowPlayingPlayer() {
   const [hostEl, setHostEl] = useState<HTMLDivElement | null>(null);
   const controllerRef = useRef<SpotifyController | null>(null);
 
-  // Init + URI switching via destroy + recreate. `loadUri` would
-  // be one network call cheaper, but it triggers Spotify's
-  // internal pushState and pollutes browser back-button history —
-  // each track change ends up as a history entry the user has to
-  // back-press through. Destroying the controller and creating a
-  // fresh one (initial iframe load, not a navigation) skips that.
-  // Autoplay is preserved because each new controller fires
-  // `ready` after init and we immediately `play()` on that event.
-  // Trade: ~300–500ms slower first-frame on track change, in
-  // exchange for the browser back button going where the user
-  // expects.
+  // Init + URI switching. First nowPlaying creates the controller;
+  // every change after calls loadUri + play. The 180ms delay lets
+  // Spotify's iframe register the new URI before play() fires —
+  // calling play() immediately after loadUri is a race.
   useEffect(() => {
     if (!hostEl || !nowPlaying) return;
     const albumId = extractSpotifyAlbumId(nowPlaying.spotifyUrl);
@@ -110,46 +103,27 @@ export default function PersistentNowPlayingPlayer() {
       const api = await loadSpotifyApi();
       if (cancelled) return;
 
-      // Tear down the previous controller (and its iframe) before
-      // spinning up the new one. Two things matter for this to
-      // work reliably back-to-back:
-      //   1. Empty the host after destroy — Spotify's teardown
-      //      can leave wrapper nodes behind, and createController
-      //      silently noops on a "dirty" host (observed as the
-      //      player just vanishing after the second track swap).
-      //   2. Wait a beat so postMessage channels from the old
-      //      controller fully close before the new one opens. 80ms
-      //      is short enough that the player-gap reads as a swap
-      //      animation and long enough that Spotify's internals
-      //      register the destroy.
       if (controllerRef.current) {
-        try {
-          controllerRef.current.destroy();
-        } catch {
-          // controller may already be partially torn down in HMR
-        }
-        controllerRef.current = null;
-        while (hostEl.firstChild) {
-          hostEl.removeChild(hostEl.firstChild);
-        }
-        await new Promise<void>((r) => setTimeout(r, 80));
-        if (cancelled) return;
-      }
-
-      api.createController(
-        hostEl,
-        { uri, width: '100%', height: 80 },
-        (controller) => {
-          if (cancelled) {
-            controller.destroy();
-            return;
+        controllerRef.current.loadUri(uri);
+        setTimeout(() => {
+          if (!cancelled) controllerRef.current?.play();
+        }, 180);
+      } else {
+        api.createController(
+          hostEl,
+          { uri, width: '100%', height: 80 },
+          (controller) => {
+            if (cancelled) {
+              controller.destroy();
+              return;
+            }
+            controllerRef.current = controller;
+            controller.addListener('ready', () => {
+              controller.play();
+            });
           }
-          controllerRef.current = controller;
-          controller.addListener('ready', () => {
-            controller.play();
-          });
-        }
-      );
+        );
+      }
     })();
 
     return () => {
@@ -218,58 +192,52 @@ export default function PersistentNowPlayingPlayer() {
     };
   }, [mode, anchor]);
 
+  // Entering floating mode: directly reset every position-related
+  // inline style. Relying on React's style prop diff was unsound —
+  // when anchored + floating share the same declarative value
+  // (e.g. `top: 'auto'`), React skips the update, and the stale
+  // value left behind by the anchored tracking effect's direct
+  // DOM mutation (e.g. `top: '300px'`) survives. Direct assignment
+  // here overrides whatever the anchored phase scribbled. Runs on
+  // mount (mode == floating initially) and on every transition
+  // into floating.
+  useEffect(() => {
+    if (mode !== 'floating' || !wrapperRef.current) return;
+    const w = wrapperRef.current;
+    w.style.left = '50%';
+    w.style.top = 'auto';
+    w.style.bottom = '16px';
+    w.style.right = 'auto';
+    w.style.transform = 'translateX(-50%)';
+    w.style.width = '70%';
+    w.style.maxWidth = '640px';
+    w.style.minWidth = '280px';
+  }, [mode]);
+
   // Host stays mounted even when hidden so hostEl is populated
   // before the first ▶ click and so the iframe doesn't get torn
   // down between plays. `visibility: hidden` keeps the DOM subtree
   // alive (vs. display: none which would zero-out the iframe).
   const visible = !!nowPlaying;
 
-  // Wrapper position — every position-related key lives on the
-  // React style prop so React's style diff guarantees a clean
-  // reset when `mode` flips. Leaving any key out of the floating
-  // variant used to let stale anchor-derived values (set via
-  // direct style mutation while anchored) survive the transition,
-  // which parked the wrapper somewhere offscreen on admin /
-  // profile routes — the player "disappeared" while audio kept
-  // playing. The anchored tracking effect still mutates left/top/
-  // width directly for scroll-follow perf, but since those keys
-  // are also in the style prop, React's next render with the
-  // floating variant overwrites them cleanly.
-  const wrapperStyle: React.CSSProperties = {
-    visibility: visible ? 'visible' : 'hidden',
-    ...(mode === 'floating'
-      ? {
-          left: '50%',
-          top: 'auto',
-          bottom: '16px',
-          right: 'auto',
-          transform: 'translateX(-50%)',
-          width: '70%',
-          maxWidth: '640px',
-          minWidth: '280px',
-        }
-      : {
-          // Anchored mode: the tracking effect overwrites these
-          // via direct style mutation. Including them as keys
-          // here (even with neutral values) means React will diff
-          // them on the way OUT of anchored mode and restore the
-          // floating defaults.
-          left: 'auto',
-          top: 'auto',
-          bottom: 'auto',
-          right: 'auto',
-          transform: 'none',
-          width: 'auto',
-          maxWidth: 'none',
-          minWidth: 'auto',
-        }),
-  };
-
   return (
     <div
       ref={wrapperRef}
       className="fixed z-30 pointer-events-none"
-      style={wrapperStyle}
+      style={{
+        // Initial floating defaults so the first paint (before the
+        // reset effect runs) doesn't flash at top-left. Both the
+        // anchored tracking effect and the floating reset effect
+        // overwrite these as needed via direct mutation after
+        // commit.
+        visibility: visible ? 'visible' : 'hidden',
+        left: '50%',
+        bottom: '16px',
+        transform: 'translateX(-50%)',
+        width: '70%',
+        maxWidth: '640px',
+        minWidth: '280px',
+      }}
       aria-label="지금 재생 중"
       aria-hidden={!visible}
     >
@@ -299,7 +267,7 @@ export default function PersistentNowPlayingPlayer() {
           onClick={clearNowPlaying}
           aria-label="재생 닫기"
           title="재생 닫기"
-          className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full border border-white/20 bg-[#141008]/85 hover:bg-[#e8a020] hover:text-[#141008] hover:border-[#e8a020] text-gray-200 text-sm leading-none flex items-center justify-center cursor-pointer opacity-0 group-hover/np:opacity-100 transition-opacity duration-150"
+          className="absolute top-[5px] right-[5px] z-10 w-6 h-6 rounded-full border border-white/20 bg-[#141008] hover:bg-[#e8a020] hover:text-[#141008] hover:border-[#e8a020] text-gray-200 text-sm leading-none flex items-center justify-center cursor-pointer opacity-0 group-hover/np:opacity-100 transition-opacity duration-150"
         >
           ×
         </button>
