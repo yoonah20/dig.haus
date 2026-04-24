@@ -193,13 +193,21 @@ export default function App() {
                       // page content.
                       zIndex: -1,
                       backgroundImage: "url('/backdrops/wall2.webp')",
-                      backgroundSize: 'cover',
+                      // Fixed pixel size at 0.7× the 3500×2000 source,
+                      // not `cover`. The painted wall was composed at
+                      // a specific scale; letting cover stretch it to
+                      // every viewport distorts the rail spacing and
+                      // stereo proportions. We accept letterboxing on
+                      // very wide/tall viewports (the parent's #0a0703
+                      // fills the gap) in exchange for consistent
+                      // scale everywhere.
+                      backgroundSize: '2450px 1400px',
                       // Anchor to the bottom so the floor/baseboard
                       // of the painted wall stays visible at every
-                      // viewport height — a shorter window crops
-                      // the ceiling instead of the footer area,
-                      // matching how you'd look at a real shop
-                      // wall (eye level stays at the bottom).
+                      // viewport height — a shorter window clips the
+                      // top of the image instead of the footer area,
+                      // matching how you'd look at a real shop wall
+                      // (eye level stays at the bottom).
                       backgroundPosition: 'center bottom',
                       backgroundRepeat: 'no-repeat',
                       filter: 'brightness(0.55) saturate(0.85)',
@@ -311,15 +319,10 @@ export default function App() {
                   Other routes keep the flow-layout sticky-footer. */}
               <SiteFooter pinned={isMydig} />
               {/* Persistent Spotify player — a single iframe mounted
-                  once at App root and never unmounted. Pages that
-                  want the player to dock inline render a
-                  <NowPlayingAnchor />; the player tracks that
-                  anchor's rect via getBoundingClientRect + scroll/
-                  resize listeners. When no anchor is registered
-                  (any page without one), the player falls back to
-                  a fixed bottom-centre mini-player position. The
-                  stable DOM node is what keeps Spotify playback
-                  alive through route changes. */}
+                  once at App root and never unmounted. Fixed to the
+                  viewport at bottom-center. The stable DOM node is
+                  what keeps Spotify playback alive through route
+                  changes. */}
               <PersistentNowPlayingPlayer />
               <CurationProgressPanel />
             </div>

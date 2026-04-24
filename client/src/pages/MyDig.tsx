@@ -21,7 +21,6 @@ import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
 import { useUserPublic } from '../hooks/useMe';
 import { extractSpotifyAlbumId } from '../hooks/useNowPlaying';
-import { NowPlayingAnchor } from '../components/PersistentNowPlayingPlayer';
 import PlayChip from '../components/PlayChip';
 import {
   setActiveWallCellId,
@@ -200,8 +199,10 @@ export default function MyDig() {
     <div className="flex-1">
       {/* pb-24 reserves space under the wall so the last row
           clears the fixed `pinned` SiteFooter overlay when the
-          page scrolls. */}
-      <main className="max-w-[1280px] mx-auto px-4 pt-7 pb-24 space-y-1">
+          page scrolls. pt is tight so the sidebar action cluster
+          (팔로우 · 공유 etc) sits close to the nav; the wall gets
+          its own headroom from WallSection's top padding. */}
+      <main className="max-w-[1400px] mx-auto px-4 pt-2 pb-24 space-y-1">
         {/* Mobile header: lives above the wall in horizontal
             layout. Hidden on md+ since the desktop variant lives
             inside the right sidebar below. */}
@@ -282,18 +283,6 @@ export default function MyDig() {
                 cellKey={activeSlug ?? 'live'}
               />
             )}
-            {/* Anchor that the persistent player docks to. Renders
-                only while a track is playing. The player itself
-                lives at App root; this div just reserves the spot
-                below the last rail at 70% of the wall width, and
-                registers its element with the anchor store so the
-                player tracks its viewport rect. */}
-            <div
-              className="mt-6"
-              style={{ maxWidth: 890, marginLeft: 0, marginRight: 'auto' }}
-            >
-              <NowPlayingAnchor className="mx-auto w-[70%] min-w-[280px] max-w-[640px]" />
-            </div>
           </WallSection>
           {username && (
             <div className="hidden md:flex md:flex-col md:gap-6">
@@ -557,8 +546,10 @@ function ProfileHeader({
       );
 
     return (
-      <div className="flex flex-col gap-3 min-w-0 pt-4">
-        {/* Actions row — top of sidebar, right-aligned. Keeps the
+      <div className="flex flex-col gap-3 min-w-0">
+        {/* Actions row — top of sidebar, right-aligned, flush with
+            main's small pt so the cluster sits close to the nav.
+            Keeps the
             interactive controls out of the handwritten block so
             they don't compete with the signature below. Non-owner
             viewers get [팔로우 공유]; owner viewers get
@@ -733,10 +724,13 @@ function WallSection({ children }: { children: React.ReactNode }) {
     <section
       style={{
         position: 'relative',
-        // Bottom padding also trimmed (was 40px) so the snapshot
-        // strip beneath sits closer to the wall without a big
-        // dead zone between.
-        padding: '4px 12px 12px',
+        // Top padding gives the wall a bit of headroom below the
+        // nav (main's pt is tight so the sidebar actions stay
+        // close to the nav — the wall creates its own breathing
+        // room here instead). Bottom padding trimmed (was 40px)
+        // so the snapshot strip beneath sits closer to the wall
+        // without a big dead zone between.
+        padding: '28px 12px 12px',
       }}
     >
       <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
@@ -1207,7 +1201,7 @@ function WallCell({
           <div
             aria-hidden
             className={`absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out ${
-              isActive ? 'translate-x-[24%] rotate-[6deg] scale-[1.2]' : ''
+              isActive ? 'translate-x-[24%] rotate-[6deg] scale-[1.15]' : ''
             }`}
           >
             <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
@@ -1215,7 +1209,7 @@ function WallCell({
         )}
         <div
           className={`absolute inset-0 z-10 origin-bottom transition-transform duration-[280ms] ease-out ${
-            isActive ? 'scale-[1.4]' : ''
+            isActive ? 'scale-[1.3]' : ''
           }`}
         >
           <WallLP size={lpSize} seed={position} lampBias={lampBias}>
@@ -1291,18 +1285,18 @@ function WallCell({
         // behind the cover while the flag is off.
         <div
           aria-hidden
-          className="absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out group-hover:translate-x-[24%] group-hover:rotate-[6deg] group-hover:scale-[1.2]"
+          className="absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out group-hover:translate-x-[24%] group-hover:rotate-[6deg] group-hover:scale-[1.15]"
         >
           <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
         </div>
       )}
 
-      {/* Scale wrapper — lifts the whole card 1.4× on hover with
+      {/* Scale wrapper — lifts the whole card 1.3× on hover with
           bottom-pinned origin so the sleeve grows upward off the
           rail. Kept separate from the tilt transform so inline
           rotate() doesn't clobber the tailwind scale class. */}
       <div
-        className="absolute inset-0 z-10 origin-bottom transition-transform duration-[260ms] ease-out group-hover:scale-[1.4]"
+        className="absolute inset-0 z-10 origin-bottom transition-transform duration-[260ms] ease-out group-hover:scale-[1.3]"
         style={{
           transformOrigin: 'center bottom',
         }}
@@ -1487,8 +1481,8 @@ function CommentBubble({
   // group-hover won't fire on touch. forceShow flips the bubble
   // fully visible without needing :hover on an ancestor.
   forceShow?: boolean;
-  // Desktop hover now scales the sleeve 1.4× from its bottom-centre
-  // origin, which means the scaled cover grows ~20% past its
+  // Desktop hover now scales the sleeve 1.3× from its bottom-centre
+  // origin, which means the scaled cover grows ~15% past its
   // original top + sides. A top-placed bubble lands inside that
   // new top strip and gets visually eaten. `placement: 'right'`
   // offsets the bubble past the scaled-out right edge instead so
@@ -1501,9 +1495,9 @@ function CommentBubble({
   const visibilityClasses = forceShow
     ? 'opacity-100 scale-100'
     : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100';
-  // `right` placement needs to clear the 1.4× scale overflow on
-  // the right edge (0.2·lpSize), then add a small breathing gap.
-  const rightOffsetPx = Math.round(lpSize * 0.22 + 8);
+  // `right` placement needs to clear the 1.3× scale overflow on
+  // the right edge (0.15·lpSize), then add a small breathing gap.
+  const rightOffsetPx = Math.round(lpSize * 0.17 + 8);
   const outerStyle: React.CSSProperties =
     placement === 'right'
       ? {
@@ -1595,8 +1589,8 @@ function CommentBubble({
 // Cover Art Archive exposes `/front-250`, `/front-500`, `/front-1200`
 // and full-size variants of every sleeve. Server-side storage uses
 // front-250 for the home grid / album page where sleeves render at
-// ~120–200px. The mydig wall renders at up to 168px and scales 1.4×
-// on hover (~235px effective), which turns front-250 sources into
+// ~120–200px. The mydig wall renders at up to 168px and scales 1.3×
+// on hover (~218px effective), which turns front-250 sources into
 // visibly soft upscales. Upgrading to front-500 on the client side —
 // only for the wall — keeps home grid bandwidth untouched while the
 // hovered wall stays crisp. Non-CAA hosts (Spotify 640, Last.fm

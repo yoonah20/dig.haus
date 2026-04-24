@@ -1,21 +1,12 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 
-// Global "now playing" state for the site-wide Spotify embed. Two
-// independent stores share this module:
-//   - `currentAlbum` : which album is playing (or null). Written by
-//                      wall cells on ▶ click.
-//   - `anchorEl`     : the DOM element whose on-screen position the
-//                      player should track. Written by whatever page
-//                      renders a <NowPlayingAnchor />. When null, the
-//                      player falls back to a fixed bottom-centre
-//                      floating position.
+// Global "now playing" state for the site-wide Spotify embed.
+// Written by wall cells / album rows on ▶ click; read by the
+// persistent player mounted once at App root.
 //
-// The persistent player in App.tsx reads both stores, hosts a single
-// <iframe> (via Spotify's iFrame API) that never unmounts, and moves
-// its CSS coordinates in sync with whichever anchor is currently
-// registered. That's what lets the embed survive route changes with
-// playback uninterrupted — the iframe DOM node stays put while its
-// apparent location migrates between page layouts.
+// The persistent player hosts a single <iframe> (via Spotify's
+// iFrame API) that never unmounts, so playback survives route
+// changes. Layout is fixed bottom-center — no anchor tracking.
 
 export interface NowPlayingAlbum {
   // Stable identity across pages. Numeric `id` isn't universally
@@ -32,76 +23,36 @@ export interface NowPlayingAlbum {
 
 type Listener = () => void;
 
-const state: {
-  currentAlbum: NowPlayingAlbum | null;
-  anchorEl: HTMLElement | null;
-} = { currentAlbum: null, anchorEl: null };
+const state: { currentAlbum: NowPlayingAlbum | null } = { currentAlbum: null };
+const listeners = new Set<Listener>();
 
-const albumListeners = new Set<Listener>();
-const anchorListeners = new Set<Listener>();
-
-function notifyAlbum() {
-  for (const l of albumListeners) l();
-}
-function notifyAnchor() {
-  for (const l of anchorListeners) l();
+function notify() {
+  for (const l of listeners) l();
 }
 
-function subscribeAlbum(l: Listener) {
-  albumListeners.add(l);
+function subscribe(l: Listener) {
+  listeners.add(l);
   return () => {
-    albumListeners.delete(l);
-  };
-}
-function subscribeAnchor(l: Listener) {
-  anchorListeners.add(l);
-  return () => {
-    anchorListeners.delete(l);
+    listeners.delete(l);
   };
 }
 
-function getAlbumSnapshot(): NowPlayingAlbum | null {
+function getSnapshot(): NowPlayingAlbum | null {
   return state.currentAlbum;
-}
-function getAnchorSnapshot(): HTMLElement | null {
-  return state.anchorEl;
 }
 
 export function useNowPlaying(): NowPlayingAlbum | null {
-  return useSyncExternalStore(subscribeAlbum, getAlbumSnapshot, getAlbumSnapshot);
-}
-
-export function useNowPlayingAnchor(): HTMLElement | null {
-  return useSyncExternalStore(subscribeAnchor, getAnchorSnapshot, getAnchorSnapshot);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }
 
 export function setNowPlaying(album: NowPlayingAlbum | null) {
   state.currentAlbum = album;
-  notifyAlbum();
+  notify();
 }
 
 export function clearNowPlaying() {
   state.currentAlbum = null;
-  notifyAlbum();
-}
-
-// Mount-time hook for pages that want the player to dock against a
-// specific element (e.g. mydig's in-wall placeholder). Registers the
-// element on mount, clears on unmount — last registration wins, and
-// nothing enforces uniqueness, so only one anchor should be alive at
-// a time (enforced by route gating, not by this hook).
-export function useRegisterNowPlayingAnchor(el: HTMLElement | null) {
-  useEffect(() => {
-    if (!el) return;
-    state.anchorEl = el;
-    notifyAnchor();
-    return () => {
-      if (state.anchorEl === el) {
-        state.anchorEl = null;
-        notifyAnchor();
-      }
-    };
-  }, [el]);
+  notify();
 }
 
 // Extract the album id from any Spotify album URL shape we might
