@@ -37,7 +37,7 @@ export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
       className="block rounded-lg border border-white/5 bg-[#110b04]/60 p-2 hover:border-[#e8a020]/40 transition-colors"
     >
       <div
-        className="grid gap-0.5 mb-2 items-center"
+        className="grid gap-0.5 mb-[1px] items-center"
         style={{ gridTemplateColumns: GRID_TEMPLATE }}
       >
         {Array.from({ length: ROW_LENGTH }, (_, i) => {

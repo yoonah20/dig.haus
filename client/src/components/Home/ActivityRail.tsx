@@ -23,7 +23,7 @@ export default function ActivityRail({
   return (
     <aside aria-label="활동" className="flex flex-col gap-6">
       <section>
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center gap-2 mb-[10px]">
           {onClose && (
             <button
               type="button"

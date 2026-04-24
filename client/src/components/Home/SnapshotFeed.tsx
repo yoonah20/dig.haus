@@ -12,7 +12,7 @@ export default function SnapshotFeed({ count = 3 }: { count?: number }) {
 
   if (isLoading) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-[4px]">
         {Array.from({ length: count }, (_, i) => (
           <div
             key={i}
@@ -32,7 +32,7 @@ export default function SnapshotFeed({ count = 3 }: { count?: number }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-[3px]">
       {snaps.map((snap) => (
         <SnapshotCard key={snap.id} snap={snap} />
       ))}
