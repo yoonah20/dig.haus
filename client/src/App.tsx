@@ -6,7 +6,7 @@ import { HomeStateProvider } from './contexts/HomeStateContext';
 import { CurationProgressProvider } from './contexts/CurationProgressContext';
 import TopNav from './components/TopNav';
 import SiteFooter from './components/SiteFooter';
-import DockedNowPlayingStrip from './components/DockedNowPlayingStrip';
+import PersistentNowPlayingPlayer from './components/PersistentNowPlayingPlayer';
 import CurationProgressPanel from './components/CurationProgressPanel';
 
 const Home = lazy(() => import('./pages/Home'));
@@ -310,13 +310,17 @@ export default function App() {
                   matter how the wall + snapshot strip change length.
                   Other routes keep the flow-layout sticky-footer. */}
               <SiteFooter pinned={isMydig} />
-              {/* Docked Now Playing mini player — renders on every
-                  route EXCEPT /my/:username (mydig owns the inline
-                  variant below its wall). Module-level useNowPlaying
-                  state carries the selection across navigation so
-                  the embed keeps playing while the viewer browses
-                  album pages, the home feed, their profile, etc. */}
-              <DockedNowPlayingStrip />
+              {/* Persistent Spotify player — a single iframe mounted
+                  once at App root and never unmounted. Pages that
+                  want the player to dock inline render a
+                  <NowPlayingAnchor />; the player tracks that
+                  anchor's rect via getBoundingClientRect + scroll/
+                  resize listeners. When no anchor is registered
+                  (any page without one), the player falls back to
+                  a fixed bottom-centre mini-player position. The
+                  stable DOM node is what keeps Spotify playback
+                  alive through route changes. */}
+              <PersistentNowPlayingPlayer />
               <CurationProgressPanel />
             </div>
           </CurationProgressProvider>

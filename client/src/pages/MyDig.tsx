@@ -20,11 +20,11 @@ import FollowButton from '../components/FollowButton';
 import FollowListModal from '../components/FollowListModal';
 import { useUserPublic } from '../hooks/useMe';
 import {
-  clearNowPlaying,
   extractSpotifyAlbumId,
   setNowPlaying,
   useNowPlaying,
 } from '../hooks/useNowPlaying';
+import { NowPlayingAnchor } from '../components/PersistentNowPlayingPlayer';
 import {
   setActiveWallCellId,
   useActiveWallCellId,
@@ -283,13 +283,18 @@ export default function MyDig() {
                 cellKey={activeSlug ?? 'live'}
               />
             )}
-            {/* Spotify embed lives here — slotted in the empty wall
-                space below the last rail, ~70% of the wall width,
-                left-aligned with the wall itself. Renders only when
-                a cell has written to useNowPlaying; closing the
-                embed (× on the strip OR re-tapping the active ▶)
-                clears the store and hides this element. */}
-            <NowPlayingStrip />
+            {/* Anchor that the persistent player docks to. Renders
+                only while a track is playing. The player itself
+                lives at App root; this div just reserves the spot
+                below the last rail at 70% of the wall width, and
+                registers its element with the anchor store so the
+                player tracks its viewport rect. */}
+            <div
+              className="mt-6"
+              style={{ maxWidth: 890, marginLeft: 0, marginRight: 'auto' }}
+            >
+              <NowPlayingAnchor className="mx-auto w-[70%] min-w-[280px] max-w-[640px]" />
+            </div>
           </WallSection>
           {username && (
             <div className="hidden md:block">
@@ -604,68 +609,6 @@ function WallSection({ children }: { children: React.ReactNode }) {
     >
       <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
     </section>
-  );
-}
-
-// ─── Now Playing strip ───────────────────────────────────────
-// In-wall Spotify embed that slots into the empty wall space below
-// the last wooden rail. Width stays at ~70% of the wall container
-// to mirror the screenshot mock — visually "hanging off" the rail
-// rather than spanning the viewport like the earlier pinned-footer
-// version did. `scrolling="no"` suppresses the 1–2px scrollbar
-// Spotify's mini player would otherwise show when its own content
-// is a hair taller than the iframe box. Key on album id so loading
-// a different album swaps to a fresh iframe instead of trying to
-// hot-update an existing one.
-function NowPlayingStrip() {
-  const np = useNowPlaying();
-  const albumId = extractSpotifyAlbumId(np?.spotifyUrl ?? null);
-  if (!np || !albumId) return null;
-  return (
-    // Outer box matches the wall grid's 890px cap so the strip
-    // can be centred within the wall's bounds rather than the
-    // full WallSection column (which would push it right of the
-    // wall on wider screens).
-    <div
-      className="relative z-20 mt-6"
-      style={{ maxWidth: 890, marginLeft: 0, marginRight: 'auto' }}
-      aria-label="지금 재생 중"
-    >
-      <div className="mx-auto flex items-stretch gap-2 w-[70%] min-w-[280px] max-w-[640px]">
-        <iframe
-          key={albumId}
-          title={`${np.artist} — ${np.title}`}
-          src={`https://open.spotify.com/embed/album/${albumId}?utm_source=generator&theme=0`}
-          width="100%"
-          height="80"
-          frameBorder={0}
-          scrolling="no"
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-          loading="lazy"
-          // Warm walnut tint via CSS filter — Spotify embed is
-          // cross-origin so we can't style its content directly,
-          // but a sepia + hue-rotate + brightness knock pulls the
-          // default near-black chrome toward the page's walnut
-          // palette. Side effect: the embedded cover art thumbnail
-          // inherits the tint too. Kept mild (sepia 0.25) so the
-          // artwork is still recognisable.
-          style={{
-            filter: 'sepia(0.25) hue-rotate(-18deg) saturate(0.88) brightness(0.94)',
-            borderColor: 'rgba(90, 58, 32, 0.55)',
-          }}
-          className="rounded-lg bg-[#2a1a0d] flex-1 min-w-0 border"
-        />
-        <button
-          type="button"
-          onClick={clearNowPlaying}
-          aria-label="재생 닫기"
-          title="재생 닫기"
-          className="shrink-0 self-center w-8 h-8 rounded-full border border-white/10 bg-[#1a130a]/80 hover:border-[#e8a020]/50 hover:text-[#e8a020] text-gray-400 text-base leading-none transition-colors cursor-pointer"
-        >
-          ×
-        </button>
-      </div>
-    </div>
   );
 }
 
