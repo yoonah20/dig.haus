@@ -428,19 +428,6 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               </div>
             )}
             <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
-            {/* ▶ chip — always visible on the home grid cover so
-                the viewer sees at a glance which albums are
-                playable, not only on hover. Clicking plays the
-                Spotify embed via the persistent player; the outer
-                card Link still owns every other click area. */}
-            <PlayChip
-              albumMbid={album.mbid}
-              spotifyUrl={album.spotifyUrl ?? null}
-              title={album.title}
-              artist={album.artist}
-              size={32}
-              alwaysVisible
-            />
           </div>
 
           {/* Back — mirrored darkened cover + amber wash + info.
@@ -572,12 +559,27 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
 
               <div style={{ flex: 1 }} />
 
-              {/* "자세히 보기" CTA used to sit here — removed once
-                  the ▶ chip on the front face became the dominant
-                  action. The whole card is still a <Link> so any
-                  click on the back navigates to the detail page,
-                  which is what the CTA used to do. */}
+              {/* "자세히 보기" CTA used to sit here. The whole card
+                  is still a <Link> so any click on the back
+                  navigates to the detail page, which is what the
+                  CTA used to do. The ▶ chip below replaces the CTA
+                  as the back-face action affordance. */}
             </div>
+            {/* ▶ chip on the back face. The flip (.album-flip via
+                :hover on .album-card-outer) already handles the
+                "hidden by default, revealed when the card is
+                flipped" logic via backface-visibility, so the chip
+                uses alwaysVisible to skip PlayChip's own hover
+                gate — we don't want two layered hover triggers
+                that would double-time the reveal. */}
+            <PlayChip
+              albumMbid={album.mbid}
+              spotifyUrl={album.spotifyUrl ?? null}
+              title={album.title}
+              artist={album.artist}
+              size={32}
+              alwaysVisible
+            />
           </div>
         </div>
       </div>

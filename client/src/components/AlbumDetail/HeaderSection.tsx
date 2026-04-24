@@ -687,17 +687,17 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   setCoverSize({ w: naturalWidth, h: naturalHeight })
               : undefined}
           />
-          {/* ▶ chip at the hero cover's bottom-right. Always visible
-              so the viewer doesn't need to hover to discover
-              playback is available; clicking hands off to the
-              persistent Spotify player docked elsewhere. */}
+          {/* ▶ chip at the hero cover's bottom-right. Revealed on
+              hover over the cover wrapper (`group/cover`) so the
+              chip reads as a hovered affordance matching every
+              other cover ▶ chip in the app. */}
           <PlayChip
             albumMbid={album.mbid}
             spotifyUrl={streaming.spotify}
             title={album.title}
             artist={album.artist}
             size={44}
-            alwaysVisible
+            hoverGroup="group-hover/cover"
           />
           {user?.isAdmin && !editingCover && (
             <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 opacity-0 group-hover/cover:opacity-100 transition-opacity">

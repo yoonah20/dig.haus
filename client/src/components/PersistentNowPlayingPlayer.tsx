@@ -111,10 +111,17 @@ export default function PersistentNowPlayingPlayer() {
       if (cancelled) return;
 
       // Tear down the previous controller (and its iframe) before
-      // spinning up the new one. `destroy()` removes the iframe
-      // element from the DOM; the next createController appends a
-      // brand-new iframe to the host div, which the browser loads
-      // as an initial page rather than a navigation.
+      // spinning up the new one. Two things matter for this to
+      // work reliably back-to-back:
+      //   1. Empty the host after destroy — Spotify's teardown
+      //      can leave wrapper nodes behind, and createController
+      //      silently noops on a "dirty" host (observed as the
+      //      player just vanishing after the second track swap).
+      //   2. Wait a beat so postMessage channels from the old
+      //      controller fully close before the new one opens. 80ms
+      //      is short enough that the player-gap reads as a swap
+      //      animation and long enough that Spotify's internals
+      //      register the destroy.
       if (controllerRef.current) {
         try {
           controllerRef.current.destroy();
@@ -122,6 +129,11 @@ export default function PersistentNowPlayingPlayer() {
           // controller may already be partially torn down in HMR
         }
         controllerRef.current = null;
+        while (hostEl.firstChild) {
+          hostEl.removeChild(hostEl.firstChild);
+        }
+        await new Promise<void>((r) => setTimeout(r, 80));
+        if (cancelled) return;
       }
 
       api.createController(

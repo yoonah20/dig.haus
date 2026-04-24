@@ -270,14 +270,16 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
               hero placement. Falls back to spotifyUrl as the
               identity key when mbid is null (similar picks can
               lack a local mbid when they're not in our DB yet) —
-              PlayChip hides itself if neither is usable. */}
+              PlayChip hides itself if neither is usable. Hover
+              reveal via the outer `group/card` the card anchor
+              already exposes. */}
           <PlayChip
             albumMbid={album.mbid ?? album.spotifyUrl ?? ''}
             spotifyUrl={album.spotifyUrl}
             title={album.title}
             artist={album.artist}
             size={32}
-            alwaysVisible
+            hoverGroup="group-hover/card"
           />
         </div>
         {/* flex-1 lets this block fill the leftover height of the

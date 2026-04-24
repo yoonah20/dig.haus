@@ -21,6 +21,18 @@ import {
 // surfaces that want the chip always visible (home grid), pass
 // `alwaysVisible`; otherwise it fades in on the parent's
 // `group-hover/cover` or `group-hover` state.
+// Hover-reveal class strings. These have to exist as literal
+// strings in source so Tailwind's JIT can detect and emit them —
+// interpolating `${hoverGroup}:opacity-100` at render time would
+// produce a class name the build step never sees, leaving the
+// chip invisible in production. One entry per known parent
+// `group/<name>` used around the app.
+const HOVER_VISIBILITY: Record<string, string> = {
+  'group-hover': 'opacity-0 group-hover:opacity-100',
+  'group-hover/cover': 'opacity-0 group-hover/cover:opacity-100',
+  'group-hover/card': 'opacity-0 group-hover/card:opacity-100',
+};
+
 interface PlayChipProps {
   albumMbid: string;
   spotifyUrl: string | null | undefined;
@@ -28,14 +40,17 @@ interface PlayChipProps {
   artist: string;
   /** Visual diameter in px. Default 36 suits ~150–250px covers. */
   size?: number;
-  /** When true, chip is always visible (no hover gate). Used on
-   *  home grid covers where hover already does other things. */
+  /** When true, chip is always visible (no hover gate). Used when
+   *  the parent handles visibility itself — e.g. AlbumCard's back
+   *  face is only rendered post-flip, so chip doesn't need another
+   *  hover trigger. */
   alwaysVisible?: boolean;
-  /** Hover group selector — defaults to the Tailwind default
-   *  `group-hover:`. If the parent uses a scoped group name (e.g.
-   *  `group/cover`), pass that selector (e.g. `group-hover/cover:`)
-   *  so the chip reveals only on the right hover target. */
-  hoverGroup?: string;
+  /** Hover group selector — defaults to Tailwind's unscoped
+   *  `group-hover`. Parents using a scoped group name (e.g.
+   *  `group/cover`) pass the matching selector here so the chip
+   *  reveals only on the right hover target. Must be one of the
+   *  keys in HOVER_VISIBILITY above. */
+  hoverGroup?: keyof typeof HOVER_VISIBILITY;
   /** Extra positioning — bottom-right by default. Caller can
    *  override via inline style if a cover has different insets. */
   className?: string;
@@ -78,7 +93,7 @@ export default function PlayChip({
   const visibility =
     alwaysVisible || isPlaying
       ? 'opacity-100'
-      : `opacity-0 ${hoverGroup}:opacity-100`;
+      : HOVER_VISIBILITY[hoverGroup] ?? HOVER_VISIBILITY['group-hover'];
 
   return (
     <button
