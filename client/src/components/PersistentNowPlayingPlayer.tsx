@@ -244,14 +244,14 @@ export default function PersistentNowPlayingPlayer() {
       <div className="pointer-events-auto relative group/np">
         <div
           ref={setHostEl}
-          className="rounded-lg bg-[#2a1a0d] border overflow-hidden"
+          className="rounded-lg overflow-hidden"
           style={{
-            // Walnut tint cascades to the injected iframe — CSS
-            // filter applies to descendants. Matches the earlier
-            // inline variant's colour shift.
-            filter:
-              'sepia(0.25) hue-rotate(-18deg) saturate(0.88) brightness(0.94)',
-            borderColor: 'rgba(90, 58, 32, 0.55)',
+            // No tint, no walnut border — Spotify's embed paints
+            // its own per-album chrome and those theme colours
+            // overwhelm anything we'd layer around them. The
+            // player just drops in with its own colour palette;
+            // on mydig the painted-wall backdrop carries the shop
+            // aesthetic, and the embed sits in it as-is.
             boxShadow:
               mode === 'floating'
                 ? '0 8px 24px rgba(0, 0, 0, 0.55)'
