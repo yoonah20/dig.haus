@@ -213,8 +213,12 @@ export default function MyDig() {
             isOwner={data.user.isOwner}
             wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
             wallDescription={
+              // Snapshot mode: use the snapshot's own description
+              // when set, fall back to the live wall description
+              // so the subtitle never goes blank just because the
+              // snapshot was saved without a custom note.
               isSnapshotMode
-                ? snap?.description ?? null
+                ? snap?.description ?? data.vinylWallDescription
                 : data.vinylWallDescription
             }
             snapshotMeta={
@@ -510,27 +514,164 @@ function ProfileHeader({
       src={resolvedAvatar}
       alt=""
       aria-hidden
-      className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border border-white/10"
+      className={
+        vertical
+          ? 'w-20 h-20 rounded-full object-cover border border-white/10'
+          : 'w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border border-white/10'
+      }
       referrerPolicy="no-referrer"
     />
   ) : (
-    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
-      <span className="text-xl sm:text-2xl text-[#e8a020]/70 font-serif italic">
+    <div
+      className={
+        vertical
+          ? 'w-20 h-20 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center'
+          : 'w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center'
+      }
+    >
+      <span
+        className={
+          vertical
+            ? 'text-3xl text-[#e8a020]/70 font-serif italic'
+            : 'text-xl sm:text-2xl text-[#e8a020]/70 font-serif italic'
+        }
+      >
         {initial}
       </span>
     </div>
   );
+
+  // Vertical sidebar card — dedicated layout for the desktop
+  // right rail. Rounded-corner container pulling the same visual
+  // treatment as /profile's personal-info card (translucent
+  // charcoal fill, soft border), with avatar centred up top,
+  // follower/following chips in a row below, a divider, then the
+  // wall theme + description + actions stacked. Uses its own
+  // return rather than branching inside the horizontal flex tree
+  // so the two layouts don't fight each other class-by-class.
+  if (vertical) {
+    return (
+      <div className="rounded-2xl p-5 border border-white/5 bg-[#120c05]/55 backdrop-blur-[2px] flex flex-col gap-4 min-w-0">
+        {/* Avatar + display name block — centred. @username
+            sits as the small amber sticker on the portrait's
+            upper-left, the display name reads below as plain
+            text (not the tilted chip the horizontal variant
+            uses, which clipped awkwardly in a narrow column). */}
+        <div className="flex flex-col items-center gap-2">
+          <div className="relative">
+            {userId != null ? (
+              <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
+            ) : (
+              avatarEl
+            )}
+            <span
+              aria-hidden
+              className="absolute -top-1 -left-2 text-[10px] font-semibold text-[#141008] bg-[#e8a020] px-1.5 py-[1px] rounded-[3px] shadow-sm pointer-events-none select-none"
+              style={{ transform: 'rotate(-4deg)' }}
+            >
+              @{username}
+            </span>
+          </div>
+          <div className="text-[13px] font-medium text-[#f5e8c8] text-center break-words max-w-full">
+            {displayLabel}
+          </div>
+        </div>
+
+        {/* Follower / following counts. Both clickable; open the
+            shared FollowListModal that /profile uses, reusing
+            the query cache. Hidden entirely when userId is null
+            (anonymous / not-yet-resolved page owner). */}
+        {userId != null && (
+          <div className="flex items-center justify-center gap-3 text-[12px]">
+            <button
+              type="button"
+              onClick={() => setFollowListOpen('followers')}
+              className="px-2 py-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <span className="text-[#f5d89a] font-semibold">
+                {followerCount.toLocaleString()}
+              </span>
+              <span className="text-gray-500 ml-1">팔로워</span>
+            </button>
+            <span className="text-gray-700">·</span>
+            <button
+              type="button"
+              onClick={() => setFollowListOpen('following')}
+              className="px-2 py-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer"
+            >
+              <span className="text-[#f5d89a] font-semibold">
+                {followingCount.toLocaleString()}
+              </span>
+              <span className="text-gray-500 ml-1">팔로잉</span>
+            </button>
+          </div>
+        )}
+
+        <div className="h-px bg-white/5" />
+
+        {/* Wall theme + description + snapshot meta */}
+        <div className="flex flex-col gap-2 min-w-0">
+          <h2
+            className={`text-lg font-serif italic leading-tight break-words ${
+              themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
+            }`}
+            title={displayThemeText}
+          >
+            {displayThemeText}
+          </h2>
+          {wallDescription ? (
+            <p className="text-[13px] text-[#c9a060]/90 leading-relaxed break-words">
+              {wallDescription}
+            </p>
+          ) : mode === 'live' && isOwner ? (
+            <p className="text-[12px] text-gray-600 italic">
+              ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
+            </p>
+          ) : null}
+          {mode === 'snapshot' && snapshotMeta && (
+            <div className="flex items-center gap-2 flex-wrap text-[11px]">
+              <span className="uppercase tracking-[0.22em] text-[#c9a060]">
+                {formatKoreanMemoryDate(snapshotMeta.createdAt)}
+              </span>
+              <span
+                className={
+                  snapshotMeta.isPublic
+                    ? 'uppercase tracking-[0.22em] text-[#e8a020]'
+                    : 'uppercase tracking-[0.22em] text-[#8a7250]'
+                }
+              >
+                · {snapshotMeta.isPublic ? 'public' : 'private'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Actions stacked on their own row at the bottom of the
+            card so the title/description read as a cohesive block
+            above and the controls are clearly a separate group. */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {renderActions()}
+        </div>
+
+        {followListOpen && userId != null && (
+          <FollowListModal
+            userId={userId}
+            kind={followListOpen}
+            title={followListOpen === 'followers' ? '팔로워' : '팔로잉'}
+            onClose={() => setFollowListOpen(null)}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // Horizontal layout — mobile variant. Two-column on sm+; stacked
+  // below `sm` so the display-name chip doesn't leak into the
+  // title at narrow widths. The vertical (desktop sidebar) layout
+  // returns above via its own rounded-card treatment.
   return (
-    // Two-column header on sm+ (horizontal layout); stacked on
-    // mobile. `vertical` forces a fully-stacked column regardless
-    // of viewport — that's the desktop-sidebar variant where the
-    // header lives in the narrow right rail beside the wall.
     <header
-      className={
-        vertical
-          ? 'flex flex-col items-start gap-3 pt-1 pb-3'
-          : 'flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-8 pt-2 pb-3'
-      }
+      className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-8 pt-2 pb-3"
     >
       {/* Avatar block — two sticker chips overlap the portrait:
           @username at the top-left as a small amber tag, display
@@ -569,41 +710,24 @@ function ProfileHeader({
             digging state back out. */}
       </div>
 
-      <div
-        className={
-          vertical
-            ? 'w-full min-w-0 flex flex-col gap-2'
-            : 'flex-1 min-w-0 pt-1 flex flex-col gap-2'
-        }
-      >
-        {/* Horizontal layout: title + actions share a row so the
-            header stays compact. Vertical layout: title on its own
-            line, actions cluster drops below the description for
-            less visual competition in the narrow sidebar. */}
-        {vertical ? (
+      <div className="flex-1 min-w-0 pt-1 flex flex-col gap-2">
+        {/* Title + actions share a row so the header stays
+            compact. Actions push right; on narrow viewports the
+            flex-wrap drops them to the next line rather than
+            squashing the h1. */}
+        <div className="flex items-start gap-3 flex-wrap">
           <h1
-            className={`text-lg font-serif italic leading-tight ${
+            className={`text-xl sm:text-2xl font-serif italic leading-tight truncate flex-1 min-w-0 ${
               themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
             }`}
             title={displayThemeText}
           >
             {displayThemeText}
           </h1>
-        ) : (
-          <div className="flex items-start gap-3 flex-wrap">
-            <h1
-              className={`text-xl sm:text-2xl font-serif italic leading-tight truncate flex-1 min-w-0 ${
-                themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
-              }`}
-              title={displayThemeText}
-            >
-              {displayThemeText}
-            </h1>
-            <div className="flex items-center gap-2 shrink-0">
-              {renderActions()}
-            </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {renderActions()}
           </div>
-        )}
+        </div>
 
         {/* Subtitle order: description first, then the snapshot
             meta strip (date + public/private). Live mode shows
@@ -636,11 +760,6 @@ function ProfileHeader({
           </div>
         )}
 
-        {vertical && (
-          <div className="flex items-center gap-2 flex-wrap pt-1">
-            {renderActions()}
-          </div>
-        )}
       </div>
       {followListOpen && userId != null && (
         <FollowListModal
