@@ -201,38 +201,39 @@ export default function MyDig() {
           clears the fixed `pinned` SiteFooter overlay when the
           page scrolls. */}
       <main className="max-w-[1280px] mx-auto px-4 pt-4 pb-24 space-y-1">
-        <ProfileHeader
-          userId={data.user.id ?? null}
-          username={data.user.username}
-          displayName={data.user.displayName}
-          avatarUrl={data.user.avatarUrl}
-          isOwner={data.user.isOwner}
-          wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
-          // Snapshots reuse the wall-description slot so the
-          // subtitle renders the same way whether the viewer is on
-          // a live wall or an archived snapshot.
-          wallDescription={
-            isSnapshotMode
-              ? snap?.description ?? null
-              : data.vinylWallDescription
-          }
-          // Snapshot mode carries its own meta line (date + public
-          // flag) on top of the description.
-          snapshotMeta={
-            isSnapshotMode
-              ? {
-                  createdAt: snap!.createdAt,
-                  isPublic: snap!.isPublic,
-                }
-              : null
-          }
-          mode={isSnapshotMode ? 'snapshot' : 'live'}
-          onEdit={() => setEditingWall(true)}
-          onSaveSnapshot={() => setSavingSnapshot(true)}
-          onDeleteSnapshot={handleDeleteSnapshot}
-          deleteSnapshotPending={deleteSnap.isPending}
-          shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
-        />
+        {/* Mobile header: lives above the wall in horizontal
+            layout. Hidden on md+ since the desktop variant lives
+            inside the right sidebar below. */}
+        <div className="md:hidden">
+          <ProfileHeader
+            userId={data.user.id ?? null}
+            username={data.user.username}
+            displayName={data.user.displayName}
+            avatarUrl={data.user.avatarUrl}
+            isOwner={data.user.isOwner}
+            wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
+            wallDescription={
+              isSnapshotMode
+                ? snap?.description ?? null
+                : data.vinylWallDescription
+            }
+            snapshotMeta={
+              isSnapshotMode
+                ? {
+                    createdAt: snap!.createdAt,
+                    isPublic: snap!.isPublic,
+                  }
+                : null
+            }
+            mode={isSnapshotMode ? 'snapshot' : 'live'}
+            onEdit={() => setEditingWall(true)}
+            onSaveSnapshot={() => setSavingSnapshot(true)}
+            onDeleteSnapshot={handleDeleteSnapshot}
+            deleteSnapshotPending={deleteSnap.isPending}
+            shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
+            layout="horizontal"
+          />
+        </div>
 
         {/* Mobile-only snapshot dropdown — the sidebar graffiti list
             fell BELOW the wall on narrow viewports and got lost in
@@ -294,7 +295,40 @@ export default function MyDig() {
             </div>
           </WallSection>
           {username && (
-            <div className="hidden md:block">
+            <div className="hidden md:flex md:flex-col md:gap-6">
+              {/* Desktop sidebar: ProfileHeader stacked on top,
+                  GraffitiSnapshotList below. Moving the header
+                  here frees ~120px above the wall so the painted
+                  backdrop's floor is visible on shorter viewports
+                  too. */}
+              <ProfileHeader
+                userId={data.user.id ?? null}
+                username={data.user.username}
+                displayName={data.user.displayName}
+                avatarUrl={data.user.avatarUrl}
+                isOwner={data.user.isOwner}
+                wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
+                wallDescription={
+                  isSnapshotMode
+                    ? snap?.description ?? null
+                    : data.vinylWallDescription
+                }
+                snapshotMeta={
+                  isSnapshotMode
+                    ? {
+                        createdAt: snap!.createdAt,
+                        isPublic: snap!.isPublic,
+                      }
+                    : null
+                }
+                mode={isSnapshotMode ? 'snapshot' : 'live'}
+                onEdit={() => setEditingWall(true)}
+                onSaveSnapshot={() => setSavingSnapshot(true)}
+                onDeleteSnapshot={handleDeleteSnapshot}
+                deleteSnapshotPending={deleteSnap.isPending}
+                shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
+                layout="vertical"
+              />
               <GraffitiSnapshotList
                 username={username}
                 snapshots={snapshotsQuery.data?.snapshots ?? []}
@@ -375,6 +409,7 @@ function ProfileHeader({
   onDeleteSnapshot,
   deleteSnapshotPending,
   shareUrl,
+  layout = 'horizontal',
 }: {
   userId: number | null;
   username: string;
@@ -393,7 +428,14 @@ function ProfileHeader({
   onDeleteSnapshot: () => void;
   deleteSnapshotPending: boolean;
   shareUrl: string;
+  /** `horizontal` (default, mobile): avatar left, theme + actions
+   *  right. `vertical` (desktop sidebar): everything stacked —
+   *  used when ProfileHeader lives in the narrow right column
+   *  beside the wall, freeing up ~120px of vertical space above
+   *  the wall for the backdrop floor to show. */
+  layout?: 'horizontal' | 'vertical';
 }) {
+  const vertical = layout === 'vertical';
   const initial = (displayName || username).charAt(0).toUpperCase();
   const resolvedAvatar = resolveApiUrl(avatarUrl);
   const displayThemeText = wallTheme || 'my dig';
@@ -411,6 +453,58 @@ function ProfileHeader({
   const [followListOpen, setFollowListOpen] = useState<
     'followers' | 'following' | null
   >(null);
+  // Action buttons extracted so both horizontal (inline next to
+  // the h1) and vertical (stacked below the description) layouts
+  // render the same set without duplication.
+  function renderActions() {
+    return (
+      <>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            title={
+              mode === 'snapshot'
+                ? '스냅샷 이름·설명·앨범 편집'
+                : '벽 제목·설명·앨범 편집'
+            }
+          >
+            ✏️ 편집
+          </button>
+        )}
+        {isOwner && mode === 'live' && (
+          <button
+            type="button"
+            onClick={onSaveSnapshot}
+            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            title="현재 구성을 기억으로 남기기"
+          >
+            📸 기억 남기기
+          </button>
+        )}
+        {isOwner && mode === 'snapshot' && (
+          <button
+            type="button"
+            onClick={onDeleteSnapshot}
+            disabled={deleteSnapshotPending}
+            className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="스냅샷 삭제"
+          >
+            {deleteSnapshotPending ? '삭제 중…' : '🗑 삭제'}
+          </button>
+        )}
+        {!isOwner && userId != null && (
+          <FollowButton
+            targetUserId={userId}
+            following={viewerIsFollowing}
+          />
+        )}
+        <ShareButton url={shareUrl} label="공유" />
+      </>
+    );
+  }
+
   const avatarEl = resolvedAvatar ? (
     <img
       src={resolvedAvatar}
@@ -427,13 +521,17 @@ function ProfileHeader({
     </div>
   );
   return (
-    // Two-column header on sm+; stacked on mobile. The display-name
-    // chip under the avatar is up to 120px wide — side-by-side with
-    // `gap-8` on narrow viewports that chip physically overlapped the
-    // theme text. Stacking the block vertically below `sm` keeps the
-    // chip from leaking into the title, and the actions cluster then
-    // wraps under the title with proper breathing room.
-    <header className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-8 pt-2 pb-3">
+    // Two-column header on sm+ (horizontal layout); stacked on
+    // mobile. `vertical` forces a fully-stacked column regardless
+    // of viewport — that's the desktop-sidebar variant where the
+    // header lives in the narrow right rail beside the wall.
+    <header
+      className={
+        vertical
+          ? 'flex flex-col items-start gap-3 pt-1 pb-3'
+          : 'flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-8 pt-2 pb-3'
+      }
+    >
       {/* Avatar block — two sticker chips overlap the portrait:
           @username at the top-left as a small amber tag, display
           name across the bottom edge as a darker label that
@@ -471,77 +569,41 @@ function ProfileHeader({
             digging state back out. */}
       </div>
 
-      <div className="flex-1 min-w-0 pt-1 flex flex-col gap-2">
-        {/* Title + actions share a row so the header stays
-            compact. Actions push right; on narrow viewports the
-            flex-wrap drops them to the next line rather than
-            squashing the h1. */}
-        <div className="flex items-start gap-3 flex-wrap">
+      <div
+        className={
+          vertical
+            ? 'w-full min-w-0 flex flex-col gap-2'
+            : 'flex-1 min-w-0 pt-1 flex flex-col gap-2'
+        }
+      >
+        {/* Horizontal layout: title + actions share a row so the
+            header stays compact. Vertical layout: title on its own
+            line, actions cluster drops below the description for
+            less visual competition in the narrow sidebar. */}
+        {vertical ? (
           <h1
-            className={`text-xl sm:text-2xl font-serif italic leading-tight truncate flex-1 min-w-0 ${
+            className={`text-lg font-serif italic leading-tight ${
               themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
             }`}
             title={displayThemeText}
           >
             {displayThemeText}
           </h1>
-          <div className="flex items-center gap-2 shrink-0">
-            {/* Single unified 편집 action for both modes. Live opens
-                the wall editor (title + description + albums); the
-                same editor in snapshot mode edits the snapshot's
-                name + description + public flag + albums. The old
-                split of 📸 / ✏️ 이름 / ✏️ 앨범 is gone — one
-                obvious "edit this thing" button regardless of
-                whether the user is looking at the live wall or a
-                saved snapshot. */}
-            {isOwner && (
-              <button
-                type="button"
-                onClick={onEdit}
-                className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-                title={
-                  mode === 'snapshot'
-                    ? '스냅샷 이름·설명·앨범 편집'
-                    : '벽 제목·설명·앨범 편집'
-                }
-              >
-                ✏️ 편집
-              </button>
-            )}
-            {isOwner && mode === 'live' && (
-              <button
-                type="button"
-                onClick={onSaveSnapshot}
-                className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-                title="현재 구성을 기억으로 남기기"
-              >
-                📸 기억 남기기
-              </button>
-            )}
-            {isOwner && mode === 'snapshot' && (
-              <button
-                type="button"
-                onClick={onDeleteSnapshot}
-                disabled={deleteSnapshotPending}
-                className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title="스냅샷 삭제"
-              >
-                {deleteSnapshotPending ? '삭제 중…' : '🗑 삭제'}
-              </button>
-            )}
-            {/* Follow button — visible to logged-in visitors who
-                aren't the page owner. FollowButton renders null
-                for the self / anon cases so this is a no-op on
-                the owner's own page view. */}
-            {!isOwner && userId != null && (
-              <FollowButton
-                targetUserId={userId}
-                following={viewerIsFollowing}
-              />
-            )}
-            <ShareButton url={shareUrl} label="공유" />
+        ) : (
+          <div className="flex items-start gap-3 flex-wrap">
+            <h1
+              className={`text-xl sm:text-2xl font-serif italic leading-tight truncate flex-1 min-w-0 ${
+                themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
+              }`}
+              title={displayThemeText}
+            >
+              {displayThemeText}
+            </h1>
+            <div className="flex items-center gap-2 shrink-0">
+              {renderActions()}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Subtitle order: description first, then the snapshot
             meta strip (date + public/private). Live mode shows
@@ -571,6 +633,12 @@ function ProfileHeader({
             >
               · {snapshotMeta.isPublic ? 'public' : 'private'}
             </span>
+          </div>
+        )}
+
+        {vertical && (
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            {renderActions()}
           </div>
         )}
       </div>
