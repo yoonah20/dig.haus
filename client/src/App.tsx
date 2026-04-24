@@ -304,13 +304,11 @@ export default function App() {
                   <Route path="/admin/compare" element={<LlmCompare />} />
                 </Routes>
               </Suspense>
-              {/* Footer hidden on /my/:username — the page is an
-                  identity canvas and footer links read as chrome
-                  that breaks the "shop interior" frame. Other
-                  routes keep it. Space is reserved for future
-                  mydig-specific footer content (crate strip, etc.)
-                  if the page grows a second floor tier. */}
-              {!isMydig && <SiteFooter />}
+              {/* Footer on mydig is `pinned` — fixed to the viewport
+                  bottom so it tracks the backdrop's bottom anchor no
+                  matter how the wall + snapshot strip change length.
+                  Other routes keep the flow-layout sticky-footer. */}
+              <SiteFooter pinned={isMydig} />
               <CurationProgressPanel />
             </div>
           </CurationProgressProvider>

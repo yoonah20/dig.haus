@@ -7,6 +7,7 @@ import {
   useDeleteVinylWallSnapshot,
   type MyDigAlbum,
   type MyDigWallItem,
+  type VinylWallSnapshotSummary,
 } from '../hooks/useMyDig';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
@@ -31,6 +32,26 @@ import {
 } from '../hooks/useActiveWallCell';
 import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 import { resolveApiUrl } from '../utils/apiUrl';
+
+// Temporary feature flags — both features are wired end-to-end
+// (server extraction, hooks, primitives, payload) but the
+// cover-tint extraction and Spotify preview playback paths are
+// still misbehaving in practice. Render-side gates keep the UX
+// clean while the underlying flow is debugged; flip to true to
+// re-enable without touching the rest of the wiring.
+const MYDIG_VINYL_TINT_ENABLED = false;
+const MYDIG_PREVIEW_ENABLED = false;
+// Old "vinyl disc slides out from behind the cover" peek on hover.
+// Replaced by the tilt + specular sheen effect; flip back to true to
+// restore the original peek animation and drop the shine overlays.
+const MYDIG_VINYL_PEEK_ENABLED = false;
+// Shrink-wrap overlay (SVG turbulence noise + CSS gradient crease).
+// CSS-only rendering never reached "actually looks wrapped in
+// plastic" — real plastic needs a raster texture (PNG/WebP with
+// baked highlights) to read convincingly. Disabled until we source
+// or license a tileable shrink-wrap asset; tilt + specular alone
+// carry the hover interaction fine in the interim.
+const MYDIG_SHRINKWRAP_ENABLED = false;
 
 // Phase 3a skeleton — the four-layer placeholder scaffold described
 // in CLAUDE.md. No edit mode, no drag-drop, no flip-through yet —
@@ -172,7 +193,10 @@ export default function MyDig() {
 
   return (
     <div className="flex-1">
-      <main className="max-w-[1280px] mx-auto px-4 pt-4 pb-8 space-y-1">
+      {/* pb-24 reserves space under the wall so the last row
+          clears the fixed `pinned` SiteFooter overlay when the
+          page scrolls. */}
+      <main className="max-w-[1280px] mx-auto px-4 pt-4 pb-24 space-y-1">
         <ProfileHeader
           userId={data.user.id ?? null}
           username={data.user.username}
@@ -206,6 +230,26 @@ export default function MyDig() {
           shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
         />
 
+        {/* Mobile-only snapshot dropdown — the sidebar graffiti list
+            fell BELOW the wall on narrow viewports and got lost in
+            the painted-wall backdrop where the lamp light doesn't
+            reach (near-black handwriting on a dim brown field
+            reads as invisible). A compact button-style disclosure
+            above the wall keeps the entry point discoverable on
+            mobile without moving the desktop placement. */}
+        {username && (
+          <div className="md:hidden">
+            <MobileSnapshotsDropdown
+              username={username}
+              snapshots={snapshotsQuery.data?.snapshots ?? []}
+              isOwner={data.user.isOwner}
+              activeSlug={activeSlug}
+              onSelect={handleSelectSnapshot}
+              onClear={handleClearSnapshot}
+            />
+          </div>
+        )}
+
         {/* Desktop grid: wall at max 890px flush to the left edge of
             the content area, graffiti column takes the remainder.
             The earlier left-gutter column was removed — the wall
@@ -234,14 +278,16 @@ export default function MyDig() {
             )}
           </WallSection>
           {username && (
-            <GraffitiSnapshotList
-              username={username}
-              snapshots={snapshotsQuery.data?.snapshots ?? []}
-              isOwner={data.user.isOwner}
-              activeSlug={activeSlug}
-              onSelect={handleSelectSnapshot}
-              onClear={handleClearSnapshot}
-            />
+            <div className="hidden md:block">
+              <GraffitiSnapshotList
+                username={username}
+                snapshots={snapshotsQuery.data?.snapshots ?? []}
+                isOwner={data.user.isOwner}
+                activeSlug={activeSlug}
+                onSelect={handleSelectSnapshot}
+                onClear={handleClearSnapshot}
+              />
+            </div>
           )}
         </div>
 
@@ -364,13 +410,13 @@ function ProfileHeader({
     </div>
   );
   return (
-    // Two-column header: avatar block on the left (the @ chip
-    // sticks to the portrait's corner, display name reads under
-    // it), theme + description + actions fill the right. Kept
-    // tight vertically — the header used to eat ~150px with its
-    // separate @username line; now the avatar stack carries the
-    // identity in about 100px total.
-    <header className="flex items-start gap-8 pt-2 pb-3">
+    // Two-column header on sm+; stacked on mobile. The display-name
+    // chip under the avatar is up to 120px wide — side-by-side with
+    // `gap-8` on narrow viewports that chip physically overlapped the
+    // theme text. Stacking the block vertically below `sm` keeps the
+    // chip from leaking into the title, and the actions cluster then
+    // wraps under the title with proper breathing room.
+    <header className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-8 pt-2 pb-3">
       {/* Avatar block — two sticker chips overlap the portrait:
           @username at the top-left as a small amber tag, display
           name across the bottom edge as a darker label that
@@ -543,6 +589,118 @@ function WallSection({ children }: { children: React.ReactNode }) {
     >
       <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
     </section>
+  );
+}
+
+// ─── Mobile snapshot dropdown ─────────────────────────────────
+// Sits above the wall on mobile in place of the desktop sidebar
+// graffiti list. Collapsed by default so it doesn't push the
+// wall down the page; expanded panel shows the same snapshot
+// entries — styled as compact amber chips instead of the
+// handwriting treatment the sidebar uses (handwriting reads as
+// decoration against the backdrop on desktop; a compact list on
+// dark chrome reads clearer on a small screen). Active snapshot
+// appears in the collapsed header so the user knows which memory
+// is currently loaded without expanding.
+function MobileSnapshotsDropdown({
+  snapshots,
+  isOwner,
+  activeSlug,
+  onSelect,
+  onClear,
+}: {
+  username: string;
+  snapshots: VinylWallSnapshotSummary[];
+  isOwner: boolean;
+  activeSlug: string | null;
+  onSelect: (slug: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const activeSnap = activeSlug
+    ? snapshots.find((s) => s.slug === activeSlug)
+    : null;
+  const label = activeSnap ? activeSnap.name : '현재 마이딕';
+  const empty = snapshots.length === 0;
+
+  return (
+    <div className="mb-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-[#1a130a]/60 border border-white/10 text-[13px] text-gray-200 hover:border-[#e8a020]/40 transition-colors"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="text-[10px] uppercase tracking-wider text-gray-500 shrink-0">
+            기억
+          </span>
+          <span className="truncate text-[#f5d89a]">{label}</span>
+        </span>
+        <span
+          aria-hidden
+          className={`text-gray-500 transition-transform ${
+            open ? 'rotate-180' : ''
+          }`}
+        >
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="mt-1 rounded-md bg-[#0f0a05]/85 border border-white/10 divide-y divide-white/5 overflow-hidden">
+          {/* Back-to-live row when viewing a snapshot. Mirrors the
+              "← 현재 마이딕으로…" affordance from the desktop list
+              but as a plain button row for mobile. */}
+          {activeSlug && (
+            <button
+              type="button"
+              onClick={() => {
+                onClear();
+                setOpen(false);
+              }}
+              className="w-full text-left px-3 py-2 text-[13px] text-[#e8a020] hover:bg-[#e8a020]/10"
+            >
+              ← 현재 마이딕으로
+            </button>
+          )}
+          {empty ? (
+            <div className="px-3 py-2 text-[12px] text-gray-500 italic">
+              {isOwner
+                ? '아직 기억하지 않았어요. 📸 버튼으로 남겨보세요.'
+                : '아직 기억하지 않았어요.'}
+            </div>
+          ) : (
+            snapshots.map((snap) => {
+              const isActive = activeSlug === snap.slug;
+              const suffix = isOwner && !snap.isPublic ? ' (비공개)' : '';
+              return (
+                <button
+                  type="button"
+                  key={snap.id}
+                  onClick={() => {
+                    onSelect(snap.slug);
+                    setOpen(false);
+                  }}
+                  disabled={isActive}
+                  className={`w-full text-left px-3 py-2 text-[13px] ${
+                    isActive
+                      ? 'text-[#e8a020] bg-[#e8a020]/5 cursor-default'
+                      : 'text-gray-200 hover:bg-white/5'
+                  }`}
+                >
+                  {snap.name}
+                  {suffix && (
+                    <span className="text-[11px] text-gray-500 ml-1.5">
+                      {suffix}
+                    </span>
+                  )}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -765,10 +923,15 @@ function CellAnim({
 }
 
 // ─── Wall cell ────────────────────────────────────────────────
-// One filled slot. Desktop: hover triggers vinyl-peek + cover
-// scale (bottom-origin so the record grows upward from the rail)
-// + optional comment bubble on the owner's own 50자 평. Mobile:
-// plain tap-to-navigate, no hover state.
+// One filled slot. Desktop: hover scales the sleeve up 1.4× and
+// applies a cursor-tracked 3D tilt + specular streak — the
+// "shrink-wrapped LP catching pendant light" read, inspired by
+// simeydotme/pokemon-cards-css. Mobile: tap-activate scales up
+// without tilt (no cursor on touch). Comment bubble + (when
+// enabled) preview chip surface on the active cell either way.
+// The vinyl disc behind the cover is kept in the tree but no
+// longer peeks on hover — the tilt + shine carry the interaction
+// now. Flip MYDIG_VINYL_PEEK_ENABLED back to true to restore.
 function WallCell({
   item,
   position,
@@ -790,9 +953,15 @@ function WallCell({
   // and ships it as a "r,g,b" string on the wall payload. Null on
   // very first view of an album (server kicks off async extraction
   // on that same request); subsequent fetches carry the value.
-  const discBodyRgb = parseRgbString(album.coverDominantColor ?? null);
-  // Preview URL drives the hover play chip. Null = no chip.
-  const previewUrl = album.previewTrackUrl ?? null;
+  // Gated by MYDIG_VINYL_TINT_ENABLED — when off, every disc renders
+  // classic black regardless of what the server returns.
+  const discBodyRgb = MYDIG_VINYL_TINT_ENABLED
+    ? parseRgbString(album.coverDominantColor ?? null)
+    : null;
+  // Preview URL drives the hover play chip. Null = no chip. Gated
+  // by MYDIG_PREVIEW_ENABLED so the chip + audio stay dormant even
+  // when the payload carries a URL.
+  const previewUrl = MYDIG_PREVIEW_ENABLED ? album.previewTrackUrl ?? null : null;
   const playingUrl = usePlayingPreviewUrl();
   const isPlaying = !!previewUrl && playingUrl === previewUrl;
   const handlePreviewClick = (e: React.MouseEvent) => {
@@ -812,6 +981,58 @@ function WallCell({
   const cellId = `cell-${position}`;
   const activeId = useActiveWallCellId();
   const isActive = activeId === cellId;
+
+  // Cursor-tracked tilt + lamp-anchored specular — written to CSS
+  // custom properties on the card element via a plain ref (no
+  // React state per-pixel; mousemove fires every frame and
+  // setState would thrash).
+  //
+  // - `--tilt-x` / `--tilt-y` : 3D transform. Cursor drives these
+  //   directly, ±7°.
+  // - `--spec-x` / `--spec-y` : specular centre. Cursor does NOT
+  //   drive these directly; we anchor the shine near the scene's
+  //   upper-left pendant (22%, 18%) and slide it INVERSE to the
+  //   cursor. Physically: tilting the sleeve to the right rolls
+  //   the lamp reflection leftwards across the plastic; tilting
+  //   the top toward the viewer sends the reflection downward.
+  //   That "reflection lagging behind the tilt" is what reads as
+  //   shrink-wrap rather than flat card.
+  const cardRef = useRef<HTMLAnchorElement>(null);
+  const handleCursorMove = (e: React.MouseEvent<HTMLElement>) => {
+    const el = cardRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const nx = (e.clientX - rect.left) / rect.width;
+    const ny = (e.clientY - rect.top) / rect.height;
+    const tiltY = (nx - 0.5) * 14;
+    const tiltX = -(ny - 0.5) * 14;
+    // Base near mid-upper, with wide inverse travel so the shine
+    // can sweep across roughly 70% × 55% of the sleeve as the
+    // cursor moves. Earlier anchoring to (22%, 18%) trapped the
+    // highlight in the upper-left corner — a real shrink-wrapped
+    // sleeve tilted under a lamp has the reflection travelling
+    // much further across the surface as it pivots.
+    const specX = 50 - (nx - 0.5) * 70;
+    const specY = 38 - (ny - 0.5) * 55;
+    el.style.setProperty('--tilt-x', `${tiltX}deg`);
+    el.style.setProperty('--tilt-y', `${tiltY}deg`);
+    el.style.setProperty('--spec-x', `${specX}%`);
+    el.style.setProperty('--spec-y', `${specY}%`);
+  };
+  const handleCursorLeave = () => {
+    const el = cardRef.current;
+    if (!el) return;
+    el.style.setProperty('--tilt-x', '0deg');
+    el.style.setProperty('--tilt-y', '0deg');
+    el.style.setProperty('--spec-x', '50%');
+    el.style.setProperty('--spec-y', '38%');
+  };
+
+  // Upgrade the wall cover to the 500px tier before handing it to
+  // CoverArt. Derived once per render so mobile + desktop paths
+  // reuse the same URL set.
+  const wallCoverUrl = upgradeWallCoverUrl(album.coverArtUrl);
+  const wallCoverFallbacks = upgradeWallCoverFallbacks(album.coverArtFallbacks);
 
   if (mobile) {
     const handleMobileTap = (e: React.MouseEvent) => {
@@ -834,29 +1055,47 @@ function WallCell({
         }}
         onClick={handleMobileTap}
       >
-        {/* Vinyl peek — same geometry as the desktop hover state,
-            but triggered by the tap-activated `isActive` flag. */}
-        <div
-          aria-hidden
-          className={`absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out ${
-            isActive ? 'translate-x-[24%] rotate-[6deg] scale-[1.2]' : ''
-          }`}
-        >
-          <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
-        </div>
+        {MYDIG_VINYL_PEEK_ENABLED && (
+          // Vinyl peek — same geometry as the desktop hover state,
+          // triggered by the tap-activated `isActive` flag. Behind
+          // the feature flag so it can be reinstated alongside the
+          // disc color work without untangling the new shine pass.
+          <div
+            aria-hidden
+            className={`absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out ${
+              isActive ? 'translate-x-[24%] rotate-[6deg] scale-[1.2]' : ''
+            }`}
+          >
+            <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
+          </div>
+        )}
         <div
           className={`absolute inset-0 z-10 origin-bottom transition-transform duration-[280ms] ease-out ${
-            isActive ? 'scale-[1.2]' : ''
+            isActive ? 'scale-[1.4]' : ''
           }`}
         >
           <WallLP size={lpSize} seed={position} lampBias={lampBias}>
             <CoverArt
-              src={album.coverArtUrl}
-              fallbacks={album.coverArtFallbacks}
+              src={wallCoverUrl}
+              fallbacks={wallCoverFallbacks}
               alt={album.title}
               className="w-full h-full object-cover"
             />
           </WallLP>
+          {/* Static shine — no cursor on touch, so the tap state
+              just lights up a fixed diagonal sweep across the
+              sleeve to signal "selected". */}
+          <div
+            aria-hidden
+            className={`absolute inset-0 pointer-events-none transition-opacity duration-[280ms] ${
+              isActive ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{
+              background:
+                'linear-gradient(125deg, rgba(255,245,220,0.35) 0%, rgba(255,245,220,0.08) 24%, transparent 55%)',
+              mixBlendMode: 'overlay',
+            }}
+          />
         </div>
         {userReview && isActive && (
           <CommentBubble
@@ -882,37 +1121,180 @@ function WallCell({
 
   return (
     <Link
+      ref={cardRef}
       to={`/album/${target}`}
       title={`${album.artist} — ${album.title}`}
       className="group relative block hover:z-20"
+      onMouseMove={handleCursorMove}
+      onMouseLeave={handleCursorLeave}
       style={{
         width: lpSize,
         height: lpSize,
         marginLeft: offsetX,
         textDecoration: 'none',
+        // Perspective on the anchor lets the child 3D transforms
+        // actually show depth rather than flattening into a 2D
+        // skew. 900px is mild — tighter values exaggerate the
+        // tilt to the point of looking gimmicky.
+        perspective: '900px',
       }}
     >
-      {/* Vinyl disc behind the cover — peeks out to the right on
-          hover. Scales with the same bottom-center origin as the
-          cover so both grow in lockstep from the rail line. */}
-      <div
-        aria-hidden
-        className="absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out group-hover:translate-x-[24%] group-hover:rotate-[6deg] group-hover:scale-[1.2]"
-      >
-        <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
-      </div>
+      {MYDIG_VINYL_PEEK_ENABLED && (
+        // Vinyl disc peek — kept around the feature flag so the
+        // old "disc slides out to the right" animation can be
+        // revived without restructuring WallCell. Hidden flush
+        // behind the cover while the flag is off.
+        <div
+          aria-hidden
+          className="absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out group-hover:translate-x-[24%] group-hover:rotate-[6deg] group-hover:scale-[1.2]"
+        >
+          <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
+        </div>
+      )}
 
-      {/* Cover — scales up 1.2× on hover, bottom-pinned so the
-          record "grows up" rather than lifting off the rail. */}
-      <div className="absolute inset-0 z-10 origin-bottom transition-transform duration-[280ms] ease-out group-hover:scale-[1.2]">
-        <WallLP size={lpSize} seed={position} lampBias={lampBias}>
-          <CoverArt
-            src={album.coverArtUrl}
-            fallbacks={album.coverArtFallbacks}
-            alt={album.title}
-            className="w-full h-full object-cover"
+      {/* Scale wrapper — lifts the whole card 1.4× on hover with
+          bottom-pinned origin so the sleeve grows upward off the
+          rail. Kept separate from the tilt transform so inline
+          rotate() doesn't clobber the tailwind scale class. */}
+      <div
+        className="absolute inset-0 z-10 origin-bottom transition-transform duration-[260ms] ease-out group-hover:scale-[1.4]"
+        style={{
+          transformOrigin: 'center bottom',
+        }}
+      >
+        {/* Tilt wrapper — reads --tilt-x/--tilt-y set by the
+            mousemove handler on the Link above. Short transition
+            keeps the follow feel tight without jitter; on leave
+            the reset to 0deg eases through the same duration. */}
+        <div
+          className="w-full h-full transition-transform duration-[140ms] ease-out"
+          style={{
+            transform:
+              'rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg))',
+            transformStyle: 'preserve-3d',
+            transformOrigin: 'center center',
+          }}
+        >
+          <WallLP size={lpSize} seed={position} lampBias={lampBias}>
+            <CoverArt
+              src={wallCoverUrl}
+              fallbacks={wallCoverFallbacks}
+              alt={album.title}
+              className="w-full h-full object-cover"
+            />
+          </WallLP>
+
+          {/* Shrink-wrap — two layered passes give the plastic
+              its character:
+              (a) an SVG `feTurbulence` field crushed to white-ish
+                  highlights, which provides the fine ORGANIC
+                  wrinkle noise a real stretched plastic has;
+              (b) a pair of CSS gradient creases, which give the
+                  handful of bold vertical-ish streaks that catch
+                  the lamp hardest (the "main wrinkle lines").
+              Gated behind MYDIG_SHRINKWRAP_ENABLED — CSS alone
+              never convinced; re-enable once we ship a raster
+              plastic texture. */}
+          {MYDIG_SHRINKWRAP_ENABLED && <>
+          <svg
+            aria-hidden
+            className="absolute inset-0 pointer-events-none opacity-70 group-hover:opacity-95 transition-opacity duration-[200ms]"
+            style={{
+              width: '100%',
+              height: '100%',
+              // `screen` lightens regardless of base colour, so
+              // wrinkle highlights stay visible on dark covers
+              // (which overlay would silently swallow — most
+              // indie/rock sleeves live in the near-black range).
+              mixBlendMode: 'screen',
+            }}
+            preserveAspectRatio="none"
+          >
+            <defs>
+              {/* baseFrequency X low / Y high → long horizontal
+                  cells with tight vertical striation, which is
+                  how shrink-wrap actually wrinkles when pulled
+                  over a flat sleeve. Color matrix zeroes RGB
+                  channels and sets warm-white constants; alpha
+                  is ×1.6 − 0.55 so mid-range noise pixels now
+                  pass through at 20–50% rather than only the
+                  brightest peaks. Combined with `screen` blend
+                  this reads as actual stretched plastic catching
+                  ambient light, not a faint overlay. */}
+              <filter id={`mydig-plastic-${position}`}>
+                <feTurbulence
+                  type="fractalNoise"
+                  baseFrequency="0.018 0.72"
+                  numOctaves={2}
+                  seed={position * 7 + 13}
+                />
+                <feColorMatrix
+                  values="
+                    0 0 0 0 1
+                    0 0 0 0 0.97
+                    0 0 0 0 0.86
+                    0 0 0 1.6 -0.55
+                  "
+                />
+              </filter>
+            </defs>
+            <rect
+              width="100%"
+              height="100%"
+              filter={`url(#mydig-plastic-${position})`}
+            />
+          </svg>
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none opacity-45 group-hover:opacity-70 transition-opacity duration-[200ms]"
+            style={{
+              background: [
+                `linear-gradient(
+                  ${95 + (position % 4)}deg,
+                  transparent ${28 + (position % 6)}%,
+                  rgba(255,250,235,0.07) ${31 + (position % 6)}%,
+                  transparent ${35 + (position % 6)}%,
+                  transparent ${64 + (position % 5)}%,
+                  rgba(255,250,235,0.055) ${67 + (position % 5)}%,
+                  transparent ${71 + (position % 5)}%
+                )`,
+              ].join(','),
+              mixBlendMode: 'overlay',
+            }}
           />
-        </WallLP>
+          </>}
+
+          {/* Lamp-anchored specular — bright warm halo seated near
+              the upper-left pendant at rest, sliding INVERSE to the
+              cursor so the reflection appears to "roll" across the
+              plastic as the sleeve tilts. Visible at 25% even at
+              rest so the shine anchor reads as the ambient lamp
+              wash; lifts to 1.0 on hover when the viewer is
+              actively playing with the card. */}
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none opacity-25 group-hover:opacity-100 transition-opacity duration-[220ms]"
+            style={{
+              background:
+                'radial-gradient(circle at var(--spec-x,22%) var(--spec-y,18%), rgba(255,245,220,0.6) 0%, rgba(255,245,220,0.18) 14%, transparent 36%)',
+              mixBlendMode: 'overlay',
+            }}
+          />
+
+          {/* Fixed rim streak — thin diagonal highlight anchored
+              to the scene's upper-left pendant. Present at rest so
+              the sleeve never reads flat; lifts on hover to join
+              the moving specular for a layered shine pass. */}
+          <div
+            aria-hidden
+            className="absolute inset-0 pointer-events-none opacity-35 group-hover:opacity-85 transition-opacity duration-[220ms]"
+            style={{
+              background:
+                'linear-gradient(125deg, rgba(255,230,185,0.3) 0%, rgba(255,230,185,0.08) 18%, transparent 42%)',
+              mixBlendMode: 'screen',
+            }}
+          />
+        </div>
       </div>
 
       {userReview && (
@@ -921,6 +1303,7 @@ function WallCell({
           emoji={userReview.emoji}
           rating={userReview.rating}
           lpSize={lpSize}
+          placement="right"
         />
       )}
 
@@ -1050,6 +1433,7 @@ function CommentBubble({
   rating,
   lpSize,
   forceShow = false,
+  placement = 'top',
 }: {
   body: string;
   emoji: string | null;
@@ -1059,24 +1443,46 @@ function CommentBubble({
   // group-hover won't fire on touch. forceShow flips the bubble
   // fully visible without needing :hover on an ancestor.
   forceShow?: boolean;
+  // Desktop hover now scales the sleeve 1.4× from its bottom-centre
+  // origin, which means the scaled cover grows ~20% past its
+  // original top + sides. A top-placed bubble lands inside that
+  // new top strip and gets visually eaten. `placement: 'right'`
+  // offsets the bubble past the scaled-out right edge instead so
+  // the hover interaction stays clean. Mobile keeps 'top' (no hover
+  // scale to dodge) so the bubble sits above the cell, centred.
+  placement?: 'top' | 'right';
 }) {
   const ratingIcon =
     rating === 'up' ? '👍' : rating === 'down' ? '👎' : null;
   const visibilityClasses = forceShow
     ? 'opacity-100 scale-100'
     : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100';
+  // `right` placement needs to clear the 1.4× scale overflow on
+  // the right edge (0.2·lpSize), then add a small breathing gap.
+  const rightOffsetPx = Math.round(lpSize * 0.22 + 8);
+  const outerStyle: React.CSSProperties =
+    placement === 'right'
+      ? {
+          left: `calc(100% + ${rightOffsetPx}px)`,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          transformOrigin: '0 50%',
+          width: 'max-content',
+          maxWidth: Math.min(260, lpSize * 1.3),
+        }
+      : {
+          bottom: 'calc(100% + 12px)',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          transformOrigin: '50% 100%',
+          width: 'max-content',
+          maxWidth: Math.min(260, lpSize * 1.5),
+        };
   return (
     <div
       aria-hidden
       className={`absolute z-40 pointer-events-none transition-all duration-[220ms] ease-out ${visibilityClasses}`}
-      style={{
-        bottom: 'calc(100% + 12px)',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        transformOrigin: '50% 100%',
-        width: 'max-content',
-        maxWidth: Math.min(260, lpSize * 1.5),
-      }}
+      style={outerStyle}
     >
       <div className="relative">
         <div
@@ -1092,20 +1498,41 @@ function CommentBubble({
           {ratingIcon && <span className="not-italic ml-1.5">{ratingIcon}</span>}
           {emoji && <span className="not-italic ml-1">{emoji}</span>}
         </div>
-        <div
-          style={{
-            position: 'absolute',
-            left: '50%',
-            bottom: -5,
-            marginLeft: -6,
-            width: 12,
-            height: 12,
-            background: '#f5e8c8',
-            transform: 'rotate(45deg)',
-            boxShadow: '3px 3px 6px rgba(0,0,0,0.3)',
-            clipPath: 'polygon(100% 0%, 100% 100%, 0% 100%)',
-          }}
-        />
+        {placement === 'right' ? (
+          // Classic CSS-border triangle pointing left toward the
+          // cover. Cleaner than the rotated-square clipPath trick
+          // the top placement uses — no shadow bleed on the edges
+          // facing away from the sleeve.
+          <div
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: -6,
+              marginTop: -6,
+              width: 0,
+              height: 0,
+              borderTop: '6px solid transparent',
+              borderBottom: '6px solid transparent',
+              borderRight: '6px solid #f5e8c8',
+              filter: 'drop-shadow(-2px 2px 2px rgba(0,0,0,0.35))',
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              bottom: -5,
+              marginLeft: -6,
+              width: 12,
+              height: 12,
+              background: '#f5e8c8',
+              transform: 'rotate(45deg)',
+              boxShadow: '3px 3px 6px rgba(0,0,0,0.3)',
+              clipPath: 'polygon(100% 0%, 100% 100%, 0% 100%)',
+            }}
+          />
+        )}
       </div>
     </div>
   );
@@ -1121,6 +1548,26 @@ function CommentBubble({
 // Returns null for null/malformed input; WallCell feeds the result
 // straight into VinylDisc's bodyColor prop, which falls back to
 // classic black when null.
+// Cover Art Archive exposes `/front-250`, `/front-500`, `/front-1200`
+// and full-size variants of every sleeve. Server-side storage uses
+// front-250 for the home grid / album page where sleeves render at
+// ~120–200px. The mydig wall renders at up to 168px and scales 1.4×
+// on hover (~235px effective), which turns front-250 sources into
+// visibly soft upscales. Upgrading to front-500 on the client side —
+// only for the wall — keeps home grid bandwidth untouched while the
+// hovered wall stays crisp. Non-CAA hosts (Spotify 640, Last.fm
+// originals, admin custom covers) are already large enough and pass
+// through unchanged.
+function upgradeWallCoverUrl(url: string | null): string | null {
+  if (!url) return url;
+  if (!url.includes('coverartarchive.org/')) return url;
+  return url.replace('/front-250', '/front-500');
+}
+function upgradeWallCoverFallbacks(urls: string[] | undefined): string[] | undefined {
+  if (!urls || urls.length === 0) return urls;
+  return urls.map((u) => upgradeWallCoverUrl(u) ?? u);
+}
+
 function parseRgbString(
   s: string | null
 ): [number, number, number] | null {

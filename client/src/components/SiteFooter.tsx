@@ -25,13 +25,24 @@ function useSiteStats() {
 // "dig.haus 2026 · …" line at the bottom. Used to live inside Home.tsx
 // only — short pages on /album/:slug, /profile, /admin, etc. felt
 // hollow at the bottom without it.
-export default function SiteFooter() {
+//
+// `pinned` — mydig variant: footer is fixed to the viewport bottom
+// (matches the backdrop's bottom anchor), compact padding, and
+// overlays scroll instead of flowing with it. The page reserves
+// its own bottom padding so last-row content clears the overlay.
+export default function SiteFooter({ pinned = false }: { pinned?: boolean }) {
   const { data } = useSiteStats();
   const users = data?.users ?? 0;
   const albums = data?.albums ?? 0;
 
+  const layoutClasses = pinned
+    ? 'fixed bottom-0 left-0 right-0 z-10 pt-3 pb-3 pointer-events-none'
+    : 'mt-auto pt-10 pb-5';
+
   return (
-    <footer className="w-full max-w-[1280px] mx-auto mt-auto pt-10 pb-5 px-4 text-center text-gray-600 text-xs">
+    <footer
+      className={`w-full max-w-[1280px] mx-auto ${layoutClasses} px-4 text-center text-gray-600 text-xs`}
+    >
       {/* Line 1: site identity + live counts. Counts append as they
           become available so the line shapes around whatever
           /api/stats/site returns. */}
@@ -52,13 +63,22 @@ export default function SiteFooter() {
       </div>
       {/* Line 2: legal links — broken onto their own row so the
           dense counts line doesn't visually bury them. Dimmer
-          than the counts so they read as the secondary pair. */}
+          than the counts so they read as the secondary pair.
+          Links re-enable pointer events in pinned mode so they
+          stay clickable while the surrounding footer area is
+          click-through to content scrolling beneath. */}
       <div className="mt-1.5 text-gray-700">
-        <a href="/privacy.html" className="hover:text-amber-500">
+        <a
+          href="/privacy.html"
+          className={`hover:text-amber-500 ${pinned ? 'pointer-events-auto' : ''}`}
+        >
           개인정보처리방침
         </a>
         {' · '}
-        <a href="/terms.html" className="hover:text-amber-500">
+        <a
+          href="/terms.html"
+          className={`hover:text-amber-500 ${pinned ? 'pointer-events-auto' : ''}`}
+        >
           서비스 약관
         </a>
       </div>
