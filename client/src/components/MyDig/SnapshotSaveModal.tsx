@@ -23,6 +23,7 @@ function todayDateLabel(): string {
 export default function SnapshotSaveModal({
   username,
   items,
+  initialName = null,
   initialDescription = null,
   onClose,
   onSaved,
@@ -34,6 +35,11 @@ export default function SnapshotSaveModal({
    *  in-flight wall can be archived without first committing to
    *  vinyl_wall_items. */
   items?: Array<{ position: number; albumId: number }>;
+  /** Pre-fill for the name field — caller usually passes the
+   *  current wall theme so the owner doesn't have to retype their
+   *  own title. Falls back to today's date when null / empty, which
+   *  matches the server-side default. Editable after pre-fill. */
+  initialName?: string | null;
   /** Pre-fill for the description field — caller usually passes
    *  the current wall description so the owner doesn't have to
    *  retype it when capturing a "this is who I am right now"
@@ -44,7 +50,9 @@ export default function SnapshotSaveModal({
    *  the "revert or keep" prompt. */
   onSaved?: () => void;
 }) {
-  const [name, setName] = useState(todayDateLabel());
+  const [name, setName] = useState(
+    (initialName ?? '').trim() || todayDateLabel()
+  );
   const [description, setDescription] = useState(initialDescription ?? '');
   const [isPublic, setIsPublic] = useState(false);
   const create = useCreateVinylWallSnapshot(username);

@@ -321,6 +321,7 @@ export default function MyDig() {
         {savingSnapshot && username && (
           <SnapshotSaveModal
             username={username}
+            initialName={data.vinylWallTheme ?? null}
             initialDescription={data.vinylWallDescription ?? null}
             onClose={() => setSavingSnapshot(false)}
             onSaved={() => setSavingSnapshot(false)}

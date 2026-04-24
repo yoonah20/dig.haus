@@ -684,10 +684,12 @@ export default function VinylWallEditor({
         <SnapshotSaveModal
           username={username}
           items={draftItems()}
-          // Pre-fill the snapshot description with whatever the
-          // owner has in the editor's description input so they
-          // don't have to retype it. They can still clear or
-          // rewrite it inside the snapshot modal.
+          // Pre-fill the snapshot name with the editor's current
+          // theme input (falls back to the originally-saved theme
+          // if the input is empty, then to today's date inside the
+          // modal). Description likewise mirrors the editor so the
+          // owner doesn't have to retype either field.
+          initialName={themeInput.trim() || initialTheme || null}
           initialDescription={descriptionInput.trim() || null}
           onClose={() => setSnapshotModalOpen(false)}
           onSaved={handleAfterSnapshotSaved}
