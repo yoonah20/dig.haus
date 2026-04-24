@@ -1,14 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import {
+  useQuery,
+  useInfiniteQuery,
+  keepPreviousData,
+} from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
-import ActivityRail from '../components/Home/ActivityRail';
-import CommentTicker from '../components/Home/CommentTicker';
+import SnapshotFeed from '../components/Home/SnapshotFeed';
+import { TickerItem } from '../components/Home/CommentTicker';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { useHomeState, type DensityValue } from '../contexts/HomeStateContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useInView } from '../hooks/useInView';
+import {
+  useUserReviewsFeed,
+  type UserReviewFeedItem,
+} from '../hooks/useUserReviewsFeed';
 import type { AlbumSearchResult } from '../types';
 import { type SortValue, SORT_OPTIONS } from '../lib/homeSort';
 
@@ -34,6 +43,11 @@ const PAGE_SIZE_BY_DENSITY: Record<string, number> = {
   dense: 32,
   ultra: 50,
 };
+// Mobile infinite-scroll batch size. 10 fits two full rows of the
+// 2-col mobile grid plus a pause before the next batch lands —
+// small enough that latency of the fetch reads as "next batch
+// arriving" rather than one big fetch stalling the scroll.
+const MOBILE_PAGE_SIZE = 10;
 
 // Desktop-only: rail toggle + density switcher + reveal animation all
 // key off whether the viewport is wide enough to benefit from them.
@@ -89,6 +103,68 @@ function useAlbumList(
   });
 }
 
+// Mobile infinite-scroll query. Separate from the paginated desktop
+// query so the two code paths own their own cache keys and
+// queryFns — flipping viewport mid-session reuses whichever cache
+// is already warm rather than re-fetching. Gated by `enabled` so
+// the query stays idle while the albums tab is backgrounded or the
+// viewport is desktop.
+function useMobileAlbumList(
+  sort: SortValue,
+  enabled: boolean,
+  seed?: number
+) {
+  return useInfiniteQuery<AlbumListResponse>({
+    queryKey: ['album-list-infinite', sort, MOBILE_PAGE_SIZE, seed ?? null],
+    queryFn: ({ pageParam }) =>
+      fetchAlbumPage(sort, pageParam as number, MOBILE_PAGE_SIZE, seed),
+    initialPageParam: 1,
+    getNextPageParam: (last) =>
+      last.page < last.totalPages ? last.page + 1 : undefined,
+    staleTime: 1000 * 60 * 5,
+    // Same rationale as the desktop query — guarantee a fresh first
+    // page on every Home mount so back-nav after mutations shows
+    // updated state without the user having to reload.
+    refetchOnMount: 'always',
+    enabled,
+  });
+}
+
+// One infinite-scroll batch on mobile — 10 albums (2 × 5 rows).
+// The old implementation interleaved ticker cards between batches;
+// comments now live in their own tab so batches render as pure
+// album grids. Reveal animation gated by IntersectionObserver so
+// batches the sentinel fetched eagerly don't burn their wave while
+// the user is still scrolling above them.
+const MOBILE_ROW_STAGGER_MS = 90;
+function MobileAlbumBatch({ albums }: { albums: AlbumSearchResult[] }) {
+  // rootMargin 0px: fires the moment any part of the batch crosses
+  // into the viewport. A pre-fetch margin would defeat the purpose —
+  // we'd fire the wave for off-screen batches.
+  const { ref, inView } = useInView<HTMLDivElement>('0px');
+  const cardClass = inView ? 'album-reveal' : 'album-reveal-off';
+
+  return (
+    <div ref={ref} className="grid grid-cols-2 gap-5">
+      {albums.map((album, idx) => (
+        <div
+          key={album.mbid}
+          className={cardClass}
+          style={
+            inView
+              ? {
+                  animationDelay: `${Math.floor(idx / 2) * MOBILE_ROW_STAGGER_MS}ms`,
+                }
+              : undefined
+          }
+        >
+          <AlbumCard album={album} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function paginationItems(current: number, total: number): Array<number | 'ellipsis-left' | 'ellipsis-right'> {
   if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);
@@ -103,10 +179,18 @@ function paginationItems(current: number, total: number): Array<number | 'ellips
   return items;
 }
 
+type HomeTab = 'albums' | 'activity';
+
 export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { openOverlay } = useSearchOverlay();
   const isMobile = useIsMobile();
+  // Top-level tab state. In-memory only (defaults to albums on
+  // every visit) so the address bar stays at '/' and shared links
+  // land viewers on the catalog, not a side view. URL routing
+  // (?tab=activity) can be added later if the split proves useful
+  // for outbound links.
+  const [tab, setTab] = useState<HomeTab>('albums');
   // sort / page / seed live in HomeStateContext — no URL involvement,
   // so the address bar stays at '/'. See contexts/HomeStateContext.tsx
   // for the persistence rules (localStorage for sort, in-memory for
@@ -119,8 +203,6 @@ export default function Home() {
     seed,
     density,
     setDensity,
-    railOpen,
-    setRailOpen,
   } = useHomeState();
 
   useDocumentHead({
@@ -153,10 +235,34 @@ export default function Home() {
   const pageSize =
     PAGE_SIZE_BY_DENSITY[density] ?? PAGE_SIZE_BY_DENSITY.comfortable;
 
-  const query = useAlbumList(sort, page, pageSize, seedReady, seed);
-  const albums: AlbumSearchResult[] = query.data?.albums ?? [];
-  const totalPages = query.data?.totalPages ?? 1;
-  const isLoading = query.isLoading;
+  // Two album queries — desktop (paginated) and mobile (infinite
+  // scroll). Only one is enabled at a time: the active viewport on
+  // the albums tab. Activity tab disables both so switching tabs
+  // doesn't trigger a fetch for a view the user isn't looking at.
+  const onAlbums = tab === 'albums';
+  const desktopQuery = useAlbumList(
+    sort,
+    page,
+    pageSize,
+    seedReady && onAlbums && !isMobile,
+    seed
+  );
+  const mobileQuery = useMobileAlbumList(
+    sort,
+    seedReady && onAlbums && isMobile,
+    seed
+  );
+  // Desktop reads from the single-page query result; mobile
+  // flattens the infinite-query pages into one list.
+  const albums: AlbumSearchResult[] = isMobile
+    ? mobileQuery.data?.pages.flatMap((p) => p.albums) ?? []
+    : desktopQuery.data?.albums ?? [];
+  const totalPages = desktopQuery.data?.totalPages ?? 1;
+  const isLoading = isMobile ? mobileQuery.isLoading : desktopQuery.isLoading;
+
+  // Activity tab data. Gated on tab === 'activity' so the feed is
+  // idle while the viewer is browsing albums.
+  const activityReviews = useUserReviewsFeed(tab === 'activity', 30);
 
   // Shuffle the reveal delays per page so the (up to 50) tiles don't
   // all land in a single sweep. Reshuffles whenever the rendered page
@@ -180,6 +286,39 @@ export default function Home() {
     setPage(p);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
+
+  // Mobile infinite-scroll sentinel. Fires fetchNextPage when the
+  // tail div enters the viewport (with a generous 400px pre-fetch
+  // margin so the next batch is ready before the user reaches the
+  // bottom). A short `nextBatchPending` pause throttles consecutive
+  // fires so the reader registers each batch landing as its own
+  // arrival — matches the "앨범 20개씩 로딩 + 약간 포즈 + 계속"
+  // cadence we ran before the rail rework replaced this feed.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [nextBatchPending, setNextBatchPending] = useState(false);
+  const mobileQueryRef = useRef(mobileQuery);
+  useEffect(() => {
+    mobileQueryRef.current = mobileQuery;
+  }, [mobileQuery]);
+  useEffect(() => {
+    if (!onAlbums || !isMobile) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        const q = mobileQueryRef.current;
+        if (!q.hasNextPage || q.isFetchingNextPage || nextBatchPending) return;
+        setNextBatchPending(true);
+        q.fetchNextPage().finally(() => {
+          setTimeout(() => setNextBatchPending(false), 400);
+        });
+      },
+      { rootMargin: '400px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onAlbums, isMobile, nextBatchPending]);
 
   const items = paginationItems(page, totalPages);
 
@@ -221,194 +360,252 @@ export default function Home() {
   return (
     <div className="flex-1 flex flex-col px-4 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
-        {/* Two-column home: album grid on the left, activity rail
-            on the right. Below Tailwind `lg` the layout collapses
-            to a single stacked column — main first, rail below.
-            The grid container is always `lg:grid` at desktop+ so
-            the grid-template-columns transition can animate the
-            rail column from 2fr → 0fr on close (and back on
-            reopen). When the rail is closed the rail column has
-            0 width, so the rail content also slides out rightward
-            via the inner transform. `items-start` prevents the
-            rail from stretching to the grid's min-height when
-            there's less content to fill. */}
-        <div
-          className="flex flex-col gap-6 lg:grid lg:items-stretch lg:transition-[grid-template-columns] lg:duration-300"
-          style={{
-            gridTemplateColumns: railOpen
-              ? 'minmax(0, 7.7fr) minmax(0, 2.3fr)'
-              : 'minmax(0, 7.7fr) minmax(0, 0fr)',
-          }}
+        {/* Top-level tab bar — splits the home page into "앨범"
+            (catalog browsing) and "활동" (recent snapshots + 50자
+            평 from other diggers). The activity stream used to
+            compete with the grid via a sidebar rail + bottom
+            marquee; separating them lets the albums surface reclaim
+            the full width and returns the infinite-scroll cadence
+            that was lost when the rail took over. */}
+        <nav
+          aria-label="홈 뷰 선택"
+          className="mb-5 flex items-center gap-1 border-b border-white/5"
         >
-          {/* Main's natural height drives the row now — grid
-              header + album grid, nothing else. Pagination lives
-              outside the row (below). With pagination pulled out,
-              density toggling only shifts the row by a handful of
-              px across comfortable/dense/ultra (cards compensate
-              in size), so the earlier min-h pin isn't needed. */}
-          <main className="order-1 min-w-0">
-        {/* Grid header — sort trigger on the left, density switcher
-            + (when rail is collapsed) a small open-rail handle on
-            the right. The rail's close button lives inside the
-            rail's own section header now, so this strip only carries
-            the rail toggle when the rail itself isn't visible on
-            desktop. Mobile skips the rail toggle entirely since the
-            rail stacks below rather than beside. */}
-        {albums.length > 0 && (
-          <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
-            <SortTrigger
-              sort={sort}
-              onChange={setSort}
-              label={currentSortLabel}
-            />
-            <div className="flex items-center gap-3">
-              {!isMobile && (
-                <DensitySwitcher density={density} onChange={setDensity} />
-              )}
-              {!isMobile && !railOpen && (
-                <OpenRailHandle onClick={() => setRailOpen(true)} />
-              )}
-            </div>
-          </div>
-        )}
-        {isLoading && albums.length === 0 ? (
-          <div className="text-center py-20 text-sm text-gray-500">불러오는 중...</div>
-        ) : albums.length === 0 ? (
-          <div className="text-center py-20 text-sm text-gray-500">등록된 앨범이 없습니다.</div>
-        ) : (
-          // Grid key tracks the actual displayed album list (first + last
-          // mbid + length) rather than the query params, so the remount —
-          // and the reveal animation — fires only when new data lands,
-          // not at the click that requested it. keepPreviousData keeps
-          // the previous page visible during fetch; if we keyed on
-          // `page` instead, animations would play on the stale page just
-          // before it got replaced.
-          <div
-            key={`grid-${albums.length}-${albums[0]?.mbid ?? ''}-${albums[albums.length - 1]?.mbid ?? ''}`}
-            className={`grid ${desktopGridCols} ${desktopGap}`}
-          >
-            {albums.map((album, i) => (
-              <div
-                key={album.mbid}
-                className="album-reveal"
-                style={{
-                  animationDelay: `${(revealDelays[i] ?? i) * STAGGER_MS}ms`,
-                }}
-              >
-                <AlbumCard album={album} />
+          <TabButton
+            label="앨범"
+            active={tab === 'albums'}
+            onClick={() => setTab('albums')}
+          />
+          <TabButton
+            label="활동"
+            active={tab === 'activity'}
+            onClick={() => setTab('activity')}
+          />
+        </nav>
+
+        {tab === 'albums' ? (
+          <>
+            {/* Sort trigger + density switcher. Only renders once
+                there's data to sort — on an empty catalog the
+                controls are noise. Density stays desktop-only since
+                the mobile grid has a fixed 2-col layout. */}
+            {albums.length > 0 && (
+              <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
+                <SortTrigger
+                  sort={sort}
+                  onChange={setSort}
+                  label={currentSortLabel}
+                />
+                {!isMobile && (
+                  <DensitySwitcher density={density} onChange={setDensity} />
+                )}
               </div>
-            ))}
-          </div>
-        )}
-
-          </main>
-          {/* Rail wrapper: always mounted so the slide-right
-              animation has somewhere to live. At lg+ the outer
-              grid column shrinks to 0fr when closed — combined
-              with overflow-hidden here and an inner translate +
-              fade, the rail content visibly slides off to the
-              right rather than popping out. Below lg the rail
-              always stacks below main regardless of railOpen
-              (opacity + transform classes are lg:-prefixed). */}
-          <div
-            id="home-activity-rail"
-            className={`order-2 min-w-0 overflow-hidden lg:transition-[opacity,transform] lg:duration-300 ${
-              railOpen
-                ? 'lg:opacity-100 lg:translate-x-0'
-                : 'lg:opacity-0 lg:translate-x-full lg:pointer-events-none'
-            }`}
-          >
-            <ActivityRail onClose={() => setRailOpen(false)} />
-          </div>
-        </div>
-
-        {/* Pagination sits OUTSIDE the grid+rail row so it doesn't
-            push the main column past the rail's height. Album grid
-            bottom ≈ snapshot cards bottom by design (natural heights
-            within ~5px across all three densities), and pagination
-            is a full-width control below the row. `mt-8` matches
-            the spacing the pagination used to get inside main. */}
-        {totalPages > 1 && (
-          <nav className="mt-8 flex items-center justify-center gap-1 flex-wrap" aria-label="Pagination">
-            <button
-              onClick={() => goToPage(page - 1)}
-              disabled={page <= 1}
-              className="px-3 py-1.5 text-sm text-gray-400 hover:text-[#e8a020] disabled:text-gray-700 disabled:cursor-not-allowed cursor-pointer"
-              aria-label="이전 페이지"
-            >
-              ←
-            </button>
-            {items.map((it, idx) =>
-              typeof it === 'number' ? (
-                <button
-                  key={idx}
-                  onClick={() => goToPage(it)}
-                  className={`min-w-[2rem] px-2.5 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${
-                    it === page
-                      ? 'text-[#e8a020] font-semibold'
-                      : 'text-gray-400 hover:text-gray-100 hover:bg-white/5'
-                  }`}
-                  aria-current={it === page ? 'page' : undefined}
-                >
-                  {it}
-                </button>
-              ) : (
-                <span key={idx} className="px-1 text-gray-600 select-none">…</span>
-              )
             )}
-            <button
-              onClick={() => goToPage(page + 1)}
-              disabled={page >= totalPages}
-              className="px-3 py-1.5 text-sm text-gray-400 hover:text-[#e8a020] disabled:text-gray-700 disabled:cursor-not-allowed cursor-pointer"
-              aria-label="다음 페이지"
-            >
-              →
-            </button>
-          </nav>
-        )}
 
-        {/* Marquee 50자 평 ticker below the grid+rail row, spanning
-            the full 1280px section — the earlier placement inside
-            <main> left it boxed at 8fr width when the rail was open,
-            which felt pinched next to the rail's dead space below
-            the snapshot cards. Full-width lets the horizontal scroll
-            read the way a shop's "now playing" crawl does. */}
-        {albums.length > 0 && <CommentTicker />}
+            {isLoading && albums.length === 0 ? (
+              <div className="text-center py-20 text-sm text-gray-500">
+                불러오는 중...
+              </div>
+            ) : albums.length === 0 ? (
+              <div className="text-center py-20 text-sm text-gray-500">
+                등록된 앨범이 없습니다.
+              </div>
+            ) : isMobile ? (
+              // Mobile infinite scroll — 10-album batches stacked
+              // vertically. IntersectionObserver sentinel below
+              // drives fetchNextPage. Each batch animates in on
+              // entry via MobileAlbumBatch's useInView gate.
+              <div className="flex flex-col gap-5">
+                {mobileQuery.data?.pages.map((pg, i) => (
+                  <MobileAlbumBatch key={i} albums={pg.albums} />
+                ))}
+                <div
+                  ref={sentinelRef}
+                  className="py-6 text-center text-xs text-gray-500"
+                >
+                  {nextBatchPending || mobileQuery.isFetchingNextPage
+                    ? '더 불러오는 중…'
+                    : mobileQuery.hasNextPage
+                      ? '계속 스크롤해 주세요'
+                      : '끝까지 다 봤어요!'}
+                </div>
+              </div>
+            ) : (
+              // Desktop: single-page grid. Grid key tracks the
+              // actual displayed album list (first + last mbid +
+              // length) so the reveal animation fires only when
+              // new data lands, not at the click that requested it.
+              <div
+                key={`grid-${albums.length}-${albums[0]?.mbid ?? ''}-${albums[albums.length - 1]?.mbid ?? ''}`}
+                className={`grid ${desktopGridCols} ${desktopGap}`}
+              >
+                {albums.map((album, i) => (
+                  <div
+                    key={album.mbid}
+                    className="album-reveal"
+                    style={{
+                      animationDelay: `${(revealDelays[i] ?? i) * STAGGER_MS}ms`,
+                    }}
+                  >
+                    <AlbumCard album={album} />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Desktop pagination. Hidden on mobile — mobile uses
+                infinite scroll instead. */}
+            {!isMobile && totalPages > 1 && (
+              <nav
+                className="mt-8 flex items-center justify-center gap-1 flex-wrap"
+                aria-label="Pagination"
+              >
+                <button
+                  onClick={() => goToPage(page - 1)}
+                  disabled={page <= 1}
+                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-[#e8a020] disabled:text-gray-700 disabled:cursor-not-allowed cursor-pointer"
+                  aria-label="이전 페이지"
+                >
+                  ←
+                </button>
+                {items.map((it, idx) =>
+                  typeof it === 'number' ? (
+                    <button
+                      key={idx}
+                      onClick={() => goToPage(it)}
+                      className={`min-w-[2rem] px-2.5 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${
+                        it === page
+                          ? 'text-[#e8a020] font-semibold'
+                          : 'text-gray-400 hover:text-gray-100 hover:bg-white/5'
+                      }`}
+                      aria-current={it === page ? 'page' : undefined}
+                    >
+                      {it}
+                    </button>
+                  ) : (
+                    <span
+                      key={idx}
+                      className="px-1 text-gray-600 select-none"
+                    >
+                      …
+                    </span>
+                  )
+                )}
+                <button
+                  onClick={() => goToPage(page + 1)}
+                  disabled={page >= totalPages}
+                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-[#e8a020] disabled:text-gray-700 disabled:cursor-not-allowed cursor-pointer"
+                  aria-label="다음 페이지"
+                >
+                  →
+                </button>
+              </nav>
+            )}
+          </>
+        ) : (
+          <ActivityTab
+            reviews={activityReviews.data?.items ?? []}
+            reviewsLoading={activityReviews.isLoading}
+          />
+        )}
       </section>
     </div>
   );
 }
 
-// Small open-rail handle. Only renders when the rail is collapsed
-// on desktop — the rail's own close button (inside its section
-// header) handles the other direction. Styled identically to the
-// close button so the two affordances feel like a paired set
-// rather than two unrelated glyphs.
-function OpenRailHandle({ onClick }: { onClick: () => void }) {
+// Top-level tab button. Sits in the home page's view switcher
+// strip above the grid/activity content. Active state underlines
+// in amber and brightens the text; hover lifts inactive labels to
+// near-white. `aria-pressed` doubles as the active flag for
+// assistive tech.
+function TabButton({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-expanded={false}
-      aria-controls="home-activity-rail"
-      title="활동 레일 펴기"
-      aria-label="활동 레일 펴기"
-      className="inline-flex items-center justify-center w-5 h-5 rounded-md border border-white/15 bg-[#1a130a]/40 hover:border-[#e8a020]/60 hover:bg-[#e8a020]/10 text-gray-400 hover:text-[#e8a020] transition-colors cursor-pointer"
+      aria-pressed={active}
+      className={`relative px-3 py-2 text-sm transition-colors cursor-pointer ${
+        active
+          ? 'text-[#e8a020]'
+          : 'text-gray-500 hover:text-gray-200'
+      }`}
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-3 h-3"
+      {label}
+      {/* Underline sits flush with the parent border-b so the
+          active tab's indicator reads as continuous with the
+          separator below the strip. */}
+      <span
         aria-hidden
-      >
-        <path d="M15.75 19.5L8.25 12l7.5-7.5" />
-      </svg>
+        className={`absolute left-2 right-2 -bottom-px h-[2px] transition-colors ${
+          active ? 'bg-[#e8a020]' : 'bg-transparent'
+        }`}
+      />
     </button>
+  );
+}
+
+// Activity tab content — replaces the old sidebar rail + bottom
+// marquee pair. Snapshot feed at the top (denser than the old
+// 5-card rail since it owns the full width here), then a vertical
+// stack of 50자 평 cards (TickerItem reused, fullWidth + alternating
+// orientation). Loading state stays simple — the feed is small
+// enough that a spinner row reads clearer than a skeleton grid.
+function ActivityTab({
+  reviews,
+  reviewsLoading,
+}: {
+  reviews: UserReviewFeedItem[];
+  reviewsLoading: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-10">
+      <section aria-labelledby="activity-snapshots">
+        <h2
+          id="activity-snapshots"
+          className="text-[11px] uppercase tracking-wider text-gray-500 mb-3"
+        >
+          Last Memories
+        </h2>
+        <SnapshotFeed count={20} />
+      </section>
+
+      <section aria-labelledby="activity-comments">
+        <h2
+          id="activity-comments"
+          className="text-[11px] uppercase tracking-wider text-gray-500 mb-3"
+        >
+          최근 50자 평
+        </h2>
+        {reviewsLoading && reviews.length === 0 ? (
+          <div className="text-center py-10 text-sm text-gray-500">
+            불러오는 중…
+          </div>
+        ) : reviews.length === 0 ? (
+          <div className="text-center py-10 text-sm text-gray-500 italic">
+            아직 50자 평이 없어요.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-5 max-w-[720px] mx-auto">
+            {reviews.map((item, idx) => (
+              <TickerItem
+                key={item.id}
+                item={item}
+                fullWidth
+                orientation={idx % 2 === 0 ? 'left' : 'right'}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
 
