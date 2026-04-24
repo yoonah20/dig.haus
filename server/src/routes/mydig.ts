@@ -209,6 +209,7 @@ router.get('/mydig/:username', (req, res, next) => {
             ? JSON.parse(r.cover_art_fallbacks)
             : [],
           coverDominantColor: r.cover_dominant_color ?? null,
+          spotifyUrl: r.spotify_url ?? null,
           previewTrackUrl: r.preview_track_url ?? null,
           previewTrackName: r.preview_track_name ?? null,
         },
@@ -993,6 +994,7 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
             coverArtUrl: r.coverArtUrl,
             coverArtFallbacks: r.coverArtFallbacks ? JSON.parse(r.coverArtFallbacks) : [],
             coverDominantColor: r.coverDominantColor ?? null,
+            spotifyUrl: r.spotifyUrl ?? null,
             previewTrackUrl: r.previewTrackUrl ?? null,
             previewTrackName: r.previewTrackName ?? null,
           }

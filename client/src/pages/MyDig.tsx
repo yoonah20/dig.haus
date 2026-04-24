@@ -20,11 +20,11 @@ import FollowButton from '../components/FollowButton';
 import FollowListModal from '../components/FollowListModal';
 import { useUserPublic } from '../hooks/useMe';
 import {
-  playPreview,
-  stopPreview,
-  usePlayingPreviewUrl,
-  useStopPreviewOnUnmount,
-} from '../hooks/useTrackPreview';
+  extractSpotifyAlbumId,
+  setNowPlaying,
+  useClearNowPlayingOnUnmount,
+  useNowPlaying,
+} from '../hooks/useNowPlaying';
 import {
   setActiveWallCellId,
   useActiveWallCellId,
@@ -40,7 +40,12 @@ import { resolveApiUrl } from '../utils/apiUrl';
 // clean while the underlying flow is debugged; flip to true to
 // re-enable without touching the rest of the wiring.
 const MYDIG_VINYL_TINT_ENABLED = false;
-const MYDIG_PREVIEW_ENABLED = false;
+// Spotify preview surface. Re-enabled after the raw-mp3 path was
+// retired — wall cells now write to useNowPlaying on ▶ click and
+// SiteFooter hosts the resulting Spotify embed in the pinned strip.
+// No per-album server lookup needed (we already store spotifyUrl),
+// no audio element, no preview_url dependency.
+const MYDIG_PREVIEW_ENABLED = true;
 // Old "vinyl disc slides out from behind the cover" peek on hover.
 // Replaced by the tilt + specular sheen effect; flip back to true to
 // restore the original peek animation and drop the shine overlays.
@@ -74,7 +79,7 @@ export default function MyDig() {
   const navigate = useNavigate();
   // Stop any preview audio playing when the user navigates away
   // from the mydig page.
-  useStopPreviewOnUnmount();
+  useClearNowPlayingOnUnmount();
 
   // Active snapshot is taken from either /my/:u/snap/:s (legacy
   // route kept for share-link compatibility) or the #<slug> hash
@@ -959,20 +964,34 @@ function WallCell({
   const discBodyRgb = MYDIG_VINYL_TINT_ENABLED
     ? parseRgbString(album.coverDominantColor ?? null)
     : null;
-  // Preview URL drives the hover play chip. Null = no chip. Gated
-  // by MYDIG_PREVIEW_ENABLED so the chip + audio stay dormant even
-  // when the payload carries a URL.
-  const previewUrl = MYDIG_PREVIEW_ENABLED ? album.previewTrackUrl ?? null : null;
-  const playingUrl = usePlayingPreviewUrl();
-  const isPlaying = !!previewUrl && playingUrl === previewUrl;
+  // Spotify album URL drives the ▶ chip. Null = no chip (album
+  // has no Spotify link). Gated by MYDIG_PREVIEW_ENABLED so the
+  // chip stays dormant when the feature is disabled globally.
+  const spotifyUrl = MYDIG_PREVIEW_ENABLED ? album.spotifyUrl ?? null : null;
+  const spotifyAlbumId = extractSpotifyAlbumId(spotifyUrl);
+  const hasPreview = !!spotifyAlbumId;
+  const currentlyPlaying = useNowPlaying();
+  const isPlaying =
+    hasPreview && currentlyPlaying?.albumId === album.id;
   const handlePreviewClick = (e: React.MouseEvent) => {
-    // Don't follow the Link when clicking the chip; just toggle
-    // audio. stopPropagation keeps the outer <Link> inert.
+    // Don't follow the Link when clicking the chip. stopPropagation
+    // + preventDefault keep the outer <Link> inert so a click on ▶
+    // loads the embed instead of navigating to the album page.
     e.preventDefault();
     e.stopPropagation();
-    if (!previewUrl) return;
-    if (isPlaying) stopPreview();
-    else playPreview(previewUrl);
+    if (!spotifyUrl) return;
+    if (isPlaying) {
+      // Tapping the chip while already playing closes the embed —
+      // same affordance as the strip's × button.
+      setNowPlaying(null);
+    } else {
+      setNowPlaying({
+        albumId: album.id,
+        spotifyUrl,
+        title: album.title,
+        artist: album.artist,
+      });
+    }
   };
   // Mobile tap-to-activate. First tap on the cell reveals the
   // vinyl peek + comment bubble + play chip; second tap (on the
@@ -1107,11 +1126,11 @@ function WallCell({
             forceShow
           />
         )}
-        {previewUrl && (
+        {hasPreview && (
           <PreviewPlayChip
             isPlaying={isPlaying}
             onClick={handlePreviewClick}
-            trackName={album.previewTrackName ?? null}
+            trackName={album.title}
             forceShow={isActive}
             lpSize={lpSize}
           />
@@ -1308,11 +1327,11 @@ function WallCell({
         />
       )}
 
-      {previewUrl && (
+      {hasPreview && (
         <PreviewPlayChip
           isPlaying={isPlaying}
           onClick={handlePreviewClick}
-          trackName={album.previewTrackName ?? null}
+          trackName={album.title}
           lpSize={lpSize}
         />
       )}

@@ -20,10 +20,14 @@ export interface MyDigAlbum {
   // first load until the server finishes async extraction; drives
   // the coloured-vinyl tint under the cover on the mydig wall.
   coverDominantColor?: string | null;
-  // Spotify 30-second preview, fetched server-side once per album
-  // from the Spotify Web API's album → tracks response (first
-  // track carrying a non-null preview_url). Null means no preview
-  // is available — hover play chip just doesn't show.
+  // Canonical Spotify album URL. Powers the Now Playing strip's
+  // embed iframe — we extract the album id and mount
+  // https://open.spotify.com/embed/album/{id}. Null when the album
+  // has no Spotify link (▶ chip hides).
+  spotifyUrl?: string | null;
+  // Legacy preview_url fields — kept for backwards compat in the
+  // API payload while the feature migrates to Spotify embed.
+  // Unused by the Now Playing strip; don't add new callers.
   previewTrackUrl?: string | null;
   previewTrackName?: string | null;
 }
