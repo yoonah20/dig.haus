@@ -78,6 +78,22 @@ export default function MyDig() {
     : null;
   const activeSlug = pathSlug ?? hashSlug;
 
+  // Mobile matchMedia — scopes the adaptive top-padding below to
+  // desktop only. On tablets the (100vh-900px)*X formula was
+  // firing and pushing the wall unreasonably far from the nav.
+  const [isMobile, setIsMobile] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 767px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   const { data, isLoading, error } = useMyDig(username);
   const snapshotsQuery = useVinylWallSnapshots(username);
   const snapshotDetail = useVinylWallSnapshot(
@@ -201,7 +217,14 @@ export default function MyDig() {
           sidebar action cluster (팔로우 · 공유 etc) sits close to
           the nav; the wall gets its own headroom from WallSection's
           top padding. */}
-      <main className="max-w-[1400px] mx-auto px-4 md:pl-10 md:pr-4 pt-2 pb-8 md:pb-24 space-y-1">
+      <main
+        className="max-w-[1400px] mx-auto px-4 md:pl-10 md:pr-4 pt-2 pb-8 md:pb-24 space-y-1"
+        style={
+          isMobile
+            ? undefined
+            : { paddingTop: 'max(8px, calc((100vh - 900px) * 0.3))' }
+        }
+      >
         {isOnboardingOwner ? (
           // First-visit owner path. No wall, no sidebar, no
           // snapshot dropdown — none of it means anything until

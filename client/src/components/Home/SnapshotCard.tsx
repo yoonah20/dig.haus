@@ -17,7 +17,32 @@ const VISIBLE_COVERS = 5;
 // cover, freeing a bit of horizontal room inside the card.
 const GRID_TEMPLATE = `repeat(${VISIBLE_COVERS}, minmax(0, 1fr)) minmax(0, 0.5fr)`;
 
-export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
+// Tint palette for the `tinted` variant (used in the mobile feed
+// where the card needs more visual presence than the desktop rail
+// provides). Each tint is a dark warm-or-cool wash that sits
+// behind the cover row without fighting the sleeves themselves.
+// Deterministic per snapshot id so a given card always gets the
+// same tint across renders.
+const TINT_PALETTE: Array<{ bg: string; border: string }> = [
+  { bg: '#3a2818', border: '#5a4030' }, // warm brown
+  { bg: '#2a1f10', border: '#4a3520' }, // deep amber
+  { bg: '#1f2830', border: '#2d3d48' }, // muted teal
+  { bg: '#281a2a', border: '#3d2a40' }, // deep plum
+  { bg: '#2a1a1a', border: '#402a2a' }, // burgundy
+  { bg: '#1f2a1a', border: '#3a402a' }, // forest
+];
+
+export default function SnapshotCard({
+  snap,
+  tinted = false,
+}: {
+  snap: HomeSnapshot;
+  /** Mobile-feed variant: swap the muted translucent bg for a
+   *  deterministic per-snapshot tint so the card reads as its own
+   *  block amid the cover grid rather than fading into the page. */
+  tinted?: boolean;
+}) {
+  const tint = tinted ? TINT_PALETTE[snap.id % TINT_PALETTE.length] : null;
   const avatar = resolveApiUrl(snap.user.avatarUrl) ?? null;
   const displayName = snap.user.displayName || snap.user.username;
   // Items come sorted by position. Skip any null entries (albums
@@ -34,7 +59,16 @@ export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
   return (
     <Link
       to={`/my/${snap.user.username}/snap/${snap.slug}`}
-      className="block rounded-lg border border-white/5 bg-[#110b04]/60 p-2 hover:border-[#e8a020]/40 transition-colors"
+      className={
+        tint
+          ? 'block rounded-lg border p-2 hover:brightness-110 transition-[filter]'
+          : 'block rounded-lg border border-white/5 bg-[#110b04]/60 p-2 hover:border-[#e8a020]/40 transition-colors'
+      }
+      style={
+        tint
+          ? { backgroundColor: tint.bg, borderColor: tint.border }
+          : undefined
+      }
     >
       <div
         className="grid gap-0.5 mb-[6px] items-center"

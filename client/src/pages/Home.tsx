@@ -45,11 +45,11 @@ const PAGE_SIZE_BY_DENSITY: Record<string, number> = {
   dense: 32,
   ultra: 50,
 };
-// Mobile infinite-scroll batch size. 18 = 6 rows of the 3-col
+// Mobile infinite-scroll batch size. 10 = 5 rows of the 2-col
 // mobile grid. Each batch ends with a snapshot card + 2 comment
 // cards so the stream reads as an activity-rich unified feed
 // rather than a pure cover catalog.
-const MOBILE_PAGE_SIZE = 18;
+const MOBILE_PAGE_SIZE = 10;
 
 // Desktop-only: rail toggle + density switcher + reveal animation all
 // key off whether the viewport is wide enough to benefit from them.
@@ -132,7 +132,7 @@ function useMobileAlbumList(
   });
 }
 
-// One infinite-scroll batch on mobile — 18 albums (3 × 6 rows)
+// One infinite-scroll batch on mobile — 10 albums (2 × 5 rows)
 // followed by one snapshot card and two comment cards. The
 // snapshot + comments anchor each batch as a mini activity
 // interlude so the stream isn't just a flat album grid. Reveal
@@ -140,7 +140,7 @@ function useMobileAlbumList(
 // fetched eagerly don't burn their wave while the user is still
 // scrolling above them.
 const MOBILE_ROW_STAGGER_MS = 90;
-const MOBILE_COLS = 3;
+const MOBILE_COLS = 2;
 function MobileUnifiedBatch({
   albums,
   snapshot,
@@ -156,9 +156,14 @@ function MobileUnifiedBatch({
   const { ref, inView } = useInView<HTMLDivElement>('0px');
   const cardClass = inView ? 'album-reveal' : 'album-reveal-off';
 
+  // Activity block (snapshot + two comment cards) gets a little
+  // extra breathing above and below vs the album grid's tight
+  // row rhythm, so the interlude reads as "here's a break from
+  // scrolling covers" rather than another row of the catalog.
+  const hasActivity = snapshot != null || comments.length > 0;
   return (
     <div ref={ref} className="flex flex-col gap-5">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-5">
         {albums.map((album, idx) => (
           <div
             key={album.mbid}
@@ -175,15 +180,19 @@ function MobileUnifiedBatch({
           </div>
         ))}
       </div>
-      {snapshot && <SnapshotCard snap={snapshot} />}
-      {comments.map((c, i) => (
-        <TickerItem
-          key={c.id}
-          item={c}
-          fullWidth
-          orientation={i % 2 === 0 ? 'left' : 'right'}
-        />
-      ))}
+      {hasActivity && (
+        <div className="flex flex-col gap-5 mt-9 mb-9">
+          {snapshot && <SnapshotCard snap={snapshot} tinted />}
+          {comments.map((c, i) => (
+            <TickerItem
+              key={c.id}
+              item={c}
+              fullWidth
+              orientation={i % 2 === 0 ? 'left' : 'right'}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -427,7 +436,11 @@ export default function Home() {
       'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-10 xl:grid-cols-10',
   };
   const DESKTOP_GAP_CLASSES: Record<DensityValue, string> = {
-    comfortable: 'gap-4',
+    // Comfortable row-gap (vertical) is 17px — a single-px bump
+    // from col-gap's 16px (gap-x-4) so the rows breathe without
+    // making the grid read as loose. Dense and ultra stay
+    // uniformly tight, their whole purpose being density.
+    comfortable: 'gap-x-4 gap-y-[17px]',
     dense: 'gap-2.5',
     ultra: 'gap-1.5',
   };
@@ -435,7 +448,18 @@ export default function Home() {
   const desktopGap = DESKTOP_GAP_CLASSES[density];
 
   return (
-    <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-4">
+    <div
+      className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-4"
+      // Adaptive top padding only on desktop — mobile viewports
+      // don't get tall enough to need adaptive spread, and on
+      // tablets the 900px threshold was firing and pushing
+      // content unreasonably far from the nav.
+      style={
+        isMobile
+          ? undefined
+          : { paddingTop: 'max(16px, calc((100vh - 900px) * 0.2))' }
+      }
+    >
       <section className="w-full max-w-[1280px] mx-auto">
         {isMobile ? (
           // ─── Mobile: single unified infinite-scroll feed ────
@@ -584,7 +608,8 @@ export default function Home() {
 
             {totalPages > 1 && (
               <nav
-                className="mt-2 flex items-center justify-center gap-1 flex-wrap"
+                className="flex items-center justify-center gap-1 flex-wrap"
+                style={{ marginTop: 'max(8px, calc((100vh - 900px) * 0.15))' }}
                 aria-label="Pagination"
               >
                 <button
