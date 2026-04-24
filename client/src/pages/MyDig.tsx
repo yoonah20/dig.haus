@@ -20,9 +20,9 @@ import FollowButton from '../components/FollowButton';
 import FollowListModal from '../components/FollowListModal';
 import { useUserPublic } from '../hooks/useMe';
 import {
+  clearNowPlaying,
   extractSpotifyAlbumId,
   setNowPlaying,
-  useClearNowPlayingOnUnmount,
   useNowPlaying,
 } from '../hooks/useNowPlaying';
 import {
@@ -77,9 +77,11 @@ export default function MyDig() {
   }>();
   const location = useLocation();
   const navigate = useNavigate();
-  // Stop any preview audio playing when the user navigates away
-  // from the mydig page.
-  useClearNowPlayingOnUnmount();
+  // NowPlaying state deliberately persists across route changes —
+  // the docked variant in App.tsx keeps the embed alive while the
+  // viewer navigates to an album detail, the home feed, etc.
+  // Clearing only happens via the strip's × button or when another
+  // cover overrides it.
 
   // Active snapshot is taken from either /my/:u/snap/:s (legacy
   // route kept for share-link compatibility) or the #<slug> hash
@@ -281,6 +283,13 @@ export default function MyDig() {
                 cellKey={activeSlug ?? 'live'}
               />
             )}
+            {/* Spotify embed lives here — slotted in the empty wall
+                space below the last rail, ~70% of the wall width,
+                left-aligned with the wall itself. Renders only when
+                a cell has written to useNowPlaying; closing the
+                embed (× on the strip OR re-tapping the active ▶)
+                clears the store and hides this element. */}
+            <NowPlayingStrip />
           </WallSection>
           {username && (
             <div className="hidden md:block">
@@ -595,6 +604,68 @@ function WallSection({ children }: { children: React.ReactNode }) {
     >
       <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
     </section>
+  );
+}
+
+// ─── Now Playing strip ───────────────────────────────────────
+// In-wall Spotify embed that slots into the empty wall space below
+// the last wooden rail. Width stays at ~70% of the wall container
+// to mirror the screenshot mock — visually "hanging off" the rail
+// rather than spanning the viewport like the earlier pinned-footer
+// version did. `scrolling="no"` suppresses the 1–2px scrollbar
+// Spotify's mini player would otherwise show when its own content
+// is a hair taller than the iframe box. Key on album id so loading
+// a different album swaps to a fresh iframe instead of trying to
+// hot-update an existing one.
+function NowPlayingStrip() {
+  const np = useNowPlaying();
+  const albumId = extractSpotifyAlbumId(np?.spotifyUrl ?? null);
+  if (!np || !albumId) return null;
+  return (
+    // Outer box matches the wall grid's 890px cap so the strip
+    // can be centred within the wall's bounds rather than the
+    // full WallSection column (which would push it right of the
+    // wall on wider screens).
+    <div
+      className="relative z-20 mt-6"
+      style={{ maxWidth: 890, marginLeft: 0, marginRight: 'auto' }}
+      aria-label="지금 재생 중"
+    >
+      <div className="mx-auto flex items-stretch gap-2 w-[70%] min-w-[280px] max-w-[640px]">
+        <iframe
+          key={albumId}
+          title={`${np.artist} — ${np.title}`}
+          src={`https://open.spotify.com/embed/album/${albumId}?utm_source=generator&theme=0`}
+          width="100%"
+          height="80"
+          frameBorder={0}
+          scrolling="no"
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          loading="lazy"
+          // Warm walnut tint via CSS filter — Spotify embed is
+          // cross-origin so we can't style its content directly,
+          // but a sepia + hue-rotate + brightness knock pulls the
+          // default near-black chrome toward the page's walnut
+          // palette. Side effect: the embedded cover art thumbnail
+          // inherits the tint too. Kept mild (sepia 0.25) so the
+          // artwork is still recognisable.
+          style={{
+            filter: 'sepia(0.25) hue-rotate(-18deg) saturate(0.88) brightness(0.94)',
+            borderColor: 'rgba(90, 58, 32, 0.55)',
+          }}
+          className="rounded-lg bg-[#2a1a0d] flex-1 min-w-0 border"
+        />
+        <button
+          type="button"
+          onClick={clearNowPlaying}
+          aria-label="재생 닫기"
+          title="재생 닫기"
+          className="shrink-0 self-center w-8 h-8 rounded-full border border-white/10 bg-[#1a130a]/80 hover:border-[#e8a020]/50 hover:text-[#e8a020] text-gray-400 text-base leading-none transition-colors cursor-pointer"
+        >
+          ×
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -1116,6 +1187,15 @@ function WallCell({
               mixBlendMode: 'overlay',
             }}
           />
+          {hasPreview && (
+            <PreviewPlayChip
+              isPlaying={isPlaying}
+              onClick={handlePreviewClick}
+              trackName={album.title}
+              forceShow={isActive}
+              lpSize={lpSize}
+            />
+          )}
         </div>
         {userReview && isActive && (
           <CommentBubble
@@ -1124,15 +1204,6 @@ function WallCell({
             rating={userReview.rating}
             lpSize={lpSize}
             forceShow
-          />
-        )}
-        {hasPreview && (
-          <PreviewPlayChip
-            isPlaying={isPlaying}
-            onClick={handlePreviewClick}
-            trackName={album.title}
-            forceShow={isActive}
-            lpSize={lpSize}
           />
         )}
       </Link>
@@ -1315,6 +1386,20 @@ function WallCell({
             }}
           />
         </div>
+        {/* Play chip lives inside the scale wrapper (as a sibling
+            of the tilt wrapper) so it grows with the cover on
+            hover. Kept outside the tilt wrapper so the button
+            itself stays facing forward rather than rotating with
+            the card — that way the triangle icon doesn't skew
+            under cursor movement. */}
+        {hasPreview && (
+          <PreviewPlayChip
+            isPlaying={isPlaying}
+            onClick={handlePreviewClick}
+            trackName={album.title}
+            lpSize={lpSize}
+          />
+        )}
       </div>
 
       {userReview && (
@@ -1326,25 +1411,17 @@ function WallCell({
           placement="right"
         />
       )}
-
-      {hasPreview && (
-        <PreviewPlayChip
-          isPlaying={isPlaying}
-          onClick={handlePreviewClick}
-          trackName={album.title}
-          lpSize={lpSize}
-        />
-      )}
     </Link>
   );
 }
 
-// Centered play button over the cover. Sized to be unmissable
-// (lpSize · 40%), with a soft dark scrim behind so the glyph
-// stays legible against any cover art underneath. Slides in on
-// hover (desktop) or tap-activation (mobile); while a track is
-// playing the same button turns into the stop glyph and stays
-// visible regardless of hover state.
+// Bottom-right corner play button. Lives INSIDE the scale wrapper
+// so it grows in lockstep with the hovered cover rather than
+// staying pinned to the original cell bounds. Sized to roughly a
+// quarter of the sleeve width — big enough to target, small
+// enough to leave the artwork as the primary read. White-tinted
+// fill (not amber) so it reads as a universal play control and
+// doesn't fight with the amber chrome in the rest of the page.
 //
 // `forceShow` is the mobile path — the parent cell is in its
 // tap-activated state and group-hover won't fire on touch. Desktop
@@ -1363,87 +1440,69 @@ function PreviewPlayChip({
   forceShow?: boolean;
   lpSize: number;
 }) {
+  // 26% lands around 33–44px across the mobile / desktop grids,
+  // which reads as a discreet corner chip rather than the old
+  // centred medallion. Icon scales proportionally.
+  const buttonSize = Math.round(lpSize * 0.26);
+  const iconSize = Math.round(buttonSize * 0.42);
   const visibilityClasses =
     isPlaying || forceShow
-      ? 'opacity-100 scale-100 pointer-events-auto'
-      : 'opacity-0 scale-90 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto';
-
-  // Button sizes proportionally to the cover so it reads the
-  // same across the 3-col mobile grid and the 5-col desktop grid.
-  // 42% of lpSize lands around 60-80px in typical conditions —
-  // large enough to be an obvious affordance, small enough to
-  // leave the cover identifiable underneath.
-  const buttonSize = Math.round(lpSize * 0.42);
-  const iconSize = Math.round(buttonSize * 0.42);
+      ? 'opacity-100 pointer-events-auto'
+      : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto';
 
   return (
-    <div
-      aria-hidden={!isPlaying && !forceShow}
-      className={`absolute inset-0 z-30 flex items-center justify-center transition-opacity duration-200 ${
-        isPlaying || forceShow
-          ? 'opacity-100 pointer-events-auto'
-          : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
-      }`}
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={
+        isPlaying
+          ? '미리듣기 정지'
+          : trackName
+            ? `"${trackName}" 미리듣기`
+            : '미리듣기 재생'
+      }
+      title={
+        isPlaying
+          ? '정지'
+          : trackName
+            ? `${trackName} · 미리듣기`
+            : '미리듣기'
+      }
+      style={{
+        width: buttonSize,
+        height: buttonSize,
+        right: '6%',
+        bottom: '6%',
+      }}
+      className={`absolute z-30 rounded-full bg-white/90 border border-white/60 text-[#141008] flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.45)] hover:bg-white transition-opacity duration-200 cursor-pointer ${visibilityClasses}`}
     >
-      {/* Scrim: a radial dark wash behind the button so the
-          amber glyph keeps contrast against covers that happen
-          to have amber / beige tones of their own. */}
-      <div
-        aria-hidden
-        className="absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(circle at center, rgba(10,7,3,0.45) 0%, rgba(10,7,3,0.15) 45%, transparent 70%)',
-        }}
-      />
-      <button
-        type="button"
-        onClick={onClick}
-        aria-label={
-          isPlaying
-            ? '미리듣기 정지'
-            : trackName
-              ? `"${trackName}" 미리듣기`
-              : '미리듣기 재생'
-        }
-        title={
-          isPlaying
-            ? '정지'
-            : trackName
-              ? `${trackName} · 미리듣기`
-              : '미리듣기'
-        }
-        style={{ width: buttonSize, height: buttonSize }}
-        className={`relative rounded-full bg-[#141008]/85 border-2 border-[#e8a020] text-[#e8a020] flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.55)] hover:bg-[#e8a020] hover:text-[#141008] transition-all duration-200 cursor-pointer ${visibilityClasses}`}
-      >
-        {isPlaying ? (
-          <svg
-            width={iconSize}
-            height={iconSize}
-            viewBox="0 0 12 12"
-            aria-hidden
-          >
-            <rect x="3" y="2.5" width="2.2" height="7" fill="currentColor" rx="0.5" />
-            <rect x="6.8" y="2.5" width="2.2" height="7" fill="currentColor" rx="0.5" />
-          </svg>
-        ) : (
-          <svg
-            width={iconSize}
-            height={iconSize}
-            viewBox="0 0 12 12"
-            aria-hidden
-          >
-            {/* Slight x-offset so the triangle's optical centre
-                aligns with the circle's geometric centre — the
-                classic play-button trick. */}
-            <path
-              d="M3.8 2 L9.6 6 L3.8 10 Z"
-              fill="currentColor"
-            />
-          </svg>
-        )}
-      </button>
-    </div>
+      {isPlaying ? (
+        <svg
+          width={iconSize}
+          height={iconSize}
+          viewBox="0 0 12 12"
+          aria-hidden
+        >
+          <rect x="3" y="2.5" width="2.2" height="7" fill="currentColor" rx="0.5" />
+          <rect x="6.8" y="2.5" width="2.2" height="7" fill="currentColor" rx="0.5" />
+        </svg>
+      ) : (
+        <svg
+          width={iconSize}
+          height={iconSize}
+          viewBox="0 0 12 12"
+          aria-hidden
+        >
+          {/* Slight x-offset so the triangle's optical centre
+              aligns with the circle's geometric centre — the
+              classic play-button trick. */}
+          <path
+            d="M3.8 2 L9.6 6 L3.8 10 Z"
+            fill="currentColor"
+          />
+        </svg>
+      )}
+    </button>
   );
 }
 

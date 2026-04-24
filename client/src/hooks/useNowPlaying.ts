@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from 'react';
 
 // Global "now playing" state for the site-wide strip at the bottom
 // of the viewport. The strip lives in SiteFooter; wall cells write
@@ -63,14 +63,3 @@ export function extractSpotifyAlbumId(url: string | null | undefined): string | 
   return m ? m[1] : null;
 }
 
-// Auto-clear the strip on route change away from mydig. Consumers
-// mount this hook once in MyDig so leaving the page stops the
-// embed — otherwise the iframe would keep playing music in the
-// background of whatever the viewer navigated to next.
-export function useClearNowPlayingOnUnmount() {
-  useEffect(() => {
-    return () => {
-      clearNowPlaying();
-    };
-  }, []);
-}

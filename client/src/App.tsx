@@ -6,6 +6,7 @@ import { HomeStateProvider } from './contexts/HomeStateContext';
 import { CurationProgressProvider } from './contexts/CurationProgressContext';
 import TopNav from './components/TopNav';
 import SiteFooter from './components/SiteFooter';
+import DockedNowPlayingStrip from './components/DockedNowPlayingStrip';
 import CurationProgressPanel from './components/CurationProgressPanel';
 
 const Home = lazy(() => import('./pages/Home'));
@@ -309,6 +310,13 @@ export default function App() {
                   matter how the wall + snapshot strip change length.
                   Other routes keep the flow-layout sticky-footer. */}
               <SiteFooter pinned={isMydig} />
+              {/* Docked Now Playing mini player — renders on every
+                  route EXCEPT /my/:username (mydig owns the inline
+                  variant below its wall). Module-level useNowPlaying
+                  state carries the selection across navigation so
+                  the embed keeps playing while the viewer browses
+                  album pages, the home feed, their profile, etc. */}
+              <DockedNowPlayingStrip />
               <CurationProgressPanel />
             </div>
           </CurationProgressProvider>
