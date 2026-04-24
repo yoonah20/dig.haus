@@ -520,9 +520,13 @@ export default function AlbumCard({
                   }}
                 >
                   {album.artist}
-                  {album.year && <> · {album.year}</>}
+                  {!compact && album.year && <> · {album.year}</>}
                 </p>
-                {(showAvg || up > 0 || down > 0 || userReviewCount > 0) && (
+                {/* Compact (ultra density) strips the back face down
+                    to title / artist / avg rating only. Votes,
+                    comment count, owned/wanted chips don't read
+                    at that card size and cluttered the flip. */}
+                {(showAvg || (!compact && (up > 0 || down > 0 || userReviewCount > 0))) && (
                   <div
                     className="flex items-center gap-2 tabular-nums flex-wrap"
                     style={{
@@ -535,20 +539,20 @@ export default function AlbumCard({
                         ★ {album.averageScore}/100
                       </span>
                     )}
-                    {(up > 0 || down > 0) && (
+                    {!compact && (up > 0 || down > 0) && (
                       <>
                         <span style={{ color: '#88a2bf' }}>▲{up}</span>
                         <span style={{ color: '#c08888' }}>▼{down}</span>
                       </>
                     )}
-                    {userReviewCount > 0 && (
+                    {!compact && userReviewCount > 0 && (
                       <span className="text-gray-300">
                         <span aria-hidden>💬</span> {userReviewCount}
                       </span>
                     )}
                   </div>
                 )}
-                {((album.ownedCount ?? 0) > 0 || (album.wantedCount ?? 0) > 0) && (
+                {!compact && ((album.ownedCount ?? 0) > 0 || (album.wantedCount ?? 0) > 0) && (
                   <div
                     className="flex items-center gap-2 tabular-nums text-gray-300 flex-wrap"
                     style={{

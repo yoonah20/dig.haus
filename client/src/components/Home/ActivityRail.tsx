@@ -52,7 +52,7 @@ export default function ActivityRail({
               </svg>
             </button>
           )}
-          <h3 className="text-xs uppercase tracking-wider text-gray-500">
+          <h3 className="text-xs uppercase tracking-wider text-gray-300">
             최근의 기억들
           </h3>
         </div>
