@@ -19,7 +19,6 @@ import GraffitiSnapshotList, {
 import ShareButton from '../components/MyDig/ShareButton';
 import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
-import FollowListModal from '../components/FollowListModal';
 import { useUserPublic } from '../hooks/useMe';
 import { extractSpotifyAlbumId } from '../hooks/useNowPlaying';
 import { NowPlayingAnchor } from '../components/PersistentNowPlayingPlayer';
@@ -450,64 +449,17 @@ function ProfileHeader({
   // whose owner hasn't been resolved yet see no counts until the
   // wall data lands.
   const publicData = useUserPublic(userId, !!userId);
-  const publicStats = publicData.data?.stats;
   const publicUser = publicData.data?.user;
-  const followerCount = publicStats?.followerCount ?? 0;
-  const followingCount = publicStats?.followingCount ?? 0;
   const viewerIsFollowing = !!publicData.data?.followingByViewer;
-  const [followListOpen, setFollowListOpen] = useState<
-    'followers' | 'following' | null
-  >(null);
-  // Wall-scoped actions: edit / save snapshot / delete snapshot /
-  // share. FollowButton is intentionally excluded — that action
-  // targets the PERSON, so in the vertical sidebar it lives in
-  // the person card, not the wall card.
-  function renderWallActions() {
-    return (
-      <>
-        {isOwner && (
-          <button
-            type="button"
-            onClick={onEdit}
-            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-            title={
-              mode === 'snapshot'
-                ? '스냅샷 이름·설명·앨범 편집'
-                : '벽 제목·설명·앨범 편집'
-            }
-          >
-            ✏️ 편집
-          </button>
-        )}
-        {isOwner && mode === 'live' && (
-          <button
-            type="button"
-            onClick={onSaveSnapshot}
-            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-            title="현재 구성을 기억으로 남기기"
-          >
-            📸 기억 남기기
-          </button>
-        )}
-        {isOwner && mode === 'snapshot' && (
-          <button
-            type="button"
-            onClick={onDeleteSnapshot}
-            disabled={deleteSnapshotPending}
-            className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="스냅샷 삭제"
-          >
-            {deleteSnapshotPending ? '삭제 중…' : '🗑 삭제'}
-          </button>
-        )}
-        <ShareButton url={shareUrl} label="공유" />
-      </>
-    );
-  }
-
   // Action buttons extracted so both horizontal (inline next to
   // the h1) and vertical (stacked below the description) layouts
-  // render the same set without duplication.
+  // render the same set without duplication. The cluster now
+  // includes FollowButton alongside Share — non-owner viewers
+  // get "팔로우 · 공유", owner viewers get the edit/snapshot
+  // controls instead. The follower/following count chips are
+  // gone in the vertical layout (they disappeared against the
+  // painted-wall backdrop), so FollowButton had no natural
+  // landing spot outside this cluster.
   function renderActions() {
     return (
       <>
@@ -582,51 +534,13 @@ function ProfileHeader({
   // putting another avatar in the sidebar directly underneath
   // read as stacked duplicates. Identity now lives as a
   // signature line in the same graffiti script that the snapshot
-  // list uses ("{displayName}의"), with a thin follow row above
-  // for the social controls the nav can't surface.
+  // list uses ("{displayName}의"). Follower/following counts used
+  // to sit above the signature but disappeared into the backdrop
+  // so they're gone; anyone who wants that surface lands on
+  // /profile where it's the primary content.
   if (vertical) {
     return (
       <div className="flex flex-col gap-3 min-w-0">
-        {/* Thin social row — follower + following counts clickable
-            into the shared FollowListModal, follow button on the
-            right when the viewer isn't the owner. Sits above the
-            signature so it reads as chrome, not part of the
-            handwritten signature below. */}
-        {userId != null && (
-          <div className="flex items-center justify-between gap-2 flex-wrap text-[12px] px-1">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setFollowListOpen('followers')}
-                className="px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer"
-              >
-                <span className="text-[#f5d89a] font-semibold">
-                  {followerCount.toLocaleString()}
-                </span>
-                <span className="text-gray-500 ml-1">팔로워</span>
-              </button>
-              <span className="text-gray-700">·</span>
-              <button
-                type="button"
-                onClick={() => setFollowListOpen('following')}
-                className="px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer"
-              >
-                <span className="text-[#f5d89a] font-semibold">
-                  {followingCount.toLocaleString()}
-                </span>
-                <span className="text-gray-500 ml-1">팔로잉</span>
-              </button>
-            </div>
-            {!isOwner && (
-              <FollowButton
-                targetUserId={userId}
-                following={viewerIsFollowing}
-                size="sm"
-              />
-            )}
-          </div>
-        )}
-
         {/* Wall signature + info — handwritten register. The
             "{displayName}의" line reads as the wall's signed
             author; the theme follows as the main heading, then
@@ -682,17 +596,9 @@ function ProfileHeader({
             sans-serif so "edit" / "snapshot" / "share" read as
             interactive controls rather than more scribble. */}
         <div className="flex items-center gap-2 flex-wrap px-2 pt-2">
-          {renderWallActions()}
+          {renderActions()}
         </div>
 
-        {followListOpen && userId != null && (
-          <FollowListModal
-            userId={userId}
-            kind={followListOpen}
-            title={followListOpen === 'followers' ? '팔로워' : '팔로잉'}
-            onClose={() => setFollowListOpen(null)}
-          />
-        )}
       </div>
     );
   }
@@ -793,14 +699,6 @@ function ProfileHeader({
         )}
 
       </div>
-      {followListOpen && userId != null && (
-        <FollowListModal
-          userId={userId}
-          kind={followListOpen}
-          title={followListOpen === 'followers' ? '팔로워' : '팔로잉'}
-          onClose={() => setFollowListOpen(null)}
-        />
-      )}
     </header>
   );
 }

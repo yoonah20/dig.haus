@@ -19,8 +19,15 @@ import type { VinylWallSnapshotSummary } from '../../hooks/useMyDig';
 // description, action chips) can sit in the same handwritten
 // register and visually read as "also written on the wall",
 // matching the graffiti snapshot list below.
+//
+// Gugi is a bolder brush-calligraphic Korean face from Google
+// Fonts — stronger stroke weight than Gamja Flower / Nanum Pen
+// Script so the text holds up against the painted-wall backdrop
+// without fading into it. Latin fallback (Shadows Into Light)
+// keeps the handwritten register for English / number glyphs
+// that Gugi doesn't cover.
 export const GRAFFITI_FONT_STACK =
-  "'Shadows Into Light', 'Gamja Flower', 'Nanum Pen Script', cursive";
+  "'Gugi', 'Shadows Into Light', 'Gamja Flower', 'Nanum Pen Script', cursive";
 const FONT_STACK = GRAFFITI_FONT_STACK;
 
 export default function GraffitiSnapshotList({
