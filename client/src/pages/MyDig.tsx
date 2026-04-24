@@ -27,25 +27,14 @@ import {
   useActiveWallCellId,
   useClearActiveWallCellOnOutsideTap,
 } from '../hooks/useActiveWallCell';
-import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
+import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 
-// Temporary feature flags — both features are wired end-to-end
-// (server extraction, hooks, primitives, payload) but the
-// cover-tint extraction and Spotify preview playback paths are
-// still misbehaving in practice. Render-side gates keep the UX
-// clean while the underlying flow is debugged; flip to true to
-// re-enable without touching the rest of the wiring.
-const MYDIG_VINYL_TINT_ENABLED = false;
 // Spotify preview surface. Re-enabled after the raw-mp3 path was
 // retired — wall cells now write to useNowPlaying on ▶ click and
 // SiteFooter hosts the resulting Spotify embed in the pinned strip.
 // No per-album server lookup needed (we already store spotifyUrl),
 // no audio element, no preview_url dependency.
 const MYDIG_PREVIEW_ENABLED = true;
-// Old "vinyl disc slides out from behind the cover" peek on hover.
-// Replaced by the tilt + specular sheen effect; flip back to true to
-// restore the original peek animation and drop the shine overlays.
-const MYDIG_VINYL_PEEK_ENABLED = false;
 // Shrink-wrap overlay (SVG turbulence noise + CSS gradient crease).
 // CSS-only rendering never reached "actually looks wrapped in
 // plastic" — real plastic needs a raster texture (PNG/WebP with
@@ -492,13 +481,13 @@ function ProfileHeader({
     );
 
   return (
-    <div className="relative min-w-0 pt-[25px]">
+    <div className="relative min-w-0 pt-[25px] md:pt-[50px]">
       {/* Actions — floated top-right absolutely so the handwritten
           block below starts at the very top of the container and
           the signature shares the same y-band as the action
           chips. Non-owner viewers get [팔로우 공유]; owner viewers
           get [편집 · 기억/삭제 · 공유]. */}
-      <div className="absolute top-[15px] right-1 z-10 flex items-center gap-2 flex-wrap justify-end">
+      <div className="absolute top-[15px] right-6 z-10 flex items-center gap-2 flex-wrap justify-end">
         {renderActions()}
       </div>
 
@@ -913,15 +902,12 @@ function CellAnim({
 }
 
 // ─── Wall cell ────────────────────────────────────────────────
-// One filled slot. Desktop: hover scales the sleeve up 1.4× and
+// One filled slot. Desktop: hover scales the sleeve up 1.26× and
 // applies a cursor-tracked 3D tilt + specular streak — the
 // "shrink-wrapped LP catching pendant light" read, inspired by
 // simeydotme/pokemon-cards-css. Mobile: tap-activate scales up
 // without tilt (no cursor on touch). Comment bubble + (when
 // enabled) preview chip surface on the active cell either way.
-// The vinyl disc behind the cover is kept in the tree but no
-// longer peeks on hover — the tilt + shine carry the interaction
-// now. Flip MYDIG_VINYL_PEEK_ENABLED back to true to restore.
 function WallCell({
   item,
   position,
@@ -939,15 +925,6 @@ function WallCell({
 }) {
   const { album, userReview } = item;
   const target = album.slug || album.mbid;
-  // Server extracts + stores cover_dominant_color once per album
-  // and ships it as a "r,g,b" string on the wall payload. Null on
-  // very first view of an album (server kicks off async extraction
-  // on that same request); subsequent fetches carry the value.
-  // Gated by MYDIG_VINYL_TINT_ENABLED — when off, every disc renders
-  // classic black regardless of what the server returns.
-  const discBodyRgb = MYDIG_VINYL_TINT_ENABLED
-    ? parseRgbString(album.coverDominantColor ?? null)
-    : null;
   // Spotify album URL drives the ▶ chip. PlayChip self-resolves
   // visibility + isPlaying from the now-playing store, so we just
   // forward the raw URL and let it decide. Gated by
@@ -1037,23 +1014,9 @@ function WallCell({
         }}
         onClick={handleMobileTap}
       >
-        {MYDIG_VINYL_PEEK_ENABLED && (
-          // Vinyl peek — same geometry as the desktop hover state,
-          // triggered by the tap-activated `isActive` flag. Behind
-          // the feature flag so it can be reinstated alongside the
-          // disc color work without untangling the new shine pass.
-          <div
-            aria-hidden
-            className={`absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out ${
-              isActive ? 'translate-x-[24%] rotate-[6deg] scale-[1.15]' : ''
-            }`}
-          >
-            <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
-          </div>
-        )}
         <div
           className={`absolute inset-0 z-10 origin-bottom transition-transform duration-[280ms] ease-out ${
-            isActive ? 'scale-[1.3]' : ''
+            isActive ? 'scale-[1.26]' : ''
           }`}
         >
           <WallLP size={lpSize} seed={position} lampBias={lampBias}>
@@ -1122,25 +1085,12 @@ function WallCell({
         perspective: '900px',
       }}
     >
-      {MYDIG_VINYL_PEEK_ENABLED && (
-        // Vinyl disc peek — kept around the feature flag so the
-        // old "disc slides out to the right" animation can be
-        // revived without restructuring WallCell. Hidden flush
-        // behind the cover while the flag is off.
-        <div
-          aria-hidden
-          className="absolute inset-0 z-0 origin-bottom transition-transform duration-[280ms] ease-out group-hover:translate-x-[24%] group-hover:rotate-[6deg] group-hover:scale-[1.15]"
-        >
-          <VinylDisc size={lpSize} bodyColor={discBodyRgb} />
-        </div>
-      )}
-
-      {/* Scale wrapper — lifts the whole card 1.3× on hover with
+      {/* Scale wrapper — lifts the whole card 1.26× on hover with
           bottom-pinned origin so the sleeve grows upward off the
           rail. Kept separate from the tilt transform so inline
           rotate() doesn't clobber the tailwind scale class. */}
       <div
-        className="absolute inset-0 z-10 origin-bottom transition-transform duration-[260ms] ease-out group-hover:scale-[1.3]"
+        className="absolute inset-0 z-10 origin-bottom transition-transform duration-[260ms] ease-out group-hover:scale-[1.26]"
         style={{
           transformOrigin: 'center bottom',
         }}
@@ -1325,8 +1275,8 @@ function CommentBubble({
   // group-hover won't fire on touch. forceShow flips the bubble
   // fully visible without needing :hover on an ancestor.
   forceShow?: boolean;
-  // Desktop hover now scales the sleeve 1.3× from its bottom-centre
-  // origin, which means the scaled cover grows ~15% past its
+  // Desktop hover now scales the sleeve 1.26× from its bottom-centre
+  // origin, which means the scaled cover grows ~13% past its
   // original top + sides. A top-placed bubble lands inside that
   // new top strip and gets visually eaten. `placement: 'right'`
   // offsets the bubble past the scaled-out right edge instead so
@@ -1339,15 +1289,15 @@ function CommentBubble({
   const visibilityClasses = forceShow
     ? 'opacity-100 scale-100'
     : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100';
-  // `right` placement needs to clear the 1.3× scale overflow on
-  // the right edge (0.15·lpSize), then add a small breathing gap.
-  const rightOffsetPx = Math.round(lpSize * 0.17 + 8);
-  // `top` placement is the mobile path: the cell scales 1.3× from
+  // `right` placement needs to clear the 1.26× scale overflow on
+  // the right edge (0.13·lpSize), then add a small breathing gap.
+  const rightOffsetPx = Math.round(lpSize * 0.15 + 8);
+  // `top` placement is the mobile path: the cell scales 1.26× from
   // origin-bottom when active, so the sleeve's top extends up by
-  // 0.3·lpSize past the container. The bubble must clear that
-  // overflow (0.3·lpSize) plus a breathing gap or it lands inside
-  // the scaled sleeve's top strip.
-  const topOffsetPx = Math.round(lpSize * 0.3 + 12);
+  // 0.26·lpSize past the container. The bubble must clear that
+  // overflow plus a breathing gap or it lands inside the scaled
+  // sleeve's top strip.
+  const topOffsetPx = Math.round(lpSize * 0.26 + 12);
   const outerStyle: React.CSSProperties =
     placement === 'right'
       ? {
@@ -1426,21 +1376,11 @@ function CommentBubble({
   );
 }
 
-// Server timestamps are UTC ISO strings. Parse + reformat into
-// "YYYY년 M월 D일의 기억" using the local (KST for most of this
-// audience) calendar date — the snapshot is anchored to the day the
-// owner captured it, not the UTC instant. Falls back to the raw
-// string if the input can't be parsed so the subtitle never renders
-// as a bare "Invalid Date".
-// Parse the server's "r,g,b" dominant-colour string into a triple.
-// Returns null for null/malformed input; WallCell feeds the result
-// straight into VinylDisc's bodyColor prop, which falls back to
-// classic black when null.
 // Cover Art Archive exposes `/front-250`, `/front-500`, `/front-1200`
 // and full-size variants of every sleeve. Server-side storage uses
 // front-250 for the home grid / album page where sleeves render at
-// ~120–200px. The mydig wall renders at up to 168px and scales 1.3×
-// on hover (~218px effective), which turns front-250 sources into
+// ~120–200px. The mydig wall renders at up to 168px and scales 1.26×
+// on hover (~212px effective), which turns front-250 sources into
 // visibly soft upscales. Upgrading to front-500 on the client side —
 // only for the wall — keeps home grid bandwidth untouched while the
 // hovered wall stays crisp. Non-CAA hosts (Spotify 640, Last.fm
@@ -1454,16 +1394,6 @@ function upgradeWallCoverUrl(url: string | null): string | null {
 function upgradeWallCoverFallbacks(urls: string[] | undefined): string[] | undefined {
   if (!urls || urls.length === 0) return urls;
   return urls.map((u) => upgradeWallCoverUrl(u) ?? u);
-}
-
-function parseRgbString(
-  s: string | null
-): [number, number, number] | null {
-  if (!s) return null;
-  const parts = s.split(',').map((x) => Number(x.trim()));
-  if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) return null;
-  const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
-  return [clamp(parts[0]), clamp(parts[1]), clamp(parts[2])];
 }
 
 function formatKoreanMemoryDate(input: string | null | undefined): string {

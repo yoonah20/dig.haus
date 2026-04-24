@@ -163,8 +163,12 @@ export default function App() {
   useStripUrlNoise();
   const location = useLocation();
   // Routes under `/my/:username` (including snapshots) get the
-  // painted wall backdrop across the full page, nav to footer.
+  // full painted-wall backdrop across the full page, nav to
+  // footer. The home grid also gets a dimmer version of the same
+  // wall as a backdrop texture — no lamp pools, no dust motes,
+  // just the darkened painting behind the album grid.
   const isMydig = location.pathname.startsWith('/my/');
+  const isHome = location.pathname === '/';
   return (
     <AuthProvider>
       <SearchOverlayProvider>
@@ -178,6 +182,27 @@ export default function App() {
               // anything rendered outside the app root.
               style={{ isolation: 'isolate' }}
             >
+              {isHome && (
+                <div
+                  aria-hidden
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    // Same wall image as mydig but heavier
+                    // darkening so it reads as texture under the
+                    // album grid rather than a scene of its own.
+                    // No lamps, no dust, no vignette — grid cards
+                    // carry the home page's visual weight; the
+                    // wall just gives them something warmer than
+                    // #0a0703 to sit against.
+                    zIndex: -1,
+                    backgroundImage: "url('/backdrops/wall2.webp')",
+                    backgroundSize: '2401px 1372px',
+                    backgroundPosition: 'center bottom',
+                    backgroundRepeat: 'no-repeat',
+                    filter: 'brightness(0.3) saturate(0.6)',
+                  }}
+                />
+              )}
               {isMydig && (
                 <>
                   <div
@@ -193,7 +218,7 @@ export default function App() {
                       // page content.
                       zIndex: -1,
                       backgroundImage: "url('/backdrops/wall2.webp')",
-                      // Fixed pixel size at 0.7× the 3500×2000 source,
+                      // Fixed pixel size at 0.686× the 3500×2000 source,
                       // not `cover`. The painted wall was composed at
                       // a specific scale; letting cover stretch it to
                       // every viewport distorts the rail spacing and
@@ -201,7 +226,7 @@ export default function App() {
                       // very wide/tall viewports (the parent's #0a0703
                       // fills the gap) in exchange for consistent
                       // scale everywhere.
-                      backgroundSize: '2450px 1400px',
+                      backgroundSize: '2401px 1372px',
                       // Anchor to the bottom so the floor/baseboard
                       // of the painted wall stays visible at every
                       // viewport height — a shorter window clips the

@@ -4,16 +4,18 @@ import { resolveApiUrl } from '../../utils/apiUrl';
 import { formatRelativeKo } from '../../utils/relativeTime';
 import type { HomeSnapshot } from '../../hooks/useHomeSnapshots';
 
-// Compact teaser: six cells in a single row. Cells 0-4 always show
-// the first five cover thumbnails; cell 5 shows "+N" whenever the
-// snapshot has more than five albums (for a full 15-album wall
-// that's "+10"), or stays empty for walls of exactly five or
-// fewer. The earlier full mosaic put the whole wall in each rail
-// card, which added up to a second grid competing with the main
-// one. One row + overflow count reads as a curated peek instead
-// of a mini dump.
+// Compact teaser: five cover thumbnails plus a slim "+N" trailing
+// chip when the snapshot has more than five albums (for a full
+// 15-album wall that's "+10"). The overflow chip is half the width
+// of a cover cell so it reads as a counter rather than another
+// slot competing with the covers. Cards of five or fewer albums
+// get an empty slim cell to keep the row baseline consistent.
 const ROW_LENGTH = 6;
 const VISIBLE_COVERS = 5;
+// Grid template. Covers take `1fr` each, the trailing overflow
+// chip takes `0.5fr` — narrower so it doesn't register as another
+// cover, freeing a bit of horizontal room inside the card.
+const GRID_TEMPLATE = `repeat(${VISIBLE_COVERS}, minmax(0, 1fr)) minmax(0, 0.5fr)`;
 
 export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
   const avatar = resolveApiUrl(snap.user.avatarUrl) ?? null;
@@ -35,8 +37,8 @@ export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
       className="block rounded-lg border border-white/5 bg-[#110b04] p-2 hover:border-[#e8a020]/40 transition-colors"
     >
       <div
-        className="grid gap-0.5 mb-2"
-        style={{ gridTemplateColumns: `repeat(${ROW_LENGTH}, minmax(0, 1fr))` }}
+        className="grid gap-0.5 mb-2 items-center"
+        style={{ gridTemplateColumns: GRID_TEMPLATE }}
       >
         {Array.from({ length: ROW_LENGTH }, (_, i) => {
           // Cell 5 (the sixth): "+{overflow}" when the wall holds

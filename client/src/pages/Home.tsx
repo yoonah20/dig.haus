@@ -354,15 +354,15 @@ export default function Home() {
       'grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-10 xl:grid-cols-10',
   };
   const DESKTOP_GAP_CLASSES: Record<DensityValue, string> = {
-    comfortable: 'gap-5',
-    dense: 'gap-3',
-    ultra: 'gap-2',
+    comfortable: 'gap-4',
+    dense: 'gap-2.5',
+    ultra: 'gap-1.5',
   };
   const desktopGridCols = DESKTOP_GRID_CLASSES[density];
   const desktopGap = DESKTOP_GAP_CLASSES[density];
 
   return (
-    <div className="flex-1 flex flex-col px-4 pt-8">
+    <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-8">
       <section className="w-full max-w-[1280px] mx-auto">
         {isMobile ? (
           // ─── Mobile: tabs + infinite scroll ─────────────────
@@ -445,11 +445,19 @@ export default function Home() {
           // simultaneously without tabs.
           <>
             <div
-              className="flex flex-col gap-6 lg:grid lg:items-stretch lg:transition-[grid-template-columns] lg:duration-300"
+              // Gap is driven off a CSS variable so it transitions
+              // from 40px to 0 in lockstep with the column collapse.
+              // Before, lg:gap-10 was static — closing the rail left
+              // a permanent 40px dead strip on the right of the grid
+              // which read as a "pop" at the end of the animation.
+              // Below lg we stay flex-col with gap-6 (the variable
+              // class only applies at lg+).
+              className="flex flex-col gap-6 lg:grid lg:gap-[var(--rail-gap,40px)] lg:items-stretch lg:transition-[grid-template-columns,gap] lg:duration-300 lg:ease-out"
               style={{
                 gridTemplateColumns: railOpen
                   ? 'minmax(0, 7.7fr) minmax(0, 2.3fr)'
                   : 'minmax(0, 7.7fr) minmax(0, 0fr)',
+                ['--rail-gap' as string]: railOpen ? '40px' : '0px',
               }}
             >
               <main className="order-1 min-w-0">
@@ -500,10 +508,17 @@ export default function Home() {
               </main>
               <div
                 id="home-activity-rail"
-                className={`order-2 min-w-0 overflow-hidden lg:transition-[opacity,transform] lg:duration-300 ${
+                // Just a fade. The earlier translate-x-full on close
+                // was 100% of the element's own width — and the
+                // element's width was collapsing at the same time,
+                // so translate-x was interpolating against a moving
+                // reference, which read as a jitter/pop rather than
+                // a clean slide. The column collapse alone carries
+                // the slide-out feel; opacity softens the finish.
+                className={`order-2 min-w-0 overflow-hidden lg:transition-opacity lg:duration-300 lg:ease-out ${
                   railOpen
-                    ? 'lg:opacity-100 lg:translate-x-0'
-                    : 'lg:opacity-0 lg:translate-x-full lg:pointer-events-none'
+                    ? 'lg:opacity-100'
+                    : 'lg:opacity-0 lg:pointer-events-none'
                 }`}
               >
                 <ActivityRail onClose={() => setRailOpen(false)} />
@@ -557,7 +572,27 @@ export default function Home() {
               </nav>
             )}
 
-            {albums.length > 0 && <CommentTicker />}
+            {/* Ticker tied to rail visibility — when the rail closes,
+                the ticker slides down + fades out and its row height
+                collapses so the page doesn't leave a silent band of
+                empty space at the bottom. grid-template-rows 0fr→1fr
+                is the modern auto-height animation trick (needs
+                Chrome 117+ / Firefox 122+ / Safari 17+; older
+                browsers just jump without animation). */}
+            {albums.length > 0 && (
+              <div
+                aria-hidden={!railOpen}
+                className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out ${
+                  railOpen
+                    ? 'grid-rows-[1fr] opacity-100 translate-y-0'
+                    : 'grid-rows-[0fr] opacity-0 translate-y-6 pointer-events-none'
+                }`}
+              >
+                <div className="min-h-0 overflow-hidden">
+                  <CommentTicker />
+                </div>
+              </div>
+            )}
           </>
         )}
       </section>

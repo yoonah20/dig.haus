@@ -23,7 +23,7 @@ export default function ActivityRail({
   return (
     <aside aria-label="활동" className="flex flex-col gap-6">
       <section>
-        <div className="flex items-center gap-2 mb-2 px-1">
+        <div className="flex items-center gap-2 mb-2">
           {onClose && (
             <button
               type="button"
@@ -52,8 +52,8 @@ export default function ActivityRail({
               </svg>
             </button>
           )}
-          <h3 className="text-[10px] uppercase tracking-wider text-gray-500">
-            LAST MEMORIES
+          <h3 className="text-xs uppercase tracking-wider text-gray-500">
+            최근의 기억들
           </h3>
         </div>
         <SnapshotFeed count={5} />
