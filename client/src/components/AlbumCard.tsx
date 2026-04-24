@@ -191,7 +191,18 @@ function CoverStickerBadge({
   );
 }
 
-export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
+export default function AlbumCard({
+  album,
+  compact = false,
+}: {
+  album: AlbumSearchResult;
+  /** Strip all corner chrome — SOON/NEW/HOT stickers, price tag,
+   *  admin pending emoji. Used at the tightest grid densities
+   *  where the covers shrink below the point at which stickers
+   *  still read (ultra density). Lets the user browse a
+   *  higher-density grid as pure cover art. */
+  compact?: boolean;
+}) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
   const userReviewCount = album.userReviewCount ?? 0;
@@ -381,7 +392,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               alt={album.title}
               className="w-full h-full object-cover"
             />
-            {hasAnyCoverSticker && (
+            {hasAnyCoverSticker && !compact && (
               <div
                 className="absolute flex flex-col items-start gap-1 select-none"
                 // Inset scales with card width (cqw) so the sticker
@@ -417,7 +428,7 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 flagging it reads as noise. The badge reappears the
                 day the release date arrives (isSoon flips false
                 via daysUntilRelease). */}
-            {isAdmin && reviewsPending && !isSoon && (
+            {isAdmin && reviewsPending && !isSoon && !compact && (
               <div
                 className="album-front-decor absolute top-1 right-1.5 leading-none select-none"
                 aria-label="리뷰 수집 대기"
@@ -427,7 +438,9 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
                 ⚠️
               </div>
             )}
-            <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
+            {!compact && (
+              <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
+            )}
           </div>
 
           {/* Back — mirrored darkened cover + amber wash + info.

@@ -34,7 +34,7 @@ export default function SnapshotCard({ snap }: { snap: HomeSnapshot }) {
   return (
     <Link
       to={`/my/${snap.user.username}/snap/${snap.slug}`}
-      className="block rounded-lg border border-white/5 bg-[#110b04] p-2 hover:border-[#e8a020]/40 transition-colors"
+      className="block rounded-lg border border-white/5 bg-[#110b04]/60 p-2 hover:border-[#e8a020]/40 transition-colors"
     >
       <div
         className="grid gap-0.5 mb-2 items-center"

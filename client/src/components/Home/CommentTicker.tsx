@@ -218,7 +218,7 @@ export default function CommentTicker() {
     // Below the album grid. aria-label keeps it announced for SR users.
     // pt-12 for visual separation from the pagination above; the
     // marquee itself handles its own horizontal fade.
-    <section className="comment-ticker relative pt-12" aria-label="최근 50자 평">
+    <section className="comment-ticker relative pt-2" aria-label="최근 50자 평">
       {/* Outer wrapper owns the fade masks so content slides in/out of
           the gutters gracefully instead of appearing/vanishing at a
           hard edge. */}

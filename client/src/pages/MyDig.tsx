@@ -557,13 +557,13 @@ function WallSection({ children }: { children: React.ReactNode }) {
     <section
       style={{
         position: 'relative',
-        // Top padding gives the wall a bit of headroom below the
-        // nav (main's pt is tight so the sidebar actions stay
-        // close to the nav — the wall creates its own breathing
-        // room here instead). Bottom padding trimmed (was 40px)
-        // so the snapshot strip beneath sits closer to the wall
-        // without a big dead zone between.
-        padding: '28px 12px 12px',
+        // Top padding gives the wall headroom below the nav and,
+        // at desktop, aligns the wall's top with the sidebar's
+        // handwritten block (ProfileHeader's md:pt-[38px] on
+        // main's pt-2). Bottom padding trimmed (was 40px) so the
+        // snapshot strip beneath sits closer to the wall without
+        // a big dead zone between.
+        padding: '38px 12px 12px',
       }}
     >
       <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>

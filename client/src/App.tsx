@@ -185,7 +185,23 @@ export default function App() {
               {isHome && (
                 <div
                   aria-hidden
-                  className="absolute inset-0 pointer-events-none"
+                  // Mobile-only flat dark-gray wash. Replaces the
+                  // painted-wall backdrop on narrow viewports —
+                  // the wall peeking in and out behind gaps read
+                  // as noise, and a clean neutral slate lets the
+                  // mobile feed's dense covers do the talking.
+                  className="md:hidden absolute inset-0 pointer-events-none"
+                  style={{ zIndex: -1, backgroundColor: '#1a1a1a' }}
+                />
+              )}
+              {isHome && (
+                <div
+                  aria-hidden
+                  // Hidden below md — the mobile feed's dense
+                  // covers already carry plenty of visual texture,
+                  // and the wall peeking in and out behind gaps
+                  // reads as noise on a narrow viewport.
+                  className="hidden md:block absolute inset-0 pointer-events-none"
                   style={{
                     // Same wall image as mydig but heavier
                     // darkening so it reads as texture under the

@@ -9,11 +9,12 @@ import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
 import ActivityRail from '../components/Home/ActivityRail';
 import CommentTicker, { TickerItem } from '../components/Home/CommentTicker';
-import SnapshotFeed from '../components/Home/SnapshotFeed';
+import SnapshotCard from '../components/Home/SnapshotCard';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { useHomeState, type DensityValue } from '../contexts/HomeStateContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useHomeSnapshots, type HomeSnapshot } from '../hooks/useHomeSnapshots';
 import { useInView } from '../hooks/useInView';
 import {
   useUserReviewsFeed,
@@ -44,11 +45,11 @@ const PAGE_SIZE_BY_DENSITY: Record<string, number> = {
   dense: 32,
   ultra: 50,
 };
-// Mobile infinite-scroll batch size. 10 fits two full rows of the
-// 2-col mobile grid plus a pause before the next batch lands —
-// small enough that latency of the fetch reads as "next batch
-// arriving" rather than one big fetch stalling the scroll.
-const MOBILE_PAGE_SIZE = 10;
+// Mobile infinite-scroll batch size. 18 = 6 rows of the 3-col
+// mobile grid. Each batch ends with a snapshot card + 2 comment
+// cards so the stream reads as an activity-rich unified feed
+// rather than a pure cover catalog.
+const MOBILE_PAGE_SIZE = 18;
 
 // Desktop-only: rail toggle + density switcher + reveal animation all
 // key off whether the viewport is wide enough to benefit from them.
@@ -131,14 +132,24 @@ function useMobileAlbumList(
   });
 }
 
-// One infinite-scroll batch on mobile — 10 albums (2 × 5 rows).
-// The old implementation interleaved ticker cards between batches;
-// comments now live in their own tab so batches render as pure
-// album grids. Reveal animation gated by IntersectionObserver so
-// batches the sentinel fetched eagerly don't burn their wave while
-// the user is still scrolling above them.
+// One infinite-scroll batch on mobile — 18 albums (3 × 6 rows)
+// followed by one snapshot card and two comment cards. The
+// snapshot + comments anchor each batch as a mini activity
+// interlude so the stream isn't just a flat album grid. Reveal
+// animation gated by IntersectionObserver so batches the sentinel
+// fetched eagerly don't burn their wave while the user is still
+// scrolling above them.
 const MOBILE_ROW_STAGGER_MS = 90;
-function MobileAlbumBatch({ albums }: { albums: AlbumSearchResult[] }) {
+const MOBILE_COLS = 3;
+function MobileUnifiedBatch({
+  albums,
+  snapshot,
+  comments,
+}: {
+  albums: AlbumSearchResult[];
+  snapshot: HomeSnapshot | null;
+  comments: UserReviewFeedItem[];
+}) {
   // rootMargin 0px: fires the moment any part of the batch crosses
   // into the viewport. A pre-fetch margin would defeat the purpose —
   // we'd fire the wave for off-screen batches.
@@ -146,24 +157,83 @@ function MobileAlbumBatch({ albums }: { albums: AlbumSearchResult[] }) {
   const cardClass = inView ? 'album-reveal' : 'album-reveal-off';
 
   return (
-    <div ref={ref} className="grid grid-cols-2 gap-5">
-      {albums.map((album, idx) => (
-        <div
-          key={album.mbid}
-          className={cardClass}
-          style={
-            inView
-              ? {
-                  animationDelay: `${Math.floor(idx / 2) * MOBILE_ROW_STAGGER_MS}ms`,
-                }
-              : undefined
-          }
-        >
-          <AlbumCard album={album} />
-        </div>
+    <div ref={ref} className="flex flex-col gap-5">
+      <div className="grid grid-cols-3 gap-3">
+        {albums.map((album, idx) => (
+          <div
+            key={album.mbid}
+            className={cardClass}
+            style={
+              inView
+                ? {
+                    animationDelay: `${Math.floor(idx / MOBILE_COLS) * MOBILE_ROW_STAGGER_MS}ms`,
+                  }
+                : undefined
+            }
+          >
+            <AlbumCard album={album} />
+          </div>
+        ))}
+      </div>
+      {snapshot && <SnapshotCard snap={snapshot} />}
+      {comments.map((c, i) => (
+        <TickerItem
+          key={c.id}
+          item={c}
+          fullWidth
+          orientation={i % 2 === 0 ? 'left' : 'right'}
+        />
       ))}
     </div>
   );
+}
+
+// Deterministic PRNG so each batch's comment picks stay stable
+// across re-renders (scrolling up and back down shows the same
+// picks rather than reshuffling). Seeded with the batch index.
+function mulberry32(a: number) {
+  return function () {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Snapshots cycle in recency order. Batch 0 gets the freshest
+// snapshot, batch N loops back to start when snapshots are
+// exhausted. Server caps the list at 20; 21st batch reuses the
+// first snapshot, which is fine — the intent is a steady drip
+// of memories, not uniqueness across the whole session.
+function pickSnapshot(
+  snapshots: HomeSnapshot[] | undefined,
+  batchIndex: number
+): HomeSnapshot | null {
+  if (!snapshots || snapshots.length === 0) return null;
+  return snapshots[batchIndex % snapshots.length];
+}
+
+// Comments pick 2 items per batch from the top 20 most-recent
+// reviews, using a PRNG seeded by the batch index. "Recent
+// focused" emerges from sampling only the top slice; full random
+// within that slice keeps each batch's pair feeling fresh rather
+// than predictable.
+function pickComments(
+  pool: UserReviewFeedItem[] | undefined,
+  batchIndex: number,
+  count = 2
+): UserReviewFeedItem[] {
+  if (!pool || pool.length === 0) return [];
+  const top = pool.slice(0, Math.min(20, pool.length));
+  if (top.length <= count) return top;
+  const rng = mulberry32(batchIndex * 37 + 1);
+  const chosen: number[] = [];
+  while (chosen.length < count) {
+    const i = Math.floor(rng() * top.length);
+    if (!chosen.includes(i)) chosen.push(i);
+  }
+  return chosen.map((i) => top[i]);
 }
 
 function paginationItems(current: number, total: number): Array<number | 'ellipsis-left' | 'ellipsis-right'> {
@@ -180,18 +250,10 @@ function paginationItems(current: number, total: number): Array<number | 'ellips
   return items;
 }
 
-type HomeTab = 'albums' | 'activity';
-
 export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { openOverlay } = useSearchOverlay();
   const isMobile = useIsMobile();
-  // Top-level tab state. In-memory only (defaults to albums on
-  // every visit) so the address bar stays at '/' and shared links
-  // land viewers on the catalog, not a side view. URL routing
-  // (?tab=activity) can be added later if the split proves useful
-  // for outbound links.
-  const [tab, setTab] = useState<HomeTab>('albums');
   // sort / page / seed live in HomeStateContext — no URL involvement,
   // so the address bar stays at '/'. See contexts/HomeStateContext.tsx
   // for the persistence rules (localStorage for sort, in-memory for
@@ -238,14 +300,10 @@ export default function Home() {
   const pageSize =
     PAGE_SIZE_BY_DENSITY[density] ?? PAGE_SIZE_BY_DENSITY.comfortable;
 
-  // Desktop keeps the original rail + pagination layout (no tab
-  // switcher), mobile runs the tab UI with infinite-scroll albums
-  // and a separate activity feed. The tab state below only affects
-  // the render on mobile — desktop ignores it and always shows the
-  // catalog grid, with ActivityRail + CommentTicker carrying the
-  // peripheral activity surfaces.
-  const onAlbumsMobile = isMobile && tab === 'albums';
-  const onActivityMobile = isMobile && tab === 'activity';
+  // Desktop keeps the original rail + pagination layout. Mobile
+  // runs a single unified infinite-scroll feed — albums in 30-per
+  // batches, each batch ending with a snapshot card and two
+  // comment cards. No tabs, no separate activity view.
   const desktopQuery = useAlbumList(
     sort,
     page,
@@ -255,7 +313,7 @@ export default function Home() {
   );
   const mobileQuery = useMobileAlbumList(
     sort,
-    seedReady && onAlbumsMobile,
+    seedReady && isMobile,
     seed
   );
   const albums: AlbumSearchResult[] = isMobile
@@ -264,9 +322,11 @@ export default function Home() {
   const totalPages = desktopQuery.data?.totalPages ?? 1;
   const isLoading = isMobile ? mobileQuery.isLoading : desktopQuery.isLoading;
 
-  // Activity feed (mobile 활동 tab only). Desktop uses CommentTicker
-  // which fetches its own data — no need to duplicate here.
-  const activityReviews = useUserReviewsFeed(onActivityMobile, 30);
+  // Data for the mobile unified feed's inter-batch cards. Fetched
+  // once and sampled per batch — snapshots cycle in order,
+  // comments pick 2 at random from the top 20 most-recent.
+  const mobileSnapshotsQuery = useHomeSnapshots(isMobile, 20);
+  const mobileCommentsQuery = useUserReviewsFeed(isMobile, 60);
 
   // Shuffle the reveal delays per page so the (up to 50) tiles don't
   // all land in a single sweep. Reshuffles whenever the rendered page
@@ -298,21 +358,34 @@ export default function Home() {
   // fires so the reader registers each batch landing as its own
   // arrival — matches the "앨범 20개씩 로딩 + 약간 포즈 + 계속"
   // cadence we ran before the rail rework replaced this feed.
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  //
+  // Callback-ref on `sentinelEl` (via useState) is deliberate — the
+  // sentinel is only mounted once the first batch arrives, and a
+  // plain useRef wouldn't re-trigger the effect when that happens.
+  // Using state forces the effect to re-run when the node finally
+  // enters the DOM, which is what wires the observer up correctly.
+  const [sentinelEl, setSentinelEl] = useState<HTMLDivElement | null>(null);
   const [nextBatchPending, setNextBatchPending] = useState(false);
+  const nextBatchPendingRef = useRef(nextBatchPending);
+  useEffect(() => {
+    nextBatchPendingRef.current = nextBatchPending;
+  }, [nextBatchPending]);
   const mobileQueryRef = useRef(mobileQuery);
   useEffect(() => {
     mobileQueryRef.current = mobileQuery;
   }, [mobileQuery]);
   useEffect(() => {
-    if (!onAlbumsMobile) return;
-    const el = sentinelRef.current;
-    if (!el) return;
+    if (!isMobile || !sentinelEl) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries[0]?.isIntersecting) return;
         const q = mobileQueryRef.current;
-        if (!q.hasNextPage || q.isFetchingNextPage || nextBatchPending) return;
+        if (
+          !q.hasNextPage ||
+          q.isFetchingNextPage ||
+          nextBatchPendingRef.current
+        )
+          return;
         setNextBatchPending(true);
         q.fetchNextPage().finally(() => {
           setTimeout(() => setNextBatchPending(false), 400);
@@ -320,9 +393,9 @@ export default function Home() {
       },
       { rootMargin: '400px' }
     );
-    observer.observe(el);
+    observer.observe(sentinelEl);
     return () => observer.disconnect();
-  }, [onAlbumsMobile, nextBatchPending]);
+  }, [isMobile, sentinelEl]);
 
   const items = paginationItems(page, totalPages);
 
@@ -362,76 +435,60 @@ export default function Home() {
   const desktopGap = DESKTOP_GAP_CLASSES[density];
 
   return (
-    <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-8">
+    <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-4">
       <section className="w-full max-w-[1280px] mx-auto">
         {isMobile ? (
-          // ─── Mobile: tabs + infinite scroll ─────────────────
-          // Tab bar only on mobile. The peripheral activity rail +
-          // bottom ticker that desktop carries don't fit a narrow
-          // viewport well, so mobile splits the two roles into a
-          // dedicated 활동 tab. Album tab runs the old batch-
-          // infinite-scroll cadence (pause between batches, ticker
-          // interleave no longer needed since comments live in the
-          // other tab).
+          // ─── Mobile: single unified infinite-scroll feed ────
+          // 30 albums per batch (3 cols × 10 rows), each batch
+          // punctuated by one snapshot card and two comment cards
+          // so scrolling reads as a steady mix of catalog browsing
+          // and peripheral activity. No tabs — the activity
+          // signals are interleaved inline.
           <>
-            <nav
-              aria-label="홈 뷰 선택"
-              className="mb-5 flex items-center gap-1 border-b border-white/5"
-            >
-              <TabButton
-                label="앨범"
-                active={tab === 'albums'}
-                onClick={() => setTab('albums')}
-              />
-              <TabButton
-                label="활동"
-                active={tab === 'activity'}
-                onClick={() => setTab('activity')}
-              />
-            </nav>
-
-            {tab === 'albums' ? (
-              <>
-                {albums.length > 0 && (
-                  <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
-                    <SortTrigger
-                      sort={sort}
-                      onChange={setSort}
-                      label={currentSortLabel}
-                    />
-                  </div>
-                )}
-                {isLoading && albums.length === 0 ? (
-                  <div className="text-center py-20 text-sm text-gray-500">
-                    불러오는 중...
-                  </div>
-                ) : albums.length === 0 ? (
-                  <div className="text-center py-20 text-sm text-gray-500">
-                    등록된 앨범이 없습니다.
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-5">
-                    {mobileQuery.data?.pages.map((pg, i) => (
-                      <MobileAlbumBatch key={i} albums={pg.albums} />
-                    ))}
-                    <div
-                      ref={sentinelRef}
-                      className="py-6 text-center text-xs text-gray-500"
-                    >
-                      {nextBatchPending || mobileQuery.isFetchingNextPage
-                        ? '더 불러오는 중…'
-                        : mobileQuery.hasNextPage
-                          ? '계속 스크롤해 주세요'
-                          : '끝까지 다 봤어요!'}
-                    </div>
-                  </div>
-                )}
-              </>
+            {albums.length > 0 && (
+              <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
+                <SortTrigger
+                  sort={sort}
+                  onChange={setSort}
+                  label={currentSortLabel}
+                />
+              </div>
+            )}
+            {isLoading && albums.length === 0 ? (
+              <div className="text-center py-20 text-sm text-gray-500">
+                불러오는 중...
+              </div>
+            ) : albums.length === 0 ? (
+              <div className="text-center py-20 text-sm text-gray-500">
+                등록된 앨범이 없습니다.
+              </div>
             ) : (
-              <ActivityTab
-                reviews={activityReviews.data?.items ?? []}
-                reviewsLoading={activityReviews.isLoading}
-              />
+              <div className="flex flex-col gap-6">
+                {mobileQuery.data?.pages.map((pg, i) => (
+                  <MobileUnifiedBatch
+                    key={i}
+                    albums={pg.albums}
+                    snapshot={pickSnapshot(
+                      mobileSnapshotsQuery.data?.snapshots,
+                      i
+                    )}
+                    comments={pickComments(
+                      mobileCommentsQuery.data?.items,
+                      i
+                    )}
+                  />
+                ))}
+                <div
+                  ref={setSentinelEl}
+                  className="py-6 text-center text-xs text-gray-500"
+                >
+                  {nextBatchPending || mobileQuery.isFetchingNextPage
+                    ? '더 불러오는 중…'
+                    : mobileQuery.hasNextPage
+                      ? '계속 스크롤해 주세요'
+                      : '끝까지 다 봤어요!'}
+                </div>
+              </div>
             )}
           </>
         ) : (
@@ -500,7 +557,7 @@ export default function Home() {
                           animationDelay: `${(revealDelays[i] ?? i) * STAGGER_MS}ms`,
                         }}
                       >
-                        <AlbumCard album={album} />
+                        <AlbumCard album={album} compact={density === 'ultra'} />
                       </div>
                     ))}
                   </div>
@@ -527,7 +584,7 @@ export default function Home() {
 
             {totalPages > 1 && (
               <nav
-                className="mt-8 flex items-center justify-center gap-1 flex-wrap"
+                className="mt-2 flex items-center justify-center gap-1 flex-wrap"
                 aria-label="Pagination"
               >
                 <button
@@ -630,102 +687,6 @@ function OpenRailHandle({ onClick }: { onClick: () => void }) {
         <path d="M15.75 19.5L8.25 12l7.5-7.5" />
       </svg>
     </button>
-  );
-}
-
-// Top-level tab button. Sits in the home page's view switcher
-// strip above the grid/activity content. Active state underlines
-// in amber and brightens the text; hover lifts inactive labels to
-// near-white. `aria-pressed` doubles as the active flag for
-// assistive tech.
-function TabButton({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={`relative px-3 py-2 text-sm transition-colors cursor-pointer ${
-        active
-          ? 'text-[#e8a020]'
-          : 'text-gray-500 hover:text-gray-200'
-      }`}
-    >
-      {label}
-      {/* Underline sits flush with the parent border-b so the
-          active tab's indicator reads as continuous with the
-          separator below the strip. */}
-      <span
-        aria-hidden
-        className={`absolute left-2 right-2 -bottom-px h-[2px] transition-colors ${
-          active ? 'bg-[#e8a020]' : 'bg-transparent'
-        }`}
-      />
-    </button>
-  );
-}
-
-// Activity tab content — replaces the old sidebar rail + bottom
-// marquee pair. Snapshot feed at the top (denser than the old
-// 5-card rail since it owns the full width here), then a vertical
-// stack of 50자 평 cards (TickerItem reused, fullWidth + alternating
-// orientation). Loading state stays simple — the feed is small
-// enough that a spinner row reads clearer than a skeleton grid.
-function ActivityTab({
-  reviews,
-  reviewsLoading,
-}: {
-  reviews: UserReviewFeedItem[];
-  reviewsLoading: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-10">
-      <section aria-labelledby="activity-snapshots">
-        <h2
-          id="activity-snapshots"
-          className="text-[11px] uppercase tracking-wider text-gray-500 mb-3"
-        >
-          Last Memories
-        </h2>
-        <SnapshotFeed count={20} />
-      </section>
-
-      <section aria-labelledby="activity-comments">
-        <h2
-          id="activity-comments"
-          className="text-[11px] uppercase tracking-wider text-gray-500 mb-3"
-        >
-          최근 50자 평
-        </h2>
-        {reviewsLoading && reviews.length === 0 ? (
-          <div className="text-center py-10 text-sm text-gray-500">
-            불러오는 중…
-          </div>
-        ) : reviews.length === 0 ? (
-          <div className="text-center py-10 text-sm text-gray-500 italic">
-            아직 50자 평이 없어요.
-          </div>
-        ) : (
-          <div className="flex flex-col gap-5 max-w-[720px] mx-auto">
-            {reviews.map((item, idx) => (
-              <TickerItem
-                key={item.id}
-                item={item}
-                fullWidth
-                orientation={idx % 2 === 0 ? 'left' : 'right'}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
   );
 }
 
