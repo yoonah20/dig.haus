@@ -213,12 +213,8 @@ export default function MyDig() {
             isOwner={data.user.isOwner}
             wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
             wallDescription={
-              // Snapshot mode: use the snapshot's own description
-              // when set, fall back to the live wall description
-              // so the subtitle never goes blank just because the
-              // snapshot was saved without a custom note.
               isSnapshotMode
-                ? snap?.description ?? data.vinylWallDescription
+                ? snap?.description ?? null
                 : data.vinylWallDescription
             }
             snapshotMeta={
@@ -445,18 +441,73 @@ function ProfileHeader({
   const displayThemeText = wallTheme || 'my dig';
   const themePlaceholder = !wallTheme;
   const displayLabel = displayName || username;
-  // Drive follow-related UI off the shared user-public cache so
-  // the counts + follow state stay in sync with the hover card
-  // (mutations invalidate 'user-public' globally). The query is
-  // gated on userId; visitors on a page whose owner hasn't been
-  // resolved yet see no counts until the wall data lands.
+  // Drive follow-related UI + the vertical sidebar card off the
+  // shared user-public cache so the counts + follow state stay in
+  // sync with the hover card (mutations invalidate 'user-public'
+  // globally). The query is gated on userId; visitors on a page
+  // whose owner hasn't been resolved yet see no counts until the
+  // wall data lands.
   const publicData = useUserPublic(userId, !!userId);
-  const followerCount = publicData.data?.stats?.followerCount ?? 0;
-  const followingCount = publicData.data?.stats?.followingCount ?? 0;
+  const publicStats = publicData.data?.stats;
+  const publicUser = publicData.data?.user;
+  const followerCount = publicStats?.followerCount ?? 0;
+  const followingCount = publicStats?.followingCount ?? 0;
+  const ownedCount = publicStats?.ownedCount ?? 0;
+  const wantedCount = publicStats?.wantedCount ?? 0;
+  const reviewCount = publicStats?.reviewCount ?? 0;
+  const upvoteCount = publicStats?.upvoteCount ?? 0;
+  const downvoteCount = publicStats?.downvoteCount ?? 0;
   const viewerIsFollowing = !!publicData.data?.followingByViewer;
   const [followListOpen, setFollowListOpen] = useState<
     'followers' | 'following' | null
   >(null);
+  // Wall-scoped actions: edit / save snapshot / delete snapshot /
+  // share. FollowButton is intentionally excluded — that action
+  // targets the PERSON, so in the vertical sidebar it lives in
+  // the person card, not the wall card.
+  function renderWallActions() {
+    return (
+      <>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            title={
+              mode === 'snapshot'
+                ? '스냅샷 이름·설명·앨범 편집'
+                : '벽 제목·설명·앨범 편집'
+            }
+          >
+            ✏️ 편집
+          </button>
+        )}
+        {isOwner && mode === 'live' && (
+          <button
+            type="button"
+            onClick={onSaveSnapshot}
+            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            title="현재 구성을 기억으로 남기기"
+          >
+            📸 기억 남기기
+          </button>
+        )}
+        {isOwner && mode === 'snapshot' && (
+          <button
+            type="button"
+            onClick={onDeleteSnapshot}
+            disabled={deleteSnapshotPending}
+            className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="스냅샷 삭제"
+          >
+            {deleteSnapshotPending ? '삭제 중…' : '🗑 삭제'}
+          </button>
+        )}
+        <ShareButton url={shareUrl} label="공유" />
+      </>
+    );
+  }
+
   // Action buttons extracted so both horizontal (inline next to
   // the h1) and vertical (stacked below the description) layouts
   // render the same set without duplication.
@@ -541,76 +592,168 @@ function ProfileHeader({
     </div>
   );
 
-  // Vertical sidebar card — dedicated layout for the desktop
-  // right rail. Rounded-corner container pulling the same visual
-  // treatment as /profile's personal-info card (translucent
-  // charcoal fill, soft border), with avatar centred up top,
-  // follower/following chips in a row below, a divider, then the
-  // wall theme + description + actions stacked. Uses its own
-  // return rather than branching inside the horizontal flex tree
-  // so the two layouts don't fight each other class-by-class.
+  // Vertical sidebar layout — split into two separate cards so
+  // the semantic units don't blur:
+  //   1. Person card: identity (avatar, handles, join date, stats
+  //      that describe the user — owned, wanted, reviews, votes).
+  //   2. Wall card: the current mydig wall's theme, description,
+  //      snapshot meta, and owner actions (edit / save snapshot /
+  //      share).
+  // The previous single-card treatment stuffed the wall title next
+  // to the avatar, which read as "this wall IS the user", eliding
+  // the distinction between a user and one of their snapshots.
   if (vertical) {
+    const joinedLabel = formatJoinedMonth(publicUser?.createdAt ?? null);
+    const instagramHandle = publicUser?.instagramHandle ?? null;
+    // Share button lives in the wall card; edit / snapshot
+    // actions are owner-only. Follow button moves to the person
+    // card alongside the identity stats.
     return (
-      <div className="rounded-2xl p-5 border border-white/5 bg-[#120c05]/55 backdrop-blur-[2px] flex flex-col gap-4 min-w-0">
-        {/* Avatar + display name block — centred. @username
-            sits as the small amber sticker on the portrait's
-            upper-left, the display name reads below as plain
-            text (not the tilted chip the horizontal variant
-            uses, which clipped awkwardly in a narrow column). */}
-        <div className="flex flex-col items-center gap-2">
-          <div className="relative">
-            {userId != null ? (
-              <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
-            ) : (
-              avatarEl
+      <div className="flex flex-col gap-4 min-w-0">
+        {/* ─── Person card ───────────────────────────────── */}
+        <div className="rounded-2xl p-5 border border-white/5 bg-[#120c05]/55 backdrop-blur-[2px] flex flex-col gap-3 min-w-0">
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative">
+              {userId != null ? (
+                <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
+              ) : (
+                avatarEl
+              )}
+              <span
+                aria-hidden
+                className="absolute -top-1 -left-2 text-[10px] font-semibold text-[#141008] bg-[#e8a020] px-1.5 py-[1px] rounded-[3px] shadow-sm pointer-events-none select-none"
+                style={{ transform: 'rotate(-4deg)' }}
+              >
+                @{username}
+              </span>
+            </div>
+            <div className="text-[14px] font-medium text-[#f5e8c8] text-center break-words max-w-full">
+              {displayLabel}
+            </div>
+            {joinedLabel && (
+              <div className="text-[10px] text-gray-500">
+                가입 {joinedLabel}
+              </div>
             )}
-            <span
-              aria-hidden
-              className="absolute -top-1 -left-2 text-[10px] font-semibold text-[#141008] bg-[#e8a020] px-1.5 py-[1px] rounded-[3px] shadow-sm pointer-events-none select-none"
-              style={{ transform: 'rotate(-4deg)' }}
+          </div>
+
+          {instagramHandle && (
+            <a
+              href={`https://instagram.com/${instagramHandle}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 text-[12px] text-[#e8a020] hover:text-[#f0b040] truncate"
             >
-              @{username}
-            </span>
-          </div>
-          <div className="text-[13px] font-medium text-[#f5e8c8] text-center break-words max-w-full">
-            {displayLabel}
-          </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="w-3.5 h-3.5 shrink-0"
+                aria-hidden
+              >
+                <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+              </svg>
+              <span className="truncate">@{instagramHandle}</span>
+            </a>
+          )}
+
+          {/* Follower / following — clickable to open the
+              FollowListModal. These are the "social" pair so
+              they get a line of their own above the collection/
+              review row. */}
+          {userId != null && (
+            <div className="flex items-center justify-center gap-3 text-[12px] border-t border-white/5 pt-3">
+              <button
+                type="button"
+                onClick={() => setFollowListOpen('followers')}
+                className="px-2 py-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                <span className="text-[#f5d89a] font-semibold">
+                  {followerCount.toLocaleString()}
+                </span>
+                <span className="text-gray-500 ml-1">팔로워</span>
+              </button>
+              <span className="text-gray-700">·</span>
+              <button
+                type="button"
+                onClick={() => setFollowListOpen('following')}
+                className="px-2 py-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                <span className="text-[#f5d89a] font-semibold">
+                  {followingCount.toLocaleString()}
+                </span>
+                <span className="text-gray-500 ml-1">팔로잉</span>
+              </button>
+            </div>
+          )}
+
+          {/* Collection + review / vote counts — compact emoji
+              row. Conditionals mirror UserHoverCard's "hide zero
+              stat if irrelevant" rule so the card doesn't read
+              as a wall of 0's for a fresh account. */}
+          {userId != null && (
+            <div className="flex items-center justify-center gap-3 flex-wrap text-[12px] tabular-nums">
+              {ownedCount > 0 && (
+                <span title={`${ownedCount}장 샀음`}>
+                  <span aria-hidden>💿</span>{' '}
+                  <span className="text-gray-200 font-semibold">
+                    {ownedCount}
+                  </span>
+                </span>
+              )}
+              {wantedCount > 0 && (
+                <span title={`${wantedCount}장 살거`}>
+                  <span aria-hidden>🎯</span>{' '}
+                  <span className="text-gray-200 font-semibold">
+                    {wantedCount}
+                  </span>
+                </span>
+              )}
+              <span title={`${reviewCount}개 코멘트`}>
+                <span aria-hidden>💬</span>{' '}
+                <span className="text-gray-200 font-semibold">
+                  {reviewCount}
+                </span>
+              </span>
+              <span title={`${upvoteCount} 굿굿`}>
+                <span aria-hidden>👍</span>{' '}
+                <span className="text-gray-200 font-semibold">
+                  {upvoteCount}
+                </span>
+              </span>
+              {downvoteCount > 0 && (
+                <span title={`${downvoteCount} 별루`}>
+                  <span aria-hidden>👎</span>{' '}
+                  <span className="text-gray-400 font-semibold">
+                    {downvoteCount}
+                  </span>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Follow button — non-owner only. Sits at the bottom
+              of the person card so the identity block reads
+              top-to-bottom and the action is the last thing the
+              viewer encounters. */}
+          {!isOwner && userId != null && (
+            <div className="flex justify-center pt-1">
+              <FollowButton
+                targetUserId={userId}
+                following={viewerIsFollowing}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Follower / following counts. Both clickable; open the
-            shared FollowListModal that /profile uses, reusing
-            the query cache. Hidden entirely when userId is null
-            (anonymous / not-yet-resolved page owner). */}
-        {userId != null && (
-          <div className="flex items-center justify-center gap-3 text-[12px]">
-            <button
-              type="button"
-              onClick={() => setFollowListOpen('followers')}
-              className="px-2 py-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer"
-            >
-              <span className="text-[#f5d89a] font-semibold">
-                {followerCount.toLocaleString()}
-              </span>
-              <span className="text-gray-500 ml-1">팔로워</span>
-            </button>
-            <span className="text-gray-700">·</span>
-            <button
-              type="button"
-              onClick={() => setFollowListOpen('following')}
-              className="px-2 py-1 rounded-md hover:bg-white/5 transition-colors cursor-pointer"
-            >
-              <span className="text-[#f5d89a] font-semibold">
-                {followingCount.toLocaleString()}
-              </span>
-              <span className="text-gray-500 ml-1">팔로잉</span>
-            </button>
-          </div>
-        )}
-
-        <div className="h-px bg-white/5" />
-
-        {/* Wall theme + description + snapshot meta */}
-        <div className="flex flex-col gap-2 min-w-0">
+        {/* ─── Wall card ─────────────────────────────────── */}
+        <div className="rounded-2xl p-5 border border-white/5 bg-[#120c05]/55 backdrop-blur-[2px] flex flex-col gap-3 min-w-0">
           <h2
             className={`text-lg font-serif italic leading-tight break-words ${
               themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
@@ -644,13 +787,14 @@ function ProfileHeader({
               </span>
             </div>
           )}
-        </div>
 
-        {/* Actions stacked on their own row at the bottom of the
-            card so the title/description read as a cohesive block
-            above and the controls are clearly a separate group. */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {renderActions()}
+          {/* Wall-scoped actions: edit + save snapshot (owner
+              only) + share. Follow button is intentionally NOT
+              here — it's a person action, not a wall action, and
+              lives in the person card above. */}
+          <div className="flex items-center gap-2 flex-wrap pt-1">
+            {renderWallActions()}
+          </div>
         </div>
 
         {followListOpen && userId != null && (
@@ -1679,5 +1823,16 @@ function formatKoreanMemoryDate(input: string | null | undefined): string {
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return input;
   return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일의 기억`;
+}
+
+// "가입 YYYY년 M월" label for the person card. Month-precision is
+// enough for an identity sidebar — day-level detail reads as
+// surveillance for a social surface. Returns empty string on null/
+// unparseable so the caller can treat the row as absent.
+function formatJoinedMonth(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
 }
 
