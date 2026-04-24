@@ -25,18 +25,21 @@ function useSiteStats() {
 // "dig.haus 2026 · …" line at the bottom.
 //
 // `pinned` — mydig variant: footer is fixed to the viewport bottom
-// (matches the backdrop's bottom anchor), compact padding, and
-// overlays scroll instead of flowing with it. The page reserves
-// its own bottom padding so last-row content clears the overlay.
-// The mydig Spotify embed lives inline inside the wall section, so
-// the footer no longer hosts it.
+// at md+ (matches the backdrop's bottom anchor), compact padding,
+// and overlays scroll instead of flowing with it. On mobile the
+// pinned mode falls back to flow layout so the footer only appears
+// once the user has scrolled the page to the end — the small
+// viewport doesn't have room for a permanent footer strip. The
+// page reserves its own bottom padding on desktop so last-row
+// content clears the overlay. The mydig Spotify embed lives inline
+// inside the wall section, so the footer no longer hosts it.
 export default function SiteFooter({ pinned = false }: { pinned?: boolean }) {
   const { data } = useSiteStats();
   const users = data?.users ?? 0;
   const albums = data?.albums ?? 0;
 
   const layoutClasses = pinned
-    ? 'fixed bottom-0 left-0 right-0 z-10 pt-3 pb-3 pointer-events-none'
+    ? 'mt-auto pt-10 pb-5 md:mt-0 md:pt-3 md:pb-3 md:fixed md:bottom-0 md:left-0 md:right-0 md:z-10 md:pointer-events-none'
     : 'mt-auto pt-10 pb-5';
 
   return (
@@ -70,14 +73,14 @@ export default function SiteFooter({ pinned = false }: { pinned?: boolean }) {
       <div className="mt-1.5 text-gray-700">
         <a
           href="/privacy.html"
-          className={`hover:text-amber-500 ${pinned ? 'pointer-events-auto' : ''}`}
+          className={`hover:text-amber-500 ${pinned ? 'md:pointer-events-auto' : ''}`}
         >
           개인정보처리방침
         </a>
         {' · '}
         <a
           href="/terms.html"
-          className={`hover:text-amber-500 ${pinned ? 'pointer-events-auto' : ''}`}
+          className={`hover:text-amber-500 ${pinned ? 'md:pointer-events-auto' : ''}`}
         >
           서비스 약관
         </a>

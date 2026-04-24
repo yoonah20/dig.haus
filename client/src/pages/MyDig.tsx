@@ -28,7 +28,6 @@ import {
   useClearActiveWallCellOnOutsideTap,
 } from '../hooks/useActiveWallCell';
 import { VinylDisc, WallLP, WallRail } from '../components/MyDig/storefront/primitives';
-import { resolveApiUrl } from '../utils/apiUrl';
 
 // Temporary feature flags — both features are wired end-to-end
 // (server extraction, hooks, primitives, payload) but the
@@ -197,21 +196,22 @@ export default function MyDig() {
 
   return (
     <div className="flex-1">
-      {/* pb-24 reserves space under the wall so the last row
-          clears the fixed `pinned` SiteFooter overlay when the
-          page scrolls. pt is tight so the sidebar action cluster
-          (팔로우 · 공유 etc) sits close to the nav; the wall gets
-          its own headroom from WallSection's top padding. */}
-      <main className="max-w-[1400px] mx-auto px-4 pt-2 pb-24 space-y-1">
-        {/* Mobile header: lives above the wall in horizontal
-            layout. Hidden on md+ since the desktop variant lives
-            inside the right sidebar below. */}
+      {/* pb-24 on md+ reserves space under the wall so the last row
+          clears the fixed `pinned` SiteFooter overlay when the page
+          scrolls. On mobile the footer flows at the end of the
+          page, so only a small pb is needed. pt is tight so the
+          sidebar action cluster (팔로우 · 공유 etc) sits close to
+          the nav; the wall gets its own headroom from WallSection's
+          top padding. */}
+      <main className="max-w-[1400px] mx-auto px-4 md:pl-10 md:pr-4 pt-2 pb-8 md:pb-24 space-y-1">
+        {/* Mobile header: same handwritten graffiti block as the
+            desktop sidebar, rendered above the wall. Hidden on md+
+            since the desktop sidebar below owns it there. */}
         <div className="md:hidden">
           <ProfileHeader
             userId={data.user.id ?? null}
             username={data.user.username}
             displayName={data.user.displayName}
-            avatarUrl={data.user.avatarUrl}
             isOwner={data.user.isOwner}
             wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
             wallDescription={
@@ -233,7 +233,6 @@ export default function MyDig() {
             onDeleteSnapshot={handleDeleteSnapshot}
             deleteSnapshotPending={deleteSnap.isPending}
             shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
-            layout="horizontal"
           />
         </div>
 
@@ -245,7 +244,7 @@ export default function MyDig() {
             above the wall keeps the entry point discoverable on
             mobile without moving the desktop placement. */}
         {username && (
-          <div className="md:hidden">
+          <div className="md:hidden w-[60%] ml-auto mt-4">
             <MobileSnapshotsDropdown
               username={username}
               snapshots={snapshotsQuery.data?.snapshots ?? []}
@@ -295,7 +294,6 @@ export default function MyDig() {
                 userId={data.user.id ?? null}
                 username={data.user.username}
                 displayName={data.user.displayName}
-                avatarUrl={data.user.avatarUrl}
                 isOwner={data.user.isOwner}
                 wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
                 wallDescription={
@@ -317,7 +315,6 @@ export default function MyDig() {
                 onDeleteSnapshot={handleDeleteSnapshot}
                 deleteSnapshotPending={deleteSnap.isPending}
                 shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
-                layout="vertical"
               />
               <GraffitiSnapshotList
                 username={username}
@@ -373,22 +370,20 @@ export default function MyDig() {
 }
 
 // ─── Profile header ──────────────────────────────────────────
-// Hierarchy on wide viewports:
-//   [avatar]  WALL THEME (big italic serif)        [·open· 편집 📸 공유]
-//             @username · displayName
+// One handwritten graffiti block — signature (displayName의), theme
+// as the big painted-wall heading, description underneath, optional
+// snapshot date/public strip. Actions cluster sits right-aligned at
+// the top.
 //
-// Actions (open indicator + owner controls + share) used to sit in a
-// third row below the username, which forced the wall to start well
-// below the avatar's bottom edge. Moving them into a right-aligned
-// cluster on the same line as the title lets the header collapse to
-// avatar-height and the wall rail starts ~40–50px higher. On narrow
-// viewports the cluster wraps below the title block so none of it
-// gets squashed.
+// Earlier versions had a horizontal mobile variant with a portrait
+// avatar + amber sticker chips; that path was removed so the mobile
+// view uses the same handwritten register as the desktop sidebar.
+// The nav bar already carries an avatar on every route, so putting
+// another portrait under it read as stacked duplicates.
 function ProfileHeader({
   userId,
   username,
   displayName,
-  avatarUrl,
   isOwner,
   wallTheme,
   wallDescription,
@@ -399,12 +394,10 @@ function ProfileHeader({
   onDeleteSnapshot,
   deleteSnapshotPending,
   shareUrl,
-  layout = 'horizontal',
 }: {
   userId: number | null;
   username: string;
   displayName: string | null;
-  avatarUrl: string | null;
   isOwner: boolean;
   wallTheme: string | null;
   wallDescription: string | null;
@@ -418,37 +411,21 @@ function ProfileHeader({
   onDeleteSnapshot: () => void;
   deleteSnapshotPending: boolean;
   shareUrl: string;
-  /** `horizontal` (default, mobile): avatar left, theme + actions
-   *  right. `vertical` (desktop sidebar): everything stacked —
-   *  used when ProfileHeader lives in the narrow right column
-   *  beside the wall, freeing up ~120px of vertical space above
-   *  the wall for the backdrop floor to show. */
-  layout?: 'horizontal' | 'vertical';
 }) {
-  const vertical = layout === 'vertical';
-  const initial = (displayName || username).charAt(0).toUpperCase();
-  const resolvedAvatar = resolveApiUrl(avatarUrl);
   const displayThemeText = wallTheme || 'my dig';
   const themePlaceholder = !wallTheme;
   const displayLabel = displayName || username;
-  // Drive follow-related UI + the vertical sidebar card off the
-  // shared user-public cache so the counts + follow state stay in
-  // sync with the hover card (mutations invalidate 'user-public'
-  // globally). The query is gated on userId; visitors on a page
-  // whose owner hasn't been resolved yet see no counts until the
-  // wall data lands.
+  // Drive the FollowButton state off the shared user-public cache
+  // so the follow toggle stays in sync with the hover card
+  // (mutations invalidate 'user-public' globally). The query is
+  // gated on userId; visitors on a page whose owner hasn't been
+  // resolved yet see no follow chip until the wall data lands.
   const publicData = useUserPublic(userId, !!userId);
-  const publicUser = publicData.data?.user;
   const viewerIsFollowing = !!publicData.data?.followingByViewer;
-  // Action buttons extracted so both horizontal (inline next to
-  // the h1) and vertical (stacked below the description) layouts
-  // render the same set without duplication. The cluster now
-  // includes FollowButton alongside Share — non-owner viewers
-  // get "팔로우 · 공유", owner viewers get the edit/snapshot
-  // controls instead. The follower/following count chips are
-  // gone in the vertical layout (they disappeared against the
-  // painted-wall backdrop), so FollowButton had no natural
-  // landing spot outside this cluster.
+  // Non-owner viewers get "팔로우 · 공유"; owner viewers get the
+  // edit/snapshot controls instead. Follower/following count chips
+  // are gone (they disappeared against the painted-wall backdrop),
+  // so FollowButton lives here in the top actions cluster.
   function renderActions() {
     return (
       <>
@@ -498,217 +475,84 @@ function ProfileHeader({
     );
   }
 
-  // Only the horizontal (mobile) branch renders the avatar — the
-  // vertical sidebar dropped its avatar entirely to avoid stacking
-  // a second portrait right under the nav's avatar chip.
-  const avatarEl = resolvedAvatar ? (
-    <img
-      src={resolvedAvatar}
-      alt=""
-      aria-hidden
-      className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border border-white/10"
-      referrerPolicy="no-referrer"
-    />
-  ) : (
-    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
-      <span className="text-xl sm:text-2xl text-[#e8a020]/70 font-serif italic">
-        {initial}
-      </span>
-    </div>
-  );
-
-  // Vertical sidebar layout — person card is dissolved entirely
-  // into the handwritten wall signature. The nav bar already
-  // carries the avatar + @username chip on every route, so
-  // putting another avatar in the sidebar directly underneath
-  // read as stacked duplicates. Identity now lives as a
-  // signature line in the same graffiti script that the snapshot
-  // list uses ("{displayName}의"). Follower/following counts used
-  // to sit above the signature but disappeared into the backdrop
-  // so they're gone; anyone who wants that surface lands on
-  // /profile where it's the primary content.
-  if (vertical) {
-    // Signature line becomes the hover target for UserHoverCard
-    // so the page owner's identity surface (avatar, join date,
-    // collection stats, vote counts) is reachable even though the
-    // dedicated person card is gone. Userless fallback stays as
-    // plain text.
-    const signatureText = `${displayLabel}의`;
-    const signatureNode =
-      userId != null ? (
-        <UserHoverCard userId={userId}>
-          <span className="inline-block cursor-help hover:text-[#1a1208] transition-colors">
-            {signatureText}
-          </span>
-        </UserHoverCard>
-      ) : (
-        <span>{signatureText}</span>
-      );
-
-    return (
-      <div className="flex flex-col gap-3 min-w-0">
-        {/* Actions row — top of sidebar, right-aligned, flush with
-            main's small pt so the cluster sits close to the nav.
-            Keeps the
-            interactive controls out of the handwritten block so
-            they don't compete with the signature below. Non-owner
-            viewers get [팔로우 공유]; owner viewers get
-            [편집 · 기억/삭제 · 공유]. */}
-        <div className="flex items-center gap-2 flex-wrap justify-end px-1">
-          {renderActions()}
-        </div>
-
-        {/* Wall signature + info — handwritten register. The
-            "{displayName}의" line reads as the wall's signed
-            author; the theme follows as the main heading, then
-            the description. Hover on the signature opens
-            UserHoverCard so the nav-bar identity is still
-            accessible without a dedicated person card here. */}
-        <div
-          className="flex flex-col gap-1.5 px-2 font-bold"
-          style={{ fontFamily: GRAFFITI_FONT_STACK }}
-        >
-          <div className="text-[20px] text-[#3a2818] leading-tight">
-            {signatureNode}
-          </div>
-          <div
-            className={`text-[30px] leading-[1.15] ${
-              themePlaceholder ? 'text-[#5a4838]' : 'text-[#1a1208]'
-            }`}
-            title={displayThemeText}
-          >
-            {displayThemeText}
-          </div>
-          {wallDescription ? (
-            <div className="text-[18px] text-[#3a2818] leading-relaxed pt-1">
-              {wallDescription}
-            </div>
-          ) : mode === 'live' && isOwner ? (
-            <div className="text-[15px] text-[#5a4838] italic pt-1 font-normal">
-              ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
-            </div>
-          ) : null}
-          {mode === 'snapshot' && snapshotMeta && (
-            <div
-              className="flex items-center gap-2 flex-wrap text-[11px] pt-1 font-semibold"
-              style={{ fontFamily: 'sans-serif' }}
-            >
-              <span className="uppercase tracking-[0.22em] text-[#1a1208]">
-                {formatKoreanMemoryDate(snapshotMeta.createdAt)}
-              </span>
-              <span
-                className={
-                  snapshotMeta.isPublic
-                    ? 'uppercase tracking-[0.22em] text-[#6a3a10]'
-                    : 'uppercase tracking-[0.22em] text-[#4a2810]'
-                }
-              >
-                · {snapshotMeta.isPublic ? 'public' : 'private'}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+  // Signature line becomes the hover target for UserHoverCard so
+  // the page owner's identity surface (avatar, join date, stats,
+  // vote counts) is still reachable without a dedicated person
+  // card. Userless fallback stays as plain text.
+  const signatureText = `${displayLabel}의`;
+  const signatureNode =
+    userId != null ? (
+      <UserHoverCard userId={userId}>
+        <span className="inline-block cursor-help hover:text-[#1a1208] transition-colors">
+          {signatureText}
+        </span>
+      </UserHoverCard>
+    ) : (
+      <span>{signatureText}</span>
     );
-  }
 
-  // Horizontal layout — mobile variant. Two-column on sm+; stacked
-  // below `sm` so the display-name chip doesn't leak into the
-  // title at narrow widths. The vertical (desktop sidebar) layout
-  // returns above via its own rounded-card treatment.
   return (
-    <header
-      className="flex flex-col sm:flex-row sm:items-start gap-4 sm:gap-8 pt-2 pb-3"
-    >
-      {/* Avatar block — two sticker chips overlap the portrait:
-          @username at the top-left as a small amber tag, display
-          name across the bottom edge as a darker label that
-          straddles the avatar / baseline. Both tilted a few
-          degrees so they read as "stuck on" rather than
-          baseline-aligned. pb-4 reserves room for the bottom
-          chip's overhang so the next row in the header doesn't
-          collide with it. */}
-      <div className="shrink-0 flex flex-col items-center gap-2.5">
-        <div className="relative pb-2">
-          {userId != null ? (
-            <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
-          ) : (
-            avatarEl
-          )}
-          <span
-            aria-hidden
-            className="absolute -top-1.5 -left-2 text-[9px] font-semibold text-[#141008] bg-[#e8a020] px-1.5 py-[1px] rounded-[3px] shadow-sm pointer-events-none select-none"
-            style={{ transform: 'rotate(-4deg)' }}
-          >
-            @{username}
-          </span>
-          <span
-            aria-hidden
-            className="absolute -bottom-2 left-1/2 text-[11px] font-medium text-[#f5e8c8] bg-[#1a1410] border border-[#e8a020]/40 px-2 py-[1px] rounded-[3px] shadow-sm pointer-events-none select-none max-w-[120px] truncate"
-            style={{ transform: 'translateX(-50%) rotate(-1.5deg)' }}
-          >
-            {displayLabel}
-          </span>
-        </div>
-        {/* Follower/following chips are deliberately not rendered
-            here while the placement is still being decided. The
-            hover card still surfaces the count, and the list modal
-            stays wired below so we can re-enable a trigger without
-            digging state back out. */}
+    <div className="relative min-w-0 pt-[25px]">
+      {/* Actions — floated top-right absolutely so the handwritten
+          block below starts at the very top of the container and
+          the signature shares the same y-band as the action
+          chips. Non-owner viewers get [팔로우 공유]; owner viewers
+          get [편집 · 기억/삭제 · 공유]. */}
+      <div className="absolute top-[15px] right-1 z-10 flex items-center gap-2 flex-wrap justify-end">
+        {renderActions()}
       </div>
 
-      <div className="flex-1 min-w-0 pt-1 flex flex-col gap-2">
-        {/* Title + actions share a row so the header stays
-            compact. Actions push right; on narrow viewports the
-            flex-wrap drops them to the next line rather than
-            squashing the h1. */}
-        <div className="flex items-start gap-3 flex-wrap">
-          <h1
-            className={`text-xl sm:text-2xl font-serif italic leading-tight truncate flex-1 min-w-0 ${
-              themePlaceholder ? 'text-[#c9a860]' : 'text-[#f5d89a]'
-            }`}
-            title={displayThemeText}
-          >
-            {displayThemeText}
-          </h1>
-          <div className="flex items-center gap-2 shrink-0">
-            {renderActions()}
-          </div>
+      {/* Wall signature + info — handwritten register. The
+          "{displayName}의" line reads as the wall's signed
+          author; the theme follows as the main heading, then
+          the description. Hover on the signature opens
+          UserHoverCard so the nav-bar identity is still
+          accessible without a dedicated person card here. */}
+      <div
+        className="flex flex-col gap-1.5 px-2 font-bold"
+        style={{ fontFamily: GRAFFITI_FONT_STACK }}
+      >
+        <div className="text-[20px] text-[#3a2818] leading-tight">
+          {signatureNode}
         </div>
-
-        {/* Subtitle order: description first, then the snapshot
-            meta strip (date + public/private). Live mode shows
-            description + owner hint only — no meta strip. The date
-            is rendered as "YYYY년 M월 D일의 기억" to read as a
-            memory tag rather than a timestamp. */}
+        <div
+          className={`text-[30px] leading-[1.15] ${
+            themePlaceholder ? 'text-[#5a4838]' : 'text-[#1a1208]'
+          }`}
+          title={displayThemeText}
+        >
+          {displayThemeText}
+        </div>
         {wallDescription ? (
-          <p className="text-[13px] text-[#c9a060]/90 leading-relaxed max-w-[640px]">
+          <div className="text-[18px] text-[#3a2818] leading-relaxed pt-1">
             {wallDescription}
-          </p>
+          </div>
         ) : mode === 'live' && isOwner ? (
-          <p className="text-[12px] text-gray-600 italic">
+          <div className="text-[15px] text-[#5a4838] italic pt-1 font-normal">
             ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
-          </p>
+          </div>
         ) : null}
         {mode === 'snapshot' && snapshotMeta && (
-          <div className="flex items-center gap-3 flex-wrap text-[11px]">
-            <span className="uppercase tracking-[0.22em] text-[#c9a060]">
+          <div
+            className="flex items-center gap-2 flex-wrap text-[11px] pt-1 font-semibold"
+            style={{ fontFamily: 'sans-serif' }}
+          >
+            <span className="uppercase tracking-[0.22em] text-[#1a1208]">
               {formatKoreanMemoryDate(snapshotMeta.createdAt)}
             </span>
             <span
               className={
                 snapshotMeta.isPublic
-                  ? 'uppercase tracking-[0.22em] text-[#e8a020]'
-                  : 'uppercase tracking-[0.22em] text-[#8a7250]'
+                  ? 'uppercase tracking-[0.22em] text-[#1a1208]'
+                  : 'uppercase tracking-[0.22em] text-[#4a2810]'
               }
             >
               · {snapshotMeta.isPublic ? 'public' : 'private'}
             </span>
           </div>
         )}
-
       </div>
-    </header>
+    </div>
   );
 }
 
@@ -901,10 +745,10 @@ function VinylWallGrid({
   const mobile = width < 520;
   const cols = mobile ? 3 : 5;
   const rowCount = 15 / cols;
-  const maxLpSize = mobile ? 128 : 168;
-  const gapX = mobile ? 10 : 16;
+  const maxLpSize = mobile ? 144 : 168;
+  const gapX = mobile ? 8 : 16;
   const rowGap = mobile ? 24 : 32;
-  const overhang = mobile ? 14 : 36;
+  const overhang = mobile ? 4 : 36;
   const fit = (width - 2 * overhang - (cols - 1) * gapX) / cols;
   const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
   const railWidth = Math.round(width);
@@ -1498,6 +1342,12 @@ function CommentBubble({
   // `right` placement needs to clear the 1.3× scale overflow on
   // the right edge (0.15·lpSize), then add a small breathing gap.
   const rightOffsetPx = Math.round(lpSize * 0.17 + 8);
+  // `top` placement is the mobile path: the cell scales 1.3× from
+  // origin-bottom when active, so the sleeve's top extends up by
+  // 0.3·lpSize past the container. The bubble must clear that
+  // overflow (0.3·lpSize) plus a breathing gap or it lands inside
+  // the scaled sleeve's top strip.
+  const topOffsetPx = Math.round(lpSize * 0.3 + 12);
   const outerStyle: React.CSSProperties =
     placement === 'right'
       ? {
@@ -1509,7 +1359,7 @@ function CommentBubble({
           maxWidth: Math.min(260, lpSize * 1.3),
         }
       : {
-          bottom: 'calc(100% + 12px)',
+          bottom: `calc(100% + ${topOffsetPx}px)`,
           left: '50%',
           transform: 'translateX(-50%)',
           transformOrigin: '50% 100%',
