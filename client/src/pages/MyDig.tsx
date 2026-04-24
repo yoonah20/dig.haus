@@ -152,7 +152,16 @@ export default function MyDig() {
     ? (snapItems ?? [])
         .filter((it): it is typeof it & { album: MyDigAlbum } => it.album != null)
         .map((it) => ({ position: it.position, album: it.album }))
-    : data.vinylWall;
+    : data.vinylWall ?? [];
+
+  // First-visit onboarding trigger — shown when the owner lands on
+  // their own mydig with nothing placed on the live wall yet.
+  // Bare rails without a prompt read as "something broken"; the
+  // CTA below walks them into the editor with one click.
+  const isOnboardingOwner =
+    !isSnapshotMode &&
+    data.user.isOwner &&
+    data.vinylWall.length === 0;
 
   const handleSelectSnapshot = (slug: string) => {
     navigate(`#${encodeURIComponent(slug)}`);
@@ -193,92 +202,18 @@ export default function MyDig() {
           the nav; the wall gets its own headroom from WallSection's
           top padding. */}
       <main className="max-w-[1400px] mx-auto px-4 md:pl-10 md:pr-4 pt-2 pb-8 md:pb-24 space-y-1">
-        {/* Mobile header: same handwritten graffiti block as the
-            desktop sidebar, rendered above the wall. Hidden on md+
-            since the desktop sidebar below owns it there. */}
-        <div className="md:hidden">
-          <ProfileHeader
-            userId={data.user.id ?? null}
-            username={data.user.username}
-            displayName={data.user.displayName}
-            isOwner={data.user.isOwner}
-            wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
-            wallDescription={
-              isSnapshotMode
-                ? snap?.description ?? null
-                : data.vinylWallDescription
-            }
-            snapshotMeta={
-              isSnapshotMode
-                ? {
-                    createdAt: snap!.createdAt,
-                    isPublic: snap!.isPublic,
-                  }
-                : null
-            }
-            mode={isSnapshotMode ? 'snapshot' : 'live'}
-            onEdit={() => setEditingWall(true)}
-            onSaveSnapshot={() => setSavingSnapshot(true)}
-            onDeleteSnapshot={handleDeleteSnapshot}
-            deleteSnapshotPending={deleteSnap.isPending}
-            shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
-          />
-        </div>
-
-        {/* Mobile-only snapshot dropdown — the sidebar graffiti list
-            fell BELOW the wall on narrow viewports and got lost in
-            the painted-wall backdrop where the lamp light doesn't
-            reach (near-black handwriting on a dim brown field
-            reads as invisible). A compact button-style disclosure
-            above the wall keeps the entry point discoverable on
-            mobile without moving the desktop placement. */}
-        {username && (
-          <div className="md:hidden w-[60%] ml-auto mt-4">
-            <MobileSnapshotsDropdown
-              username={username}
-              snapshots={snapshotsQuery.data?.snapshots ?? []}
-              isOwner={data.user.isOwner}
-              activeSlug={activeSlug}
-              onSelect={handleSelectSnapshot}
-              onClear={handleClearSnapshot}
-            />
-          </div>
-        )}
-
-        {/* Desktop grid: wall at max 890px flush to the left edge of
-            the content area, graffiti column takes the remainder.
-            The earlier left-gutter column was removed — the wall
-            sits a touch left-of-centre, which reads better now that
-            the snapshot strip on the right anchors the page's
-            visual mass. */}
-        <div className="grid grid-cols-1 md:grid-cols-[minmax(0,890px)_minmax(0,1fr)] gap-4 md:gap-8">
-          <WallSection>
-            {snapLoading ? (
-              <div className="text-center py-12 text-sm text-gray-500">
-                스냅샷 불러오는 중…
-              </div>
-            ) : (
-              // cellKey scopes the remount to individual LPs only —
-              // the VinylWallGrid stays mounted (so the wooden rail
-              // SVGs don't re-paint their shadows, which looked like
-              // a flicker every swap) but each cell receives a new
-              // React key that changes with the active view, which
-              // restarts the .album-reveal drop-in animation.
-              <VinylWallGrid
-                wallByPosition={wallByPosition}
-                isOwner={data.user.isOwner}
-                emptyHint={isSnapshotMode ? 'snapshot' : 'live'}
-                cellKey={activeSlug ?? 'live'}
-              />
-            )}
-          </WallSection>
-          {username && (
-            <div className="hidden md:flex md:flex-col md:gap-6">
-              {/* Desktop sidebar: ProfileHeader stacked on top,
-                  GraffitiSnapshotList below. Moving the header
-                  here frees ~120px above the wall so the painted
-                  backdrop's floor is visible on shorter viewports
-                  too. */}
+        {isOnboardingOwner ? (
+          // First-visit owner path. No wall, no sidebar, no
+          // snapshot dropdown — none of it means anything until
+          // there's a wall to see. One big centered CTA drops
+          // the user straight into the editor.
+          <EmptyWallOnboarding onStart={() => setEditingWall(true)} />
+        ) : (
+          <>
+            {/* Mobile header: same handwritten graffiti block as the
+                desktop sidebar, rendered above the wall. Hidden on md+
+                since the desktop sidebar below owns it there. */}
+            <div className="md:hidden">
               <ProfileHeader
                 userId={data.user.id ?? null}
                 username={data.user.username}
@@ -305,17 +240,101 @@ export default function MyDig() {
                 deleteSnapshotPending={deleteSnap.isPending}
                 shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
               />
-              <GraffitiSnapshotList
-                username={username}
-                snapshots={snapshotsQuery.data?.snapshots ?? []}
-                isOwner={data.user.isOwner}
-                activeSlug={activeSlug}
-                onSelect={handleSelectSnapshot}
-                onClear={handleClearSnapshot}
-              />
             </div>
-          )}
-        </div>
+
+            {/* Mobile-only snapshot dropdown — the sidebar graffiti list
+                fell BELOW the wall on narrow viewports and got lost in
+                the painted-wall backdrop where the lamp light doesn't
+                reach (near-black handwriting on a dim brown field
+                reads as invisible). A compact button-style disclosure
+                above the wall keeps the entry point discoverable on
+                mobile without moving the desktop placement. */}
+            {username && (
+              <div className="md:hidden w-[60%] ml-auto mt-4">
+                <MobileSnapshotsDropdown
+                  username={username}
+                  snapshots={snapshotsQuery.data?.snapshots ?? []}
+                  isOwner={data.user.isOwner}
+                  activeSlug={activeSlug}
+                  onSelect={handleSelectSnapshot}
+                  onClear={handleClearSnapshot}
+                />
+              </div>
+            )}
+
+            {/* Desktop grid: wall at max 890px flush to the left edge of
+                the content area, graffiti column takes the remainder.
+                The earlier left-gutter column was removed — the wall
+                sits a touch left-of-centre, which reads better now that
+                the snapshot strip on the right anchors the page's
+                visual mass. */}
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,890px)_minmax(0,1fr)] gap-4 md:gap-8">
+              <WallSection>
+                {snapLoading ? (
+                  <div className="text-center py-12 text-sm text-gray-500">
+                    스냅샷 불러오는 중…
+                  </div>
+                ) : (
+                  // cellKey scopes the remount to individual LPs only —
+                  // the VinylWallGrid stays mounted (so the wooden rail
+                  // SVGs don't re-paint their shadows, which looked like
+                  // a flicker every swap) but each cell receives a new
+                  // React key that changes with the active view, which
+                  // restarts the .album-reveal drop-in animation.
+                  <VinylWallGrid
+                    wallByPosition={wallByPosition}
+                    isOwner={data.user.isOwner}
+                    emptyHint={isSnapshotMode ? 'snapshot' : 'live'}
+                    cellKey={activeSlug ?? 'live'}
+                  />
+                )}
+              </WallSection>
+              {username && (
+                <div className="hidden md:flex md:flex-col md:gap-6">
+                  {/* Desktop sidebar: ProfileHeader stacked on top,
+                      GraffitiSnapshotList below. Moving the header
+                      here frees ~120px above the wall so the painted
+                      backdrop's floor is visible on shorter viewports
+                      too. */}
+                  <ProfileHeader
+                    userId={data.user.id ?? null}
+                    username={data.user.username}
+                    displayName={data.user.displayName}
+                    isOwner={data.user.isOwner}
+                    wallTheme={isSnapshotMode ? snap!.name : data.vinylWallTheme}
+                    wallDescription={
+                      isSnapshotMode
+                        ? snap?.description ?? null
+                        : data.vinylWallDescription
+                    }
+                    snapshotMeta={
+                      isSnapshotMode
+                        ? {
+                            createdAt: snap!.createdAt,
+                            isPublic: snap!.isPublic,
+                          }
+                        : null
+                    }
+                    mode={isSnapshotMode ? 'snapshot' : 'live'}
+                    onEdit={() => setEditingWall(true)}
+                    onSaveSnapshot={() => setSavingSnapshot(true)}
+                    onDeleteSnapshot={handleDeleteSnapshot}
+                    deleteSnapshotPending={deleteSnap.isPending}
+                    shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
+                  />
+                  <GraffitiSnapshotList
+                    username={username}
+                    snapshots={snapshotsQuery.data?.snapshots ?? []}
+                    isOwner={data.user.isOwner}
+                    activeSlug={activeSlug}
+                    onSelect={handleSelectSnapshot}
+                    onClear={handleClearSnapshot}
+                  />
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {editingWall && username && (
           <VinylWallEditor
@@ -568,6 +587,44 @@ function WallSection({ children }: { children: React.ReactNode }) {
     >
       <div style={{ position: 'relative', zIndex: 1 }}>{children}</div>
     </section>
+  );
+}
+
+// ─── Empty-wall onboarding ────────────────────────────────────
+// Owner-only first-visit CTA. Replaces the empty VinylWallGrid so
+// the page's first impression is an invitation to start rather
+// than a row of empty rails that reads as a loading stub. One
+// amber button drops the user straight into the scratch editor;
+// everything else lives one level deeper (they can still edit
+// title / description after the first albums land).
+function EmptyWallOnboarding({ onStart }: { onStart: () => void }) {
+  return (
+    // pt-[100px] lifts the CTA off the nav by ~100px without
+    // forcing a tall container — a min-height added a scrollbar
+    // on short viewports.
+    <div className="pt-[100px] flex flex-col items-center text-center px-4 gap-6 md:gap-8">
+      <div
+        className="font-bold"
+        style={{ fontFamily: GRAFFITI_FONT_STACK }}
+      >
+        <div className="text-[38px] md:text-[48px] leading-[1.08] text-[#1a1208]">
+          첫 마이딕을
+          <br />꾸며보세요
+        </div>
+        <div className="text-[20px] md:text-[22px] text-[#3a2818] mt-3 md:mt-5 leading-snug">
+          좋아하는 앨범 15장으로
+          <br className="md:hidden" />
+          {' '}벽을 채워요.
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onStart}
+        className="mt-2 inline-flex items-center gap-2 text-base md:text-lg font-bold rounded-md px-6 py-3 bg-[#e8a020] text-[#141008] hover:bg-[#f5b030] transition-colors cursor-pointer shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
+      >
+        지금 시작하기 →
+      </button>
+    </div>
   );
 }
 

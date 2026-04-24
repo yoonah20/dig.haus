@@ -5,9 +5,9 @@ import { useCreateVinylWallSnapshot } from '../../hooks/useMyDig';
 // header. Form captures two fields:
 //   - name (default = today's date, editable; server also falls
 //     back to the date if we send blank)
-//   - isPublic (default false). Public snapshots show up in the
-//     user's snapshot list to visitors; private snapshots are
-//     owner-only.
+//   - isPublic (default true). Public snapshots show up in the
+//     user's snapshot list to visitors; owner can uncheck before
+//     saving if the moment is private.
 // No preview of the saved state at this wireframe stage — the
 // server copies whatever the wall currently holds the moment the
 // save fires, and the snapshot list refreshes with the new entry
@@ -54,7 +54,7 @@ export default function SnapshotSaveModal({
     (initialName ?? '').trim() || todayDateLabel()
   );
   const [description, setDescription] = useState(initialDescription ?? '');
-  const [isPublic, setIsPublic] = useState(false);
+  const [isPublic, setIsPublic] = useState(true);
   const create = useCreateVinylWallSnapshot(username);
 
   const handleSave = async () => {
