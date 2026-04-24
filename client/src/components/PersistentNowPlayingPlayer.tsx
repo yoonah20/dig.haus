@@ -129,10 +129,12 @@ export default function PersistentNowPlayingPlayer() {
     return () => {
       cancelled = true;
     };
-    // `albumId` is the stable identity — the NowPlayingAlbum object
-    // may be re-created with the same id on unrelated state changes.
+    // `albumMbid` is the stable identity — the NowPlayingAlbum
+    // object can be re-created with the same mbid on unrelated
+    // state changes, so we depend on the string value not the
+    // reference.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostEl, nowPlaying?.albumId]);
+  }, [hostEl, nowPlaying?.albumMbid]);
 
   // Pause when the user dismisses the player. Keeps the controller
   // alive so the next ▶ click reuses it without a fresh init.
