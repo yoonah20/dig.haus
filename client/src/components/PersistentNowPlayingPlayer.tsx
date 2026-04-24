@@ -87,10 +87,17 @@ export default function PersistentNowPlayingPlayer() {
   const [hostEl, setHostEl] = useState<HTMLDivElement | null>(null);
   const controllerRef = useRef<SpotifyController | null>(null);
 
-  // Init + URI switching. First nowPlaying creates the controller;
-  // every change after calls loadUri + play. The 180ms delay lets
-  // Spotify's iframe register the new URI before play() fires —
-  // calling play() immediately after loadUri is a race.
+  // Init + URI switching via destroy + recreate. `loadUri` would
+  // be one network call cheaper, but it triggers Spotify's
+  // internal pushState and pollutes browser back-button history —
+  // each track change ends up as a history entry the user has to
+  // back-press through. Destroying the controller and creating a
+  // fresh one (initial iframe load, not a navigation) skips that.
+  // Autoplay is preserved because each new controller fires
+  // `ready` after init and we immediately `play()` on that event.
+  // Trade: ~300–500ms slower first-frame on track change, in
+  // exchange for the browser back button going where the user
+  // expects.
   useEffect(() => {
     if (!hostEl || !nowPlaying) return;
     const albumId = extractSpotifyAlbumId(nowPlaying.spotifyUrl);
@@ -103,27 +110,34 @@ export default function PersistentNowPlayingPlayer() {
       const api = await loadSpotifyApi();
       if (cancelled) return;
 
+      // Tear down the previous controller (and its iframe) before
+      // spinning up the new one. `destroy()` removes the iframe
+      // element from the DOM; the next createController appends a
+      // brand-new iframe to the host div, which the browser loads
+      // as an initial page rather than a navigation.
       if (controllerRef.current) {
-        controllerRef.current.loadUri(uri);
-        setTimeout(() => {
-          if (!cancelled) controllerRef.current?.play();
-        }, 180);
-      } else {
-        api.createController(
-          hostEl,
-          { uri, width: '100%', height: 80 },
-          (controller) => {
-            if (cancelled) {
-              controller.destroy();
-              return;
-            }
-            controllerRef.current = controller;
-            controller.addListener('ready', () => {
-              controller.play();
-            });
-          }
-        );
+        try {
+          controllerRef.current.destroy();
+        } catch {
+          // controller may already be partially torn down in HMR
+        }
+        controllerRef.current = null;
       }
+
+      api.createController(
+        hostEl,
+        { uri, width: '100%', height: 80 },
+        (controller) => {
+          if (cancelled) {
+            controller.destroy();
+            return;
+          }
+          controllerRef.current = controller;
+          controller.addListener('ready', () => {
+            controller.play();
+          });
+        }
+      );
     })();
 
     return () => {
