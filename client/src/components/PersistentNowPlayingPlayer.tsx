@@ -228,10 +228,10 @@ export default function PersistentNowPlayingPlayer() {
       aria-label="지금 재생 중"
       aria-hidden={!visible}
     >
-      <div className="flex items-stretch gap-2 pointer-events-auto">
+      <div className="pointer-events-auto relative group/np">
         <div
           ref={setHostEl}
-          className="rounded-lg bg-[#2a1a0d] flex-1 min-w-0 border overflow-hidden"
+          className="rounded-lg bg-[#2a1a0d] border overflow-hidden"
           style={{
             // Walnut tint cascades to the injected iframe — CSS
             // filter applies to descendants. Matches the earlier
@@ -246,12 +246,15 @@ export default function PersistentNowPlayingPlayer() {
             minHeight: 80,
           }}
         />
+        {/* × button lives INSIDE the player box now so it never
+            spills past the embed's right edge into the wall art.
+            Hidden at rest, fades in on hover over the player. */}
         <button
           type="button"
           onClick={clearNowPlaying}
           aria-label="재생 닫기"
           title="재생 닫기"
-          className="shrink-0 self-center w-8 h-8 rounded-full border border-white/10 bg-[#1a130a]/90 hover:border-[#e8a020]/50 hover:text-[#e8a020] text-gray-400 text-base leading-none transition-colors cursor-pointer shadow-lg"
+          className="absolute top-2 right-2 z-10 w-6 h-6 rounded-full border border-white/20 bg-[#141008]/85 hover:bg-[#e8a020] hover:text-[#141008] hover:border-[#e8a020] text-gray-200 text-sm leading-none flex items-center justify-center cursor-pointer opacity-0 group-hover/np:opacity-100 transition-opacity duration-150"
         >
           ×
         </button>

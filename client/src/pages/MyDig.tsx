@@ -19,12 +19,9 @@ import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
 import FollowListModal from '../components/FollowListModal';
 import { useUserPublic } from '../hooks/useMe';
-import {
-  extractSpotifyAlbumId,
-  setNowPlaying,
-  useNowPlaying,
-} from '../hooks/useNowPlaying';
+import { extractSpotifyAlbumId } from '../hooks/useNowPlaying';
 import { NowPlayingAnchor } from '../components/PersistentNowPlayingPlayer';
+import PlayChip from '../components/PlayChip';
 import {
   setActiveWallCellId,
   useActiveWallCellId,
@@ -978,35 +975,13 @@ function WallCell({
   const discBodyRgb = MYDIG_VINYL_TINT_ENABLED
     ? parseRgbString(album.coverDominantColor ?? null)
     : null;
-  // Spotify album URL drives the ▶ chip. Null = no chip (album
-  // has no Spotify link). Gated by MYDIG_PREVIEW_ENABLED so the
-  // chip stays dormant when the feature is disabled globally.
+  // Spotify album URL drives the ▶ chip. PlayChip self-resolves
+  // visibility + isPlaying from the now-playing store, so we just
+  // forward the raw URL and let it decide. Gated by
+  // MYDIG_PREVIEW_ENABLED so feature-flagging still works.
   const spotifyUrl = MYDIG_PREVIEW_ENABLED ? album.spotifyUrl ?? null : null;
   const spotifyAlbumId = extractSpotifyAlbumId(spotifyUrl);
   const hasPreview = !!spotifyAlbumId;
-  const currentlyPlaying = useNowPlaying();
-  const isPlaying =
-    hasPreview && currentlyPlaying?.albumId === album.id;
-  const handlePreviewClick = (e: React.MouseEvent) => {
-    // Don't follow the Link when clicking the chip. stopPropagation
-    // + preventDefault keep the outer <Link> inert so a click on ▶
-    // loads the embed instead of navigating to the album page.
-    e.preventDefault();
-    e.stopPropagation();
-    if (!spotifyUrl) return;
-    if (isPlaying) {
-      // Tapping the chip while already playing closes the embed —
-      // same affordance as the strip's × button.
-      setNowPlaying(null);
-    } else {
-      setNowPlaying({
-        albumId: album.id,
-        spotifyUrl,
-        title: album.title,
-        artist: album.artist,
-      });
-    }
-  };
   // Mobile tap-to-activate. First tap on the cell reveals the
   // vinyl peek + comment bubble + play chip; second tap (on the
   // cover) navigates to the album. Shared store means tapping a
@@ -1131,12 +1106,13 @@ function WallCell({
             }}
           />
           {hasPreview && (
-            <PreviewPlayChip
-              isPlaying={isPlaying}
-              onClick={handlePreviewClick}
-              trackName={album.title}
-              forceShow={isActive}
-              lpSize={lpSize}
+            <PlayChip
+              albumMbid={album.mbid}
+              spotifyUrl={spotifyUrl}
+              title={album.title}
+              artist={album.artist}
+              size={Math.round(lpSize * 0.26)}
+              alwaysVisible={isActive}
             />
           )}
         </div>
@@ -1336,11 +1312,12 @@ function WallCell({
             the card — that way the triangle icon doesn't skew
             under cursor movement. */}
         {hasPreview && (
-          <PreviewPlayChip
-            isPlaying={isPlaying}
-            onClick={handlePreviewClick}
-            trackName={album.title}
-            lpSize={lpSize}
+          <PlayChip
+            albumMbid={album.mbid}
+            spotifyUrl={spotifyUrl}
+            title={album.title}
+            artist={album.artist}
+            size={Math.round(lpSize * 0.26)}
           />
         )}
       </div>
@@ -1358,96 +1335,6 @@ function WallCell({
   );
 }
 
-// Bottom-right corner play button. Lives INSIDE the scale wrapper
-// so it grows in lockstep with the hovered cover rather than
-// staying pinned to the original cell bounds. Sized to roughly a
-// quarter of the sleeve width — big enough to target, small
-// enough to leave the artwork as the primary read. White-tinted
-// fill (not amber) so it reads as a universal play control and
-// doesn't fight with the amber chrome in the rest of the page.
-//
-// `forceShow` is the mobile path — the parent cell is in its
-// tap-activated state and group-hover won't fire on touch. Desktop
-// leaves this undefined/false and the group-hover classes take
-// over for the reveal.
-function PreviewPlayChip({
-  isPlaying,
-  onClick,
-  trackName,
-  forceShow = false,
-  lpSize,
-}: {
-  isPlaying: boolean;
-  onClick: (e: React.MouseEvent) => void;
-  trackName: string | null;
-  forceShow?: boolean;
-  lpSize: number;
-}) {
-  // 26% lands around 33–44px across the mobile / desktop grids,
-  // which reads as a discreet corner chip rather than the old
-  // centred medallion. Icon scales proportionally.
-  const buttonSize = Math.round(lpSize * 0.26);
-  const iconSize = Math.round(buttonSize * 0.42);
-  const visibilityClasses =
-    isPlaying || forceShow
-      ? 'opacity-100 pointer-events-auto'
-      : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto';
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={
-        isPlaying
-          ? '미리듣기 정지'
-          : trackName
-            ? `"${trackName}" 미리듣기`
-            : '미리듣기 재생'
-      }
-      title={
-        isPlaying
-          ? '정지'
-          : trackName
-            ? `${trackName} · 미리듣기`
-            : '미리듣기'
-      }
-      style={{
-        width: buttonSize,
-        height: buttonSize,
-        right: '6%',
-        bottom: '6%',
-      }}
-      className={`absolute z-30 rounded-full bg-white/90 border border-white/60 text-[#141008] flex items-center justify-center shadow-[0_4px_12px_rgba(0,0,0,0.45)] hover:bg-white transition-opacity duration-200 cursor-pointer ${visibilityClasses}`}
-    >
-      {isPlaying ? (
-        <svg
-          width={iconSize}
-          height={iconSize}
-          viewBox="0 0 12 12"
-          aria-hidden
-        >
-          <rect x="3" y="2.5" width="2.2" height="7" fill="currentColor" rx="0.5" />
-          <rect x="6.8" y="2.5" width="2.2" height="7" fill="currentColor" rx="0.5" />
-        </svg>
-      ) : (
-        <svg
-          width={iconSize}
-          height={iconSize}
-          viewBox="0 0 12 12"
-          aria-hidden
-        >
-          {/* Slight x-offset so the triangle's optical centre
-              aligns with the circle's geometric centre — the
-              classic play-button trick. */}
-          <path
-            d="M3.8 2 L9.6 6 L3.8 10 Z"
-            fill="currentColor"
-          />
-        </svg>
-      )}
-    </button>
-  );
-}
 
 function CommentBubble({
   body,

@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import axios from '../../lib/axios';
 import type { AlbumDetail, StreamingLinks, BuyInfo } from '../../types';
 import CoverArt from '../CoverArt';
+import PlayChip from '../PlayChip';
 import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSearchOverlay } from '../../contexts/SearchOverlayContext';
@@ -685,6 +686,18 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               ? ({ naturalWidth, naturalHeight }) =>
                   setCoverSize({ w: naturalWidth, h: naturalHeight })
               : undefined}
+          />
+          {/* ▶ chip at the hero cover's bottom-right. Always visible
+              so the viewer doesn't need to hover to discover
+              playback is available; clicking hands off to the
+              persistent Spotify player docked elsewhere. */}
+          <PlayChip
+            albumMbid={album.mbid}
+            spotifyUrl={streaming.spotify}
+            title={album.title}
+            artist={album.artist}
+            size={44}
+            alwaysVisible
           />
           {user?.isAdmin && !editingCover && (
             <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 opacity-0 group-hover/cover:opacity-100 transition-opacity">

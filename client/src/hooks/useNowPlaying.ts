@@ -18,7 +18,13 @@ import { useEffect, useSyncExternalStore } from 'react';
 // apparent location migrates between page layouts.
 
 export interface NowPlayingAlbum {
-  albumId: number;
+  // Stable identity across pages. Numeric `id` isn't universally
+  // available in client payloads (album detail endpoint carries
+  // mbid + slug but no numeric id), whereas mbid is present on
+  // every surface that renders an album. Using it as the key lets
+  // the play chip compare "am I the currently-playing album?"
+  // from home grid, mydig wall, album detail page — all the same.
+  albumMbid: string;
   spotifyUrl: string;
   title: string;
   artist: string;

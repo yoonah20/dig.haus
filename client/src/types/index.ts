@@ -33,6 +33,10 @@ export interface AlbumSearchResult {
   label: string | null;
   coverArtUrl: string | null;
   coverArtFallbacks?: string[];
+  /** Canonical Spotify album URL when we have one. Powers the ▶
+   *  chip on the home grid + album card covers. Null when no
+   *  Spotify link is on file. */
+  spotifyUrl?: string | null;
   averageScore?: number | null;
   reviewCount?: number;
   upvotes?: number;

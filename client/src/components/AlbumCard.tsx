@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { AlbumSearchResult } from '../types';
 import CoverArt from './CoverArt';
+import PlayChip from './PlayChip';
 import PriceTagStack from './PriceTagSticker';
 import { getScoreColor, getScoreGlowRgb } from '../utils/score';
 import { MIN_SCORED_FOR_AVG } from '../lib/reviewThresholds';
@@ -427,11 +428,24 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
               </div>
             )}
             <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
+            {/* ▶ chip — always visible on the home grid cover so
+                the viewer sees at a glance which albums are
+                playable, not only on hover. Clicking plays the
+                Spotify embed via the persistent player; the outer
+                card Link still owns every other click area. */}
+            <PlayChip
+              albumMbid={album.mbid}
+              spotifyUrl={album.spotifyUrl ?? null}
+              title={album.title}
+              artist={album.artist}
+              size={32}
+              alwaysVisible
+            />
           </div>
 
-          {/* Back — mirrored darkened cover + amber wash + info (70%) +
-              "자세히 보기" CTA (30%). Whole card is the Link, so tapping
-              anywhere on the back navigates. */}
+          {/* Back — mirrored darkened cover + amber wash + info.
+              Whole card is the Link, so tapping anywhere on the
+              back navigates. */}
           <div
             className="absolute inset-0 rounded-xl overflow-hidden"
             style={{
@@ -558,34 +572,11 @@ export default function AlbumCard({ album }: { album: AlbumSearchResult }) {
 
               <div style={{ flex: 1 }} />
 
-              {/* "자세히 보기" CTA — button + surrounding padding both
-                  shrink with container. Hidden on the tightest tier
-                  (<110px, roughly ultra density) so the back face isn't
-                  dominated by the CTA when there's barely room for the
-                  title. Whole card is the <Link>, so the flip-navigate
-                  behaviour still works without the button. */}
-              <div
-                className="flex items-center justify-center album-cta"
-                style={{
-                  padding:
-                    '0 clamp(6px, 8cqw, 16px) clamp(8px, 9cqw, 18px)',
-                }}
-              >
-                <div
-                  className="flex items-center justify-center transition-colors hover:bg-white/5"
-                  style={{
-                    width: '58%',
-                    padding: 'clamp(2px, 2cqw, 4px) 0',
-                    border: `1px solid ${ctaColor}`,
-                    color: ctaColor,
-                    fontSize: 'clamp(8px, 6cqw, 12px)',
-                    fontWeight: 600,
-                    letterSpacing: '0.02em',
-                  }}
-                >
-                  자세히 보기
-                </div>
-              </div>
+              {/* "자세히 보기" CTA used to sit here — removed once
+                  the ▶ chip on the front face became the dominant
+                  action. The whole card is still a <Link> so any
+                  click on the back navigates to the detail page,
+                  which is what the CTA used to do. */}
             </div>
           </div>
         </div>
