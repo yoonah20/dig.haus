@@ -557,123 +557,89 @@ function ProfileHeader({
     );
   }
 
+  // Only the horizontal (mobile) branch renders the avatar — the
+  // vertical sidebar dropped its avatar entirely to avoid stacking
+  // a second portrait right under the nav's avatar chip.
   const avatarEl = resolvedAvatar ? (
     <img
       src={resolvedAvatar}
       alt=""
       aria-hidden
-      className={
-        vertical
-          ? 'w-20 h-20 rounded-full object-cover border border-white/10'
-          : 'w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border border-white/10'
-      }
+      className="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover border border-white/10"
       referrerPolicy="no-referrer"
     />
   ) : (
-    <div
-      className={
-        vertical
-          ? 'w-20 h-20 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center'
-          : 'w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center'
-      }
-    >
-      <span
-        className={
-          vertical
-            ? 'text-3xl text-[#e8a020]/70 font-serif italic'
-            : 'text-xl sm:text-2xl text-[#e8a020]/70 font-serif italic'
-        }
-      >
+    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-[#1a1410] border border-white/10 flex items-center justify-center">
+      <span className="text-xl sm:text-2xl text-[#e8a020]/70 font-serif italic">
         {initial}
       </span>
     </div>
   );
 
-  // Vertical sidebar layout — two visually-distinct regions:
-  //   1. Person card: tight landscape row (avatar left, identity
-  //      + follow controls right). Matches UserHoverCard's shape
-  //      so the sidebar reads as a persistent "who am I looking
-  //      at" header.
-  //   2. Wall info + graffiti snapshots: rendered DIRECTLY on the
-  //      backdrop — no card frame — in the handwritten script
-  //      that GraffitiSnapshotList established. A separate
-  //      rounded card next to the "written on the wall" graffiti
-  //      read as two different visual registers fighting each
-  //      other; dropping the frame so the wall metadata sits in
-  //      the same register fixes that.
+  // Vertical sidebar layout — person card is dissolved entirely
+  // into the handwritten wall signature. The nav bar already
+  // carries the avatar + @username chip on every route, so
+  // putting another avatar in the sidebar directly underneath
+  // read as stacked duplicates. Identity now lives as a
+  // signature line in the same graffiti script that the snapshot
+  // list uses ("{displayName}의"), with a thin follow row above
+  // for the social controls the nav can't surface.
   if (vertical) {
-    const joinedLabel = formatJoinedMonth(publicUser?.createdAt ?? null);
     return (
-      <div className="flex flex-col gap-5 min-w-0">
-        {/* ─── Person card (landscape, compact) ──────────── */}
-        <div className="rounded-2xl p-4 border border-white/5 bg-[#120c05]/55 backdrop-blur-[2px] flex items-start gap-3 min-w-0">
-          <div className="relative shrink-0">
-            {userId != null ? (
-              <UserHoverCard userId={userId}>{avatarEl}</UserHoverCard>
-            ) : (
-              avatarEl
-            )}
-            <span
-              aria-hidden
-              className="absolute -top-1 -left-2 text-[10px] font-semibold text-[#141008] bg-[#e8a020] px-1.5 py-[1px] rounded-[3px] shadow-sm pointer-events-none select-none"
-              style={{ transform: 'rotate(-4deg)' }}
-            >
-              @{username}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-[14px] font-medium text-[#f5e8c8] truncate">
-                  {displayLabel}
-                </div>
-                {joinedLabel && (
-                  <div className="text-[10px] text-gray-500">
-                    가입 {joinedLabel}
-                  </div>
-                )}
-              </div>
-              {!isOwner && userId != null && (
-                <FollowButton
-                  targetUserId={userId}
-                  following={viewerIsFollowing}
-                  size="sm"
-                />
-              )}
+      <div className="flex flex-col gap-3 min-w-0">
+        {/* Thin social row — follower + following counts clickable
+            into the shared FollowListModal, follow button on the
+            right when the viewer isn't the owner. Sits above the
+            signature so it reads as chrome, not part of the
+            handwritten signature below. */}
+        {userId != null && (
+          <div className="flex items-center justify-between gap-2 flex-wrap text-[12px] px-1">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFollowListOpen('followers')}
+                className="px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                <span className="text-[#f5d89a] font-semibold">
+                  {followerCount.toLocaleString()}
+                </span>
+                <span className="text-gray-500 ml-1">팔로워</span>
+              </button>
+              <span className="text-gray-700">·</span>
+              <button
+                type="button"
+                onClick={() => setFollowListOpen('following')}
+                className="px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer"
+              >
+                <span className="text-[#f5d89a] font-semibold">
+                  {followingCount.toLocaleString()}
+                </span>
+                <span className="text-gray-500 ml-1">팔로잉</span>
+              </button>
             </div>
-            {userId != null && (
-              <div className="flex items-center gap-2 text-[12px]">
-                <button
-                  type="button"
-                  onClick={() => setFollowListOpen('followers')}
-                  className="px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer"
-                >
-                  <span className="text-[#f5d89a] font-semibold">
-                    {followerCount.toLocaleString()}
-                  </span>
-                  <span className="text-gray-500 ml-1">팔로워</span>
-                </button>
-                <span className="text-gray-700">·</span>
-                <button
-                  type="button"
-                  onClick={() => setFollowListOpen('following')}
-                  className="px-1.5 py-0.5 rounded hover:bg-white/5 transition-colors cursor-pointer"
-                >
-                  <span className="text-[#f5d89a] font-semibold">
-                    {followingCount.toLocaleString()}
-                  </span>
-                  <span className="text-gray-500 ml-1">팔로잉</span>
-                </button>
-              </div>
+            {!isOwner && (
+              <FollowButton
+                targetUserId={userId}
+                following={viewerIsFollowing}
+                size="sm"
+              />
             )}
           </div>
-        </div>
+        )}
 
-        {/* ─── Wall info in handwritten register ─────────── */}
+        {/* Wall signature + info — handwritten register. The
+            "{displayName}의" line reads as the wall's signed
+            author; the theme follows as the main heading, then
+            the description. All the same script so the block
+            reads as one piece of graffiti the wall's owner wrote
+            on the backdrop. */}
         <div
-          className="flex flex-col gap-3 px-2"
+          className="flex flex-col gap-1.5 px-2"
           style={{ fontFamily: GRAFFITI_FONT_STACK }}
         >
+          <div className="text-[18px] text-[#3a2818] leading-tight">
+            {displayLabel}의
+          </div>
           <div
             className={`text-[26px] leading-[1.15] ${
               themePlaceholder ? 'text-[#5a4838]' : 'text-[#1a1208]'
@@ -683,18 +649,18 @@ function ProfileHeader({
             {displayThemeText}
           </div>
           {wallDescription ? (
-            <div className="text-[16px] text-[#3a2818] leading-relaxed">
+            <div className="text-[16px] text-[#3a2818] leading-relaxed pt-1">
               {wallDescription}
             </div>
           ) : mode === 'live' && isOwner ? (
-            <div className="text-[14px] text-[#5a4838] italic">
+            <div className="text-[14px] text-[#5a4838] italic pt-1">
               ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
             </div>
           ) : null}
           {mode === 'snapshot' && snapshotMeta && (
             <div
-              className="flex items-center gap-2 flex-wrap text-[11px]"
-              style={{ fontFamily: 'inherit' }}
+              className="flex items-center gap-2 flex-wrap text-[11px] pt-1"
+              style={{ fontFamily: 'sans-serif' }}
             >
               <span className="uppercase tracking-[0.22em] text-[#5a4838]">
                 {formatKoreanMemoryDate(snapshotMeta.createdAt)}
@@ -710,18 +676,13 @@ function ProfileHeader({
               </span>
             </div>
           )}
-          {/* Actions sit in the same column but drop out of the
-              handwritten register — they're interactive controls,
-              and reading "edit" in handwriting risks looking like
-              just another scribble. Keep the pill treatment but
-              make it quieter so it doesn't compete with the
-              graffiti above + below. */}
-          <div
-            className="flex items-center gap-2 flex-wrap"
-            style={{ fontFamily: 'sans-serif' }}
-          >
-            {renderWallActions()}
-          </div>
+        </div>
+
+        {/* Actions sit below the signature block, drop back to
+            sans-serif so "edit" / "snapshot" / "share" read as
+            interactive controls rather than more scribble. */}
+        <div className="flex items-center gap-2 flex-wrap px-2 pt-2">
+          {renderWallActions()}
         </div>
 
         {followListOpen && userId != null && (
