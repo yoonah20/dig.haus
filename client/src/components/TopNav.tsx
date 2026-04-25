@@ -92,16 +92,45 @@ export default function TopNav() {
                 candidates with a per-row [+] button; admins also get
                 a [⚡] that registers + kicks off auto-curation. Less
                 nav chrome, fewer surfaces to maintain. */}
-            {/* Search. Shovel glyph (flaticon shovel-dig PNG, masked to
-                amber so it picks up the nav's color) — "dig" is the
-                active verb of exploring the catalog, so the shovel
-                lives on search. The mydig button across the way
-                switched to a storefront (destination, not action). */}
+            {/* Search + register — the magnifying glass owns this
+                affordance now. The unified search modal handles both
+                "find an album that's already in dig.haus" and "request
+                / register one that isn't yet" via the per-row + button
+                on MB/Discogs candidates, so search and registration
+                share a single nav slot. The shovel is the next
+                button over and means "go digging" (link to /dig). */}
             <button
               onClick={() => (searchOpen ? closeOverlay() : openOverlay())}
               className="group w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] hover:bg-[#e8a020] transition-colors cursor-pointer"
-              title="검색"
-              aria-label="검색"
+              title="검색 / 앨범 등록"
+              aria-label="검색 / 앨범 등록"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-[18px] h-[18px] text-[#e8a020] group-hover:text-black transition-colors"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2}
+                stroke="currentColor"
+                aria-hidden
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+                />
+              </svg>
+            </button>
+            {/* Digging — the shovel glyph (flaticon shovel-dig.png,
+                masked to amber). Links to /dig, the dense album-grid
+                browse page that used to live at /. The active verb
+                "dig" sits on this button now that home is a curated
+                wall destination rather than a catalog. */}
+            <Link
+              to="/dig"
+              className="group w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] hover:bg-[#e8a020] transition-colors cursor-pointer"
+              title="디깅하기 — 전체 둘러보기"
+              aria-label="디깅하기"
             >
               <span
                 aria-hidden
@@ -117,7 +146,7 @@ export default function TopNav() {
                   maskPosition: 'center',
                 }}
               />
-            </button>
+            </Link>
             {/* Sort trigger lives inline above the album grid now
                 (Home.tsx's SortTrigger). Keeping the nav cluster
                 down to "find / my store / login" — everything about

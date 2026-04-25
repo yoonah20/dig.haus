@@ -10,6 +10,7 @@ import PersistentNowPlayingPlayer from './components/PersistentNowPlayingPlayer'
 import CurationProgressPanel from './components/CurationProgressPanel';
 
 const Home = lazy(() => import('./pages/Home'));
+const DigPage = lazy(() => import('./pages/DigPage'));
 const Album = lazy(() => import('./pages/Album'));
 const Admin = lazy(() => import('./pages/Admin'));
 const Profile = lazy(() => import('./pages/Profile'));
@@ -169,6 +170,7 @@ export default function App() {
   // just the darkened painting behind the album grid.
   const isMydig = location.pathname.startsWith('/my/');
   const isHome = location.pathname === '/';
+  const isDig = location.pathname === '/dig';
   return (
     <AuthProvider>
       <SearchOverlayProvider>
@@ -182,41 +184,37 @@ export default function App() {
               // anything rendered outside the app root.
               style={{ isolation: 'isolate' }}
             >
-              {isHome && (
+              {isDig && (
                 <div
                   aria-hidden
-                  // Mobile-only flat dark-gray wash. Replaces the
-                  // painted-wall backdrop on narrow viewports —
-                  // the wall peeking in and out behind gaps read
-                  // as noise, and a clean neutral slate lets the
-                  // mobile feed's dense covers do the talking.
-                  className="md:hidden absolute inset-0 pointer-events-none"
+                  // /dig (catalog browse) sits on a flat dark wash —
+                  // the dense album grid is the surface visitors are
+                  // there to read, and any backdrop image pulls the
+                  // eye away from the covers. Mobile and desktop
+                  // share the same flat tone here.
+                  className="absolute inset-0 pointer-events-none"
                   style={{ zIndex: -1, backgroundColor: '#1a1a1a' }}
                 />
               )}
               {isHome && (
                 <div
                   aria-hidden
-                  // Hidden below md — the mobile feed's dense
-                  // covers already carry plenty of visual texture,
-                  // and the wall peeking in and out behind gaps
-                  // reads as noise on a narrow viewport.
-                  className="hidden md:block absolute inset-0 pointer-events-none"
+                  // Home (dig.haus's own wall) sits against the
+                  // store-interior backdrop. Brightened from the
+                  // earlier 0.55 to 0.7 per the user's "좀 더 밝아져도
+                  // 됨" — the rest of the page is a single wood-rail
+                  // wall composition that benefits from a more
+                  // visible scene behind it. backgroundSize stays at
+                  // the authored 2401×1372 since store.webp was
+                  // composed at the same canvas as wall2.webp.
+                  className="absolute inset-0 pointer-events-none"
                   style={{
-                    // Store-interior backdrop, authored at the same
-                    // 0.686× of 3500×2000 dimensions as the older
-                    // wall2.webp so the placement settings carry
-                    // over unchanged. Brightness + saturation match
-                    // mydig's backdrop pass — the home page now sits
-                    // at the same atmospheric register as mydig
-                    // rather than the darker wash it had under
-                    // wall2.webp.
                     zIndex: -1,
                     backgroundImage: "url('/backdrops/store.webp')",
                     backgroundSize: '2401px 1372px',
                     backgroundPosition: 'center bottom',
                     backgroundRepeat: 'no-repeat',
-                    filter: 'brightness(0.55) saturate(0.85)',
+                    filter: 'brightness(0.7) saturate(0.85)',
                   }}
                 />
               )}
@@ -336,6 +334,7 @@ export default function App() {
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route path="/" element={<Home />} />
+                  <Route path="/dig" element={<DigPage />} />
                   <Route path="/album/:slug" element={<Album />} />
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/admin/curation" element={<Admin />} />

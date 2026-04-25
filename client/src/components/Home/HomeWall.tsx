@@ -3,27 +3,30 @@ import { Link } from 'react-router-dom';
 import {
   useHomeFeatures,
   useReplaceHomeFeatures,
+  useUpdateHomeMeta,
   type HomeFeatureItem,
+  type HomeMeta,
 } from '../../hooks/useHomeFeatures';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSearch } from '../../hooks/useSearch';
 import { extractSpotifyAlbumId } from '../../hooks/useNowPlaying';
 import { WallLP, WallRail } from '../MyDig/storefront/primitives';
+import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 import CoverArt from '../CoverArt';
 import PlayChip from '../PlayChip';
 
-// Admin-curated 5-album rail at the top of the home page. Reuses
-// the mydig storefront's WallRail + WallLP primitives so the home
-// page reads as a continuation of mydig's record-shop language
-// rather than a separate visual register. Hover scale + play chip
-// match the mydig wall cells; the per-cell tilt + specular streak
-// from the WallCell are deliberately omitted here for now — Phase A
-// ships the static rail, polish layer can come on top later.
+// Admin-curated 15-album home wall (5-5-5) — the home page is now
+// dig.haus's own mydig: same wood-rail + LP primitives, same
+// signature graffiti header, same edit affordances, scoped to a
+// single global wall instead of per-user. The dense album grid
+// browsing surface lives at /dig.
 
-const SLOT_COUNT = 5;
+const SLOTS_PER_ROW = 5;
+const ROW_COUNT = 3;
+const SLOT_COUNT = SLOTS_PER_ROW * ROW_COUNT;
 const MOBILE_BREAKPOINT = 520;
 
-export default function FeatureRail() {
+export default function HomeWall() {
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
   const { data, isLoading } = useHomeFeatures();
@@ -42,23 +45,28 @@ export default function FeatureRail() {
     return () => ro.disconnect();
   }, []);
 
-  // Sizing mirrors VinylWallGrid's calc, scoped to a single 5-cell
-  // row. Mobile keeps the rail at 5 cells (per the user's "중앙
-  // 정렬로 5장") rather than dropping to 3, so the lpSize floor is
-  // looser there to make the row fit narrow viewports.
   const mobile = width < MOBILE_BREAKPOINT;
   const gapX = mobile ? 8 : 16;
   const overhang = mobile ? 4 : 36;
+  const rowGap = mobile ? 24 : 32;
   const maxLpSize = mobile ? 80 : 168;
-  const fit = (width - 2 * overhang - (SLOT_COUNT - 1) * gapX) / SLOT_COUNT;
+  const fit = (width - 2 * overhang - (SLOTS_PER_ROW - 1) * gapX) / SLOTS_PER_ROW;
   const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
   const railWidth = Math.round(width);
   const railHeight = mobile ? 16 : 20;
 
   const items = data?.items ?? [];
+  const meta = data?.meta ?? { theme: null, description: null };
   const slots = Array.from({ length: SLOT_COUNT }, (_, i) =>
     items.find((it) => it.position === i) ?? null
   );
+
+  const rows = Array.from({ length: ROW_COUNT }, (_, ri) => ({
+    positions: Array.from(
+      { length: SLOTS_PER_ROW },
+      (_, ci) => ri * SLOTS_PER_ROW + ci
+    ),
+  }));
 
   if (isLoading) {
     return (
@@ -69,60 +77,92 @@ export default function FeatureRail() {
   }
 
   return (
-    <section className="relative">
-      <div className="flex items-baseline justify-between mb-4 px-2">
-        <h2 className="text-xl md:text-2xl font-bold text-white font-serif tracking-tight">
-          Feature Records
-        </h2>
-        {isAdmin && !editing && (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="text-xs text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/40 rounded-full px-2.5 py-0.5 transition-colors cursor-pointer"
-            title="이번 주 픽 5장 수정"
-          >
-            ✏️ 편집
-          </button>
-        )}
-      </div>
+    <section className="relative group/homewall">
+      {/* Graffiti signature header — mydig parity, but for the
+          dig.haus-level wall. Theme + description live in the
+          home_meta singleton row and edit through the same panel
+          that swaps the 15 wall picks. */}
+      <SignatureHeader meta={meta} />
+
+      {isAdmin && !editing && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="absolute top-0 right-2 z-10 text-xs text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/40 rounded-full px-2.5 py-0.5 transition-colors cursor-pointer opacity-0 group-hover/homewall:opacity-100 focus:opacity-100"
+          title="dig.haus 벽 편집"
+        >
+          ✏️ 편집
+        </button>
+      )}
 
       <div ref={containerRef} className="relative">
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: `repeat(${SLOT_COUNT}, ${lpSize}px)`,
-            gap: gapX,
-            justifyContent: 'center',
-            alignItems: 'end',
-          }}
-        >
-          {slots.map((item, i) => (
-            <FeatureCell
-              key={i}
-              item={item}
-              position={i}
-              lpSize={lpSize}
-              lampBias={1 - i / SLOT_COUNT}
-            />
-          ))}
-        </div>
-        <div className="mt-0">
-          <WallRail
-            width={railWidth}
-            seed={17}
-            height={railHeight}
-            style={{ display: 'block' }}
-          />
-        </div>
+        {rows.map(({ positions }, ri) => (
+          <div key={ri} style={{ position: 'relative', marginBottom: rowGap }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${SLOTS_PER_ROW}, ${lpSize}px)`,
+                gap: gapX,
+                justifyContent: 'center',
+                alignItems: 'end',
+              }}
+            >
+              {positions.map((position, ci) => (
+                <FeatureCell
+                  key={position}
+                  item={slots[position]}
+                  position={position}
+                  lpSize={lpSize}
+                  lampBias={1 - (ri * SLOTS_PER_ROW + ci) / SLOT_COUNT}
+                />
+              ))}
+            </div>
+            <div
+              style={{
+                position: 'relative',
+                marginTop: 0,
+                transform: `translateX(${[0, 10, -5][ri] ?? 0}px)`,
+              }}
+            >
+              <WallRail
+                width={railWidth}
+                seed={ri * 37 + 13}
+                height={railHeight}
+                style={{ display: 'block' }}
+              />
+            </div>
+          </div>
+        ))}
       </div>
 
       {isAdmin && editing && (
-        <FeatureEditor
+        <HomeWallEditor
           initialItems={items}
+          initialMeta={meta}
           onClose={() => setEditing(false)}
         />
       )}
     </section>
+  );
+}
+
+function SignatureHeader({ meta }: { meta: HomeMeta }) {
+  const theme = meta.theme || 'dig.haus';
+  const description = meta.description;
+  return (
+    <div
+      className="text-center mb-6"
+      style={{ fontFamily: GRAFFITI_FONT_STACK }}
+    >
+      <div className="text-[28px] md:text-[36px] leading-[1.15] text-[#e8a020] font-bold">
+        {theme}
+      </div>
+      {description && (
+        <div className="text-sm md:text-base text-gray-300 mt-1 italic">
+          {description}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -177,27 +217,39 @@ function FeatureCell({
   );
 }
 
-function FeatureEditor({
+function HomeWallEditor({
   initialItems,
+  initialMeta,
   onClose,
 }: {
   initialItems: HomeFeatureItem[];
+  initialMeta: HomeMeta;
   onClose: () => void;
 }) {
   const replace = useReplaceHomeFeatures();
+  const updateMeta = useUpdateHomeMeta();
   const [drafts, setDrafts] = useState<Array<HomeFeatureItem | null>>(() =>
     Array.from({ length: SLOT_COUNT }, (_, i) =>
       initialItems.find((it) => it.position === i) ?? null
     )
   );
   const [activeSlot, setActiveSlot] = useState<number | null>(null);
+  const [theme, setTheme] = useState(initialMeta.theme ?? '');
+  const [description, setDescription] = useState(initialMeta.description ?? '');
+  const saving = replace.isPending || updateMeta.isPending;
 
   const handleSave = async () => {
     const items = drafts
       .map((d, i) => (d ? { position: i, mbid: d.album.mbid, note: d.note } : null))
       .filter((x): x is { position: number; mbid: string; note: string | null } => !!x);
     try {
-      await replace.mutateAsync(items);
+      await Promise.all([
+        replace.mutateAsync(items),
+        updateMeta.mutateAsync({
+          theme: theme.trim() || null,
+          description: description.trim() || null,
+        }),
+      ]);
       onClose();
     } catch (err: any) {
       alert(err?.response?.data?.error || '저장 실패');
@@ -217,13 +269,13 @@ function FeatureEditor({
     <div className="mt-6 rounded-xl border border-white/10 bg-[#1a1a1a]/95 p-4 md:p-5">
       <div className="flex items-center justify-between mb-3">
         <span className="text-sm font-medium text-gray-200">
-          Feature Records 편집 — 5장
+          dig.haus 벽 편집 — 시그니처 + 15장
         </span>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onClose}
-            disabled={replace.isPending}
+            disabled={saving}
             className="text-xs text-gray-400 hover:text-white px-2 py-1 disabled:opacity-40 cursor-pointer"
           >
             취소
@@ -231,15 +283,40 @@ function FeatureEditor({
           <button
             type="button"
             onClick={handleSave}
-            disabled={replace.isPending}
+            disabled={saving}
             className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/15 rounded-md px-3 py-1 disabled:opacity-40 cursor-pointer"
           >
-            {replace.isPending ? '저장 중…' : '저장'}
+            {saving ? '저장 중…' : '저장'}
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_2fr] gap-3 mb-4 pb-4 border-b border-white/10">
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-gray-500">시그니처 제목</span>
+          <input
+            type="text"
+            value={theme}
+            onChange={(e) => setTheme(e.target.value)}
+            placeholder="예: dig.haus / 이번 달 픽"
+            maxLength={80}
+            className="bg-[#0f0f0f] border border-white/10 rounded px-2 py-1 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-gray-500">설명</span>
+          <input
+            type="text"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="예: 운영자가 한 달 동안 발굴한 15장"
+            maxLength={240}
+            className="bg-[#0f0f0f] border border-white/10 rounded px-2 py-1 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
+          />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-3">
         {drafts.map((draft, i) => (
           <SlotEditor
             key={i}
@@ -277,7 +354,7 @@ function SlotEditor({
   return (
     <div className="rounded-md border border-white/10 bg-[#0f0f0f] p-2.5">
       <div className="flex items-center gap-2 mb-2">
-        <span className="text-[10px] font-mono text-gray-500 w-5">#{position + 1}</span>
+        <span className="text-[10px] font-mono text-gray-500 w-6">#{position + 1}</span>
         {draft ? (
           <>
             <CoverArt

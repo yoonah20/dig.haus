@@ -25,14 +25,32 @@ export interface HomeFeatureItem {
   album: HomeFeatureAlbum;
 }
 
+export interface HomeMeta {
+  theme: string | null;
+  description: string | null;
+}
+
 export function useHomeFeatures() {
-  return useQuery<{ items: HomeFeatureItem[] }>({
+  return useQuery<{ items: HomeFeatureItem[]; meta: HomeMeta }>({
     queryKey: ['home-features'],
     queryFn: async () => {
       const { data } = await axios.get('/api/home/features');
       return data;
     },
     staleTime: 30_000,
+  });
+}
+
+export function useUpdateHomeMeta() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (meta: { theme: string | null; description: string | null }) => {
+      const { data } = await axios.patch('/api/home/meta', meta);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['home-features'] });
+    },
   });
 }
 

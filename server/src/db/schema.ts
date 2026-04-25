@@ -1308,20 +1308,22 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
-  // Feature Records — admin-curated 5 albums shown on the home page
-  // wood-rail above the main grid. Single global table (not
-  // per-user); admin manages via PUT /api/home/features/items. The
-  // home rail reuses mydig's WallRail + WallLP primitives for the
-  // visual + interaction set, so the schema mirrors vinyl_wall_items
-  // minus the user_id (one global rail per site, not per user).
-  // position cap at 5 keeps the rail tight enough to read at hero
-  // scale without scrolling — 5 covers center-aligned matches the
-  // mockup direction the home redesign opened with.
+  // Home wall — admin-curated 15 albums on the home page, laid out
+  // as 5-5-5 to match mydig's vinyl wall (the home page IS dig.haus's
+  // own mydig now). Single global table, not per-user; admin manages
+  // via PUT /api/home/features/items. Position constraint walked from
+  // < 5 to < 15 in this iteration; old data is dropped because the
+  // upper-page lead "Feature Records" framing is gone — the home
+  // wall is now the same furniture as personal mydig walls and the
+  // 5-pick concept doesn't carry over.
+  runOnce(db, 'home_features_15_slots_2026_04_25', () => {
+    db.exec('DROP TABLE IF EXISTS home_features');
+  });
   db.exec(`
     CREATE TABLE IF NOT EXISTS home_features (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL CHECK (position >= 0 AND position < 5),
+      position INTEGER NOT NULL CHECK (position >= 0 AND position < 15),
       note TEXT,
       pinned_at TEXT DEFAULT (datetime('now')),
       UNIQUE(position)
@@ -1330,6 +1332,23 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_home_features_position
      ON home_features(position)`
+  );
+
+  // Home wall meta — singleton row holding the graffiti signature
+  // theme + description that admin renders above the wall (mirrors
+  // mydig's vinyl_wall_theme / vinyl_wall_description on users, but
+  // for the dig.haus-level wall). Singleton enforced via id = 1.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS home_meta (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      theme TEXT,
+      description TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(
+    `INSERT OR IGNORE INTO home_meta (id, theme, description)
+     VALUES (1, 'dig.haus / 이번 달 픽', '운영자가 한 달 동안 발굴한 15장')`
   );
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created

@@ -1,11 +1,13 @@
 import { Router } from 'express';
-import { getDb, queryAll } from '../db/index.js';
+import { getDb, queryAll, queryGet } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 
-// Admin-curated 5-album rail shown on the home page above the main
-// grid. Mirrors the mydig vinyl-wall data shape (album_id, position)
-// minus the user_id — this is a single global rail, not per-user.
-// Public GET; admin-only PUT for bulk replace.
+// Admin-curated 15-album home wall (5-5-5 to match mydig). Mirrors
+// the mydig vinyl-wall data shape (album_id, position) minus the
+// user_id — this is a single global wall, not per-user. Plus a
+// singleton meta row (theme + description) that renders as the
+// graffiti header above the wall. Public GET; admin-only PUT for
+// bulk replace + PATCH for meta edit.
 
 const router = Router();
 
@@ -41,7 +43,32 @@ router.get('/home/features', (_req, res) => {
     },
   }));
 
-  res.json({ items });
+  const metaRow = queryGet(
+    'SELECT theme, description FROM home_meta WHERE id = 1'
+  ) as { theme: string | null; description: string | null } | null;
+
+  res.json({
+    items,
+    meta: {
+      theme: metaRow?.theme ?? null,
+      description: metaRow?.description ?? null,
+    },
+  });
+});
+
+router.patch('/home/meta', requireAdmin, (req, res) => {
+  const body = (req.body ?? {}) as { theme?: unknown; description?: unknown };
+  const theme =
+    typeof body.theme === 'string' ? body.theme.slice(0, 80) : null;
+  const description =
+    typeof body.description === 'string'
+      ? body.description.slice(0, 240)
+      : null;
+  const db = getDb();
+  db.prepare(
+    `UPDATE home_meta SET theme = ?, description = ?, updated_at = datetime('now') WHERE id = 1`
+  ).run(theme, description);
+  res.json({ ok: true });
 });
 
 router.put('/home/features/items', requireAdmin, (req, res) => {
@@ -62,8 +89,8 @@ router.put('/home/features/items', requireAdmin, (req, res) => {
     const position = (raw as any).position;
     const mbid = (raw as any).mbid;
     const noteRaw = (raw as any).note;
-    if (!Number.isInteger(position) || position < 0 || position >= 5) {
-      return res.status(400).json({ error: `position은 0-4 정수여야 해요 (${position})` });
+    if (!Number.isInteger(position) || position < 0 || position >= 15) {
+      return res.status(400).json({ error: `position은 0-14 정수여야 해요 (${position})` });
     }
     if (typeof mbid !== 'string' || mbid.trim().length === 0) {
       return res.status(400).json({ error: 'mbid가 잘못되었어요.' });
