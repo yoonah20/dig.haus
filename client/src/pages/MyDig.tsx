@@ -29,6 +29,10 @@ import {
   useClearActiveWallCellOnOutsideTap,
 } from '../hooks/useActiveWallCell';
 import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
+import WallHoverCard, {
+  upgradeWallCoverUrl,
+  upgradeWallCoverFallbacks,
+} from '../components/MyDig/storefront/WallHoverCard';
 
 // Spotify preview surface. Re-enabled after the raw-mp3 path was
 // retired — wall cells now write to useNowPlaying on ▶ click and
@@ -36,13 +40,6 @@ import { WallLP, WallRail } from '../components/MyDig/storefront/primitives';
 // No per-album server lookup needed (we already store spotifyUrl),
 // no audio element, no preview_url dependency.
 const MYDIG_PREVIEW_ENABLED = true;
-// Shrink-wrap overlay (SVG turbulence noise + CSS gradient crease).
-// CSS-only rendering never reached "actually looks wrapped in
-// plastic" — real plastic needs a raster texture (PNG/WebP with
-// baked highlights) to read convincingly. Disabled until we source
-// or license a tileable shrink-wrap asset; tilt + specular alone
-// carry the hover interaction fine in the interim.
-const MYDIG_SHRINKWRAP_ENABLED = false;
 
 // Phase 3a skeleton — the four-layer placeholder scaffold described
 // in CLAUDE.md. No edit mode, no drag-drop, no flip-through yet —
@@ -1048,55 +1045,9 @@ function WallCell({
   const activeId = useActiveWallCellId();
   const isActive = activeId === cellId;
 
-  // Cursor-tracked tilt + lamp-anchored specular — written to CSS
-  // custom properties on the card element via a plain ref (no
-  // React state per-pixel; mousemove fires every frame and
-  // setState would thrash).
-  //
-  // - `--tilt-x` / `--tilt-y` : 3D transform. Cursor drives these
-  //   directly, ±7°.
-  // - `--spec-x` / `--spec-y` : specular centre. Cursor does NOT
-  //   drive these directly; we anchor the shine near the scene's
-  //   upper-left pendant (22%, 18%) and slide it INVERSE to the
-  //   cursor. Physically: tilting the sleeve to the right rolls
-  //   the lamp reflection leftwards across the plastic; tilting
-  //   the top toward the viewer sends the reflection downward.
-  //   That "reflection lagging behind the tilt" is what reads as
-  //   shrink-wrap rather than flat card.
-  const cardRef = useRef<HTMLAnchorElement>(null);
-  const handleCursorMove = (e: React.MouseEvent<HTMLElement>) => {
-    const el = cardRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const nx = (e.clientX - rect.left) / rect.width;
-    const ny = (e.clientY - rect.top) / rect.height;
-    const tiltY = (nx - 0.5) * 14;
-    const tiltX = -(ny - 0.5) * 14;
-    // Base near mid-upper, with wide inverse travel so the shine
-    // can sweep across roughly 70% × 55% of the sleeve as the
-    // cursor moves. Earlier anchoring to (22%, 18%) trapped the
-    // highlight in the upper-left corner — a real shrink-wrapped
-    // sleeve tilted under a lamp has the reflection travelling
-    // much further across the surface as it pivots.
-    const specX = 50 - (nx - 0.5) * 70;
-    const specY = 38 - (ny - 0.5) * 55;
-    el.style.setProperty('--tilt-x', `${tiltX}deg`);
-    el.style.setProperty('--tilt-y', `${tiltY}deg`);
-    el.style.setProperty('--spec-x', `${specX}%`);
-    el.style.setProperty('--spec-y', `${specY}%`);
-  };
-  const handleCursorLeave = () => {
-    const el = cardRef.current;
-    if (!el) return;
-    el.style.setProperty('--tilt-x', '0deg');
-    el.style.setProperty('--tilt-y', '0deg');
-    el.style.setProperty('--spec-x', '50%');
-    el.style.setProperty('--spec-y', '38%');
-  };
-
-  // Upgrade the wall cover to the 500px tier before handing it to
-  // CoverArt. Derived once per render so mobile + desktop paths
-  // reuse the same URL set.
+  // Mobile-only — wall cover upgraded to the 500px tier so the
+  // tap-active 1.26× scale stays crisp. Desktop path now goes
+  // through <WallHoverCard>, which does the upgrade itself.
   const wallCoverUrl = upgradeWallCoverUrl(album.coverArtUrl);
   const wallCoverFallbacks = upgradeWallCoverFallbacks(album.coverArtFallbacks);
 
@@ -1172,186 +1123,21 @@ function WallCell({
     );
   }
 
+  // Desktop hover stack (scale + tilt + specular + rim + play chip)
+  // is shared with the home wall through <WallHoverCard>. Mydig adds
+  // its 50자 평 bubble as a sibling overlay via children. Shrink-wrap
+  // visual layers are currently gated off in mydig and were dropped
+  // from the shared primitive; re-add as a flag prop when the raster
+  // plastic texture lands.
   return (
-    <Link
-      ref={cardRef}
-      to={`/album/${target}`}
-      title={`${album.artist} — ${album.title}`}
-      className="group relative block hover:z-20"
-      onMouseMove={handleCursorMove}
-      onMouseLeave={handleCursorLeave}
-      style={{
-        width: lpSize,
-        height: lpSize,
-        marginLeft: offsetX,
-        textDecoration: 'none',
-        // Perspective on the anchor lets the child 3D transforms
-        // actually show depth rather than flattening into a 2D
-        // skew. 900px is mild — tighter values exaggerate the
-        // tilt to the point of looking gimmicky.
-        perspective: '900px',
-      }}
+    <WallHoverCard
+      album={{ ...album, spotifyUrl }}
+      position={position}
+      lpSize={lpSize}
+      lampBias={lampBias}
+      href={`/album/${target}`}
+      offsetX={offsetX}
     >
-      {/* Scale wrapper — lifts the whole card 1.26× on hover with
-          bottom-pinned origin so the sleeve grows upward off the
-          rail. Kept separate from the tilt transform so inline
-          rotate() doesn't clobber the tailwind scale class. */}
-      <div
-        className="absolute inset-0 z-10 origin-bottom transition-transform duration-[260ms] ease-out group-hover:scale-[1.26]"
-        style={{
-          transformOrigin: 'center bottom',
-        }}
-      >
-        {/* Tilt wrapper — reads --tilt-x/--tilt-y set by the
-            mousemove handler on the Link above. Short transition
-            keeps the follow feel tight without jitter; on leave
-            the reset to 0deg eases through the same duration. */}
-        <div
-          className="w-full h-full transition-transform duration-[140ms] ease-out"
-          style={{
-            transform:
-              'rotateX(var(--tilt-x,0deg)) rotateY(var(--tilt-y,0deg))',
-            transformStyle: 'preserve-3d',
-            transformOrigin: 'center center',
-          }}
-        >
-          <WallLP size={lpSize} seed={position} lampBias={lampBias}>
-            <CoverArt
-              src={wallCoverUrl}
-              fallbacks={wallCoverFallbacks}
-              alt={album.title}
-              className="w-full h-full object-cover"
-            />
-          </WallLP>
-
-          {/* Shrink-wrap — two layered passes give the plastic
-              its character:
-              (a) an SVG `feTurbulence` field crushed to white-ish
-                  highlights, which provides the fine ORGANIC
-                  wrinkle noise a real stretched plastic has;
-              (b) a pair of CSS gradient creases, which give the
-                  handful of bold vertical-ish streaks that catch
-                  the lamp hardest (the "main wrinkle lines").
-              Gated behind MYDIG_SHRINKWRAP_ENABLED — CSS alone
-              never convinced; re-enable once we ship a raster
-              plastic texture. */}
-          {MYDIG_SHRINKWRAP_ENABLED && <>
-          <svg
-            aria-hidden
-            className="absolute inset-0 pointer-events-none opacity-70 group-hover:opacity-95 transition-opacity duration-[200ms]"
-            style={{
-              width: '100%',
-              height: '100%',
-              // `screen` lightens regardless of base colour, so
-              // wrinkle highlights stay visible on dark covers
-              // (which overlay would silently swallow — most
-              // indie/rock sleeves live in the near-black range).
-              mixBlendMode: 'screen',
-            }}
-            preserveAspectRatio="none"
-          >
-            <defs>
-              {/* baseFrequency X low / Y high → long horizontal
-                  cells with tight vertical striation, which is
-                  how shrink-wrap actually wrinkles when pulled
-                  over a flat sleeve. Color matrix zeroes RGB
-                  channels and sets warm-white constants; alpha
-                  is ×1.6 − 0.55 so mid-range noise pixels now
-                  pass through at 20–50% rather than only the
-                  brightest peaks. Combined with `screen` blend
-                  this reads as actual stretched plastic catching
-                  ambient light, not a faint overlay. */}
-              <filter id={`mydig-plastic-${position}`}>
-                <feTurbulence
-                  type="fractalNoise"
-                  baseFrequency="0.018 0.72"
-                  numOctaves={2}
-                  seed={position * 7 + 13}
-                />
-                <feColorMatrix
-                  values="
-                    0 0 0 0 1
-                    0 0 0 0 0.97
-                    0 0 0 0 0.86
-                    0 0 0 1.6 -0.55
-                  "
-                />
-              </filter>
-            </defs>
-            <rect
-              width="100%"
-              height="100%"
-              filter={`url(#mydig-plastic-${position})`}
-            />
-          </svg>
-          <div
-            aria-hidden
-            className="absolute inset-0 pointer-events-none opacity-45 group-hover:opacity-70 transition-opacity duration-[200ms]"
-            style={{
-              background: [
-                `linear-gradient(
-                  ${95 + (position % 4)}deg,
-                  transparent ${28 + (position % 6)}%,
-                  rgba(255,250,235,0.07) ${31 + (position % 6)}%,
-                  transparent ${35 + (position % 6)}%,
-                  transparent ${64 + (position % 5)}%,
-                  rgba(255,250,235,0.055) ${67 + (position % 5)}%,
-                  transparent ${71 + (position % 5)}%
-                )`,
-              ].join(','),
-              mixBlendMode: 'overlay',
-            }}
-          />
-          </>}
-
-          {/* Lamp-anchored specular — bright warm halo seated near
-              the upper-left pendant at rest, sliding INVERSE to the
-              cursor so the reflection appears to "roll" across the
-              plastic as the sleeve tilts. Visible at 25% even at
-              rest so the shine anchor reads as the ambient lamp
-              wash; lifts to 1.0 on hover when the viewer is
-              actively playing with the card. */}
-          <div
-            aria-hidden
-            className="absolute inset-0 pointer-events-none opacity-25 group-hover:opacity-100 transition-opacity duration-[220ms]"
-            style={{
-              background:
-                'radial-gradient(circle at var(--spec-x,22%) var(--spec-y,18%), rgba(255,245,220,0.6) 0%, rgba(255,245,220,0.32) 18%, rgba(255,245,220,0.12) 38%, transparent 62%)',
-              mixBlendMode: 'overlay',
-            }}
-          />
-
-          {/* Fixed rim streak — thin diagonal highlight anchored
-              to the scene's upper-left pendant. Present at rest so
-              the sleeve never reads flat; lifts on hover to join
-              the moving specular for a layered shine pass. */}
-          <div
-            aria-hidden
-            className="absolute inset-0 pointer-events-none opacity-35 group-hover:opacity-85 transition-opacity duration-[220ms]"
-            style={{
-              background:
-                'linear-gradient(125deg, rgba(255,230,185,0.3) 0%, rgba(255,230,185,0.08) 18%, transparent 42%)',
-              mixBlendMode: 'screen',
-            }}
-          />
-        </div>
-        {/* Play chip lives inside the scale wrapper (as a sibling
-            of the tilt wrapper) so it grows with the cover on
-            hover. Kept outside the tilt wrapper so the button
-            itself stays facing forward rather than rotating with
-            the card — that way the triangle icon doesn't skew
-            under cursor movement. */}
-        {hasPreview && (
-          <PlayChip
-            albumMbid={album.mbid}
-            spotifyUrl={spotifyUrl}
-            title={album.title}
-            artist={album.artist}
-            size={Math.round(lpSize * 0.208)}
-          />
-        )}
-      </div>
-
       {userReview && (
         <CommentBubble
           body={userReview.body}
@@ -1361,7 +1147,7 @@ function WallCell({
           placement="right"
         />
       )}
-    </Link>
+    </WallHoverCard>
   );
 }
 
@@ -1529,25 +1315,6 @@ function CommentBubble({
 }
 
 // Cover Art Archive exposes `/front-250`, `/front-500`, `/front-1200`
-// and full-size variants of every sleeve. Server-side storage uses
-// front-250 for the home grid / album page where sleeves render at
-// ~120–200px. The mydig wall renders at up to 168px and scales 1.26×
-// on hover (~212px effective), which turns front-250 sources into
-// visibly soft upscales. Upgrading to front-500 on the client side —
-// only for the wall — keeps home grid bandwidth untouched while the
-// hovered wall stays crisp. Non-CAA hosts (Spotify 640, Last.fm
-// originals, admin custom covers) are already large enough and pass
-// through unchanged.
-function upgradeWallCoverUrl(url: string | null): string | null {
-  if (!url) return url;
-  if (!url.includes('coverartarchive.org/')) return url;
-  return url.replace('/front-250', '/front-500');
-}
-function upgradeWallCoverFallbacks(urls: string[] | undefined): string[] | undefined {
-  if (!urls || urls.length === 0) return urls;
-  return urls.map((u) => upgradeWallCoverUrl(u) ?? u);
-}
-
 function formatKoreanMemoryDate(input: string | null | undefined): string {
   if (!input) return '';
   const d = new Date(input);

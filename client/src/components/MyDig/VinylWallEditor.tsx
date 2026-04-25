@@ -26,8 +26,11 @@ import { useSearch } from '../../hooks/useSearch';
 // replace in a transaction server-side). Cancel resets to the
 // server snapshot.
 
-const WALL_ROW_SIZES = [5, 5, 5] as const;
-const WALL_TOTAL = 15;
+// Default slot grid (mydig wall + snapshots): 5-5-5 = 15 slots. The
+// home-features target overrides this with 5-5 = 10; see DEFAULT_ROW_SIZES
+// vs the slotConfig prop below.
+const DEFAULT_ROW_SIZES = [5, 5, 5] as const;
+const HOME_FEATURES_ROW_SIZES = [5, 5] as const;
 
 // Header title builder. Per target:
 //   - wall          → "현재 마이딕 편집"
@@ -111,11 +114,19 @@ export default function VinylWallEditor({
   const isSnapshotTarget = target.kind === 'snapshot';
   const isHomeFeaturesTarget = target.kind === 'home-features';
   const isWallTarget = target.kind === 'wall';
-  // Hydrate the 22-element draft array from the sparse server payload.
+  // Slot count is target-driven: home-features uses 5-5 (10), the
+  // mydig wall + snapshots stay on 5-5-5 (15). Server-side the
+  // home_features.position CHECK is `< 15`, so 10 fits comfortably;
+  // shrinking the editor matches what the public home wall renders.
+  const wallRowSizes = isHomeFeaturesTarget
+    ? HOME_FEATURES_ROW_SIZES
+    : DEFAULT_ROW_SIZES;
+  const wallTotal = wallRowSizes.reduce((a, b) => a + b, 0);
+  // Hydrate the draft array from the sparse server payload.
   const [draft, setDraft] = useState<DraftSlot[]>(() => {
-    const arr: DraftSlot[] = new Array(WALL_TOTAL).fill(null);
+    const arr: DraftSlot[] = new Array(wallTotal).fill(null);
     for (const it of initialWall) {
-      if (it.position >= 0 && it.position < WALL_TOTAL) {
+      if (it.position >= 0 && it.position < wallTotal) {
         arr[it.position] = it.album;
       }
     }
@@ -458,8 +469,8 @@ export default function VinylWallEditor({
     // current draft already has anything on it so the click isn't
     // destructive.
     const hasAnything = draft.some((s) => s != null);
-    if (hasAnything && !confirm('벽의 15장을 모두 비울까요?')) return;
-    setDraft(new Array(WALL_TOTAL).fill(null));
+    if (hasAnything && !confirm(`벽의 ${wallTotal}장을 모두 비울까요?`)) return;
+    setDraft(new Array(wallTotal).fill(null));
     clearSelection();
   };
 
@@ -557,9 +568,10 @@ export default function VinylWallEditor({
     clearSelection();
   };
 
-  // Split 22 positions into 4 rows (5-5-6-6).
+  // Split positions into rows per the active row-size config (mydig
+  // 5-5-5, home-features 5-5).
   let cursor = 0;
-  const rows = WALL_ROW_SIZES.map((count) => {
+  const rows = wallRowSizes.map((count) => {
     const positions = Array.from({ length: count }, (_, i) => cursor + i);
     cursor += count;
     return positions;
@@ -702,10 +714,11 @@ export default function VinylWallEditor({
             {rows.map((positions, rowIdx) => (
               <div
                 key={rowIdx}
-                // 5-column grid matches WALL_ROW_SIZES (5/5/5). An
-                // earlier iteration used 6 columns from the 5-5-6-6
-                // era, leaving an empty right-hand column that made
-                // the records look left-aligned instead of centered.
+                // 5-column grid matches the row sizes (mydig 5/5/5,
+                // home-features 5/5). An earlier iteration used 6
+                // columns from the 5-5-6-6 era, leaving an empty
+                // right-hand column that made the records look
+                // left-aligned instead of centered.
                 style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',

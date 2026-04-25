@@ -1,25 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 import {
   useHomeFeatures,
   type HomeFeatureItem,
 } from '../../hooks/useHomeFeatures';
 import { useAuth } from '../../contexts/AuthContext';
-import { extractSpotifyAlbumId } from '../../hooks/useNowPlaying';
 import { WallLP, WallRail } from '../MyDig/storefront/primitives';
-import CoverArt from '../CoverArt';
-import PlayChip from '../PlayChip';
+import WallHoverCard from '../MyDig/storefront/WallHoverCard';
 import VinylWallEditor from '../MyDig/VinylWallEditor';
 import type { MyDigWallItem } from '../../hooks/useMyDig';
 
-// Admin-curated 15-album home wall (5-5-5) — the home page is now
-// dig.haus's own mydig: same wood-rail + LP primitives, same
-// signature graffiti header, same edit affordances, scoped to a
-// single global wall instead of per-user. The dense album grid
-// browsing surface lives at /dig.
+// Admin-curated 10-album home wall (5-5) — the home page is dig.haus's
+// own mydig: same wood-rail + LP primitives, same edit affordances,
+// scoped to a single global wall instead of per-user. Started as 5-5-5
+// (15) for parity with mydig but at the front door 15 sleeves felt
+// dense and intimidating; cut to two rails so the page reads quieter
+// on first visit. The dense album grid browsing surface lives at /dig.
 
 const SLOTS_PER_ROW = 5;
-const ROW_COUNT = 3;
+const ROW_COUNT = 2;
 const SLOT_COUNT = SLOTS_PER_ROW * ROW_COUNT;
 const MOBILE_BREAKPOINT = 520;
 
@@ -116,13 +114,10 @@ export default function HomeWall() {
                 />
               ))}
             </div>
-            <div
-              style={{
-                position: 'relative',
-                marginTop: 0,
-                transform: `translateX(${[0, 10, -5][ri] ?? 0}px)`,
-              }}
-            >
+            {/* Rails sit centred under each LP row — no per-row x
+                offset. The bohemian-misaligned look mydig uses isn't
+                a fit for the entry-page first impression. */}
+            <div style={{ position: 'relative', marginTop: 0 }}>
               <WallRail
                 width={railWidth}
                 seed={ri * 37 + 13}
@@ -185,38 +180,14 @@ function FeatureCell({
   }
   const { album } = item;
   const target = album.slug || album.mbid;
-  const spotifyAlbumId = extractSpotifyAlbumId(album.spotifyUrl ?? null);
-  const hasPreview = !!spotifyAlbumId;
-
   return (
-    <Link
-      to={`/album/${target}`}
-      title={`${album.artist} — ${album.title}`}
-      className="group relative block transition-transform duration-200 ease-out hover:-translate-y-1 hover:z-10"
-      style={{
-        width: lpSize,
-        height: lpSize,
-        textDecoration: 'none',
-      }}
-    >
-      <WallLP size={lpSize} seed={position} lampBias={lampBias}>
-        <CoverArt
-          src={album.coverArtUrl}
-          fallbacks={album.coverArtFallbacks}
-          alt={album.title}
-          className="w-full h-full object-cover"
-        />
-      </WallLP>
-      {hasPreview && (
-        <PlayChip
-          albumMbid={album.mbid}
-          spotifyUrl={album.spotifyUrl ?? null}
-          title={album.title}
-          artist={album.artist}
-          size={Math.round(lpSize * 0.208)}
-        />
-      )}
-    </Link>
+    <WallHoverCard
+      album={album}
+      position={position}
+      lpSize={lpSize}
+      lampBias={lampBias}
+      href={`/album/${target}`}
+    />
   );
 }
 
