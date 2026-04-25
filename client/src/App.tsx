@@ -203,19 +203,20 @@ export default function App() {
                   // reads as noise on a narrow viewport.
                   className="hidden md:block absolute inset-0 pointer-events-none"
                   style={{
-                    // Same wall image as mydig but heavier
-                    // darkening so it reads as texture under the
-                    // album grid rather than a scene of its own.
-                    // No lamps, no dust, no vignette — grid cards
-                    // carry the home page's visual weight; the
-                    // wall just gives them something warmer than
-                    // #0a0703 to sit against.
+                    // Store-interior backdrop, authored at the same
+                    // 0.686× of 3500×2000 dimensions as the older
+                    // wall2.webp so the placement settings carry
+                    // over unchanged. Brightness + saturation match
+                    // mydig's backdrop pass — the home page now sits
+                    // at the same atmospheric register as mydig
+                    // rather than the darker wash it had under
+                    // wall2.webp.
                     zIndex: -1,
-                    backgroundImage: "url('/backdrops/wall2.webp')",
+                    backgroundImage: "url('/backdrops/store.webp')",
                     backgroundSize: '2401px 1372px',
                     backgroundPosition: 'center bottom',
                     backgroundRepeat: 'no-repeat',
-                    filter: 'brightness(0.3) saturate(0.6)',
+                    filter: 'brightness(0.55) saturate(0.85)',
                   }}
                 />
               )}

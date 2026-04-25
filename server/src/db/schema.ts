@@ -1307,6 +1307,30 @@ export function initializeDatabase(db: Database.Database): void {
       CHECK (follower_id != followee_id)
     )
   `);
+
+  // Feature Records — admin-curated 5 albums shown on the home page
+  // wood-rail above the main grid. Single global table (not
+  // per-user); admin manages via PUT /api/home/features/items. The
+  // home rail reuses mydig's WallRail + WallLP primitives for the
+  // visual + interaction set, so the schema mirrors vinyl_wall_items
+  // minus the user_id (one global rail per site, not per user).
+  // position cap at 5 keeps the rail tight enough to read at hero
+  // scale without scrolling — 5 covers center-aligned matches the
+  // mockup direction the home redesign opened with.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS home_features (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      position INTEGER NOT NULL CHECK (position >= 0 AND position < 5),
+      note TEXT,
+      pinned_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(position)
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_home_features_position
+     ON home_features(position)`
+  );
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
      ON user_follows(followee_id, created_at DESC)`

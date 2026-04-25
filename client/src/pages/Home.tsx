@@ -8,7 +8,8 @@ import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
 import ActivityRail from '../components/Home/ActivityRail';
-import CommentTicker, { TickerItem } from '../components/Home/CommentTicker';
+import { TickerItem } from '../components/Home/CommentTicker';
+import FeatureRail from '../components/Home/FeatureRail';
 import SnapshotCard from '../components/Home/SnapshotCard';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
@@ -461,6 +462,14 @@ export default function Home() {
       }
     >
       <section className="w-full max-w-[1280px] mx-auto">
+        {/* Feature Records — admin-curated 5 albums on a wood rail.
+            Sits above the main grid so the page leads with the
+            curatorial picks rather than the catalog. Reuses mydig's
+            WallRail / WallLP primitives for visual continuity. */}
+        <div className="mb-8 md:mb-12">
+          <FeatureRail />
+        </div>
+
         {isMobile ? (
           // ─── Mobile: single unified infinite-scroll feed ────
           // 30 albums per batch (3 cols × 10 rows), each batch
@@ -516,14 +525,13 @@ export default function Home() {
             )}
           </>
         ) : (
-          // ─── Desktop: original grid + rail + ticker ─────────
-          // Preserves the pre-tab layout. Two-column: album grid
-          // on the left, ActivityRail (snapshot feed) on the
-          // right, collapsible via the inline chevron next to
-          // density. CommentTicker marquee spans the full width
-          // below. The tab UI is deliberately mobile-only — this
-          // viewport has the real estate to show both roles
-          // simultaneously without tabs.
+          // ─── Desktop: grid + rail ─────────
+          // Two-column: album grid on the left, ActivityRail
+          // (snapshot feed) on the right, collapsible via the
+          // inline chevron next to density. FeatureRail sits above
+          // this whole section. The tab UI is deliberately mobile-
+          // only — this viewport has the real estate to show both
+          // roles simultaneously without tabs.
           <>
             <div
               // Gap is driven off a CSS variable so it transitions
@@ -654,27 +662,11 @@ export default function Home() {
               </nav>
             )}
 
-            {/* Ticker tied to rail visibility — when the rail closes,
-                the ticker slides down + fades out and its row height
-                collapses so the page doesn't leave a silent band of
-                empty space at the bottom. grid-template-rows 0fr→1fr
-                is the modern auto-height animation trick (needs
-                Chrome 117+ / Firefox 122+ / Safari 17+; older
-                browsers just jump without animation). */}
-            {albums.length > 0 && (
-              <div
-                aria-hidden={!railOpen}
-                className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out ${
-                  railOpen
-                    ? 'grid-rows-[1fr] opacity-100 translate-y-0'
-                    : 'grid-rows-[0fr] opacity-0 translate-y-6 pointer-events-none'
-                }`}
-              >
-                <div className="min-h-0 overflow-hidden">
-                  <CommentTicker />
-                </div>
-              </div>
-            )}
+            {/* Bottom CommentTicker block previously sat here — moved
+                to FeatureRail at top of page (this PR), and the
+                comment activity itself is being rebuilt as a
+                multi-channel "최근 방문자 활동" feed in the right rail
+                in a follow-up. */}
           </>
         )}
       </section>
