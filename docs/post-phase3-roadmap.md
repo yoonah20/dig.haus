@@ -19,14 +19,15 @@ This is intentionally a **roadmap**, not a plan. It captures what's on the table
 
 Numbered as the user listed them. **0 is the immediate work; 1–4 are the strategic queue.**
 
-### 0. Album detail page refactor — *immediate*
+### 0. Album detail page refactor — *chrome layer shipped 2026-04-25*
 
-Foundation tokens (palettes hoist, 4 primitives: Panel/Chip/Field/SectionTitle) → 디제이 노트 (D) ornament direction → selective absorption from 레코드샵 카운터 (A). Separate decision in `~/.claude/projects/-home-yoonah-diggershaus/memory/project_album_page_redesign.md` (Claude memory) and tracked across 7 PRs ending in admin-chrome isolation.
+PR1–PR7 closed: token hoist, four chrome primitives (Panel/Chip/Field/SectionTitle), section title migration, ReviewSection + SimilarAlbums + UserReviewsSection chrome consolidation, OwnershipButtons amber unification, ReviewsAdminBar extraction, masking-tape section headers + lamp wash on the cover. Page is now consistent in palette and rounding and reads as one composition rather than three islands.
 
-**Why now**: the page is the last surface stuck in early-development chrome. Foundation work is orthogonal to MyDig's visual direction (whether it lands on Path A or Path B), so this can ship without waiting on the wireframe MVP. PR1 (token hoist) and PR2 (primitives) become reusable assets every other surface inherits.
+**The chrome refactor is the foundation, not the destination.** The user flagged the result as too subtle — what got built is "more consistent dark-mode chrome", not the parade-level visual identity the album page should carry. The actual ambition lives in `docs/album-page-zine-vision.md` (with `album-page-zine-mockup.png` as the reference image): a record-shop promotional zine / flyer aesthetic — cream paper, photocopier aging, rubber stamps, hand-marker scores, two-column print body type, mini-review grid replacing the single summary card. Multi-week build, tiered into typography pivot (Tier 1) → paper + stamps + ornaments (Tier 2) → printing imperfection (Tier 3) → interaction polish (Tier 4).
 
-**Scope caveats**:
-- PR6 (Discography → Cubby strip) is the one item with MyDig coupling risk — `Cubby` may not survive the turntable-console pivot. Plan to either (a) drop PR6, (b) use masking-tape labels only without the cubby form, or (c) hold PR6 until storefront wireframe validates.
+### 0b. Album page zine pass — *next major surface work*
+
+Tier 1 first, ship to prod, see how it reads. Tier 2 follows once paper / stamp assets are sourced. Tier 3 overlaps with item 3 (shop-feel visual: plastic wrap on covers) — same asset pipeline, can land together. See `docs/album-page-zine-vision.md` for the tier breakdown.
 
 ### 1. Social — main page right rail expansion + shareable wall image
 
