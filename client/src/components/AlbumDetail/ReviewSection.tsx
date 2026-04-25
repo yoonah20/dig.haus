@@ -742,12 +742,29 @@ export default function ReviewSection({
             opinion and the big headline number misleads. Individual
             review scores still show in their cards below. */}
         {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
-          <div className="flex items-baseline gap-2">
-            <span className={`text-5xl font-bold ${scoreColor(averageScore)}`}>
+          <div className="flex items-baseline gap-3">
+            {/* Marker-style score per the zine pass Tier 1 — huge
+                handwritten red number scrawled in the margin like
+                a teacher's grade on a paper. The existing scoreColor
+                utility is dark-mode-tuned (greens / yellows / oranges
+                for high scores) and would clash with the paper
+                palette, so the score gets a single stamp-red regardless
+                of value here; the per-source score colors still
+                appear on individual review cards below. */}
+            <span
+              className="text-7xl md:text-8xl text-stamp-red leading-[0.85] tracking-tight"
+              style={{
+                fontFamily: 'var(--font-hand)',
+                transform: 'rotate(-2deg)',
+                display: 'inline-block',
+              }}
+            >
               {Math.round(averageScore)}
             </span>
-            <span className="text-gray-500 text-lg">/ 100</span>
-            <span className="text-gray-600 text-sm ml-1">({scoredCount}개 사이트 평균)</span>
+            <span className="text-paper-ink-muted text-xl font-mono">/100</span>
+            <span className="text-paper-ink-faint text-sm font-mono ml-1">
+              ({scoredCount}개 사이트 평균)
+            </span>
           </div>
         )}
 
@@ -825,8 +842,11 @@ export default function ReviewSection({
                   </div>
                 </div>
               ) : (
-                <p className="text-gray-200 leading-relaxed text-base md:text-lg font-serif">
-                  {koreanSummary || <span className="italic text-gray-600 font-sans">요약 없음</span>}
+                <p
+                  className="text-paper-ink leading-relaxed text-base md:text-lg md:columns-2 md:gap-10"
+                  style={{ fontFamily: 'var(--font-serif-kr)' }}
+                >
+                  {koreanSummary || <span className="italic text-paper-ink-faint font-sans">요약 없음</span>}
                 </p>
               )}
             </div>

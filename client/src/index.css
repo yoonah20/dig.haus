@@ -83,9 +83,34 @@
   --radius-panel: 12px;
   --radius-pill: 9999px;
 
+  /* Paper palette — Tier 1 of the album-page zine pass per
+     docs/album-page-zine-vision.md. The album page wrapper flips
+     into cream-paper-and-ink, replacing dark-mode for that one
+     surface; the rest of the site stays on the existing
+     --color-background dark palette. Reds and stamp-blue are the
+     accent colors for hero title, marker score, and rubber-stamp
+     seals. Yellow / sky are sticky-note colors for user comment
+     cards. */
+  --color-paper-bg: #ede4d3;
+  --color-paper-bg-edge: #d8cdb8;
+  --color-paper-ink: #1a1208;
+  --color-paper-ink-muted: #6a5a44;
+  --color-paper-ink-faint: #a89880;
+  --color-stamp-red: #c81e1e;
+  --color-stamp-red-deep: #9a1414;
+  --color-stamp-blue: #1e4e8c;
+  --color-paper-cream: #f5e8c8;
+  --color-paper-yellow: #f5d873;
+  --color-paper-sky: #9ec6e0;
+  --color-paper-rule: #1a120840;
+
   --font-sans: "Pretendard", "Noto Sans KR", "Inter", sans-serif;
   --font-serif: "Playfair Display", "Noto Serif KR", "Georgia", serif;
-  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  --font-serif-kr: "Noto Serif KR", "Nanum Myeongjo", serif;
+  --font-mono: "JetBrains Mono", "Courier Prime", "Fira Code", monospace;
+  --font-display: "Anton", "Bebas Neue", "Archivo Black", "Syne", sans-serif;
+  --font-hand: "Gaegu", "Nanum Pen Script", "Caveat", cursive;
+  --font-script: "Caveat", "Shadows Into Light", cursive;
 
   --text-editorial-xl: 3rem;
   --text-editorial-lg: 2.25rem;
@@ -98,6 +123,50 @@
 
 html {
   scrollbar-gutter: stable;
+}
+
+/* Paper-mode scope for the album page. The shared chrome tokens
+   (bg-panel etc.) were tuned for dark mode; rebinding the CSS
+   variables under .album-paper lets the existing AlbumDetail
+   components inherit paper-tone equivalents without each one being
+   rewritten. Sections that want bespoke paper styling (huge red
+   title, marker score, sticky-note comment cards) override these
+   locally. Text-color classes don't run through tokens in Tailwind
+   v4, so the gray scale gets remapped explicitly here. */
+.album-paper {
+  --color-panel: var(--color-paper-bg-edge);
+  --color-panel-hover: #c8baa0;
+  --color-panel-strong: var(--color-paper-cream);
+}
+
+.album-paper .text-white {
+  color: var(--color-paper-ink);
+}
+.album-paper .text-gray-200,
+.album-paper .text-gray-300 {
+  color: var(--color-paper-ink);
+}
+.album-paper .text-gray-400 {
+  color: var(--color-paper-ink-muted);
+}
+.album-paper .text-gray-500 {
+  color: var(--color-paper-ink-muted);
+}
+.album-paper .text-gray-600 {
+  color: var(--color-paper-ink-faint);
+}
+.album-paper .border-white\/10,
+.album-paper .border-white\/5 {
+  border-color: rgba(26, 18, 8, 0.15);
+}
+.album-paper .border-white\/20 {
+  border-color: rgba(26, 18, 8, 0.25);
+}
+.album-paper .bg-white\/5 {
+  background-color: rgba(26, 18, 8, 0.06);
+}
+.album-paper .bg-white\/10 {
+  background-color: rgba(26, 18, 8, 0.1);
 }
 
 body {
