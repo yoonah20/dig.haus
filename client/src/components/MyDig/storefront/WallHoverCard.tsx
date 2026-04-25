@@ -166,7 +166,6 @@ export default function WallHoverCard({
     <Link
       ref={cardRef}
       to={href}
-      title={`${album.artist} — ${album.title}`}
       className="group relative block hover:z-20"
       onMouseMove={handleCursorMove}
       onMouseLeave={handleCursorLeave}

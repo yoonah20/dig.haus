@@ -16,12 +16,12 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 // to 180 in lockstep so the new fit is reachable.
 //
 // Vertical layout: flex justify-center for true vertical centring.
-// Earlier passes biased upward via marginBottom (the "shelves sit
-// above the floor" intuition) but at the chosen wall position the
-// handwritten header at top:-120px ended up tucked under the top nav
-// — true centre gives the header enough breathing room above. Tall
-// viewports still show the storefront wallpaper above + below, just
-// distributed evenly.
+// Backdrop lives in App.tsx (absolute inset-0 of the App root) and
+// stays pinned to the viewport's bottom-centre. Earlier passes added
+// a maxHeight cap here to stop the wall drifting upward on tall
+// viewports, but that introduced backdrop-vs-content drift on huge
+// screens, so the cap got dropped — wall floats with the viewport
+// centre at the price of looking sparse on very tall displays.
 
 export default function Home() {
   useDocumentHead({

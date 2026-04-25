@@ -201,15 +201,11 @@ export default function App() {
                   aria-hidden
                   // Home (dig.haus's own wall) sits against the
                   // store-interior backdrop in its native colours —
-                  // no brightness / saturation pass. Earlier
-                  // iterations had 0.55 then 0.7 brightness with a
-                  // 0.85 saturation knock to match mydig's pass, but
-                  // the user wanted the original image to come
-                  // through fully so the home page reads as the
-                  // store-interior scene rather than a darkened
-                  // backdrop under content. backgroundSize stays at
-                  // the authored 2401×1372 since store.webp was
-                  // composed at the same canvas as wall2.webp.
+                  // no brightness / saturation pass. backgroundSize
+                  // stays at the authored 2401×1372 since the rest
+                  // of the home composition was calibrated against
+                  // that render. backgroundPosition center bottom
+                  // pins the image to the viewport's bottom-centre.
                   className="absolute inset-0 pointer-events-none"
                   style={{
                     zIndex: -1,

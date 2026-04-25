@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   useHomeFeatures,
-  useUpdateHomeMeta,
   type HomeFeatureItem,
 } from '../../hooks/useHomeFeatures';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,9 +18,11 @@ import HomeFeatureSticker from './HomeFeatureSticker';
 // dense and intimidating; cut to two rails so the page reads quieter
 // on first visit. The dense album grid browsing surface lives at /dig.
 
-const SLOTS_PER_ROW = 5;
-const ROW_COUNT = 2;
-const SLOT_COUNT = SLOTS_PER_ROW * ROW_COUNT;
+// Total slot count is constant across breakpoints — only the grid
+// orientation flips: desktop renders 5×2 (wide horizontal), mobile
+// flips to 2×5 (narrow vertical scroll). Resolved per-render below
+// based on the container width vs the mobile breakpoint.
+const SLOT_COUNT = 10;
 const MOBILE_BREAKPOINT = 520;
 
 // Plastic-wrap texture pool. Each LP picks one based on a hash of
@@ -87,15 +88,20 @@ export default function HomeWall() {
   }, [isLoading]);
 
   const mobile = width < MOBILE_BREAKPOINT;
-  const gapX = mobile ? 8 : 16;
-  const overhang = mobile ? 4 : 36;
-  const rowGap = mobile ? 24 : 32;
-  // Desktop cap 180 — pairs with the section's max-w-[960px] in
-  // Home.tsx to land lpSize at ~165 (about +10% over mydig's effective
-  // 150). Cap is just above the fit value so the cap doesn't bite on
-  // typical desktop viewports.
-  const maxLpSize = mobile ? 80 : 180;
-  const fit = (width - 2 * overhang - (SLOTS_PER_ROW - 1) * gapX) / SLOTS_PER_ROW;
+  // Desktop = 5 wide × 2 rows. Mobile flips to 2 wide × 5 rows so
+  // the wall reads as a vertical scroll rather than a tiny strip.
+  const slotsPerRow = mobile ? 2 : 5;
+  const rowCount = mobile ? 5 : 2;
+  const gapX = mobile ? 12 : 16;
+  const overhang = mobile ? 12 : 36;
+  const rowGap = mobile ? 28 : 32;
+  // Desktop cap 180 pairs with section max-w-[960px] for ~165 LPs.
+  // Mobile cap 170 lets the wall fill a typical phone width
+  // (~360-414) at ~140-180 per LP — large enough to read sleeve
+  // detail without dropping below 2-up density.
+  const maxLpSize = mobile ? 170 : 180;
+  const fit =
+    (width - 2 * overhang - (slotsPerRow - 1) * gapX) / slotsPerRow;
   const lpSize = Math.max(40, Math.min(maxLpSize, Math.floor(fit)));
   const railWidth = Math.round(width);
   const railHeight = mobile ? 16 : 20;
@@ -113,38 +119,19 @@ export default function HomeWall() {
     plasticBlendMode: 'normal',
   };
 
-  // Local plastic-overlay state for the live tuner. Initialised from
-  // saved meta and only persisted on Save click; while the admin
-  // drags sliders the overlay updates in real time without writing
-  // to DB on every frame.
-  const [plasticScale, setPlasticScale] = useState(meta.plasticScalePct);
-  const [plasticOffsetX, setPlasticOffsetX] = useState(meta.plasticOffsetXPx);
-  const [plasticOffsetY, setPlasticOffsetY] = useState(meta.plasticOffsetYPx);
-  const [plasticBlendMode, setPlasticBlendMode] = useState(
-    meta.plasticBlendMode
-  );
-  // Sync local state when the saved meta changes (e.g., another
-  // admin saves elsewhere, or the editor saves text and triggers a
-  // refetch). Keeps the tuner aligned with what's actually persisted.
-  useEffect(() => {
-    setPlasticScale(meta.plasticScalePct);
-    setPlasticOffsetX(meta.plasticOffsetXPx);
-    setPlasticOffsetY(meta.plasticOffsetYPx);
-    setPlasticBlendMode(meta.plasticBlendMode);
-  }, [
-    meta.plasticScalePct,
-    meta.plasticOffsetXPx,
-    meta.plasticOffsetYPx,
-    meta.plasticBlendMode,
-  ]);
+  // Plastic overlay knobs are read directly from saved meta now —
+  // the live admin tuner that used to mediate this state was retired.
+  // Saved values still propagate into the wall via these props; if a
+  // future iteration wants a tuner UI back, restore local state +
+  // PlasticTuner here.
   const slots = Array.from({ length: SLOT_COUNT }, (_, i) =>
     items.find((it) => it.position === i) ?? null
   );
 
-  const rows = Array.from({ length: ROW_COUNT }, (_, ri) => ({
+  const rows = Array.from({ length: rowCount }, (_, ri) => ({
     positions: Array.from(
-      { length: SLOTS_PER_ROW },
-      (_, ci) => ri * SLOTS_PER_ROW + ci
+      { length: slotsPerRow },
+      (_, ci) => ri * slotsPerRow + ci
     ),
   }));
 
@@ -157,7 +144,14 @@ export default function HomeWall() {
   }
 
   return (
-    <section className="relative group/homewall">
+    <section
+      className="relative group/homewall"
+      // Mobile pushes the LP grid down so the in-flow space above
+      // the grid leaves room for the absolutely-positioned header
+      // pinned at top:4. Desktop's header sits above the section
+      // entirely (top:-120) so no padding needed there.
+      style={mobile ? { paddingTop: 64 } : undefined}
+    >
       {/* Handwritten section header anchored to the wall's upper-left.
           Source = the home_meta singleton (theme + optional
           description) so admins edit the copy through the same wall
@@ -176,20 +170,22 @@ export default function HomeWall() {
         <div
           className="absolute select-none pointer-events-none"
           style={{
-            top: meta.headerTopPx,
-            left: meta.headerLeftPx,
+            // Mobile overrides the admin-tunable position knobs:
+            // viewport is short and the wall takes the full height,
+            // so the desktop default of top:-120 lands above the
+            // visible area. Pin to top:4 / left:8 with a softer
+            // tilt so the title sits cleanly above the first row.
+            top: mobile ? 4 : meta.headerTopPx,
+            left: mobile ? 8 : meta.headerLeftPx,
             fontFamily: GRAFFITI_FONT_STACK,
-            transform: `rotate(${meta.headerRotationDeg}deg)`,
+            transform: `rotate(${mobile ? -2 : meta.headerRotationDeg}deg)`,
             transformOrigin: 'top left',
             color: '#1a1208',
-            // No textShadow — the previous warm halo read as a
-            // typeset drop-shadow, undermining the "marker scrawled
-            // straight on the wall" feel the user is going for.
           }}
         >
           <h2
             style={{
-              fontSize: '28px',
+              fontSize: mobile ? '22px' : '28px',
               fontWeight: 700,
               letterSpacing: '0.01em',
               margin: 0,
@@ -201,7 +197,7 @@ export default function HomeWall() {
           {meta.description && meta.description.trim().length > 0 && (
             <p
               style={{
-                fontSize: '16px',
+                fontSize: mobile ? '13px' : '16px',
                 fontWeight: 500,
                 marginTop: 4,
                 marginBottom: 0,
@@ -238,7 +234,7 @@ export default function HomeWall() {
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: `repeat(${SLOTS_PER_ROW}, ${lpSize}px)`,
+                gridTemplateColumns: `repeat(${slotsPerRow}, ${lpSize}px)`,
                 gap: gapX,
                 justifyContent: 'center',
                 alignItems: 'end',
@@ -250,11 +246,11 @@ export default function HomeWall() {
                   item={slots[position]}
                   position={position}
                   lpSize={lpSize}
-                  lampBias={1 - (ri * SLOTS_PER_ROW + ci) / SLOT_COUNT}
-                  plasticScalePct={plasticScale}
-                  plasticOffsetXPx={plasticOffsetX}
-                  plasticOffsetYPx={plasticOffsetY}
-                  plasticBlendMode={plasticBlendMode}
+                  lampBias={1 - (ri * slotsPerRow + ci) / SLOT_COUNT}
+                  plasticScalePct={meta.plasticScalePct}
+                  plasticOffsetXPx={meta.plasticOffsetXPx}
+                  plasticOffsetYPx={meta.plasticOffsetYPx}
+                  plasticBlendMode={meta.plasticBlendMode}
                 />
               ))}
             </div>
@@ -286,224 +282,7 @@ export default function HomeWall() {
         />
       )}
 
-      {isAdmin && !editing && (
-        <PlasticTuner
-          scalePct={plasticScale}
-          offsetXPx={plasticOffsetX}
-          offsetYPx={plasticOffsetY}
-          blendMode={plasticBlendMode}
-          onScaleChange={setPlasticScale}
-          onOffsetXChange={setPlasticOffsetX}
-          onOffsetYChange={setPlasticOffsetY}
-          onBlendModeChange={setPlasticBlendMode}
-          savedScalePct={meta.plasticScalePct}
-          savedOffsetXPx={meta.plasticOffsetXPx}
-          savedOffsetYPx={meta.plasticOffsetYPx}
-          savedBlendMode={meta.plasticBlendMode}
-        />
-      )}
     </section>
-  );
-}
-
-// Live tuner panel for the plastic-wrap overlay. Admin-only; floats
-// in the bottom-right of the viewport so it doesn't intrude on the
-// wall composition. Slider drags update local state in HomeWall (live
-// preview), Save button PATCHes home_meta. Collapses to a small chip
-// when not in use to stay out of the way.
-// Trimmed to the two modes that read well in practice — soft-light /
-// overlay / lighten / hard-light / plus-lighter were all judged off
-// when A/B'd against these. Server still accepts the longer list, so
-// re-adding options later is just a one-line append here.
-const BLEND_MODE_OPTIONS = [
-  { value: 'normal', label: '기본' },
-  { value: 'screen', label: 'Screen (화이트 add)' },
-];
-
-function PlasticTuner({
-  scalePct,
-  offsetXPx,
-  offsetYPx,
-  blendMode,
-  onScaleChange,
-  onOffsetXChange,
-  onOffsetYChange,
-  onBlendModeChange,
-  savedScalePct,
-  savedOffsetXPx,
-  savedOffsetYPx,
-  savedBlendMode,
-}: {
-  scalePct: number;
-  offsetXPx: number;
-  offsetYPx: number;
-  blendMode: string;
-  onScaleChange: (v: number) => void;
-  onOffsetXChange: (v: number) => void;
-  onOffsetYChange: (v: number) => void;
-  onBlendModeChange: (v: string) => void;
-  savedScalePct: number;
-  savedOffsetXPx: number;
-  savedOffsetYPx: number;
-  savedBlendMode: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const updateMeta = useUpdateHomeMeta();
-  const dirty =
-    scalePct !== savedScalePct ||
-    offsetXPx !== savedOffsetXPx ||
-    offsetYPx !== savedOffsetYPx ||
-    blendMode !== savedBlendMode;
-
-  const save = async () => {
-    if (!dirty || updateMeta.isPending) return;
-    try {
-      await updateMeta.mutateAsync({
-        plasticScalePct: scalePct,
-        plasticOffsetXPx: offsetXPx,
-        plasticOffsetYPx: offsetYPx,
-        plasticBlendMode: blendMode,
-      });
-    } catch (err: any) {
-      alert(err?.response?.data?.error || '저장 실패');
-    }
-  };
-
-  const reset = () => {
-    onScaleChange(savedScalePct);
-    onOffsetXChange(savedOffsetXPx);
-    onOffsetYChange(savedOffsetYPx);
-    onBlendModeChange(savedBlendMode);
-  };
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="fixed bottom-4 right-4 z-30 text-[11px] text-gray-300 bg-[#141008]/85 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-3 py-1.5 cursor-pointer transition-colors backdrop-blur-sm"
-      >
-        🎨 비닐 조정
-      </button>
-    );
-  }
-
-  return (
-    <div className="fixed bottom-4 right-4 z-30 w-64 bg-[#141008]/95 border border-white/15 rounded-lg p-3 backdrop-blur-sm shadow-[0_8px_24px_rgba(0,0,0,0.5)]">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[11px] uppercase tracking-wider text-gray-400">
-          비닐 포장 조정
-        </span>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="text-xs text-gray-500 hover:text-gray-300 cursor-pointer"
-          aria-label="닫기"
-        >
-          ×
-        </button>
-      </div>
-      <div className="flex flex-col gap-2.5">
-        <SliderRow
-          label="크기"
-          value={scalePct}
-          min={0}
-          max={50}
-          step={1}
-          unit="%"
-          onChange={onScaleChange}
-        />
-        <SliderRow
-          label="X 위치"
-          value={offsetXPx}
-          min={-50}
-          max={50}
-          step={1}
-          unit="px"
-          onChange={onOffsetXChange}
-        />
-        <SliderRow
-          label="Y 위치"
-          value={offsetYPx}
-          min={-50}
-          max={50}
-          step={1}
-          unit="px"
-          onChange={onOffsetYChange}
-        />
-        <label className="flex flex-col gap-1">
-          <span className="text-[10px] text-gray-400">블렌드 모드</span>
-          <select
-            value={blendMode}
-            onChange={(e) => onBlendModeChange(e.target.value)}
-            className="w-full bg-[#0f0a05] border border-white/10 rounded px-2 py-1 text-[11px] text-gray-200 focus:border-[#e8a020] focus:outline-none cursor-pointer"
-          >
-            {BLEND_MODE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="flex items-center justify-end gap-2 mt-3 pt-2 border-t border-white/10">
-        <button
-          type="button"
-          onClick={reset}
-          disabled={!dirty || updateMeta.isPending}
-          className="text-[11px] text-gray-400 hover:text-white px-2 py-1 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-        >
-          되돌리기
-        </button>
-        <button
-          type="button"
-          onClick={save}
-          disabled={!dirty || updateMeta.isPending}
-          className="text-[11px] font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/15 rounded-md px-2.5 py-1 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-        >
-          {updateMeta.isPending ? '저장 중…' : dirty ? '저장' : '저장됨'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function SliderRow({
-  label,
-  value,
-  min,
-  max,
-  step,
-  unit,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  unit: string;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <div className="flex items-center justify-between text-[10px] text-gray-400">
-        <span>{label}</span>
-        <span className="font-mono text-gray-300">
-          {value}
-          {unit}
-        </span>
-      </div>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
-        className="w-full accent-[#e8a020] cursor-pointer"
-      />
-    </label>
   );
 }
 

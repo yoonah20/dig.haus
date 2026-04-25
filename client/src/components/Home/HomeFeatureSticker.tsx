@@ -37,29 +37,28 @@ export default function HomeFeatureSticker({ link, lpSize }: Props) {
   const isUsd = link.currency === 'USD';
   const isSoldout = link.status === 'soldout';
   const bg = isUsd ? STICKER_YELLOW : STICKER_GREEN;
-  // ~25% of LP width — small accent in the corner, not a full badge.
-  // Aspect ratio matches the asset's natural price-tag shape. Text
-  // size below is derived from lpSize directly (not from `width`) so
-  // bumping the sticker size doesn't drag the price digits along
-  // with it.
-  const width = Math.round(lpSize * 0.25);
+  // ~20% of LP width — small corner accent, not a full badge.
+  // Aspect ratio matches the asset's natural price-tag shape. Font
+  // multiplier dropped one step (0.24 → 0.21) so longer prices like
+  // ₩30,000 sit inside the tag rather than spilling out; floor 6px
+  // is the smallest size mono digits stay legible at.
+  const width = Math.round(lpSize * 0.2);
   const height = Math.round(width * 0.55);
-  const fontSize = Math.max(9, Math.round(lpSize * 0.225 * 0.22));
+  const fontSize = Math.max(6, Math.round(width * 0.21));
 
   return (
     <div
       aria-hidden
       className="absolute z-10 pointer-events-none flex items-center justify-center"
       style={{
-        // Top-right placement with a small inset so the sticker hangs
-        // just inside the cover edge. Bottom-right is reserved for
-        // the ▶ play chip so we use top-right. No rotation — the
-        // smaller size already reads as a corner accent. Drop shadow
-        // intentionally omitted: the plastic-wrap overlay sits a few
-        // px past the sleeve edge, so the sticker is conceptually
-        // adhered to the wrap, not floating above it.
-        top: '4%',
-        right: '4%',
+        // 2px breathing space off the top-right corner — fully
+        // tight against (0, 0) read as clipped to the sleeve edge
+        // rather than stuck on it. Bottom-right stays reserved for
+        // the ▶ play chip. Drop shadow omitted: the plastic-wrap
+        // overlay sits a few px past the sleeve edge so the sticker
+        // reads as adhered to the wrap.
+        top: 2,
+        right: 2,
         width,
         height,
         backgroundImage: `url('${bg}')`,
