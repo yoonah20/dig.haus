@@ -77,10 +77,11 @@ router.put('/home/features/items', requireAdmin, (req, res) => {
     return res.status(400).json({ error: 'items array 필요' });
   }
 
-  // Accepts mbid rather than DB albumId so the admin client can
-  // pass results straight from /api/albums/search (which returns
-  // mbid). Server resolves mbid → album_id under the hood; rejects
-  // unknown mbids before the transaction starts.
+  // Accepts mbid OR slug as the album identifier, matching the
+  // slug-or-mbid convention used by resolveAlbumId / album-page
+  // routing. /api/albums/search collapses both into a single field
+  // (slug || mbid) so the admin picker can pass that straight
+  // through; we resolve to album_id before the transaction starts.
   type Raw = { position: number; mbid: string; note: string | null };
   const normalised: Raw[] = [];
   const seenPositions = new Set<number>();
@@ -107,12 +108,14 @@ router.put('/home/features/items', requireAdmin, (req, res) => {
   }
 
   const db = getDb();
-  const findId = db.prepare('SELECT id FROM albums WHERE mbid = ?');
+  const findId = db.prepare(
+    'SELECT id FROM albums WHERE mbid = ? OR slug = ?'
+  );
   const resolved: Array<{ position: number; albumId: number; note: string | null }> = [];
   for (const it of normalised) {
-    const row = findId.get(it.mbid) as { id: number } | undefined;
+    const row = findId.get(it.mbid, it.mbid) as { id: number } | undefined;
     if (!row) {
-      return res.status(400).json({ error: `알 수 없는 mbid: ${it.mbid}` });
+      return res.status(400).json({ error: `알 수 없는 앨범: ${it.mbid}` });
     }
     resolved.push({ position: it.position, albumId: row.id, note: it.note });
   }
