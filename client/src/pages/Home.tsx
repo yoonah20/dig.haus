@@ -8,9 +8,12 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 // layout is a single centred column so the wall reads as the page's
 // only purpose.
 //
-// Width capped at 890px to match mydig's wall column — that keeps the
-// 5-col layout's effective lpSize identical between the two surfaces
-// (≈150px on desktop) so covers don't read bigger here than on mydig.
+// Width capped at 960px (mydig column is 890). With 5 cols and the
+// overhang/gap math, 960 yields ~165px LPs, ~10% bigger than mydig's
+// effective ~150px. Earlier passes pushed +20% but felt too dominant
+// against the storefront backdrop; +10% holds the visual hierarchy
+// while still distinguishing home from mydig. HomeWall cap raised
+// to 180 in lockstep so the new fit is reachable.
 //
 // Vertical layout: bottom-anchored, NOT viewport-percentage. Earlier
 // iterations used paddingTop = (100vh − wallHeight) × ratio so the
@@ -34,7 +37,7 @@ export default function Home() {
 
   return (
     <div className="flex-1 flex flex-col justify-end px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-[100px] md:pb-[116px]">
-      <section className="w-full max-w-[890px] mx-auto">
+      <section className="w-full max-w-[960px] mx-auto">
         <HomeWall />
       </section>
     </div>

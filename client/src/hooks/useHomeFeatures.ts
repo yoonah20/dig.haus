@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
+import type { PriceTagLink } from '../types';
 
 // Admin-curated 5-album rail on the home page. Mirrors the mydig
 // wall's data shape (album object per slot) minus the user_id —
@@ -17,6 +18,9 @@ export interface HomeFeatureAlbum {
   coverDominantColor?: string | null;
   spotifyUrl?: string | null;
   releaseDate?: string | null;
+  // Top purchase-link sticker (≤1 entry). Server picks soldout-last,
+  // then ascending KRW; empty array when no purchase links registered.
+  priceTagLinks?: PriceTagLink[];
 }
 
 export interface HomeFeatureItem {
@@ -35,6 +39,14 @@ export interface HomeMeta {
   headerTopPx: number;
   headerLeftPx: number;
   headerRotationDeg: number;
+  // Plastic-wrap raster overlay tuning — scale_pct = how much larger
+  // than the cover (15 = 15% larger), offsets in px (positive x =
+  // right, positive y = down). blend_mode controls how the texture
+  // composites onto the cover (screen/overlay/soft-light etc).
+  plasticScalePct: number;
+  plasticOffsetXPx: number;
+  plasticOffsetYPx: number;
+  plasticBlendMode: string;
 }
 
 export function useHomeFeatures() {
@@ -56,6 +68,10 @@ export interface HomeMetaPatch {
   headerTopPx?: number;
   headerLeftPx?: number;
   headerRotationDeg?: number;
+  plasticScalePct?: number;
+  plasticOffsetXPx?: number;
+  plasticOffsetYPx?: number;
+  plasticBlendMode?: string;
 }
 
 export function useUpdateHomeMeta() {

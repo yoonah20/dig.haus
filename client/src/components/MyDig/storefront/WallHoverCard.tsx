@@ -58,6 +58,34 @@ interface Props {
   // Mydig nudges cells horizontally to break the rigid-grid look
   // (per-row offsets, center cell at 0). Home wall passes 0 / omits.
   offsetX?: number;
+  // Optional shrink-wrap raster overlay. The texture is white-on-
+  // transparent, applied straight on top of the cover (no mix-blend
+  // mode — it was washing out on busy covers). Lives inside the tilt
+  // wrapper as a sibling of the LP so it scales and tilts with the
+  // sleeve. Home wall opts in; mydig leaves null for now while we
+  // evaluate. The three position knobs control how much larger the
+  // overlay is than the cover (scalePct, % of lpSize) and any
+  // additional pixel nudge from centre. Defaults match the values
+  // we landed on through the live tuner.
+  plasticOverlaySrc?: string | null;
+  plasticScalePct?: number;
+  plasticOffsetXPx?: number;
+  plasticOffsetYPx?: number;
+  // CSS mix-blend-mode for the overlay. 'normal' (default) lays the
+  // texture straight on top with its own alpha; 'screen' / 'soft-light'
+  // / 'overlay' etc blend with the cover underneath.
+  plasticBlendMode?: string;
+  // Hover scale as a percentage (126 = 1.26x). Default matches mydig
+  // because CommentBubble's right/top offsets are derived from a
+  // 0.26 expansion factor; raising it on mydig without updating those
+  // offsets stranded bubbles inside the scaled sleeve. Home wall has
+  // no bubble so it can dial higher freely.
+  hoverScalePct?: number;
+  // Optional slot rendered INSIDE the tilt wrapper so it scales,
+  // tilts, and translates with the cover. Used by the home wall for
+  // the price sticker. Distinct from `children` (which renders
+  // outside the scale wrapper, used by mydig's CommentBubble).
+  coverOverlay?: ReactNode;
 }
 
 // CAA covers come back at 250px. The home + mydig walls render up to
@@ -87,6 +115,13 @@ export default function WallHoverCard({
   href,
   children,
   offsetX = 0,
+  plasticOverlaySrc = null,
+  plasticScalePct = 15,
+  plasticOffsetXPx = 5,
+  plasticOffsetYPx = 0,
+  plasticBlendMode = 'normal',
+  hoverScalePct = 126,
+  coverOverlay = null,
 }: Props) {
   const spotifyAlbumId = extractSpotifyAlbumId(album.spotifyUrl ?? null);
   const hasPreview = !!spotifyAlbumId;
@@ -143,11 +178,24 @@ export default function WallHoverCard({
         // 900px perspective is mild — tighter values exaggerate the
         // tilt to the point of looking gimmicky.
         perspective: '900px',
-      }}
+        // Custom property consumed by the scale wrapper's arbitrary
+        // tailwind value below. Caller-driven so home wall can run a
+        // bigger hover than mydig without forking the component.
+        ['--wall-hover-scale' as any]: String(hoverScalePct / 100),
+      } as React.CSSProperties}
     >
       <div
-        className="absolute inset-0 z-10 origin-bottom transition-transform duration-[260ms] ease-out group-hover:scale-[1.26]"
-        style={{ transformOrigin: 'center bottom' }}
+        className="absolute inset-0 z-10 origin-bottom transition-[transform,filter] duration-[260ms] ease-out group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))]"
+        style={{
+          transformOrigin: 'center bottom',
+          // preserve-3d so the inner tilt rotateX/Y composes with the
+          // outer scale + translateZ instead of getting flattened. The
+          // Link parent has perspective:900px, which means translateZ
+          // produces a real "closer to viewer" zoom on top of the
+          // scale — that's what gives the "픽업한다" feel rather than
+          // a plain 2D enlargement.
+          transformStyle: 'preserve-3d',
+        }}
       >
         <div
           className="w-full h-full transition-transform duration-[140ms] ease-out"
@@ -167,15 +215,63 @@ export default function WallHoverCard({
             />
           </WallLP>
 
-          {/* Lamp-anchored specular — at rest the warm halo seats near
-              the upper-left pendant, on hover it lifts to full and
-              tracks inverse to the cursor. */}
+          {/* Shrink-wrap raster overlay — extended ~7px past every
+              edge of the cover so the plastic visibly wraps around
+              the sleeve rather than sitting flush with it. Real
+              shrink-wrap reads strongest at the edges (where the film
+              folds and catches light against whatever's behind the
+              sleeve) — exact-fit overlays were getting lost on busy
+              covers because the texture's interior is mostly subtle
+              wrinkle highlights. Drop-shadow lifts the plastic a hair
+              off the sleeve so the protrusion reads as a separate
+              layer rather than a dirty crop. */}
+          {plasticOverlaySrc && (() => {
+            // Compute symmetric protrusion from scalePct, then add
+            // the per-axis pixel offsets. Negative `top`/`left` push
+            // the overlay's top-left past the cover's edge so the
+            // plastic appears to wrap around it.
+            const extra = (lpSize * plasticScalePct) / 100;
+            const half = extra / 2;
+            return (
+              <img
+                src={plasticOverlaySrc}
+                alt=""
+                aria-hidden
+                className="absolute pointer-events-none"
+                style={{
+                  top: -half + plasticOffsetYPx,
+                  left: -half + plasticOffsetXPx,
+                  width: lpSize + extra,
+                  height: lpSize + extra,
+                  // Override Tailwind preflight's `img { max-width:
+                  // 100% }` — without this the explicit width above
+                  // gets capped at the parent's width, so the overlay
+                  // grew vertically (height is unconstrained) but
+                  // refused to grow horizontally past lpSize.
+                  maxWidth: 'none',
+                  objectFit: 'cover',
+                  opacity: 1,
+                  mixBlendMode:
+                    plasticBlendMode as React.CSSProperties['mixBlendMode'],
+                  filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.35))',
+                }}
+              />
+            );
+          })()}
+
+          {/* Lamp-anchored specular — single ambient gloss layer
+              (holo conic was tested and dropped — the rainbow shift
+              read as toy-like against album sleeves). Warm cream
+              centre + soft-light blend gives a quiet shrink-wrap
+              gloss that follows the cursor without dominating; peak
+              + falloff dialed lower than earlier passes since the
+              previous version still felt 번쩍. */}
           <div
             aria-hidden
-            className="absolute inset-0 pointer-events-none opacity-25 group-hover:opacity-100 transition-opacity duration-[220ms]"
+            className="absolute inset-0 pointer-events-none opacity-30 group-hover:opacity-90 transition-opacity duration-[220ms]"
             style={{
               background:
-                'radial-gradient(circle at var(--spec-x,22%) var(--spec-y,18%), rgba(255,245,220,0.6) 0%, rgba(255,245,220,0.32) 18%, rgba(255,245,220,0.12) 38%, transparent 62%)',
+                'radial-gradient(circle at var(--spec-x,30%) var(--spec-y,25%), rgba(255,250,235,0.85) 4%, rgba(255,250,235,0.45) 16%, rgba(255,250,235,0.15) 32%, transparent 52%)',
               mixBlendMode: 'overlay',
             }}
           />
@@ -190,21 +286,29 @@ export default function WallHoverCard({
               mixBlendMode: 'screen',
             }}
           />
-        </div>
 
-        {/* Play chip lives inside the scale wrapper (sibling of the
-            tilt wrapper) so it grows with the cover on hover, but
-            outside the tilt so the triangle icon stays facing forward
-            instead of skewing under cursor movement. */}
-        {hasPreview && (
-          <PlayChip
-            albumMbid={album.mbid}
-            spotifyUrl={album.spotifyUrl ?? null}
-            title={album.title}
-            artist={album.artist}
-            size={Math.round(lpSize * 0.208)}
-          />
-        )}
+          {/* Caller-supplied cover overlay (e.g., home wall price
+              sticker). Sits inside the tilt wrapper so it tilts +
+              scales with the cover, but above the shine layers so
+              the sticker text stays clearly readable. */}
+          {coverOverlay}
+
+          {/* Play chip — inside the tilt wrapper so it follows the
+              cursor-driven rotateX/Y. Earlier this lived as a
+              sibling of the tilt wrapper to keep the ▶ glyph facing
+              the viewer, but the user preferred the chip tilting
+              with the cover for a more cohesive read. The tilt is
+              only ±7° so the icon stays clearly readable. */}
+          {hasPreview && (
+            <PlayChip
+              albumMbid={album.mbid}
+              spotifyUrl={album.spotifyUrl ?? null}
+              title={album.title}
+              artist={album.artist}
+              size={Math.round(lpSize * 0.208)}
+            />
+          )}
+        </div>
       </div>
 
       {children}

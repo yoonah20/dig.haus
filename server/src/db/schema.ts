@@ -1360,6 +1360,27 @@ export function initializeDatabase(db: Database.Database): void {
     db.exec('ALTER TABLE home_meta ADD COLUMN header_left_px INTEGER DEFAULT 4');
     db.exec('ALTER TABLE home_meta ADD COLUMN header_rotation_deg INTEGER DEFAULT -4');
   });
+  // Plastic-wrap raster overlay tuning knobs — admin dials the
+  // overlay's size + offset on the home wall via a live slider panel.
+  // scale_pct = how much larger than the cover (15 = 15% larger);
+  // offset_x_px / offset_y_px = additional shift in px (positive x =
+  // right, positive y = down). Defaults match the hardcoded values
+  // from the experimental pass.
+  runOnce(db, 'home_meta_plastic_overlay_2026_04_25', () => {
+    db.exec('ALTER TABLE home_meta ADD COLUMN plastic_scale_pct INTEGER DEFAULT 15');
+    db.exec('ALTER TABLE home_meta ADD COLUMN plastic_offset_x_px INTEGER DEFAULT 5');
+    db.exec('ALTER TABLE home_meta ADD COLUMN plastic_offset_y_px INTEGER DEFAULT 0');
+  });
+  // mix-blend-mode for the plastic overlay. 'normal' = straight alpha
+  // (textures look opaque on top of the cover). 'screen' is the
+  // textbook choice for white-on-transparent textures; 'soft-light' /
+  // 'overlay' / 'lighten' are alternates the admin can A/B from the
+  // tuner panel.
+  runOnce(db, 'home_meta_plastic_blend_mode_2026_04_25', () => {
+    db.exec(
+      "ALTER TABLE home_meta ADD COLUMN plastic_blend_mode TEXT DEFAULT 'normal'"
+    );
+  });
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
      ON user_follows(followee_id, created_at DESC)`

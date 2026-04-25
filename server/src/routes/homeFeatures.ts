@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getDb, queryAll, queryGet } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { convertToKrwSync, getRates } from '../services/exchangeRates.js';
 
 // Admin-curated 15-album home wall (5-5-5 to match mydig). Mirrors
 // the mydig vinyl-wall data shape (album_id, position) minus the
@@ -11,11 +12,13 @@ import { requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
-router.get('/home/features', (_req, res) => {
+router.get('/home/features', async (_req, res) => {
   // albums column is `artist_name`, not `artist` — alias to keep the
-  // client payload field stable.
+  // client payload field stable. album_id is selected so we can
+  // batch-fetch purchase_links for the price sticker layer.
   const rows = queryAll(
     `SELECT hf.position, hf.note,
+            a.id AS albumId,
             a.mbid, a.slug, a.title,
             a.artist_name AS artist,
             a.cover_art_url AS coverArtUrl,
@@ -28,29 +31,101 @@ router.get('/home/features', (_req, res) => {
      ORDER BY hf.position ASC`
   );
 
-  const items = rows.map((row: any) => ({
-    position: row.position,
-    note: row.note,
-    album: {
-      mbid: row.mbid,
-      slug: row.slug,
-      title: row.title,
-      artist: row.artist,
-      coverArtUrl: row.coverArtUrl,
-      coverArtFallbacks: row.coverArtFallbacks
-        ? JSON.parse(row.coverArtFallbacks)
-        : [],
-      coverDominantColor: row.coverDominantColor ?? null,
-      spotifyUrl: row.spotifyUrl ?? null,
-      releaseDate: row.releaseDate ?? null,
-    },
-  }));
+  // Batch-fetch purchase_links for the listed album IDs and pick the
+  // top-1 sticker per album: soldout pushed behind in-stock, then
+  // KRW-converted price ascending. Mirrors the home-grid sticker
+  // logic in albums.ts so the home wall presents the same "what's
+  // the cheapest available copy" answer it has historically.
+  const topByAlbumId = new Map<number, any>();
+  if (rows.length > 0) {
+    const albumIds = rows.map((r: any) => r.albumId);
+    const placeholders = albumIds.map(() => '?').join(',');
+    const linkRows = queryAll(
+      `SELECT album_id, id, url, store_name, store_favicon_url,
+              price, currency, format, status
+       FROM purchase_links WHERE album_id IN (${placeholders})`,
+      albumIds
+    );
+    if (linkRows.length > 0) {
+      const rates = await getRates();
+      const allowedStatus = new Set(['upcoming', 'sale', 'soldout']);
+      const enriched = linkRows.map((l: any) => ({
+        albumId: l.album_id,
+        id: l.id,
+        url: l.url,
+        storeName: l.store_name,
+        storeFaviconUrl: l.store_favicon_url,
+        price: l.price,
+        currency: l.currency,
+        priceKrw:
+          l.price != null && l.currency
+            ? convertToKrwSync(l.price, l.currency, rates)
+            : null,
+        format: l.format,
+        status: allowedStatus.has(l.status) ? l.status : null,
+      }));
+      const grouped = new Map<number, any[]>();
+      for (const link of enriched) {
+        const bucket = grouped.get(link.albumId) || [];
+        bucket.push(link);
+        grouped.set(link.albumId, bucket);
+      }
+      for (const [aid, links] of grouped) {
+        links.sort((a, b) => {
+          const aSold = a.status === 'soldout';
+          const bSold = b.status === 'soldout';
+          if (aSold !== bSold) return aSold ? 1 : -1;
+          return (
+            (a.priceKrw ?? Number.POSITIVE_INFINITY) -
+            (b.priceKrw ?? Number.POSITIVE_INFINITY)
+          );
+        });
+        const top = links[0];
+        if (top) {
+          // Strip albumId before sending — the client looks up by
+          // album.priceTagLinks[0], not by albumId.
+          const { albumId: _drop, ...rest } = top;
+          topByAlbumId.set(aid, rest);
+        }
+      }
+    }
+  }
+
+  const items = rows.map((row: any) => {
+    const top = topByAlbumId.get(row.albumId);
+    return {
+      position: row.position,
+      note: row.note,
+      album: {
+        mbid: row.mbid,
+        slug: row.slug,
+        title: row.title,
+        artist: row.artist,
+        coverArtUrl: row.coverArtUrl,
+        coverArtFallbacks: row.coverArtFallbacks
+          ? JSON.parse(row.coverArtFallbacks)
+          : [],
+        coverDominantColor: row.coverDominantColor ?? null,
+        spotifyUrl: row.spotifyUrl ?? null,
+        releaseDate: row.releaseDate ?? null,
+        // priceTagLinks always returns an array (possibly empty) so
+        // the client can do a uniform `[0]` lookup; the wall sticker
+        // only uses the top entry but the array shape stays
+        // consistent with /api/albums for any future caller.
+        priceTagLinks: top ? [top] : [],
+      },
+    };
+  });
 
   const metaRow = queryGet(
     `SELECT theme, description,
             header_top_px AS headerTopPx,
             header_left_px AS headerLeftPx,
-            header_rotation_deg AS headerRotationDeg
+            header_rotation_deg AS headerRotationDeg,
+            plastic_scale_pct AS plasticScalePct,
+            plastic_offset_x_px AS plasticOffsetXPx,
+            plastic_offset_y_px AS plasticOffsetYPx,
+            plastic_blend_mode AS plasticBlendMode
      FROM home_meta WHERE id = 1`
   ) as {
     theme: string | null;
@@ -58,6 +133,10 @@ router.get('/home/features', (_req, res) => {
     headerTopPx: number | null;
     headerLeftPx: number | null;
     headerRotationDeg: number | null;
+    plasticScalePct: number | null;
+    plasticOffsetXPx: number | null;
+    plasticOffsetYPx: number | null;
+    plasticBlendMode: string | null;
   } | null;
 
   res.json({
@@ -71,9 +150,27 @@ router.get('/home/features', (_req, res) => {
       headerTopPx: metaRow?.headerTopPx ?? -120,
       headerLeftPx: metaRow?.headerLeftPx ?? 4,
       headerRotationDeg: metaRow?.headerRotationDeg ?? -4,
+      plasticScalePct: metaRow?.plasticScalePct ?? 15,
+      plasticOffsetXPx: metaRow?.plasticOffsetXPx ?? 5,
+      plasticOffsetYPx: metaRow?.plasticOffsetYPx ?? 0,
+      plasticBlendMode: metaRow?.plasticBlendMode ?? 'normal',
     },
   });
 });
+
+// Allowed mix-blend-mode values for the plastic overlay. Trimmed to
+// the ones that make sense for white-on-transparent shrink-wrap
+// textures; anything else (multiply, color-burn, …) reads as a tone
+// pass rather than plastic.
+const ALLOWED_BLEND_MODES = new Set([
+  'normal',
+  'screen',
+  'soft-light',
+  'overlay',
+  'lighten',
+  'hard-light',
+  'plus-lighter',
+]);
 
 router.patch('/home/meta', requireAdmin, (req, res) => {
   const body = (req.body ?? {}) as {
@@ -132,6 +229,40 @@ router.patch('/home/meta', requireAdmin, (req, res) => {
     }
     sets.push('header_rotation_deg = ?');
     args.push(v);
+  }
+  if ('plasticScalePct' in body) {
+    const v = clampInt(body.plasticScalePct, 0, 50);
+    if (v === null) {
+      return res.status(400).json({ error: 'plasticScalePct는 0-50 정수여야 해요.' });
+    }
+    sets.push('plastic_scale_pct = ?');
+    args.push(v);
+  }
+  if ('plasticOffsetXPx' in body) {
+    const v = clampInt(body.plasticOffsetXPx, -50, 50);
+    if (v === null) {
+      return res.status(400).json({ error: 'plasticOffsetXPx는 -50~50 정수여야 해요.' });
+    }
+    sets.push('plastic_offset_x_px = ?');
+    args.push(v);
+  }
+  if ('plasticOffsetYPx' in body) {
+    const v = clampInt(body.plasticOffsetYPx, -50, 50);
+    if (v === null) {
+      return res.status(400).json({ error: 'plasticOffsetYPx는 -50~50 정수여야 해요.' });
+    }
+    sets.push('plastic_offset_y_px = ?');
+    args.push(v);
+  }
+  if ('plasticBlendMode' in body) {
+    const raw = body.plasticBlendMode;
+    if (typeof raw !== 'string' || !ALLOWED_BLEND_MODES.has(raw)) {
+      return res.status(400).json({
+        error: `plasticBlendMode는 [${Array.from(ALLOWED_BLEND_MODES).join(', ')}] 중 하나여야 해요.`,
+      });
+    }
+    sets.push('plastic_blend_mode = ?');
+    args.push(raw);
   }
   if (sets.length === 0) {
     return res.json({ ok: true });
