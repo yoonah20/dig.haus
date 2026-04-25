@@ -603,7 +603,7 @@ export default function UserReviewsSection({
   };
 
   const heading = (
-    <SectionTitle meta={reviews.length > 0 ? reviews.length : undefined}>
+    <SectionTitle variant="tape" meta={reviews.length > 0 ? reviews.length : undefined}>
       고객 50자 평
     </SectionTitle>
   );

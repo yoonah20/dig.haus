@@ -700,8 +700,18 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             aria-hidden
             className="pointer-events-none absolute inset-0 z-[1]"
             style={{
+              // Two-pass lamp wash. The first radial gives a strong
+              // warm hot-spot at the upper-left corner; the second
+              // diagonal linear-gradient extends a softer wash
+              // across roughly the upper-left third of the sleeve so
+              // the lamp light reads as a bigger pool rather than a
+              // single bright point. Earlier values (alpha 0.18,
+              // small radius) read fine on mydig's 95px wall LPs but
+              // got diluted over the album-page cover at 320px and
+              // up — bumped the alpha and the radius so the wash is
+              // visible at hero scale.
               background:
-                'radial-gradient(ellipse at 8% 5%, rgba(255, 200, 130, 0.18) 0%, rgba(255, 200, 130, 0.05) 35%, transparent 60%)',
+                'radial-gradient(circle 70% at 0% 0%, rgba(255, 215, 150, 0.45) 0%, rgba(255, 215, 150, 0.18) 25%, transparent 55%), linear-gradient(135deg, rgba(255, 205, 130, 0.18) 0%, transparent 35%)',
               mixBlendMode: 'screen',
             }}
           />
