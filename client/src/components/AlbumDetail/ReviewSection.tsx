@@ -693,6 +693,7 @@ export default function ReviewSection({
   return (
     <section>
       <SectionTitle
+        variant="tape"
         meta={
           <>
             <AiSummaryBadge />
@@ -751,7 +752,27 @@ export default function ReviewSection({
         )}
 
         {koreanSummary && (
-            <div className="relative group/summary bg-panel rounded-xl p-5 border-l-4 border-[#e8a020]">
+            <div className="relative group/summary bg-panel rounded-panel p-6 md:p-7 border-l-4 border-[#e8a020]">
+              {/* Tape strip pinned to upper-left so the summary card
+                  reads as a curator's hand-placed lede note rather
+                  than a typeset block — pairs with the masking-tape
+                  section title above to extend the "디제이 노트"
+                  language into the body. Sits on the left so it
+                  doesn't conflict with the admin overlay buttons
+                  (which live at -top-3 right-2). Gated behind
+                  !editingSummary so the strip doesn't sit over the
+                  edit textarea while admin is mid-revision. */}
+              {!editingSummary && (
+                <div
+                  aria-hidden
+                  className="absolute -top-2 left-8 w-16 h-3.5 bg-tape-cream pointer-events-none"
+                  style={{
+                    transform: 'rotate(-2deg)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.45)',
+                    opacity: 0.88,
+                  }}
+                />
+              )}
               {isAdmin && !editingSummary && (
                 <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/summary:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                   <CardOverlayButton onClick={startEditSummary} title="요약 수정">
@@ -804,8 +825,8 @@ export default function ReviewSection({
                   </div>
                 </div>
               ) : (
-                <p className="text-gray-300 leading-relaxed">
-                  {koreanSummary || <span className="italic text-gray-600">요약 없음</span>}
+                <p className="text-gray-200 leading-relaxed text-base md:text-lg font-serif">
+                  {koreanSummary || <span className="italic text-gray-600 font-sans">요약 없음</span>}
                 </p>
               )}
             </div>

@@ -676,7 +676,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
 
       {/* Cover Art */}
       <div className="w-full md:w-80 flex-shrink-0">
-        <div className="relative group/cover aspect-square bg-panel rounded-xl overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
+        <div className="relative group/cover aspect-square bg-panel rounded-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
           <CoverArt
             src={album.coverArtUrl}
             fallbacks={album.coverArtFallbacks}
@@ -686,6 +686,24 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               ? ({ naturalWidth, naturalHeight }) =>
                   setCoverSize({ w: naturalWidth, h: naturalHeight })
               : undefined}
+          />
+          {/* Upper-left lamp wash — selective absorption from the
+              레코드샵 카운터 plan (mydig storefront's pendant-light
+              language applied here in a single localized spot). The
+              warm radial gradient + screen blend makes the cover
+              read as picked off the wall and held under a desk
+              lamp rather than floating in pure black. Pointer-events
+              none + z-10 so the wash sits over the cover image but
+              doesn't block the cover's hover affordances or the
+              ▶ chip / admin overlay buttons that live at z>=10. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 z-[1]"
+            style={{
+              background:
+                'radial-gradient(ellipse at 8% 5%, rgba(255, 200, 130, 0.18) 0%, rgba(255, 200, 130, 0.05) 35%, transparent 60%)',
+              mixBlendMode: 'screen',
+            }}
           />
           {/* ▶ chip at the hero cover's bottom-right. Revealed on
               hover over the cover wrapper (`group/cover`) so the

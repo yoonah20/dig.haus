@@ -422,7 +422,7 @@ export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbu
 
   return (
     <section>
-      <SectionTitle meta={<AiSummaryBadge />}>
+      <SectionTitle variant="tape" meta={<AiSummaryBadge />}>
         비앨추 (비슷한 앨범 추천)
       </SectionTitle>
 

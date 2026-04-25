@@ -36,10 +36,14 @@ export default function SectionTitle({
   className = '',
 }: SectionTitleProps) {
   if (variant === 'tape') {
+    // <h2> for semantics — the inline-flex visual still works on a
+    // heading element. Outer is the heading, inner span is the
+    // tape-styled label, so screen readers still see "Heading: 리뷰
+    // 모음집" while sighted readers see the masking-tape treatment.
     return (
-      <div className={`mb-6 inline-flex items-center gap-3 ${className}`}>
+      <h2 className={`mb-6 flex items-center gap-3 flex-wrap ${className}`}>
         <span
-          className="bg-tape-cream text-tape-ink px-3 py-1 text-base font-semibold shadow-md"
+          className="inline-block bg-tape-cream text-tape-ink px-3 py-1 text-lg font-semibold"
           style={{
             fontFamily:
               "'Gaegu', 'Nanum Pen Script', 'Caveat', 'Bradley Hand', cursive",
@@ -48,16 +52,21 @@ export default function SectionTitle({
             // pressed flat against the surface, not a flat fill.
             boxShadow:
               '0 2px 4px rgba(0,0,0,0.35), inset 0 -1px 0 rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.35)',
+            // Letter-spacing slightly negative so the handwritten
+            // glyphs sit closer together — Gaegu's default tracking
+            // reads as "drawn carefully", whereas a real tape label
+            // is hand-marked quickly.
+            letterSpacing: '-0.01em',
           }}
         >
           {children}
         </span>
         {meta && (
-          <span className="text-sm text-gray-500 font-sans font-normal">
+          <span className="text-sm text-gray-500 font-sans font-normal inline-flex items-center gap-1.5">
             {meta}
           </span>
         )}
-      </div>
+      </h2>
     );
   }
 
