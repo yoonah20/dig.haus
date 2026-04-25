@@ -11,7 +11,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useSearch } from '../../hooks/useSearch';
 import { extractSpotifyAlbumId } from '../../hooks/useNowPlaying';
 import { WallLP, WallRail } from '../MyDig/storefront/primitives';
-import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 import CoverArt from '../CoverArt';
 import PlayChip from '../PlayChip';
 
@@ -78,11 +77,13 @@ export default function HomeWall() {
 
   return (
     <section className="relative group/homewall">
-      {/* Graffiti signature header — mydig parity, but for the
-          dig.haus-level wall. Theme + description live in the
-          home_meta singleton row and edit through the same panel
-          that swaps the 15 wall picks. */}
-      <SignatureHeader meta={meta} />
+      {/* Signature header intentionally NOT rendered — the dig.haus
+          logo already lives in the top nav and a second masthead on
+          the wall page reads as redundant. The home_meta singleton
+          (theme + description) stays in the editor + DB so the
+          editor unification PR can decide whether to surface it
+          elsewhere (page <title>, social meta, etc.) without
+          re-introducing the on-page header. */}
 
       {isAdmin && !editing && (
         <button
@@ -143,26 +144,6 @@ export default function HomeWall() {
         />
       )}
     </section>
-  );
-}
-
-function SignatureHeader({ meta }: { meta: HomeMeta }) {
-  const theme = meta.theme || 'dig.haus';
-  const description = meta.description;
-  return (
-    <div
-      className="text-center mb-6"
-      style={{ fontFamily: GRAFFITI_FONT_STACK }}
-    >
-      <div className="text-[28px] md:text-[36px] leading-[1.15] text-[#e8a020] font-bold">
-        {theme}
-      </div>
-      {description && (
-        <div className="text-sm md:text-base text-gray-300 mt-1 italic">
-          {description}
-        </div>
-      )}
-    </div>
   );
 }
 

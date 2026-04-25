@@ -200,11 +200,14 @@ export default function App() {
                 <div
                   aria-hidden
                   // Home (dig.haus's own wall) sits against the
-                  // store-interior backdrop. Brightened from the
-                  // earlier 0.55 to 0.7 per the user's "좀 더 밝아져도
-                  // 됨" — the rest of the page is a single wood-rail
-                  // wall composition that benefits from a more
-                  // visible scene behind it. backgroundSize stays at
+                  // store-interior backdrop in its native colours —
+                  // no brightness / saturation pass. Earlier
+                  // iterations had 0.55 then 0.7 brightness with a
+                  // 0.85 saturation knock to match mydig's pass, but
+                  // the user wanted the original image to come
+                  // through fully so the home page reads as the
+                  // store-interior scene rather than a darkened
+                  // backdrop under content. backgroundSize stays at
                   // the authored 2401×1372 since store.webp was
                   // composed at the same canvas as wall2.webp.
                   className="absolute inset-0 pointer-events-none"
@@ -214,7 +217,6 @@ export default function App() {
                     backgroundSize: '2401px 1372px',
                     backgroundPosition: 'center bottom',
                     backgroundRepeat: 'no-repeat',
-                    filter: 'brightness(0.7) saturate(0.85)',
                   }}
                 />
               )}
