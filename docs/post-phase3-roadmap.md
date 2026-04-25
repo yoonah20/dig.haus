@@ -8,7 +8,7 @@ This is intentionally a **roadmap**, not a plan. It captures what's on the table
 
 ## Where we are (2026-04-25)
 
-- **Phase 1, 2 done**, **Phase 3 winding down**: vinyl wall + snapshots + follow + persistent player shipped. Shelf/crate mutation endpoints + storefront illustrated visual deferred.
+- **Phase 1, 2, 3 done** (Phase 3 closed 2026-04-25): vinyl wall + snapshots + follow + persistent player + public profile card all shipped. Shelf/crate mutation endpoints + storefront illustrated visual were deferred during build and are absorbed into items 2 and 3 of this roadmap rather than carried as Phase 3 leftovers.
 - **Phase 4 drafted** at `docs/phase4-nightly-pipeline.md` (RTX 5080 + local LLM nightly curation).
 - **Live MyDig storefront** is the transitional Hongdae-dusk composition. Long-term target is Path B per `docs/phase3-storefront-decisions.md` entries 18–19 (illustrated lofi-bedroom background asset behind CSS/SVG overlays).
 - **DB scale**: ~350 albums. Comfortable usable scale is closer to 30,000.

@@ -26,40 +26,44 @@ dig.haus is a **digital record store**, not an algorithmic music feed. The core 
 
 - **Phase 1 done**: album archive, reviews, similar albums, Discogs prices, streaming links
 - **Phase 2 done**: Google auth, 50자 평, 굿굿/별루 voting, 샀음/살거 collections, community-contributed purchase links with reporting, admin dashboard, review-collection cost controls
-- **Phase 3 winding down**: mydig wall + snapshots + follow system + persistent player shipped. Shelf/crate mutation endpoints + storefront illustrated visual deferred. Outstanding items listed in the Phase 3 section below.
-- **Phase 4 drafted** (`docs/phase4-nightly-pipeline.md`): nightly local-LLM curation pipeline (RTX 5080 + Qwen3-14B, /admin/overnight confirm UI, Railway sync of approved batches).
-- **Phase 5+ deferred**: follow-based activity feed, "discover diggers" main page overhaul, per-layer privacy, guestbook, visitor counter.
+- **Phase 3 done** (2026-04-25): mydig vinyl wall (15 slots, drag-drop, snapshots) + follow system + persistent Spotify player + public profile card. The mydig page is appropriate for the audience the site is for; Shelf / Crate / illustrated storefront were deferred during the build and absorbed into the post-Phase 3 roadmap rather than carried as Phase 3 leftovers.
+- **Forward roadmap**: `docs/post-phase3-roadmap.md` is the source of truth for what's next. Five sequenced items (album page refactor → mydig crate → shop-feel visual → topster + ambient social → local-LLM nightly pipeline) plus six brainstorm additions captured for later review.
+- **Phase 4 drafted** (`docs/phase4-nightly-pipeline.md`): nightly local-LLM curation pipeline (RTX 5080 + Qwen3-14B, /admin/overnight confirm UI, Railway sync of approved batches). Sequenced as roadmap item 4 — runs in parallel with the album page refactor as soon as a local LLM wins the comparison toolbox.
 
 ---
 
 ## Phase 3 — 마이딕 (personal digger page)
 
-**URL**: `dig.haus/my/:username`
+**URL**: `dig.haus/my/:username`. Closed 2026-04-25.
 
-**Design source of truth**: `docs/phase3-storefront-decisions.md`. The visual direction has pivoted multiple times since this file last described it (record-shop interior → lofi-bedroom with turntable console + floor wooden crates → wireframe-first MVP at entry 19). When judging UI work or the layout shape, read the decisions log first; the per-tier counts and primitives have moved enough that any layout description in CLAUDE.md would rot the moment another pivot lands.
+**Design source of truth**: `docs/phase3-storefront-decisions.md`. The visual direction pivoted multiple times during build (record-shop interior → lofi-bedroom with turntable console + floor wooden crates → wireframe-first MVP at entry 19); the live `/my/:username` runs the Hongdae-dusk composition that's earned its keep. Read the decisions log first when judging mydig UI work — the per-tier counts and primitives in there are the live spec, not a forward plan.
 
-### What's shipped
+### What shipped in Phase 3
 
-- **Username system** — `users.username` (URL-safe slug, lowercase a-z0-9 + `_`/`-`, 3–20 chars). Reserved-name list in `server/src/utils/username.ts`. Onboarding modal on first `/my/*` visit. Cooldown rules from the original plan are not yet enforced (any change is currently allowed).
+- **Username system** — `users.username` (URL-safe slug, lowercase a-z0-9 + `_`/`-`, 3–20 chars). Reserved-name list in `server/src/utils/username.ts`. Onboarding modal on first `/my/*` visit. Cooldown rules from the original plan are not enforced (any change is currently allowed).
 - **Vinyl Wall** — 15 slots in 5-5-5 layout. Drag-drop edit mode with 80/20 picker (sources: 전체 / 내 콜렉션(샀음) / 내 굿굿(upvotes) / 내 살거). Bulk replace via `PUT /api/mydig/vinyl-wall/items`. Theme title + description editable. The slot count walked 22 → 15 → 10 → 15 across migrations as the visual scale was tuned; current target is 15, decisions log entry 11 (which still says 10) is stale on this point and the live constraint in `vinyl_wall_items.position < 15` wins.
 - **Vinyl Wall Snapshots** — owner archives a wall state, names it, marks public/private. Snapshot items are immutable post-create (only name/description/visibility editable). Reachable at `/my/:username/snap/:slug`. Album FK has no CASCADE so snapshots survive album deletions (rendered with a "삭제된 앨범" tag on the missing slot).
 - **Persistent player** — Spotify embed strip pinned at the bottom of mydig, ghost-anchored across client-side route changes. ▶ chip on wall LPs and similar-album cards triggers playback in the same iframe (mbid identity, swap survives).
 - **Follow system** — `POST/DELETE /api/users/:id/follow`, `GET /api/users/:id/{followers,following}`. Self-follow rejected at the table CHECK and in JS. Follower/following counts surface in the public profile card and the mydig sidebar graffiti.
 - **Public profile card** — `GET /api/users/:id/public` powers the avatar-hover popover with stats (review count, vote split, owned/wanted counts), follow state, and a mydig link with wall-item count.
 
-### What's open
+### Carried forward into the post-Phase 3 roadmap
 
-- **Shelf + Crate mutation endpoints** — `shelf_slots`, `shelf_items`, `crate_boxes`, `crate_items` exist as tables and are read-only via `GET /mydig/:username`. No POST/PATCH/PUT/DELETE handlers; the edit-mode UI is dashed-placeholder for both tiers. Build was deferred while the storefront design itself was still moving (see decisions log entries 11–19).
-- **Storefront illustrated visual** — `/my-preview` is intended to be a wireframe per entry 19. The illustrated lofi-bedroom pass (Path B per entry 18 — AI-generated background asset behind CSS overlays) is the long-term aesthetic target. The live `/my/:username` runs the earlier Hongdae-dusk composition until the wireframe interactions settle.
-- **Schema vs plan divergences** — three known mismatches that should be reconciled before Phase 4 starts (or explicitly accepted as the new design):
-  1. `shelf_slots.genre_id` references the `genres` table (still seeded with 16 entries via `seed-genres-initial-2026-04-20`). Decisions log entry 2 said freeform masking-tape labels per slot replaced this. Either migrate to a `label TEXT` column or codify the genre design — pick one explicitly.
-  2. `shelf_slots` + separate `shelf_items` is non-polymorphic. The original plan was `target_type` + `target_id` letting one slot point at either an album or a crate. Functionally similar today; revisit if and when polymorphism becomes useful for the redesigned floor crates.
-  3. `crate_boxes.position` exists for floor placement. After entry 1's pivot, crates were supposed to live in the user's private library and surface only when placed on a shelf slot — which made the position column dormant. Then entries 14–15 brought back floor crates as 3D wooden boxes (0–6 visible), which makes a position column relevant again, but **for floor visibility, not library order**. Wiring the column to whichever semantic wins is open.
-- **Now Playing customization** — the persistent Spotify embed strip exists, but per-user "currently spinning" state with owner-edit UI is not built. The lofi-bedroom turntable (entry 13) is meant to render this LP on the platter when the illustrated pass ships.
-- **`mydig_public` visibility flag** — column exists but vestigial; no per-page reader/writer. The "fabric drape + A4 notice" private-mode visual is unbuilt.
-- **Per-layer privacy toggles** — wall public / shelf private etc. — deferred.
-- **Guestbook + visitor counter** — deferred to Phase 5+ ambience pass; no schema yet.
-- **샀음 / 살거 vs Crate boundary** — decisions log entry 20. Open question: do 샀음/살거 absorb into auto-populated system crates, stay separate, or get dropped? Resolve before Phase 4 to avoid the confusion compounding once curation flows multiply.
+The items below were in scope at Phase 3 kickoff and got deferred during the build. They didn't disappear — they moved to `docs/post-phase3-roadmap.md` as Phase 4+ items rather than being kept as Phase 3 leftovers.
+
+- **Shelf + Crate mutation endpoints** — `shelf_slots`, `shelf_items`, `crate_boxes`, `crate_items` are read-only via `GET /mydig/:username`. Roadmap item 2 reframes Crate as the unlimited "magic record cabinet" replacing 샀음/살거 entirely; the shelf tier is no longer load-bearing in that direction.
+- **Storefront illustrated visual** — Path B (illustrated lofi-bedroom background asset behind CSS/SVG overlays per decisions log entry 18) is the long-term aesthetic target. Roadmap item 3 (shop-feel visual: plastic wrap + 3D jacket thickness) lays the groundwork for the asset pipeline before the full illustrated pass.
+- **샀음 / 살거 vs Crate boundary** — decisions log entry 20. Roadmap item 2 commits to absorbing 샀음/살거 into auto-populated default crates; the boundary question is closed in that direction.
+- **Now Playing customization, per-layer privacy, guestbook, visitor counter** — all deferred to the Phase 5+ ambience pass.
+
+### Tech debt from Phase 3
+
+Bundle into the roadmap item that touches the same surface — don't fix purely because you're in the area:
+
+- `shelf_slots.genre_id` references `genres` (still seeded with 16 entries via `seed-genres-initial-2026-04-20`). Decisions log entry 2 said freeform masking-tape labels per slot replaced this. Either migrate to a `label TEXT` column or codify the genre design — pick one explicitly when roadmap item 2 (Crate) lands.
+- `shelf_slots` + separate `shelf_items` is non-polymorphic. The original plan was `target_type` + `target_id` letting one slot point at either an album or a crate. Functionally similar today; revisit if and when polymorphism becomes useful.
+- `crate_boxes.position` exists for floor placement and is currently dormant. Wiring the column to whichever semantic wins under roadmap item 2 closes the loop.
+- `users.mydig_public` column declared, never read or written. Drop in the next schema batch or wire it to a real privacy gate when per-layer privacy work happens.
 
 ### Core principles (still apply)
 
@@ -89,7 +93,7 @@ dig.haus is a **digital record store**, not an algorithmic music feed. The core 
 
 - **Branch strategy**: direct push to `main`. No feature branches. No PRs unless explicitly requested.
 - **Push policy**: wait for the user to say "푸시해" / "push" before pushing. Commits can be staged and prepared, but the `git push` step is gated.
-- **Phase 3 local-first**: the mydig build involves heavy visual iteration. Expect to work on a local SQLite copy, iterate CSS/interactions, then push larger bundles at phase boundaries rather than per-change.
+- **Visual iteration local-first**: ongoing work that touches the visual layer (album page chrome, the shop-feel pass, etc.) iterates on a local SQLite copy and lands as larger bundles at natural break points rather than per-change. The mydig wireframe-vs-illustrated decision in decisions log entry 19 is the canonical example.
 - **Local DB**: use a sanitized copy of production (see `server/scripts/sanitize-db.ts` when written). Admin account (the primary user's Google email) is whitelisted — survives sanitization so login works locally.
 - **No auto-generated files**: don't create `.md` planning documents unless the user asks. Conversation context + this file are enough.
 
