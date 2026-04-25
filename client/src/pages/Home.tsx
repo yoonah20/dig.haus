@@ -15,17 +15,13 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 // while still distinguishing home from mydig. HomeWall cap raised
 // to 180 in lockstep so the new fit is reachable.
 //
-// Vertical layout: bottom-anchored, NOT viewport-percentage. Earlier
-// iterations used paddingTop = (100vh − wallHeight) × ratio so the
-// wall floated near the vertical middle, but that recomputes whenever
-// the viewport height changes — when the user resized the window the
-// rails wobbled up + down even though the LPs stayed at the same
-// horizontal position, which made the page feel unstable to build on.
-// Switching to flex justify-end + a constant paddingBottom pins the
-// rails at a fixed distance from the viewport bottom regardless of
-// height; tall screens just gain empty wallpaper above the wall (and
-// that empty wallpaper is the storefront backdrop, which is the page's
-// atmospheric register anyway).
+// Vertical layout: flex justify-center for true vertical centring.
+// Earlier passes biased upward via marginBottom (the "shelves sit
+// above the floor" intuition) but at the chosen wall position the
+// handwritten header at top:-120px ended up tucked under the top nav
+// — true centre gives the header enough breathing room above. Tall
+// viewports still show the storefront wallpaper above + below, just
+// distributed evenly.
 
 export default function Home() {
   useDocumentHead({
@@ -36,7 +32,7 @@ export default function Home() {
   });
 
   return (
-    <div className="flex-1 flex flex-col justify-end px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-[100px] md:pb-[116px]">
+    <div className="flex-1 flex flex-col justify-center px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-12">
       <section className="w-full max-w-[960px] mx-auto">
         <HomeWall />
       </section>

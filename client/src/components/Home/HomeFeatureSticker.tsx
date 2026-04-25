@@ -1,9 +1,11 @@
 import type { PriceTagLink } from '../../types';
 
-// Webp sticker assets — yellow for in-stock / sold-out, green for
-// upcoming releases. The yellow asset has a price-tag silhouette
-// (rounded rectangle with notches), the green is a flatter solid
-// shape. Both are 200px wide; we render at ~45% of the LP size.
+// Webp sticker assets — yellow for USD prices, green for any other
+// currency. Reads as the visual code most digger-shops use locally
+// (where USD-priced imports get a different colour tag than
+// domestic-currency stock); the previous status-driven mapping
+// (upcoming = green) collapsed into status-agnostic strikethrough
+// for soldout instead.
 const STICKER_YELLOW = '/textures/sticker17.webp';
 const STICKER_GREEN = '/textures/sticker16.webp';
 
@@ -32,9 +34,9 @@ interface Props {
 }
 
 export default function HomeFeatureSticker({ link, lpSize }: Props) {
-  const isUpcoming = link.status === 'upcoming';
+  const isUsd = link.currency === 'USD';
   const isSoldout = link.status === 'soldout';
-  const bg = isUpcoming ? STICKER_GREEN : STICKER_YELLOW;
+  const bg = isUsd ? STICKER_YELLOW : STICKER_GREEN;
   // ~25% of LP width — small accent in the corner, not a full badge.
   // Aspect ratio matches the asset's natural price-tag shape. Text
   // size below is derived from lpSize directly (not from `width`) so
@@ -67,7 +69,7 @@ export default function HomeFeatureSticker({ link, lpSize }: Props) {
     >
       <span
         className={`font-mono font-bold leading-none ${
-          isUpcoming ? 'text-[#1a3a18]' : 'text-[#3a2a08]'
+          isUsd ? 'text-[#3a2a08]' : 'text-[#1a3a18]'
         }`}
         style={{
           fontSize,
