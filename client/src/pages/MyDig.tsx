@@ -102,6 +102,16 @@ export default function MyDig() {
   );
   const deleteSnap = useDeleteVinylWallSnapshot(username);
 
+  // PersistentNowPlayingPlayer is fixed to the viewport bottom (16px
+  // offset, ~80px height) and overlays the page when active. On
+  // mobile the default pb-8 (32px) is not enough headroom — the last
+  // wall row sits behind the player iframe. When the player is
+  // active, override with ~140px + safe-area-inset-bottom to clear
+  // the player and the iOS home indicator. Called above the early
+  // returns below so hook order stays consistent across loading /
+  // error / loaded renders.
+  const playerActive = !!useNowPlaying();
+
   const [editingWall, setEditingWall] = useState(false);
   // "기억 남기기" surfaces SnapshotSaveModal directly against the
   // live wall — no editing detour. Available on live mode only;
@@ -207,14 +217,6 @@ export default function MyDig() {
       alert(`스냅샷 삭제 실패: ${serverError}`);
     }
   };
-
-  // PersistentNowPlayingPlayer is fixed to the viewport bottom (16px
-  // offset, ~80px height) and overlays the page when active. On
-  // mobile the default pb-8 (32px) is not enough headroom — the last
-  // wall row sits behind the player iframe. When the player is
-  // active, override with ~140px + safe-area-inset-bottom to clear
-  // the player and the iOS home indicator.
-  const playerActive = !!useNowPlaying();
 
   return (
     <div className="flex-1">
