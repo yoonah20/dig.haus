@@ -218,7 +218,14 @@ export default function HomeWall() {
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="absolute top-0 right-2 z-10 text-xs text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/40 rounded-full px-2.5 py-0.5 transition-colors cursor-pointer opacity-0 group-hover/homewall:opacity-100 focus:opacity-100"
+          // Pushed off the wall section's top-right corner so the
+          // chip clears the LP grid even when hover scaling lifts the
+          // first row's covers a few pixels up. Negative top sits the
+          // chip just above the section edge against the storefront
+          // wallpaper; right-2 → -right-1 pulls it past the right LP
+          // by a hair so the chip no longer overlaps the wrap edge of
+          // the rightmost cover.
+          className="absolute -top-9 -right-1 z-10 text-xs text-gray-400 hover:text-[#e8a020] border border-white/10 hover:border-[#e8a020]/40 rounded-full px-2.5 py-0.5 transition-colors cursor-pointer opacity-0 group-hover/homewall:opacity-100 focus:opacity-100"
           title="dig.haus 벽 편집"
         >
           ✏️ 편집
