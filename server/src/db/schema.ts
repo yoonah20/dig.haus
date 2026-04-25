@@ -1350,6 +1350,16 @@ export function initializeDatabase(db: Database.Database): void {
     `INSERT OR IGNORE INTO home_meta (id, theme, description)
      VALUES (1, 'dig.haus / 이번 달 픽', '운영자가 한 달 동안 발굴한 15장')`
   );
+  // Handwritten header position knobs — admin tunes from the wall
+  // editor so they don't need a code deploy to nudge the marker
+  // signature. INTEGER pixel values, rotation in degrees (decimal not
+  // needed at the precision a marker scrawl reads at). Defaults match
+  // the hardcoded constants from the initial header pass.
+  runOnce(db, 'home_meta_header_position_2026_04_25', () => {
+    db.exec('ALTER TABLE home_meta ADD COLUMN header_top_px INTEGER DEFAULT -120');
+    db.exec('ALTER TABLE home_meta ADD COLUMN header_left_px INTEGER DEFAULT 4');
+    db.exec('ALTER TABLE home_meta ADD COLUMN header_rotation_deg INTEGER DEFAULT -4');
+  });
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
      ON user_follows(followee_id, created_at DESC)`

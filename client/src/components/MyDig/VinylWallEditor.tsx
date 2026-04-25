@@ -99,6 +99,14 @@ interface Props {
   // captured. Drives the "{name} ({YYYY년 M월 D일}) 편집" header
   // title; optional so we can fall back to name-only if missing.
   initialSnapshotDate?: string | null;
+  // home-features target only — current handwritten-header position
+  // knobs from home_meta. The editor surfaces 3 small inputs for
+  // these alongside the title + description; PATCH /home/meta accepts
+  // them. Optional so non-home-features callers don't need to pass
+  // them.
+  initialHeaderTopPx?: number;
+  initialHeaderLeftPx?: number;
+  initialHeaderRotationDeg?: number;
 }
 
 export default function VinylWallEditor({
@@ -110,6 +118,9 @@ export default function VinylWallEditor({
   initialDescription = null,
   initialIsPublic = false,
   initialSnapshotDate = null,
+  initialHeaderTopPx = -120,
+  initialHeaderLeftPx = 4,
+  initialHeaderRotationDeg = -4,
 }: Props) {
   const isSnapshotTarget = target.kind === 'snapshot';
   const isHomeFeaturesTarget = target.kind === 'home-features';
@@ -284,6 +295,14 @@ export default function VinylWallEditor({
     initialDescription ?? ''
   );
   const [isPublicInput, setIsPublicInput] = useState(initialIsPublic);
+  // home-features-only — handwritten header position knobs. Number
+  // inputs in the editor sidebar; commitWall folds the changed ones
+  // into the same PATCH /home/meta call as theme + description.
+  const [headerTopInput, setHeaderTopInput] = useState(initialHeaderTopPx);
+  const [headerLeftInput, setHeaderLeftInput] = useState(initialHeaderLeftPx);
+  const [headerRotationInput, setHeaderRotationInput] = useState(
+    initialHeaderRotationDeg
+  );
 
   // Save flow. 저장 opens `saveChoicePrompt` first (wall target
   // only), asking whether to also capture the draft as a snapshot.
@@ -309,11 +328,18 @@ export default function VinylWallEditor({
   });
   // Title/description dirty applies to all targets. Public flag is a
   // snapshot-only concept (wall mode handles mydig_public elsewhere;
-  // home-features has no concept of private).
+  // home-features has no concept of private). Header position knobs
+  // are home-features-only.
+  const headerPosDirty =
+    isHomeFeaturesTarget &&
+    (headerTopInput !== initialHeaderTopPx ||
+      headerLeftInput !== initialHeaderLeftPx ||
+      headerRotationInput !== initialHeaderRotationDeg);
   const metaDirty =
     themeInput.trim() !== (initialTheme ?? '') ||
     descriptionInput.trim() !== (initialDescription ?? '') ||
-    (isSnapshotTarget && isPublicInput !== initialIsPublic);
+    (isSnapshotTarget && isPublicInput !== initialIsPublic) ||
+    headerPosDirty;
   const dirty = itemsDirty || metaDirty;
 
   // Draft → flat items payload, shared by mydig wall + snapshot
@@ -387,14 +413,28 @@ export default function VinylWallEditor({
         await snapshotMetaUpdate.mutateAsync(body);
       }
     } else if (isHomeFeaturesTarget) {
-      // Home-meta PATCH always takes both fields — the singleton row
-      // overwrites theme + description in one shot. Only fire when
-      // either changed.
-      if (themeChanged || descChanged) {
-        await homeMetaUpdate.mutateAsync({
-          theme: themeTrimmed.length > 0 ? themeTrimmed : null,
-          description: descTrimmed.length > 0 ? descTrimmed : null,
-        });
+      // Home-meta PATCH treats missing fields as "don't touch" so we
+      // only send what changed (matches the snapshot/wall PATCH
+      // behaviour). Theme/description and the three header position
+      // knobs all flow through the same mutation.
+      const body: import('../../hooks/useHomeFeatures').HomeMetaPatch = {};
+      if (themeChanged) {
+        body.theme = themeTrimmed.length > 0 ? themeTrimmed : null;
+      }
+      if (descChanged) {
+        body.description = descTrimmed.length > 0 ? descTrimmed : null;
+      }
+      if (headerTopInput !== initialHeaderTopPx) {
+        body.headerTopPx = headerTopInput;
+      }
+      if (headerLeftInput !== initialHeaderLeftPx) {
+        body.headerLeftPx = headerLeftInput;
+      }
+      if (headerRotationInput !== initialHeaderRotationDeg) {
+        body.headerRotationDeg = headerRotationInput;
+      }
+      if (Object.keys(body).length > 0) {
+        await homeMetaUpdate.mutateAsync(body);
       }
     }
 
@@ -709,6 +749,60 @@ export default function VinylWallEditor({
                   />
                   공개 (방문자도 볼 수 있어요)
                 </label>
+              )}
+              {isHomeFeaturesTarget && (
+                <div className="mt-2 pt-3 border-t border-white/10">
+                  <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">
+                    손글씨 위치
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] text-gray-500">위 (px)</span>
+                      <input
+                        type="number"
+                        value={headerTopInput}
+                        onChange={(e) =>
+                          setHeaderTopInput(parseInt(e.target.value) || 0)
+                        }
+                        min={-800}
+                        max={800}
+                        step={4}
+                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] text-gray-500">왼쪽 (px)</span>
+                      <input
+                        type="number"
+                        value={headerLeftInput}
+                        onChange={(e) =>
+                          setHeaderLeftInput(parseInt(e.target.value) || 0)
+                        }
+                        min={-800}
+                        max={1200}
+                        step={4}
+                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1">
+                      <span className="text-[10px] text-gray-500">기울기 (°)</span>
+                      <input
+                        type="number"
+                        value={headerRotationInput}
+                        onChange={(e) =>
+                          setHeaderRotationInput(parseInt(e.target.value) || 0)
+                        }
+                        min={-45}
+                        max={45}
+                        step={1}
+                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none"
+                      />
+                    </label>
+                  </div>
+                  <p className="text-[10px] text-gray-600 mt-1.5 leading-relaxed">
+                    위는 음수일수록 위로, 왼쪽은 양수일수록 오른쪽으로. 저장하면 홈 화면에 바로 반영됩니다.
+                  </p>
+                </div>
               )}
             </div>
             {rows.map((positions, rowIdx) => (

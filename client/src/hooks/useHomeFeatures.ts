@@ -28,6 +28,13 @@ export interface HomeFeatureItem {
 export interface HomeMeta {
   theme: string | null;
   description: string | null;
+  // Handwritten header position knobs — px offsets from the wall
+  // section's top-left, rotation in degrees. Server fills defaults
+  // when the columns are null, so these are always numbers in the
+  // payload even though the underlying SQL columns are nullable.
+  headerTopPx: number;
+  headerLeftPx: number;
+  headerRotationDeg: number;
 }
 
 export function useHomeFeatures() {
@@ -41,10 +48,20 @@ export function useHomeFeatures() {
   });
 }
 
+// Each field is optional — the server treats missing keys as
+// "don't touch", so the editor can PATCH only what changed.
+export interface HomeMetaPatch {
+  theme?: string | null;
+  description?: string | null;
+  headerTopPx?: number;
+  headerLeftPx?: number;
+  headerRotationDeg?: number;
+}
+
 export function useUpdateHomeMeta() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (meta: { theme: string | null; description: string | null }) => {
+    mutationFn: async (meta: HomeMetaPatch) => {
       const { data } = await axios.patch('/api/home/meta', meta);
       return data;
     },

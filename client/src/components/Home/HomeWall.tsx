@@ -52,7 +52,13 @@ export default function HomeWall() {
   const railHeight = mobile ? 16 : 20;
 
   const items = data?.items ?? [];
-  const meta = data?.meta ?? { theme: null, description: null };
+  const meta = data?.meta ?? {
+    theme: null,
+    description: null,
+    headerTopPx: -120,
+    headerLeftPx: 4,
+    headerRotationDeg: -4,
+  };
   const slots = Array.from({ length: SLOT_COUNT }, (_, i) =>
     items.find((it) => it.position === i) ?? null
   );
@@ -74,31 +80,62 @@ export default function HomeWall() {
 
   return (
     <section className="relative group/homewall">
-      {/* Handwritten section header anchored to the wall's upper-left,
-          rotated a few degrees so it reads as marker scrawled on the
-          painted wall rather than typeset UI. Same Poor Story stack +
-          near-black ink as mydig's signature block — both surfaces
-          live on a warm-toned painted backdrop, so the typography
-          register transfers cleanly. */}
-      <h2
-        className="absolute z-10 select-none pointer-events-none"
-        style={{
-          top: '-18px',
-          left: '4px',
-          fontFamily: GRAFFITI_FONT_STACK,
-          transform: 'rotate(-4deg)',
-          color: '#1a1208',
-          fontSize: '28px',
-          fontWeight: 700,
-          letterSpacing: '0.01em',
-          // Soft warm halo lets the dark ink hold against busier
-          // patches of the orange brick backdrop without reading as a
-          // typeset drop-shadow.
-          textShadow: '0 1px 0 rgba(255, 230, 195, 0.25)',
-        }}
-      >
-        딕하우스 4월 추천 앨범
-      </h2>
+      {/* Handwritten section header anchored to the wall's upper-left.
+          Source = the home_meta singleton (theme + optional
+          description) so admins edit the copy through the same wall
+          editor they edit the LPs in; no separate UI needed. Same
+          Poor Story stack + near-black ink as mydig's signature
+          block — both surfaces live on a warm-toned painted backdrop,
+          so the typography register transfers cleanly.
+
+          Stacking: explicit z-index removed so the header sits in
+          DOM order — rendered before the LP grid container, so it
+          paints UNDER the album sleeves where they overlap. The
+          painted-on-the-wall read needs the LPs to obscure the ink,
+          not the other way round. The edit-button below keeps its
+          z-10 because it's an actionable control, not decoration. */}
+      {meta.theme && meta.theme.trim().length > 0 && (
+        <div
+          className="absolute select-none pointer-events-none"
+          style={{
+            top: meta.headerTopPx,
+            left: meta.headerLeftPx,
+            fontFamily: GRAFFITI_FONT_STACK,
+            transform: `rotate(${meta.headerRotationDeg}deg)`,
+            transformOrigin: 'top left',
+            color: '#1a1208',
+            // Soft warm halo lets the dark ink hold against busier
+            // patches of the orange brick backdrop without reading
+            // as a typeset drop-shadow.
+            textShadow: '0 1px 0 rgba(255, 230, 195, 0.25)',
+          }}
+        >
+          <h2
+            style={{
+              fontSize: '28px',
+              fontWeight: 700,
+              letterSpacing: '0.01em',
+              margin: 0,
+              lineHeight: 1.1,
+            }}
+          >
+            {meta.theme}
+          </h2>
+          {meta.description && meta.description.trim().length > 0 && (
+            <p
+              style={{
+                fontSize: '16px',
+                fontWeight: 500,
+                marginTop: 4,
+                marginBottom: 0,
+                lineHeight: 1.2,
+              }}
+            >
+              {meta.description}
+            </p>
+          )}
+        </div>
+      )}
 
       {isAdmin && !editing && (
         <button
@@ -154,6 +191,9 @@ export default function HomeWall() {
           initialWall={homeItemsToWallItems(items)}
           initialTheme={meta.theme}
           initialDescription={meta.description}
+          initialHeaderTopPx={meta.headerTopPx}
+          initialHeaderLeftPx={meta.headerLeftPx}
+          initialHeaderRotationDeg={meta.headerRotationDeg}
           onClose={() => setEditing(false)}
         />
       )}

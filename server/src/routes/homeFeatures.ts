@@ -47,30 +47,100 @@ router.get('/home/features', (_req, res) => {
   }));
 
   const metaRow = queryGet(
-    'SELECT theme, description FROM home_meta WHERE id = 1'
-  ) as { theme: string | null; description: string | null } | null;
+    `SELECT theme, description,
+            header_top_px AS headerTopPx,
+            header_left_px AS headerLeftPx,
+            header_rotation_deg AS headerRotationDeg
+     FROM home_meta WHERE id = 1`
+  ) as {
+    theme: string | null;
+    description: string | null;
+    headerTopPx: number | null;
+    headerLeftPx: number | null;
+    headerRotationDeg: number | null;
+  } | null;
 
   res.json({
     items,
     meta: {
       theme: metaRow?.theme ?? null,
       description: metaRow?.description ?? null,
+      // Defaults match the originally-hardcoded constants from the
+      // first header pass — return them when the column is null so
+      // the client doesn't have to know the fallback values.
+      headerTopPx: metaRow?.headerTopPx ?? -120,
+      headerLeftPx: metaRow?.headerLeftPx ?? 4,
+      headerRotationDeg: metaRow?.headerRotationDeg ?? -4,
     },
   });
 });
 
 router.patch('/home/meta', requireAdmin, (req, res) => {
-  const body = (req.body ?? {}) as { theme?: unknown; description?: unknown };
-  const theme =
-    typeof body.theme === 'string' ? body.theme.slice(0, 80) : null;
-  const description =
-    typeof body.description === 'string'
-      ? body.description.slice(0, 240)
-      : null;
+  const body = (req.body ?? {}) as {
+    theme?: unknown;
+    description?: unknown;
+    headerTopPx?: unknown;
+    headerLeftPx?: unknown;
+    headerRotationDeg?: unknown;
+  };
+  // Each field is treated as "don't touch" when missing rather than
+  // "clear to null"; the editor only sends the fields that actually
+  // changed (matches the mydig vinyl-wall/theme PATCH behaviour).
+  const sets: string[] = [];
+  const args: any[] = [];
+  if ('theme' in body) {
+    sets.push('theme = ?');
+    args.push(
+      typeof body.theme === 'string' ? body.theme.slice(0, 80) : null
+    );
+  }
+  if ('description' in body) {
+    sets.push('description = ?');
+    args.push(
+      typeof body.description === 'string'
+        ? body.description.slice(0, 240)
+        : null
+    );
+  }
+  // Position knobs — clamped to a sensible range so a stray giant
+  // value can't push the header into orbit, but wide enough that the
+  // admin can move it freely within and around the wall area.
+  const clampInt = (v: unknown, min: number, max: number) => {
+    if (typeof v !== 'number' || !Number.isFinite(v)) return null;
+    return Math.max(min, Math.min(max, Math.round(v)));
+  };
+  if ('headerTopPx' in body) {
+    const v = clampInt(body.headerTopPx, -800, 800);
+    if (v === null) {
+      return res.status(400).json({ error: 'headerTopPx는 정수여야 해요.' });
+    }
+    sets.push('header_top_px = ?');
+    args.push(v);
+  }
+  if ('headerLeftPx' in body) {
+    const v = clampInt(body.headerLeftPx, -800, 1200);
+    if (v === null) {
+      return res.status(400).json({ error: 'headerLeftPx는 정수여야 해요.' });
+    }
+    sets.push('header_left_px = ?');
+    args.push(v);
+  }
+  if ('headerRotationDeg' in body) {
+    const v = clampInt(body.headerRotationDeg, -45, 45);
+    if (v === null) {
+      return res.status(400).json({ error: 'headerRotationDeg는 정수(-45~45)여야 해요.' });
+    }
+    sets.push('header_rotation_deg = ?');
+    args.push(v);
+  }
+  if (sets.length === 0) {
+    return res.json({ ok: true });
+  }
+  sets.push("updated_at = datetime('now')");
   const db = getDb();
   db.prepare(
-    `UPDATE home_meta SET theme = ?, description = ?, updated_at = datetime('now') WHERE id = 1`
-  ).run(theme, description);
+    `UPDATE home_meta SET ${sets.join(', ')} WHERE id = 1`
+  ).run(...args);
   res.json({ ok: true });
 });
 
