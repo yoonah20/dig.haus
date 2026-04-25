@@ -182,10 +182,9 @@ export default function HomeWall() {
             transform: `rotate(${meta.headerRotationDeg}deg)`,
             transformOrigin: 'top left',
             color: '#1a1208',
-            // Soft warm halo lets the dark ink hold against busier
-            // patches of the orange brick backdrop without reading
-            // as a typeset drop-shadow.
-            textShadow: '0 1px 0 rgba(255, 230, 195, 0.25)',
+            // No textShadow — the previous warm halo read as a
+            // typeset drop-shadow, undermining the "marker scrawled
+            // straight on the wall" feel the user is going for.
           }}
         >
           <h2
