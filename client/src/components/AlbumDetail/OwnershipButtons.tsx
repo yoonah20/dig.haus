@@ -10,12 +10,39 @@ interface Props {
   wantedCount: number;
 }
 
-// Split-pill: 샀음 on the left (muted gold), 살거 on the right (muted
-// purple). Shares the same shape + gradient system as VoteButtons so
-// the four buttons on the album header read as one family. Format
-// picker is intentionally absent — clicks operate on Vinyl and clear
-// any legacy format rows when turning off.
+// Split-pill: 샀음 on the left (warm gold), 살거 on the right (muted
+// gold). Both halves now sit in the amber family that the rest of
+// the album page already speaks — the previous brown / purple split
+// read as a legacy widget against the amber accent the page
+// otherwise carries. Distinction between owned / wanted is preserved
+// through saturation (owned brighter, wanted softer) plus the emoji
+// + label, not hue. VoteButtons (blue / red) intentionally stays in
+// its own semantic palette since up/down voting reads as pos/neg
+// rather than collection state. Format picker is absent — clicks
+// operate on Vinyl and clear any legacy format rows when turning
+// off.
 const DEFAULT_FORMAT: OwnershipFormat = 'Vinyl';
+
+const PALETTE_OWNED = {
+  activeFrom: '#a17a2a',
+  activeTo: '#7a5a1c',
+  activeText: '#fff3de',
+  idleFrom: '#1f1810',
+  idleTo: '#15100a',
+  idleText: '#a88856',
+} as const;
+
+const PALETTE_WANTED = {
+  // Same amber family, softer saturation so 살거 reads as the
+  // aspirational state next to 샀음's confirmed state without
+  // jumping to a different hue.
+  activeFrom: '#6a5a3a',
+  activeTo: '#4e4128',
+  activeText: '#f0e6d0',
+  idleFrom: '#1c1812',
+  idleTo: '#13100a',
+  idleText: '#8c7d5a',
+} as const;
 
 export default function OwnershipButtons({
   albumId,
@@ -54,23 +81,7 @@ export default function OwnershipButtons({
     const label = row === 'owned' ? '샀음' : '살거';
     const emoji = row === 'owned' ? '💿' : '🎯';
     const count = row === 'owned' ? ownedCount : wantedCount;
-    const palette = row === 'owned'
-      ? {
-          activeFrom: '#8a6a2a',
-          activeTo: '#6c5222',
-          activeText: '#fff3de',
-          idleFrom: '#1f1810',
-          idleTo: '#15100a',
-          idleText: '#a88856',
-        }
-      : {
-          activeFrom: '#6e5697',
-          activeTo: '#543f78',
-          activeText: '#f2ecfb',
-          idleFrom: '#1b1628',
-          idleTo: '#120e1c',
-          idleText: '#8f7cb3',
-        };
+    const palette = row === 'owned' ? PALETTE_OWNED : PALETTE_WANTED;
 
     return (
       <button

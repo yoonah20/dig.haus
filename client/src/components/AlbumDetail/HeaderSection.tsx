@@ -676,7 +676,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
 
       {/* Cover Art */}
       <div className="w-full md:w-80 flex-shrink-0">
-        <div className="relative group/cover aspect-square bg-[#1a1a1a] rounded-xl overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
+        <div className="relative group/cover aspect-square bg-panel rounded-xl overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
           <CoverArt
             src={album.coverArtUrl}
             fallbacks={album.coverArtFallbacks}
@@ -776,7 +776,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 disabled={updatingCover}
                 placeholder="https://..."
                 autoFocus
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 w-full"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 w-full"
               />
               <div className="flex justify-end gap-2 mt-1">
                 <button
@@ -808,11 +808,15 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
         <div>
           <div className="flex items-start gap-2 mb-1">
             <h1
-              className={`font-bold text-white font-serif ${
-                album.title.length > 25 ? 'text-2xl md:text-3xl' :
-                album.title.length > 15 ? 'text-3xl md:text-4xl' :
-                'text-3xl md:text-5xl'
-              }`}
+              // Single responsive size. The previous logic switched
+              // between text-2xl / text-3xl / text-5xl depending on
+              // album.title.length thresholds, which made the layout
+              // jump every time the title crossed 15 / 25 chars and
+              // forced two adjacent album pages to render their
+              // headers at visibly different scales. Long titles now
+              // wrap to a second / third line instead — the page
+              // header's vertical rhythm stays stable.
+              className="font-bold text-white font-serif text-3xl md:text-4xl break-words min-w-0"
             >
               {album.title}
             </h1>
@@ -887,7 +891,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   value={artistKoInput}
                   onChange={(e) => setArtistKoInput(e.target.value)}
                   disabled={savingKo}
-                  className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                  className="bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                 />
                 <label className="text-gray-400">앨범 발음</label>
                 <input
@@ -895,7 +899,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   value={titleKoInput}
                   onChange={(e) => setTitleKoInput(e.target.value)}
                   disabled={savingKo}
-                  className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                  className="bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                 />
                 <label className="text-gray-400">앨범 뜻</label>
                 <input
@@ -903,7 +907,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   value={titleMeaningInput}
                   onChange={(e) => setTitleMeaningInput(e.target.value)}
                   disabled={savingKo}
-                  className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                  className="bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                 />
               </div>
               <div className="flex justify-end gap-2 mt-3">
@@ -1024,7 +1028,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 value={titleInput}
                 onChange={(e) => setTitleInput(e.target.value)}
                 disabled={savingAlbum}
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">아티스트</label>
               <input
@@ -1032,7 +1036,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 value={artistInput}
                 onChange={(e) => setArtistInput(e.target.value)}
                 disabled={savingAlbum}
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">발매년도</label>
               <input
@@ -1043,7 +1047,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setReleaseYearInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="예: 2025"
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">발매일</label>
               <input
@@ -1052,7 +1056,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setReleaseDateInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="YYYY-MM-DD (선택)"
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">레이블</label>
               <input
@@ -1060,7 +1064,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 value={labelInput}
                 onChange={(e) => setLabelInput(e.target.value)}
                 disabled={savingAlbum}
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <div className="col-span-2 mt-1 mb-0.5 text-[11px] uppercase tracking-wider text-gray-500">외부 링크</div>
               <label className="text-gray-400">Discogs</label>
@@ -1070,7 +1074,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setDiscogsUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://www.discogs.com/master/..."
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">Spotify</label>
               <input
@@ -1079,7 +1083,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setSpotifyUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://open.spotify.com/album/..."
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">Apple Music</label>
               <input
@@ -1088,7 +1092,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setAppleMusicUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://music.apple.com/..."
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">YouTube</label>
               <input
@@ -1097,7 +1101,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setYoutubeUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://youtube.com/..."
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">Bandcamp</label>
               <input
@@ -1106,7 +1110,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setBandcampUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://artist.bandcamp.com/album/..."
-                className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
               />
             </div>
             <p className="text-xs text-gray-500 mt-4">
