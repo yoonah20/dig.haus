@@ -12,9 +12,12 @@ import { requireAdmin } from '../middleware/auth.js';
 const router = Router();
 
 router.get('/home/features', (_req, res) => {
+  // albums column is `artist_name`, not `artist` — alias to keep the
+  // client payload field stable.
   const rows = queryAll(
     `SELECT hf.position, hf.note,
-            a.mbid, a.slug, a.title, a.artist,
+            a.mbid, a.slug, a.title,
+            a.artist_name AS artist,
             a.cover_art_url AS coverArtUrl,
             a.cover_art_fallbacks AS coverArtFallbacks,
             a.cover_dominant_color AS coverDominantColor,
@@ -23,16 +26,6 @@ router.get('/home/features', (_req, res) => {
      FROM home_features hf
      JOIN albums a ON a.id = hf.album_id
      ORDER BY hf.position ASC`
-  );
-  // TEMP DEBUG — remove once home-features save round-trip is confirmed
-  const rawCount = (queryGet(
-    'SELECT COUNT(*) AS c FROM home_features'
-  ) as { c: number } | null)?.c;
-  console.log(
-    '[home/features GET] rawHomeFeatures rows=',
-    rawCount,
-    'joined rows=',
-    rows.length
   );
 
   const items = rows.map((row: any) => ({
@@ -141,23 +134,6 @@ router.put('/home/features/items', requireAdmin, (req, res) => {
 
   try {
     tx(resolved);
-    // TEMP DEBUG — verify the rows are visible right after the
-    // transaction returns. If this count mismatches resolved.length,
-    // something is wrong with the transaction itself; if it matches
-    // but the next GET still returns 0 we know the read path is the
-    // problem.
-    const postWriteCount = (queryGet(
-      'SELECT COUNT(*) AS c FROM home_features'
-    ) as { c: number } | null)?.c;
-    const sample = queryAll(
-      'SELECT position, album_id FROM home_features ORDER BY position LIMIT 5'
-    );
-    console.log(
-      '[home/features PUT] tx complete, count(*) =',
-      postWriteCount,
-      'sample =',
-      sample
-    );
     res.json({ ok: true, count: resolved.length });
   } catch (err) {
     console.error('[home/features] replace failed:', err);

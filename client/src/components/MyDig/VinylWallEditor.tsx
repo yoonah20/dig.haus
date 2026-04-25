@@ -337,24 +337,6 @@ export default function VinylWallEditor({
     const descTrimmed = descriptionInput.trim();
     const themeChanged = themeTrimmed !== (initialTheme ?? '');
     const descChanged = descTrimmed !== (initialDescription ?? '');
-    // TEMP DEBUG — remove once the home-features save path is sorted
-    console.log('[VinylWallEditor.commitWall] target=', target.kind, {
-      themeChanged,
-      descChanged,
-      itemsDirty,
-      metaDirty,
-      themeInput: themeTrimmed,
-      initialTheme,
-      draftSlots: draft.map((s, i) => ({
-        position: i,
-        empty: !s,
-        mbid: s?.mbid ?? null,
-      })),
-      initialWallPositions: initialWall.map((it) => ({
-        position: it.position,
-        mbid: it.album.mbid,
-      })),
-    });
 
     if (isWallTarget) {
       const body: { theme?: string | null; description?: string | null } = {};
@@ -407,28 +389,12 @@ export default function VinylWallEditor({
 
     if (itemsDirty) {
       if (isHomeFeaturesTarget) {
-        const payload = draftHomeFeatureItems();
-        // TEMP DEBUG
-        console.log(
-          '[VinylWallEditor.commitWall] PUT /home/features/items payload=',
-          payload
-        );
-        const result = await homeFeaturesSave.mutateAsync(payload);
-        // TEMP DEBUG
-        console.log(
-          '[VinylWallEditor.commitWall] PUT /home/features/items result=',
-          result
-        );
+        await homeFeaturesSave.mutateAsync(draftHomeFeatureItems());
       } else if (isSnapshotTarget) {
         await snapshotSave.mutateAsync(draftItems());
       } else {
         await wallSave.mutateAsync(draftItems());
       }
-    } else {
-      // TEMP DEBUG
-      console.log(
-        '[VinylWallEditor.commitWall] itemsDirty=false, skipping items mutation'
-      );
     }
   };
 
