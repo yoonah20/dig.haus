@@ -8,6 +8,7 @@ import { WallLP, WallRail } from '../MyDig/storefront/primitives';
 import WallHoverCard from '../MyDig/storefront/WallHoverCard';
 import VinylWallEditor from '../MyDig/VinylWallEditor';
 import type { MyDigWallItem } from '../../hooks/useMyDig';
+import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
 // Admin-curated 10-album home wall (5-5) — the home page is dig.haus's
 // own mydig: same wood-rail + LP primitives, same edit affordances,
@@ -73,13 +74,31 @@ export default function HomeWall() {
 
   return (
     <section className="relative group/homewall">
-      {/* Signature header intentionally NOT rendered — the dig.haus
-          logo already lives in the top nav and a second masthead on
-          the wall page reads as redundant. The home_meta singleton
-          (theme + description) stays in the editor + DB so the
-          editor unification PR can decide whether to surface it
-          elsewhere (page <title>, social meta, etc.) without
-          re-introducing the on-page header. */}
+      {/* Handwritten section header anchored to the wall's upper-left,
+          rotated a few degrees so it reads as marker scrawled on the
+          painted wall rather than typeset UI. Same Poor Story stack +
+          near-black ink as mydig's signature block — both surfaces
+          live on a warm-toned painted backdrop, so the typography
+          register transfers cleanly. */}
+      <h2
+        className="absolute z-10 select-none pointer-events-none"
+        style={{
+          top: '-18px',
+          left: '4px',
+          fontFamily: GRAFFITI_FONT_STACK,
+          transform: 'rotate(-4deg)',
+          color: '#1a1208',
+          fontSize: '28px',
+          fontWeight: 700,
+          letterSpacing: '0.01em',
+          // Soft warm halo lets the dark ink hold against busier
+          // patches of the orange brick backdrop without reading as a
+          // typeset drop-shadow.
+          textShadow: '0 1px 0 rgba(255, 230, 195, 0.25)',
+        }}
+      >
+        딕하우스 4월 추천 앨범
+      </h2>
 
       {isAdmin && !editing && (
         <button
