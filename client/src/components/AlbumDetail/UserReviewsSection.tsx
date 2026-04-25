@@ -9,6 +9,7 @@ import {
 import { resolveApiUrl } from '../../utils/apiUrl';
 import UserHoverCard from '../UserHoverCard';
 import CardOverlayButton from '../CardOverlayButton';
+import { SectionTitle } from '../ui';
 
 const MAX_CHARS = 50;
 const MIN_CHARS = 5;
@@ -133,7 +134,7 @@ function SpeechBubble({
           </CardOverlayButton>
         </div>
       )}
-      <div className="bg-[#1d140a] border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 flex flex-col min-w-0 h-full">
+      <div className="bg-panel border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 flex flex-col min-w-0 h-full">
         {/* Body + emoji stamps. The rating/feeling emojis ride at the
             end of the text (separated by a single space) rather than
             floating as overhanging badges or sitting in the footer — so
@@ -193,7 +194,7 @@ function AddReviewCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/30 hover:bg-[#1d140a]/70 border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/80 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer w-full h-full"
+      className="group flex flex-col items-center justify-center gap-2 bg-panel/30 hover:bg-panel/70 border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/80 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer w-full h-full"
     >
       <span className="text-3xl group-hover:scale-110 transition-transform" aria-hidden>✍️</span>
       <span className="text-sm font-medium text-[#e8a020] group-hover:text-[#f0b040]">
@@ -208,7 +209,7 @@ function LoginPromptCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 bg-[#1d140a]/20 hover:bg-[#1d140a]/50 border border-dashed border-white/15 hover:border-[#e8a020]/40 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer text-center w-full h-full"
+      className="group flex flex-col items-center justify-center gap-2 bg-panel/20 hover:bg-panel/50 border border-dashed border-white/15 hover:border-[#e8a020]/40 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer text-center w-full h-full"
     >
       <span
         className="text-2xl opacity-70 group-hover:opacity-100 transition-opacity"
@@ -331,7 +332,7 @@ function Editor({
   );
 
   return (
-    <div className="bg-[#1d140a] border border-[#e8a020]/40 rounded-2xl pt-1.5 px-3 pb-3 h-[180px] flex flex-col gap-1">
+    <div className="bg-panel border border-[#e8a020]/40 rounded-2xl pt-1.5 px-3 pb-3 h-[180px] flex flex-col gap-1">
       {/* Header: summary on left, progress on right. No min-height — when
           no pills are present the row collapses to the progress-dot height
           so the prompt sits close to the card's top edge. */}
@@ -416,7 +417,7 @@ function Editor({
               placeholder={`공백 제외 ${MIN_CHARS}~${MAX_CHARS}자`}
               rows={3}
               disabled={saving}
-              className="w-full bg-[#0f0a05] border border-white/10 rounded-lg px-2.5 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
+              className="w-full bg-panel-strong border border-white/10 rounded-lg px-2.5 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
             />
             <div className="flex items-center justify-between gap-1 text-[11px] mt-auto">
               <span
@@ -602,16 +603,9 @@ export default function UserReviewsSection({
   };
 
   const heading = (
-    <div className="flex items-baseline justify-between mb-6">
-      <h2 className="text-2xl font-bold text-white font-serif flex items-baseline gap-2">
-        고객 50자 평
-        {reviews.length > 0 && (
-          <span className="text-sm text-gray-500 font-sans font-normal">
-            {reviews.length}
-          </span>
-        )}
-      </h2>
-    </div>
+    <SectionTitle meta={reviews.length > 0 ? reviews.length : undefined}>
+      고객 50자 평
+    </SectionTitle>
   );
 
   return (
