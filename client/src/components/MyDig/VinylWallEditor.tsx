@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import CoverArt from '../CoverArt';
 import QuickRegister from './QuickRegister';
 import SnapshotSaveModal from './SnapshotSaveModal';
@@ -13,6 +13,11 @@ import {
   type MyDigCandidateSource,
   type MyDigWallItem,
 } from '../../hooks/useMyDig';
+import {
+  useReplaceHomeFeatures,
+  useUpdateHomeMeta,
+} from '../../hooks/useHomeFeatures';
+import { useSearch } from '../../hooks/useSearch';
 
 // Phase 3b — Vinyl Wall edit mode. 80/20 split, native HTML5
 // drag-drop on desktop, tap-to-select + tap-slot on touch. Edit
@@ -24,16 +29,17 @@ import {
 const WALL_ROW_SIZES = [5, 5, 5] as const;
 const WALL_TOTAL = 15;
 
-// Header title builder. Wall target → "현재 마이딕 편집"; snapshot
-// target → "{name} ({YYYY년 M월 D일}) 편집" (falls back to
-// name-only if no date). Kept inline instead of hoisted to a utils
-// file since it's the only place that formats this phrasing.
+// Header title builder. Per target:
+//   - wall          → "현재 마이딕 편집"
+//   - snapshot      → "{name} ({YYYY년 M월 D일}) 편집" (date optional)
+//   - home-features → "dig.haus 벽 편집" (admin-curated singleton)
 function editorTitle(
-  isSnapshotTarget: boolean,
+  targetKind: EditTarget['kind'],
   name: string | null,
   createdAt: string | null
 ): string {
-  if (!isSnapshotTarget) return '현재 마이딕 편집';
+  if (targetKind === 'home-features') return 'dig.haus 벽 편집';
+  if (targetKind === 'wall') return '현재 마이딕 편집';
   const displayName = name?.trim() || '스냅샷';
   if (!createdAt) return `${displayName} 편집`;
   const d = new Date(createdAt);
@@ -43,17 +49,35 @@ function editorTitle(
 
 type DraftSlot = MyDigAlbum | null;
 
-// What the editor is editing. The default target is the owner's
-// live wall (PUT /api/mydig/vinyl-wall/items + backed by the
-// `vinyl_wall_items` table). Snapshot mode points the save action
-// at a specific saved snapshot instead, so the owner can re-open
-// and rearrange a previously archived wall from its detail page.
+// Flattened candidate panel view fed into <CandidateList>. Either
+// the mydig 4-tab infinite query or the home-features DB-search
+// query gets adapted into this shape so the list rendering stays
+// target-agnostic.
+interface CandidatePanelData {
+  albums: MyDigCandidate[];
+  isLoading: boolean;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
+}
+
+// What the editor is editing.
+//   - wall           — owner's live mydig wall (PUT /api/mydig/vinyl-wall/items)
+//   - snapshot       — a specific saved snapshot row
+//   - home-features  — the admin-curated global home wall, single
+//                      `home_features` + `home_meta` row in DB; no
+//                      per-user scope, no snapshot concept
 export type EditTarget =
   | { kind: 'wall' }
-  | { kind: 'snapshot'; id: number; slug: string };
+  | { kind: 'snapshot'; id: number; slug: string }
+  | { kind: 'home-features' };
 
 interface Props {
-  username: string;
+  // Optional because home-features has no per-user scope. Required
+  // for wall + snapshot targets — runtime guards inside save/meta
+  // hooks already short-circuit on missing username, but in practice
+  // the mydig surfaces always pass it.
+  username?: string;
   initialWall: MyDigWallItem[];
   onClose: () => void;
   target?: EditTarget;
@@ -85,6 +109,8 @@ export default function VinylWallEditor({
   initialSnapshotDate = null,
 }: Props) {
   const isSnapshotTarget = target.kind === 'snapshot';
+  const isHomeFeaturesTarget = target.kind === 'home-features';
+  const isWallTarget = target.kind === 'wall';
   // Hydrate the 22-element draft array from the sparse server payload.
   const [draft, setDraft] = useState<DraftSlot[]>(() => {
     const arr: DraftSlot[] = new Array(WALL_TOTAL).fill(null);
@@ -162,19 +188,81 @@ export default function VinylWallEditor({
     };
   }, []);
 
-  const candidates = useMyDigCandidates(source, debouncedQ, true);
-  // Both save hooks share the same (items) => Promise shape, so the
-  // rest of the editor can stay agnostic — the target just picks
-  // which endpoint the PUT hits.
+  // Two candidate sources, picked per target. Both flatten to the
+  // same MyDigCandidate[] view fed into <CandidateList>.
+  //   - mydig (wall + snapshot) → 4-tab infinite query
+  //   - home-features          → DB-only album search (admin scope,
+  //     no per-user filters); single page, no pagination, so the
+  //     panel just hides the load-more sentinel
+  const myDigCandidates = useMyDigCandidates(
+    source,
+    debouncedQ,
+    !isHomeFeaturesTarget
+  );
+  const homeSearch = useSearch(isHomeFeaturesTarget ? debouncedQ : '');
+  const candidatePanel: CandidatePanelData = useMemo(() => {
+    if (isHomeFeaturesTarget) {
+      const albums = (homeSearch.data?.albums ?? []).map(
+        (a): MyDigCandidate => ({
+          // No numeric DB id from /albums/search — home-features
+          // saves use mbid, so id is unused in this mode. Kept as 0
+          // for the shared MyDigCandidate shape; React keys + identity
+          // checks switched to mbid below.
+          id: 0,
+          mbid: a.mbid,
+          slug: null,
+          title: a.title,
+          artist: a.artist,
+          releaseYear: a.year,
+          coverArtUrl: a.coverArtUrl,
+          coverArtFallbacks: a.coverArtFallbacks,
+        })
+      );
+      return {
+        albums,
+        isLoading: homeSearch.isLoading,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: () => {},
+      };
+    }
+    return {
+      albums: myDigCandidates.data?.pages.flatMap((p) => p.albums) ?? [],
+      isLoading: myDigCandidates.isLoading,
+      hasNextPage: !!myDigCandidates.hasNextPage,
+      isFetchingNextPage: !!myDigCandidates.isFetchingNextPage,
+      fetchNextPage: () => myDigCandidates.fetchNextPage(),
+    };
+  }, [
+    isHomeFeaturesTarget,
+    homeSearch.data,
+    homeSearch.isLoading,
+    myDigCandidates.data,
+    myDigCandidates.isLoading,
+    myDigCandidates.hasNextPage,
+    myDigCandidates.isFetchingNextPage,
+    myDigCandidates.fetchNextPage,
+  ]);
+
+  // Save + meta hooks for all three targets. All instantiated up-front
+  // (hooks are unconditional) and dispatched per-target inside
+  // commitWall. The mydig hooks already no-op on missing username, so
+  // home-features instantiates them harmlessly.
   const wallSave = useSaveVinylWall(username);
   const snapshotSave = useSaveVinylWallSnapshotItems(
     username,
     target.kind === 'snapshot' ? target.id : null,
     target.kind === 'snapshot' ? target.slug : null
   );
-  const save = isSnapshotTarget ? snapshotSave : wallSave;
+  const homeFeaturesSave = useReplaceHomeFeatures();
+  const save = isHomeFeaturesTarget
+    ? homeFeaturesSave
+    : isSnapshotTarget
+      ? snapshotSave
+      : wallSave;
   const themeUpdate = useUpdateVinylWallTheme(username);
   const snapshotMetaUpdate = useUpdateVinylWallSnapshot(username);
+  const homeMetaUpdate = useUpdateHomeMeta();
 
   // Title + description + (snapshot-only) public flag. Shared by
   // both targets so the owner edits name + description + albums in
@@ -203,25 +291,40 @@ export default function VinylWallEditor({
     const serverItem = initialWall.find((it) => it.position === idx);
     if (!slot && !serverItem) return false;
     if (!slot || !serverItem) return true;
-    return slot.id !== serverItem.album.id;
+    // Compare on mbid — search-derived candidates carry id=0, so
+    // equality on the numeric id would falsely flag two different
+    // albums as identical in home-features mode.
+    return slot.mbid !== serverItem.album.mbid;
   });
-  // Title/description dirty applies to both targets. Public flag
-  // only changes in snapshot mode (wall mode handles mydig_public
-  // via a different surface).
+  // Title/description dirty applies to all targets. Public flag is a
+  // snapshot-only concept (wall mode handles mydig_public elsewhere;
+  // home-features has no concept of private).
   const metaDirty =
     themeInput.trim() !== (initialTheme ?? '') ||
     descriptionInput.trim() !== (initialDescription ?? '') ||
     (isSnapshotTarget && isPublicInput !== initialIsPublic);
   const dirty = itemsDirty || metaDirty;
 
-  // Draft → flat items payload, shared by wall-save and
-  // snapshot-from-draft paths.
+  // Draft → flat items payload, shared by mydig wall + snapshot
+  // paths (both keyed on numeric albumId).
   const draftItems = () =>
     draft
       .map((slot, position) =>
         slot ? { position, albumId: slot.id } : null
       )
       .filter((x): x is { position: number; albumId: number } => x !== null);
+
+  // Home-features uses mbid + note instead of albumId — matches the
+  // PUT /api/home/features/items endpoint. Note is null for now;
+  // the editor doesn't surface a per-slot note input yet.
+  const draftHomeFeatureItems = () =>
+    draft
+      .map((slot, position) =>
+        slot ? { position, mbid: slot.mbid, note: null } : null
+      )
+      .filter(
+        (x): x is { position: number; mbid: string; note: null } => x !== null
+      );
 
   // Core commit path — runs after the snapshot-or-not choice is
   // resolved. Persists meta (title/description and, for snapshots,
@@ -234,7 +337,8 @@ export default function VinylWallEditor({
     const descTrimmed = descriptionInput.trim();
     const themeChanged = themeTrimmed !== (initialTheme ?? '');
     const descChanged = descTrimmed !== (initialDescription ?? '');
-    if (!isSnapshotTarget) {
+
+    if (isWallTarget) {
       const body: { theme?: string | null; description?: string | null } = {};
       if (themeChanged) {
         body.theme = themeTrimmed.length > 0 ? themeTrimmed : null;
@@ -271,9 +375,26 @@ export default function VinylWallEditor({
       ) {
         await snapshotMetaUpdate.mutateAsync(body);
       }
+    } else if (isHomeFeaturesTarget) {
+      // Home-meta PATCH always takes both fields — the singleton row
+      // overwrites theme + description in one shot. Only fire when
+      // either changed.
+      if (themeChanged || descChanged) {
+        await homeMetaUpdate.mutateAsync({
+          theme: themeTrimmed.length > 0 ? themeTrimmed : null,
+          description: descTrimmed.length > 0 ? descTrimmed : null,
+        });
+      }
     }
+
     if (itemsDirty) {
-      await save.mutateAsync(draftItems());
+      if (isHomeFeaturesTarget) {
+        await homeFeaturesSave.mutateAsync(draftHomeFeatureItems());
+      } else if (isSnapshotTarget) {
+        await snapshotSave.mutateAsync(draftItems());
+      } else {
+        await wallSave.mutateAsync(draftItems());
+      }
     }
   };
 
@@ -281,12 +402,16 @@ export default function VinylWallEditor({
     if (
       save.isPending ||
       themeUpdate.isPending ||
-      snapshotMetaUpdate.isPending
+      snapshotMetaUpdate.isPending ||
+      homeMetaUpdate.isPending
     ) {
       return;
     }
-    // Snapshot target saves directly — no "also snapshot?" prompt.
-    if (isSnapshotTarget) {
+    // Snapshot + home-features targets save directly — no
+    // "also snapshot?" detour. Snapshots have nothing to capture (the
+    // user is editing one already); home-features is a global
+    // singleton with no snapshot concept.
+    if (isSnapshotTarget || isHomeFeaturesTarget) {
       void (async () => {
         try {
           await commitWall();
@@ -451,11 +576,7 @@ export default function VinylWallEditor({
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/5 bg-[#12100d]">
         <div className="flex items-center gap-3">
           <span className="text-sm text-[#e8a020]">
-            {editorTitle(
-              isSnapshotTarget,
-              initialTheme,
-              initialSnapshotDate
-            )}
+            {editorTitle(target.kind, initialTheme, initialSnapshotDate)}
           </span>
           {dirty && (
             <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
@@ -477,7 +598,12 @@ export default function VinylWallEditor({
           <button
             type="button"
             onClick={handleCancel}
-            disabled={save.isPending || themeUpdate.isPending || snapshotMetaUpdate.isPending}
+            disabled={
+              save.isPending ||
+              themeUpdate.isPending ||
+              snapshotMetaUpdate.isPending ||
+              homeMetaUpdate.isPending
+            }
             className="text-xs text-gray-400 hover:text-white px-3 py-1.5 disabled:opacity-40 cursor-pointer"
           >
             취소
@@ -485,10 +611,21 @@ export default function VinylWallEditor({
           <button
             type="button"
             onClick={handleSave}
-            disabled={save.isPending || themeUpdate.isPending || snapshotMetaUpdate.isPending || !dirty}
+            disabled={
+              save.isPending ||
+              themeUpdate.isPending ||
+              snapshotMetaUpdate.isPending ||
+              homeMetaUpdate.isPending ||
+              !dirty
+            }
             className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
-            {save.isPending || themeUpdate.isPending || snapshotMetaUpdate.isPending ? '저장 중…' : '저장'}
+            {save.isPending ||
+            themeUpdate.isPending ||
+            snapshotMetaUpdate.isPending ||
+            homeMetaUpdate.isPending
+              ? '저장 중…'
+              : '저장'}
           </button>
         </div>
       </header>
@@ -506,7 +643,11 @@ export default function VinylWallEditor({
                 previously lived in a separate SnapshotRenameModal. */}
             <div className="flex flex-col gap-2 pb-3 border-b border-white/10">
               <label className="block text-[10px] uppercase tracking-wider text-gray-500">
-                {isSnapshotTarget ? '스냅샷 이름' : '벽 제목'}
+                {isSnapshotTarget
+                  ? '스냅샷 이름'
+                  : isHomeFeaturesTarget
+                    ? '시그니처 제목'
+                    : '벽 제목'}
               </label>
               <input
                 type="text"
@@ -516,12 +657,18 @@ export default function VinylWallEditor({
                 placeholder={
                   isSnapshotTarget
                     ? '예: 2026년 봄 플레이리스트'
-                    : '예: 2026년 4월의 최애'
+                    : isHomeFeaturesTarget
+                      ? '예: dig.haus / 이번 달 픽'
+                      : '예: 2026년 4월의 최애'
                 }
                 className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600"
               />
               <label className="block text-[10px] uppercase tracking-wider text-gray-500 mt-1">
-                {isSnapshotTarget ? '스냅샷 설명' : '벽 설명'}
+                {isSnapshotTarget
+                  ? '스냅샷 설명'
+                  : isHomeFeaturesTarget
+                    ? '시그니처 설명'
+                    : '벽 설명'}
               </label>
               <textarea
                 value={descriptionInput}
@@ -531,7 +678,9 @@ export default function VinylWallEditor({
                 placeholder={
                   isSnapshotTarget
                     ? '이 스냅샷이 어떤 순간인지 짧게 남겨보세요.'
-                    : '예: 4월 내내 열심히 듣고 있는 앨범들입니다.'
+                    : isHomeFeaturesTarget
+                      ? '예: 운영자가 한 달 동안 발굴한 15장'
+                      : '예: 4월 내내 열심히 듣고 있는 앨범들입니다.'
                 }
                 className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none leading-snug"
               />
@@ -586,39 +735,39 @@ export default function VinylWallEditor({
         </main>
 
         <aside className="w-full lg:w-80 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-white/5 bg-[#12100d] flex flex-col max-h-[50vh] lg:max-h-none">
-          {/* Source tabs. 굿굿 first surfaces albums the user has
-              already endorsed — a natural starting point for wall
-              curation. '내 상자' (crate) was dropped from the picker
-              while the public crate tier is shelved per the Phase 3
-              storefront pivot; 살거 stays as a candidate pool even
-              though the wall itself isn't a shopping list. */}
-          <div className="flex border-b border-white/5 text-xs">
-            {([
-              { key: 'upvote', label: '굿굿' },
-              { key: 'collection', label: '샀음' },
-              { key: 'wantlist', label: '살거' },
-              { key: 'all', label: '전체' },
-            ] as const).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setSource(t.key)}
-                className={`flex-1 px-2 py-2 transition-colors cursor-pointer ${
-                  source === t.key
-                    ? 'text-[#e8a020] border-b-2 border-[#e8a020]'
-                    : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          {/* Source tabs — mydig only. Home-features is admin-curated
+              and has no per-user "굿굿 / 샀음 / 살거" semantics; the
+              picker collapses to plain DB search. */}
+          {!isHomeFeaturesTarget && (
+            <div className="flex border-b border-white/5 text-xs">
+              {([
+                { key: 'upvote', label: '굿굿' },
+                { key: 'collection', label: '샀음' },
+                { key: 'wantlist', label: '살거' },
+                { key: 'all', label: '전체' },
+              ] as const).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setSource(t.key)}
+                  className={`flex-1 px-2 py-2 transition-colors cursor-pointer ${
+                    source === t.key
+                      ? 'text-[#e8a020] border-b-2 border-[#e8a020]'
+                      : 'text-gray-500 hover:text-gray-300'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-          {/* Quick-register appears only on the 전체 tab — the other
-              three tabs are filtered views of the user's own
+          {/* Quick-register appears only on the mydig 전체 tab — the
+              other three tabs are filtered views of the user's own
               collections, where "this album isn't in dig.haus yet"
-              doesn't apply. */}
-          {source === 'all' && <QuickRegister />}
+              doesn't apply. Hidden for home-features (admin scope;
+              the admin can register albums via the dedicated UI). */}
+          {!isHomeFeaturesTarget && source === 'all' && <QuickRegister />}
 
           <div className="p-3 border-b border-white/5">
             <input
@@ -644,16 +793,17 @@ export default function VinylWallEditor({
           </div>
 
           <CandidateList
-            candidates={candidates}
+            panel={candidatePanel}
             selectedAlbum={selectedAlbum}
             selectedSource={selectedSource}
             onSelectAlbum={(album) => {
               // Picking from the candidate panel while a wall slot is
               // already selected replaces the selection — the user's
               // most recent gesture wins, and the previous wall source
-              // just goes back to its slot untouched.
+              // just goes back to its slot untouched. Identity check
+              // uses mbid because home-features candidates carry id=0.
               if (
-                selectedAlbum?.id === album.id &&
+                selectedAlbum?.mbid === album.mbid &&
                 selectedSource === null
               ) {
                 clearSelection();
@@ -668,10 +818,12 @@ export default function VinylWallEditor({
         </aside>
       </div>
 
-      {/* Scratch-snapshot machinery — wall-target only. Editing a
-          snapshot itself doesn't need the "save as snapshot" detour
-          or the "revert vs keep" follow-up. */}
-      {!isSnapshotTarget && saveChoicePrompt && (
+      {/* Scratch-snapshot machinery — mydig wall target only. Editing
+          a snapshot itself doesn't need the "save as snapshot" detour;
+          home-features is global + has no snapshot concept. The
+          isWallTarget gate also narrows `username` to `string` for the
+          SnapshotSaveModal mount below. */}
+      {isWallTarget && saveChoicePrompt && (
         <SaveChoicePrompt
           pending={save.isPending || themeUpdate.isPending || snapshotMetaUpdate.isPending}
           onWallOnly={handleSaveWithoutSnapshot}
@@ -680,7 +832,7 @@ export default function VinylWallEditor({
         />
       )}
 
-      {!isSnapshotTarget && snapshotModalOpen && (
+      {isWallTarget && snapshotModalOpen && username && (
         <SnapshotSaveModal
           username={username}
           items={draftItems()}
@@ -696,7 +848,7 @@ export default function VinylWallEditor({
         />
       )}
 
-      {!isSnapshotTarget && postSnapshotPrompt && (
+      {isWallTarget && postSnapshotPrompt && (
         <RevertOrKeepPrompt
           pending={save.isPending || themeUpdate.isPending}
           onRevert={handleRevertAfterSnapshot}
@@ -983,29 +1135,33 @@ function EditWallSlot({
 }
 
 function CandidateList({
-  candidates,
+  panel,
   selectedAlbum,
   selectedSource,
   onSelectAlbum,
   dragSource,
   debouncedQ,
 }: {
-  candidates: ReturnType<typeof useMyDigCandidates>;
+  panel: CandidatePanelData;
   selectedAlbum: MyDigAlbum | null;
   selectedSource: number | null;
   onSelectAlbum: (album: MyDigCandidate) => void;
   dragSource: React.MutableRefObject<number | null>;
   debouncedQ: string;
 }) {
-  const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = candidates;
-  // Flatten all pages into one sequence for rendering. React Query
-  // keeps pages across paginations so already-loaded rows don't
-  // re-render as the user scrolls.
-  const albums = data?.pages.flatMap((p) => p.albums) ?? [];
+  const {
+    albums,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = panel;
 
   // Sentinel at the end of the list — when it intersects the
   // scroll container, request the next page. Fetch is guarded by
   // hasNextPage + isFetchingNextPage so we never over-request.
+  // Home-features panel always sets hasNextPage=false so this just
+  // doesn't fire there.
   const sentinelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const el = sentinelRef.current;
@@ -1044,15 +1200,18 @@ function CandidateList({
     <div className="flex-1 overflow-y-auto divide-y divide-white/5">
       {albums.map((album) => (
         <CandidateRow
-          key={album.id}
+          // mbid is the only id field guaranteed to be unique across
+          // both candidate sources (mydig DB rows + home-features
+          // search-derived rows where numeric id is 0).
+          key={album.mbid}
           album={album}
           // Only highlight a candidate row when the selection
           // specifically originated from the panel (source === null).
           // A wall-origin selection of the same album elsewhere
           // shouldn't light up the candidate row — they're different
-          // actions even though the album id matches.
+          // actions even though the album mbid matches.
           isSelected={
-            selectedAlbum?.id === album.id && selectedSource === null
+            selectedAlbum?.mbid === album.mbid && selectedSource === null
           }
           onSelect={() => onSelectAlbum(album)}
           dragSource={dragSource}
