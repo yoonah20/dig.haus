@@ -903,10 +903,13 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
           <button
             type="button"
             onClick={() => openOverlay(album.artist)}
-            // Artist name as the secondary headline — same red as
-            // the title but smaller + uppercase display sans, sits
-            // directly below the title to read as one masthead unit.
-            className="font-display uppercase text-stamp-red-deep text-2xl md:text-4xl tracking-tight hover:underline inline-block cursor-pointer text-left"
+            // Artist name as the secondary headline — same vivid
+            // stamp-red as the title but smaller + uppercase display
+            // sans, sits directly below the title to read as one
+            // masthead unit. Using stamp-red rather than the deeper
+            // variant so the artist stays legible against the dark
+            // page background.
+            className="font-display uppercase text-stamp-red text-2xl md:text-4xl tracking-tight hover:underline inline-block cursor-pointer text-left opacity-90"
           >
             {album.artist}
           </button>

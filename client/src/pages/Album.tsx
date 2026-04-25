@@ -150,14 +150,13 @@ export default function Album() {
   const showNav = hasPrev || hasNext;
 
   return (
-    // Album page flips into the "paper" palette per
-    // docs/album-page-zine-vision.md Tier 1 — cream bg, ink-dark
-    // text, red display accents. The flex-1 wrapper takes the
-    // paper bg and constrains the entire page surface; the rest of
-    // the site (nav above, footer below) keeps the dark chrome so
-    // the album page reads as a printed flyer mounted on the wall
-    // rather than a mode switch for the whole site.
-    <div className="flex-1 px-4 bg-paper-bg text-paper-ink album-paper">
+    // Album page stays on the site's dark-mode base — the earlier
+    // cream-paper full-bg pivot diverged too far from the rest of
+    // the site's identity. Zine character (red display title, marker
+    // score, masking-tape headers, sticky-note comment bubbles) is
+    // applied inside this dark frame so the page reads as a flyer
+    // pinned to a dark wall rather than a separate cream world.
+    <div className="flex-1 px-4">
       <main className="max-w-[1120px] mx-auto py-8 space-y-10">
         {/* Stage 1: instant */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />

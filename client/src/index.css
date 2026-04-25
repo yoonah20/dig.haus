@@ -125,50 +125,6 @@ html {
   scrollbar-gutter: stable;
 }
 
-/* Paper-mode scope for the album page. The shared chrome tokens
-   (bg-panel etc.) were tuned for dark mode; rebinding the CSS
-   variables under .album-paper lets the existing AlbumDetail
-   components inherit paper-tone equivalents without each one being
-   rewritten. Sections that want bespoke paper styling (huge red
-   title, marker score, sticky-note comment cards) override these
-   locally. Text-color classes don't run through tokens in Tailwind
-   v4, so the gray scale gets remapped explicitly here. */
-.album-paper {
-  --color-panel: var(--color-paper-bg-edge);
-  --color-panel-hover: #c8baa0;
-  --color-panel-strong: var(--color-paper-cream);
-}
-
-.album-paper .text-white {
-  color: var(--color-paper-ink);
-}
-.album-paper .text-gray-200,
-.album-paper .text-gray-300 {
-  color: var(--color-paper-ink);
-}
-.album-paper .text-gray-400 {
-  color: var(--color-paper-ink-muted);
-}
-.album-paper .text-gray-500 {
-  color: var(--color-paper-ink-muted);
-}
-.album-paper .text-gray-600 {
-  color: var(--color-paper-ink-faint);
-}
-.album-paper .border-white\/10,
-.album-paper .border-white\/5 {
-  border-color: rgba(26, 18, 8, 0.15);
-}
-.album-paper .border-white\/20 {
-  border-color: rgba(26, 18, 8, 0.25);
-}
-.album-paper .bg-white\/5 {
-  background-color: rgba(26, 18, 8, 0.06);
-}
-.album-paper .bg-white\/10 {
-  background-color: rgba(26, 18, 8, 0.1);
-}
-
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);

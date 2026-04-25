@@ -761,8 +761,8 @@ export default function ReviewSection({
             >
               {Math.round(averageScore)}
             </span>
-            <span className="text-paper-ink-muted text-xl font-mono">/100</span>
-            <span className="text-paper-ink-faint text-sm font-mono ml-1">
+            <span className="text-gray-500 text-xl font-mono">/100</span>
+            <span className="text-gray-600 text-sm font-mono ml-1">
               ({scoredCount}개 사이트 평균)
             </span>
           </div>
@@ -843,10 +843,10 @@ export default function ReviewSection({
                 </div>
               ) : (
                 <p
-                  className="text-paper-ink leading-relaxed text-base md:text-lg md:columns-2 md:gap-10"
+                  className="text-gray-200 leading-relaxed text-base md:text-lg"
                   style={{ fontFamily: 'var(--font-serif-kr)' }}
                 >
-                  {koreanSummary || <span className="italic text-paper-ink-faint font-sans">요약 없음</span>}
+                  {koreanSummary || <span className="italic text-gray-600 font-sans">요약 없음</span>}
                 </p>
               )}
             </div>
