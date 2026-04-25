@@ -43,6 +43,46 @@
   --color-foreground-muted: #999999;
   --color-border: #2a2a2a;
 
+  /* Panel chrome — consolidates the three card backgrounds the album-
+     page audit found in the wild (#1a1a1a, #1d140a, #0f0f0f) into a
+     single panel base + hover + strong (for inputs / dim overlays).
+     The album-page refactor's PR3 swaps the hardcoded hexes to these
+     so the page reads as one composition rather than three islands.
+     Panel duplicates --color-background-secondary on purpose: the
+     existing token is "what the page background secondary level
+     looks like" while --color-panel reads as "what a content panel
+     surface looks like" at the call site, and they happen to share
+     a value today. Splitting the names lets either move without the
+     other if a future redesign breaks them apart. */
+  --color-panel: #1a1a1a;
+  --color-panel-hover: #252525;
+  --color-panel-strong: #0f0f0f;
+
+  /* MyDig storefront vocabulary hoisted into site-wide tokens so the
+     album page can reuse the same wood / lamp / tape colors for its
+     "디제이 노트" ornament direction — selective absorption from the
+     레코드샵 카운터 plan per the album-page redesign memory and
+     docs/post-phase3-roadmap.md. The full ROOM palette stays in
+     client/src/components/MyDig/storefront/palettes.ts for mydig
+     scene composition (gradients + complex styles that don't map to
+     simple Tailwind utilities); only the keys other surfaces will
+     reach for end up here. */
+  --color-rail: #2a1a0c;
+  --color-rail-top: #3a2414;
+  --color-tape-cream: #f5e8c8;
+  --color-tape-edge: #c9b488;
+  --color-tape-ink: #2a1a0d;
+  --color-lamp-warm: rgba(255, 200, 130, 0.42);
+
+  /* Radius scale — pin three values for the chrome system so cards
+     / inputs / pills stop inventing their own. Album page audit
+     found rounded-md/lg/xl/2xl/full all in use across sections
+     without a rule; PR2 primitives consume these and PR3+ migrate
+     existing components onto them. */
+  --radius-input: 6px;
+  --radius-panel: 12px;
+  --radius-pill: 9999px;
+
   --font-sans: "Pretendard", "Noto Sans KR", "Inter", sans-serif;
   --font-serif: "Playfair Display", "Noto Serif KR", "Georgia", serif;
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
