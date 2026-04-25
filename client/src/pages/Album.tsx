@@ -150,12 +150,6 @@ export default function Album() {
   const showNav = hasPrev || hasNext;
 
   return (
-    // Album page stays on the site's dark-mode base — the earlier
-    // cream-paper full-bg pivot diverged too far from the rest of
-    // the site's identity. Zine character (red display title, marker
-    // score, masking-tape headers, sticky-note comment bubbles) is
-    // applied inside this dark frame so the page reads as a flyer
-    // pinned to a dark wall rather than a separate cream world.
     <div className="flex-1 px-4">
       <main className="max-w-[1120px] mx-auto py-8 space-y-10">
         {/* Stage 1: instant */}

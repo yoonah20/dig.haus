@@ -134,18 +134,7 @@ function SpeechBubble({
           </CardOverlayButton>
         </div>
       )}
-      <div
-        className="bg-paper-cream border border-[#1a1208]/15 rounded-2xl px-4 py-3.5 flex flex-col min-w-0 h-full"
-        style={{
-          // Paper-note look — slight tilt + drop shadow so the
-          // bubble reads as a sticky note pinned to the page
-          // rather than a chrome card. Per-card rotation derived
-          // from review.id so the grid feels human-placed rather
-          // than aligned-by-script.
-          transform: `rotate(${((review.id * 7) % 5) - 2}deg)`,
-          boxShadow: '0 6px 16px rgba(20, 14, 8, 0.18)',
-        }}
-      >
+      <div className="bg-panel border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 flex flex-col min-w-0 h-full">
         {/* Body + emoji stamps. The rating/feeling emojis ride at the
             end of the text (separated by a single space) rather than
             floating as overhanging badges or sitting in the footer — so

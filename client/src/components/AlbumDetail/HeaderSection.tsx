@@ -836,13 +836,15 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
         <div>
           <div className="flex items-start gap-2 mb-1">
             <h1
-              // Display-scale hero title per the zine pass Tier 1 —
-              // big condensed Anton in stamp-red, all caps, breaks
-              // to multiple lines for long titles instead of
-              // shrinking to fit. The page's vertical rhythm starts
-              // here; this is the loudest element on the album page
-              // by design.
-              className="font-display uppercase text-stamp-red text-5xl md:text-7xl lg:text-8xl leading-[0.95] tracking-tight break-words min-w-0"
+              // Single responsive size. The previous logic switched
+              // between text-2xl / text-3xl / text-5xl depending on
+              // album.title.length thresholds, which made the layout
+              // jump every time the title crossed 15 / 25 chars and
+              // forced two adjacent album pages to render their
+              // headers at visibly different scales. Long titles now
+              // wrap to a second / third line instead — the page
+              // header's vertical rhythm stays stable.
+              className="font-bold text-white font-serif text-3xl md:text-4xl break-words min-w-0"
             >
               {album.title}
             </h1>
@@ -903,13 +905,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
           <button
             type="button"
             onClick={() => openOverlay(album.artist)}
-            // Artist name as the secondary headline — same vivid
-            // stamp-red as the title but smaller + uppercase display
-            // sans, sits directly below the title to read as one
-            // masthead unit. Using stamp-red rather than the deeper
-            // variant so the artist stays legible against the dark
-            // page background.
-            className="font-display uppercase text-stamp-red text-2xl md:text-4xl tracking-tight hover:underline inline-block cursor-pointer text-left opacity-90"
+            className="text-2xl md:text-3xl text-[#e8a020] hover:underline inline-block font-serif cursor-pointer text-left"
           >
             {album.artist}
           </button>
