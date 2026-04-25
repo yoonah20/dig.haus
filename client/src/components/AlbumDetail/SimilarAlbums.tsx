@@ -7,6 +7,7 @@ import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import CardOverlayButton from '../CardOverlayButton';
 import PlayChip from '../PlayChip';
+import { SectionTitle, Field } from '../ui';
 
 function SpotifyIcon() {
   return (
@@ -54,7 +55,7 @@ function ServiceIcons({ album }: { album: SimilarAlbum }) {
   // shadows. The previous per-icon circles relied on a low-contrast
   // black/70 disc that was easy to miss on dark covers.
   return (
-    <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/75 backdrop-blur-sm ring-1 ring-white/10">
+    <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-pill bg-black/75 backdrop-blur-sm ring-1 ring-white/10">
       {links.map(({ key, url, color, Icon }) =>
         key === 'spotify' ? (
           <button
@@ -184,41 +185,39 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
 
   if (editing) {
     return (
-      <div className="bg-[#1a1a1a] rounded-xl overflow-hidden border border-[#e8a020]/40 p-3 flex flex-col gap-2">
+      <div className="bg-panel rounded-panel overflow-hidden border border-[#e8a020]/40 p-3 flex flex-col gap-2">
         <div className="text-xs text-gray-400 truncate" title={`${album.artist} — ${album.title}`}>
           {album.artist} — {album.title}
         </div>
-        <input
+        <Field
           type="url"
           placeholder="Spotify URL"
           value={spotify}
           onChange={(e) => setSpotify(e.target.value)}
           disabled={saving}
-          className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
         />
-        <input
+        <Field
           type="url"
           placeholder="YouTube URL"
           value={youtube}
           onChange={(e) => setYoutube(e.target.value)}
           disabled={saving}
-          className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
         />
-        <input
+        <Field
           type="url"
           placeholder="Bandcamp URL"
           value={bandcamp}
           onChange={(e) => setBandcamp(e.target.value)}
           disabled={saving}
-          className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
         />
-        <textarea
+        <Field
+          as="textarea"
           placeholder="한국어 설명"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           disabled={saving}
           rows={3}
-          className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
+          className="resize-none"
         />
         <div className="flex justify-end gap-2 mt-1">
           <button
@@ -247,7 +246,7 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
 
   return (
     <a href={discogsHref} target="_blank" rel="noopener noreferrer" className="relative block group/card h-full">
-      <div className="h-full flex flex-col bg-[#1a1a1a] rounded-xl overflow-hidden hover:bg-[#252525] transition-colors group">
+      <div className="h-full flex flex-col bg-panel rounded-panel overflow-hidden hover:bg-panel-hover transition-colors group">
         <div className="relative aspect-square bg-[#111] overflow-hidden">
           {album.imageUrl ? (
             <img
@@ -289,17 +288,14 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
             is identifiable by cover + artist anyway; reason text is
             never clipped so the curator's rationale reads in full. */}
         <div className="p-3 flex-1 flex flex-col">
-          <p className="text-white font-semibold line-clamp-2" style={{ fontSize: '0.9375rem' }} title={album.title}>
+          <p className="text-white font-semibold line-clamp-2 text-[15px]" title={album.title}>
             {album.title}
           </p>
-          <p className="text-gray-400 truncate" style={{ fontSize: '0.8125rem' }} title={album.artist}>
+          <p className="text-gray-400 truncate text-[13px]" title={album.artist}>
             {album.artist}
           </p>
           {album.reason && (
-            <p
-              className="text-gray-500 mt-2 leading-snug break-words"
-              style={{ fontSize: '0.8125rem' }}
-            >
+            <p className="text-gray-500 mt-2 leading-snug break-words text-[13px]">
               {album.reason}
             </p>
           )}
@@ -363,25 +359,23 @@ function AddSlot({ albumId }: { albumId: string }) {
 
   if (open) {
     return (
-      <div className="bg-[#1a1a1a] rounded-xl overflow-hidden border border-dashed border-[#e8a020]/40 p-3 flex flex-col gap-2">
+      <div className="bg-panel rounded-panel overflow-hidden border border-dashed border-[#e8a020]/40 p-3 flex flex-col gap-2">
         <div className="text-xs text-gray-400">비슷한 앨범 수동 추가</div>
-        <input
+        <Field
           type="text"
           placeholder="아티스트"
           value={artist}
           onChange={(e) => setArtist(e.target.value)}
           disabled={saving}
           autoFocus
-          className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
         />
-        <input
+        <Field
           type="text"
           placeholder="앨범명"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           disabled={saving}
           onKeyDown={(e) => { if (e.key === 'Enter' && !saving) handleAdd(); }}
-          className="bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
         />
         <div className="flex justify-end gap-2 mt-1">
           <button
@@ -406,7 +400,7 @@ function AddSlot({ albumId }: { albumId: string }) {
   return (
     <button
       onClick={() => setOpen(true)}
-      className="bg-transparent rounded-xl border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 flex flex-col items-center justify-center h-full transition-colors cursor-pointer group"
+      className="bg-transparent rounded-panel border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 flex flex-col items-center justify-center h-full transition-colors cursor-pointer group"
     >
       <span className="text-2xl text-gray-600 group-hover:text-[#e8a020] transition-colors">+</span>
       <span className="text-xs text-gray-600 group-hover:text-gray-400 mt-1 transition-colors">추가</span>
@@ -428,10 +422,9 @@ export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbu
 
   return (
     <section>
-      <h2 className="text-2xl font-bold text-white mb-6 font-serif flex items-baseline gap-2">
-        <span>비앨추 (비슷한 앨범 추천)</span>
-        <AiSummaryBadge />
-      </h2>
+      <SectionTitle meta={<AiSummaryBadge />}>
+        비앨추 (비슷한 앨범 추천)
+      </SectionTitle>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 items-stretch">
         {albums.map((album, idx) => (
@@ -446,7 +439,7 @@ export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbu
 export function AiSummaryBadge() {
   return (
     <span
-      className="inline-flex items-center text-[10px] font-sans font-semibold tracking-wider uppercase text-[#e8a020]/80 border border-[#e8a020]/40 rounded-full px-1.5 py-0.5 leading-none align-middle translate-y-[-2px]"
+      className="inline-flex items-center text-[10px] font-sans font-semibold tracking-wider uppercase text-[#e8a020]/80 border border-[#e8a020]/40 rounded-pill px-1.5 py-0.5 leading-none align-middle translate-y-[-2px]"
       title="AI가 정리한 내용입니다."
       aria-label="AI 요약"
     >

@@ -9,6 +9,7 @@ import { AiSummaryBadge } from './SimilarAlbums';
 import { useGenerateReviewSummary, useDiscoverReviewUrls } from '../../hooks/useAlbum';
 import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 import CardOverlayButton from '../CardOverlayButton';
+import { SectionTitle, Field } from '../ui';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -187,7 +188,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
     : {};
 
   return (
-    <Wrapper {...wrapperProps} className={`relative block bg-[#1a1a1a] rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-[#252525] cursor-pointer'} ${justAdded ? 'ring-2 ring-[#e8a020]/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
+    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-[#e8a020]/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
       {isAdmin && !editing && (
         <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
           <CardOverlayButton onClick={startEditExcerpt} title="본문 수정">
@@ -224,7 +225,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
             disabled={savingExcerpt}
             rows={4}
             autoFocus
-            className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-y"
+            className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-y"
           />
           <div className="flex justify-end gap-2">
             <button
@@ -691,41 +692,46 @@ export default function ReviewSection({
 
   return (
     <section>
-      <h2 className="text-2xl font-bold text-white mb-6 font-serif flex items-baseline gap-2 flex-wrap">
-        <span>리뷰 모음집</span>
-        <AiSummaryBadge />
-        {/* Admin-only shortcut — opens a Google search for the album
-            + artist + "album review" in a new tab. Used for quickly
-            finding review URLs to paste back into + 리뷰 추가.
-            The "album review" phrase (rather than just "review")
-            mirrors services/serper.ts so this manual shortcut and the
-            automated discover flow surface the same SERP. */}
-        {isAdmin && googleSearchHref && (
-          <a
-            href={googleSearchHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`"${albumTitle} ${albumArtist} album review" 구글 검색`}
-            aria-label="리뷰 URL 구글 검색"
-            className="inline-flex items-center justify-center w-6 h-6 text-gray-500 hover:text-[#e8a020] transition-colors align-middle translate-y-[-2px]"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-[14px] h-[14px]"
-              aria-hidden
-            >
-              <circle cx="11" cy="11" r="7" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-          </a>
-        )}
-      </h2>
+      <SectionTitle
+        meta={
+          <>
+            <AiSummaryBadge />
+            {/* Admin-only shortcut — opens a Google search for the album
+                + artist + "album review" in a new tab. Used for quickly
+                finding review URLs to paste back into + 리뷰 추가.
+                The "album review" phrase (rather than just "review")
+                mirrors services/serper.ts so this manual shortcut and the
+                automated discover flow surface the same SERP. */}
+            {isAdmin && googleSearchHref && (
+              <a
+                href={googleSearchHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`"${albumTitle} ${albumArtist} album review" 구글 검색`}
+                aria-label="리뷰 URL 구글 검색"
+                className="inline-flex items-center justify-center w-6 h-6 text-gray-500 hover:text-[#e8a020] transition-colors align-middle translate-y-[-2px] ml-1"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="w-[14px] h-[14px]"
+                  aria-hidden
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </a>
+            )}
+          </>
+        }
+      >
+        리뷰 모음집
+      </SectionTitle>
 
       <div className="space-y-6">
         {pendingNotice}
@@ -745,7 +751,7 @@ export default function ReviewSection({
         )}
 
         {koreanSummary && (
-            <div className="relative group/summary bg-[#1a1a1a] rounded-xl p-5 border-l-4 border-[#e8a020]">
+            <div className="relative group/summary bg-panel rounded-xl p-5 border-l-4 border-[#e8a020]">
               {isAdmin && !editingSummary && (
                 <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/summary:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                   <CardOverlayButton onClick={startEditSummary} title="요약 수정">
@@ -776,7 +782,7 @@ export default function ReviewSection({
                     disabled={savingSummary}
                     rows={Math.max(3, Math.ceil(summaryDraft.length / 60))}
                     autoFocus
-                    className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-y leading-relaxed"
+                    className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-y leading-relaxed"
                   />
                   <div className="flex justify-end gap-2">
                     <button
@@ -856,7 +862,7 @@ export default function ReviewSection({
               )}
 
               {isAdmin && addingReview && (
-                <div className="col-span-full bg-[#1a1a1a] rounded-lg p-4 space-y-3 border border-white/10 max-w-xl relative">
+                <div className="col-span-full bg-panel rounded-lg p-4 space-y-3 border border-white/10 max-w-xl relative">
                   {/* Close chip top-right, window-style. Mouse travel
                       from the textarea save to a corner × is short,
                       and the primary 저장 button sits directly under
@@ -880,7 +886,7 @@ export default function ReviewSection({
                       disabled={savingReview}
                       className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
                         addMode === 'url'
-                          ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
+                          ? 'bg-panel-strong text-[#e8a020] border-t border-x border-white/10'
                           : 'text-gray-500 hover:text-gray-300'
                       }`}
                     >
@@ -892,7 +898,7 @@ export default function ReviewSection({
                       disabled={savingReview}
                       className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
                         addMode === 'manual'
-                          ? 'bg-[#0f0f0f] text-[#e8a020] border-t border-x border-white/10'
+                          ? 'bg-panel-strong text-[#e8a020] border-t border-x border-white/10'
                           : 'text-gray-500 hover:text-gray-300'
                       }`}
                     >
@@ -984,7 +990,7 @@ export default function ReviewSection({
                         placeholder={'https://angrymetalguy.com/...\nhttps://pitchfork.com/...'}
                         autoFocus
                         rows={4}
-                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 font-mono"
+                        className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 font-mono"
                       />
                       {/* URL 자동 검색 결과 체크리스트. Each row is an
                           individual URL with a checkbox — admin unticks
@@ -1131,7 +1137,7 @@ export default function ReviewSection({
                           }}
                           disabled={savingReview}
                           placeholder="https://... (사이트명은 URL로 자동 입력됨)"
-                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                         />
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
@@ -1148,7 +1154,7 @@ export default function ReviewSection({
                             placeholder="AllMusic 등"
                             maxLength={100}
                             list="manual-source-history"
-                            className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                            className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                           />
                           {/* Browser-native autocomplete dropdown backed
                               by localStorage history — every site admin
@@ -1174,7 +1180,7 @@ export default function ReviewSection({
                             disabled={savingReview}
                             placeholder="0-100"
                             maxLength={3}
-                            className="w-20 bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                            className="w-20 bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                           />
                         </div>
                       </div>
@@ -1189,7 +1195,7 @@ export default function ReviewSection({
                           disabled={savingReview}
                           rows={8}
                           placeholder="기사 본문을 붙여넣으세요..."
-                          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
                         />
                       </div>
                       <button
