@@ -89,36 +89,36 @@ router.get('/me/profile', requireAuth, (req, res) => {
 
 // ─── PATCH /api/me/profile — display_name + instagram_handle ──────────────
 
+// Allowlist mapping API field → DB column. Drives both the validators
+// dispatch and the UPDATE assembly below; nothing else in this handler
+// composes a column name from request data, so a future field add can
+// only land by extending this object — closes off accidental dynamic
+// column injection if a contributor copies the dispatcher pattern.
+const PROFILE_FIELD_MAP = {
+  displayName: { column: 'display_name', normalize: normalizeDisplayName, errorMessage: `표시 이름은 ${DISPLAY_NAME_MAX}자 이내의 문자열이어야 합니다.` },
+  instagramHandle: { column: 'instagram_handle', normalize: normalizeInstagram, errorMessage: `Instagram 핸들은 영문/숫자/점/밑줄만 사용해 ${INSTAGRAM_MAX}자 이내로 입력해주세요.` },
+} as const;
+
 router.patch('/me/profile', requireAuth, (req, res) => {
   const me = req.user as AppUser;
   const body = (req.body ?? {}) as Record<string, unknown>;
-  const fields: Record<string, any> = {};
+  const updates: Array<{ column: string; value: string | null }> = [];
 
-  if ('displayName' in body) {
-    const v = normalizeDisplayName(body.displayName);
+  for (const [apiField, spec] of Object.entries(PROFILE_FIELD_MAP)) {
+    if (!(apiField in body)) continue;
+    const v = spec.normalize(body[apiField]);
     if (v === 'invalid') {
-      return res.status(400).json({
-        error: `표시 이름은 ${DISPLAY_NAME_MAX}자 이내의 문자열이어야 합니다.`,
-      });
+      return res.status(400).json({ error: spec.errorMessage });
     }
-    fields.display_name = v;
-  }
-  if ('instagramHandle' in body) {
-    const v = normalizeInstagram(body.instagramHandle);
-    if (v === 'invalid') {
-      return res.status(400).json({
-        error: `Instagram 핸들은 영문/숫자/점/밑줄만 사용해 ${INSTAGRAM_MAX}자 이내로 입력해주세요.`,
-      });
-    }
-    fields.instagram_handle = v;
+    updates.push({ column: spec.column, value: v });
   }
 
-  if (Object.keys(fields).length === 0) {
+  if (updates.length === 0) {
     return res.status(400).json({ error: 'No valid fields to update' });
   }
 
-  const sets = Object.keys(fields).map((k) => `${k} = ?`).join(', ');
-  const values = [...Object.values(fields), me.id];
+  const sets = updates.map((u) => `${u.column} = ?`).join(', ');
+  const values = [...updates.map((u) => u.value), me.id];
   execute(`UPDATE users SET ${sets} WHERE id = ?`, values);
 
   const row = queryGet(`SELECT * FROM users WHERE id = ?`, [me.id]);

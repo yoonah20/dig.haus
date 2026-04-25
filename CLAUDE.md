@@ -26,163 +26,52 @@ dig.haus is a **digital record store**, not an algorithmic music feed. The core 
 
 - **Phase 1 done**: album archive, reviews, similar albums, Discogs prices, streaming links
 - **Phase 2 done**: Google auth, 50자 평, 굿굿/별루 voting, 샀음/살거 collections, community-contributed purchase links with reporting, admin dashboard, review-collection cost controls
-- **Phase 3 planned** (see below): mydig (personal digger pages)
-- **Phase 4+ deferred**: follow / global activity feed / main page overhaul to "discover diggers" view
+- **Phase 3 winding down**: mydig wall + snapshots + follow system + persistent player shipped. Shelf/crate mutation endpoints + storefront illustrated visual deferred. Outstanding items listed in the Phase 3 section below.
+- **Phase 4 drafted** (`docs/phase4-nightly-pipeline.md`): nightly local-LLM curation pipeline (RTX 5080 + Qwen3-14B, /admin/overnight confirm UI, Railway sync of approved batches).
+- **Phase 5+ deferred**: follow-based activity feed, "discover diggers" main page overhaul, per-layer privacy, guestbook, visitor counter.
 
 ---
 
-## Phase 3 plan — 마이딕 (personal digger page)
+## Phase 3 — 마이딕 (personal digger page)
 
 **URL**: `dig.haus/my/:username`
 
-For the reasoning behind the pivots from the original four-tier plan (why Crate went away, why the shelf genre preset was dropped, why the scene went dark), see `docs/phase3-storefront-decisions.md`.
+**Design source of truth**: `docs/phase3-storefront-decisions.md`. The visual direction has pivoted multiple times since this file last described it (record-shop interior → lofi-bedroom with turntable console + floor wooden crates → wireframe-first MVP at entry 19). When judging UI work or the layout shape, read the decisions log first; the per-tier counts and primitives have moved enough that any layout description in CLAUDE.md would rot the moment another pivot lands.
 
-### Layout — two tiers plus deferred ambience
+### What's shipped
 
-Modelled on a Hongdae record shop at dusk: records on the wall, an open shelf unit on the floor below, warm pooled lamp light from upper-left. Two tiers the user actually populates, plus a Now-Playing strip parked for later.
+- **Username system** — `users.username` (URL-safe slug, lowercase a-z0-9 + `_`/`-`, 3–20 chars). Reserved-name list in `server/src/utils/username.ts`. Onboarding modal on first `/my/*` visit. Cooldown rules from the original plan are not yet enforced (any change is currently allowed).
+- **Vinyl Wall** — 15 slots in 5-5-5 layout. Drag-drop edit mode with 80/20 picker (sources: 전체 / 내 콜렉션(샀음) / 내 굿굿(upvotes) / 내 살거). Bulk replace via `PUT /api/mydig/vinyl-wall/items`. Theme title + description editable. The slot count walked 22 → 15 → 10 → 15 across migrations as the visual scale was tuned; current target is 15, decisions log entry 11 (which still says 10) is stale on this point and the live constraint in `vinyl_wall_items.position < 15` wins.
+- **Vinyl Wall Snapshots** — owner archives a wall state, names it, marks public/private. Snapshot items are immutable post-create (only name/description/visibility editable). Reachable at `/my/:username/snap/:slug`. Album FK has no CASCADE so snapshots survive album deletions (rendered with a "삭제된 앨범" tag on the missing slot).
+- **Persistent player** — Spotify embed strip pinned at the bottom of mydig, ghost-anchored across client-side route changes. ▶ chip on wall LPs and similar-album cards triggers playback in the same iframe (mbid identity, swap survives).
+- **Follow system** — `POST/DELETE /api/users/:id/follow`, `GET /api/users/:id/{followers,following}`. Self-follow rejected at the table CHECK and in JS. Follower/following counts surface in the public profile card and the mydig sidebar graffiti.
+- **Public profile card** — `GET /api/users/:id/public` powers the avatar-hover popover with stats (review count, vote split, owned/wanted counts), follow state, and a mydig link with wall-item count.
 
-```
-┌─────────────────────────────────────────────────┐
-│ Vinyl Wall — 22 curated (5-5-6-6)               │   Tier 1
-├───────┬───────┬───────┬───────┬───────┬───────┤
-│ Shelf │ Shelf │ Shelf │ Shelf │ Shelf │ Shelf │   Tier 2
-│ slot0 │ slot1 │ slot2 │ slot3 │ slot4 │ slot5 │
-└───────┴───────┴───────┴───────┴───────┴───────┘
-(Now Playing strip — deferred to 3e)
-```
+### What's open
 
-### Tier roles
+- **Shelf + Crate mutation endpoints** — `shelf_slots`, `shelf_items`, `crate_boxes`, `crate_items` exist as tables and are read-only via `GET /mydig/:username`. No POST/PATCH/PUT/DELETE handlers; the edit-mode UI is dashed-placeholder for both tiers. Build was deferred while the storefront design itself was still moving (see decisions log entries 11–19).
+- **Storefront illustrated visual** — `/my-preview` is intended to be a wireframe per entry 19. The illustrated lofi-bedroom pass (Path B per entry 18 — AI-generated background asset behind CSS overlays) is the long-term aesthetic target. The live `/my/:username` runs the earlier Hongdae-dusk composition until the wireframe interactions settle.
+- **Schema vs plan divergences** — three known mismatches that should be reconciled before Phase 4 starts (or explicitly accepted as the new design):
+  1. `shelf_slots.genre_id` references the `genres` table (still seeded with 16 entries via `seed-genres-initial-2026-04-20`). Decisions log entry 2 said freeform masking-tape labels per slot replaced this. Either migrate to a `label TEXT` column or codify the genre design — pick one explicitly.
+  2. `shelf_slots` + separate `shelf_items` is non-polymorphic. The original plan was `target_type` + `target_id` letting one slot point at either an album or a crate. Functionally similar today; revisit if and when polymorphism becomes useful for the redesigned floor crates.
+  3. `crate_boxes.position` exists for floor placement. After entry 1's pivot, crates were supposed to live in the user's private library and surface only when placed on a shelf slot — which made the position column dormant. Then entries 14–15 brought back floor crates as 3D wooden boxes (0–6 visible), which makes a position column relevant again, but **for floor visibility, not library order**. Wiring the column to whichever semantic wins is open.
+- **Now Playing customization** — the persistent Spotify embed strip exists, but per-user "currently spinning" state with owner-edit UI is not built. The lofi-bedroom turntable (entry 13) is meant to render this LP on the platter when the illustrated pass ships.
+- **`mydig_public` visibility flag** — column exists but vestigial; no per-page reader/writer. The "fabric drape + A4 notice" private-mode visual is unbuilt.
+- **Per-layer privacy toggles** — wall public / shelf private etc. — deferred.
+- **Guestbook + visitor counter** — deferred to Phase 5+ ambience pass; no schema yet.
+- **샀음 / 살거 vs Crate boundary** — decisions log entry 20. Open question: do 샀음/살거 absorb into auto-populated system crates, stay separate, or get dropped? Resolve before Phase 4 to avoid the confusion compounding once curation flows multiply.
 
-| Layer | Metaphor | Content | Fixed slots | Interaction |
-|-------|----------|---------|-------------|-------------|
-| Vinyl Wall | front wall display on wooden rails | 22 user-picked favourites | 22 (5-5-6-6, covers identical size) | drag-drop to rearrange, click → album page |
-| Shelf | floor unit of flip-through cubbies | each slot = single album OR a crate | 6 fixed slots, user-labelled (freeform) | click slot → flip-through the crate inside (swipe / ← → / click-edge / keyboard), or navigate to the single album |
+### Core principles (still apply)
 
-Shelf slots are **polymorphic**: a slot holds either one album (static front cover, clicks through to album page) or one crate (a user-built named collection, clicks pop the flip-through). The user decides per slot whether they want to feature a single record or a themed stack.
+- **Empty-is-OK aesthetic** — empty wall slots render as bare wall + rail (no ghost frames, no "drop here" text). The furniture is the page; albums populate it over time.
+- **Duplicates allowed** — schema enforces `UNIQUE(container, position)` only, never `UNIQUE(user, album)`. Same album in multiple wall positions / multiple slots is a feature.
+- **샀음 ≠ mydig candidates** — 샀음 is real-world ownership; mydig is identity expression. Edit-mode picker defaults to the full `albums` table; 샀음 / 살거 / 내 Crate are optional source filters in the picker panel, not the default pool.
+- **Records are the same size everywhere** — wall LPs and any future shelf/crate front covers render at identical pixel dimensions; the furniture differs, not the records.
 
-Crate is still a first-class data entity — user-named, freeform collection of albums — but lives in the user's private library rather than as its own tier on the public storefront. In edit mode the user drags a crate from the library picker onto a shelf slot (or builds a slot album-by-album); the same crate can stay in the library without being featured.
+### File map — mydig
 
-Spine view was considered for Shelf and **explicitly rejected**: physical spines get their presence from depth, texture, and lighting, none of which CSS tricks reproduce convincingly (the rendered "spines" read as paper strips, not LPs). The flip-through UX is the actual "digging" motion — covers forward, one at a time, stack edges peeking — and is what real record-shop bins look like too.
-
-### Core principles
-
-- **Empty-is-OK aesthetic** — Wall empty slots render as bare wall + rail (no ghost frames, no "drop here" text). Empty shelf slots render as dark cubby interiors with no label. The furniture is the page; albums populate it over time.
-- **Duplicates allowed** — same album can sit in multiple Wall positions (event-day motif: 22 copies of one album), multiple Shelf slots, multiple crates. Schema enforces `UNIQUE(container, position)` only, never `UNIQUE(user, album)`.
-- **샀음 ≠ mydig candidates**. 샀음 represents real-world physical ownership. mydig is an identity-expression canvas — users should feature albums they love even when they don't own them. Edit-mode search is always over the full `albums` table; 샀음 / 살거 / 내 Crate exposures are optional filters in the picker panel, not the default pool.
-- **Tier widths aligned** — Wall last-row column count (6) = Shelf slot count (6). The two tiers read as one storefront rather than unrelated grids.
-- **Records are the same size everywhere** — a 12" LP is a 12" LP. Wall LPs and shelf-slot front covers render at identical pixel dimensions; the furniture they sit on is what differs, not the records.
-
-### Edit mode — 80/20 split
-
-```
-┌──────────────────────────────────┬────────────┐
-│  Wall / Shelf preview            │ 🔍 search  │
-│                                  │ [tabs: 전체│
-│  edit-mode shows empty slots +   │  | 내Crate│
-│  × remove chips on filled ones   │  | 샀음 | │
-│                                  │  살거 ]    │
-│  drag candidate → drop on slot   │ ┌──┐ meta  │
-│  drag within = reorder / move    │ │c.│ ...   │
-│                                  │ └──┘       │
-│  80% width                       │  20% width │
-└──────────────────────────────────┴────────────┘
-```
-
-Desktop uses native HTML5 drag-drop. Touch uses tap-to-select then tap-to-place (drag on touch devices is too finicky for grid targets; skipping react-dnd because 100KB+ bundle isn't worth a cross-device abstraction we'd only use on one page). Candidate cards show a small badge indicating existing placements ("Wall×2 · Shelf slot 3") so the user can see current state without blocking deliberate duplication.
-
-The **내 Crate** tab doubles as the library — crates the user has already built show as stacks here, draggable onto shelf slots. Crates that live only in the library (not placed on any shelf slot) stay private; the public storefront only surfaces what's been placed.
-
-### Visual direction — Hongdae basement at dusk
-
-- **Dark-mode primary**. The storefront is a warm shop interior seen from the site's darker chrome, not a bright island. Wall is painted-panel dark brown, floor is walnut, furniture wood reads lighter against both so it visibly belongs to the scene rather than to the walls.
-- **Single pooled lamp source from upper-left** drives depth — records under the pendant glow; records at the edges fade into shadow. Uniform ambient brightness is the failure mode to avoid; lighting carries the sense of distance-from-center.
-- **No picture frames** on wall records — just bare 12" sleeves leaning back against plaster on wooden rails with a small gap-shadow under each sleeve. Any framed presentation reads as art gallery, which is exactly the not-a-record-shop mistake the earlier Claude Design iterations kept making.
-- **Perfect grid alignment on the wall** — zero per-slot rotation. Real record shops mount wall displays flush; the only imperfection up there is the gap-shadow from the lean-back angle.
-- **Wear and imperfection live on Tier 2**. Masking-tape labels go ±5–8° (tape is human-placed), shelf cubbies can tilt slightly from implied browsing wear, records inside cubbies lean casually. Gallery-straightness stays on the wall; shop-browsing-chaos stays on the shelf.
-- **Shelf unit is free-standing floor furniture** — no top board (open cubbies, not a cabinet), visible trestle-style end-panel legs underneath, a soft cast shadow spilling onto the floor behind it.
-
-CSS + `perspective` / `rotateY` / box-shadow tricks, same as the existing album flip card. No WebGL. Framer Motion is allowed but optional. Mobile parity is mandatory — every interaction needs a touch equivalent.
-
-### Ancillary layers
-
-- **Now Playing** — turntable strip with optional Spotify/YouTube/Bandcamp embed. Currently deferred — Wall + Shelf covers the primary personal-expression need, Now Playing is ambient nice-to-have that we'd rather design right than fit into the MVP.
-- **Guestbook** — notebook/clipboard in a corner. Visitor one-liners. Defer until 3e.
-- **Visitor counter** — 싸이월드-style "오늘 방문 / 전체" in a corner. Defer until 3e.
-- **Private mode** — page shows an "under construction" visual: fabric drape over the storefront + an A4 notice taped on. NOT an error page. The private state must preserve the shop aesthetic.
-- **Per-layer privacy toggles** — possibly (wall public / shelf private, etc.) — defer, confirm before building in 3e.
-
-### Username system
-
-- New column `users.username` — URL-safe slug, unique, lowercase alphanumeric + `_` + `-`, 3–20 chars.
-- Existing `users.display_name` also needs uniqueness added (breaks on migration if there are duplicates — suffix `_2` etc.).
-- First `/my` visit forces onboarding for username picker.
-- Changing username freely for first 3–7 days, then 30-day cooldown (shared-link breakage).
-
-### Sub-phases
-
-- **3a** — skeleton: schema (wall + shelf + crate tables), `/my/:username` route, username onboarding, empty-furniture placeholder render, private-mode "under construction" screen
-- **3b** — Vinyl Wall: 22-slot 5-5-6-6 layout, bare LPs on rails, edit-mode 80/20 with drag-drop, candidate picker with 전체 / 내 Crate / 샀음 / 살거 tabs
-- **3c** — Shelf + Crate: 6 polymorphic slots, flip-through inside cubbies, slot-holds-crate-or-album semantics, user-labelled masking tape, crate library management inside the edit-mode picker (no separate floor tier)
-- **3e** — ambience: Now Playing, guestbook, visitor counter, private-mode per-layer toggles if needed
-
-The earlier sub-phase 3d (Crate as separate tier with floor milk-crates) collapsed into 3c — the milk-crate visual moves to the edit-mode picker panel where the user's crate library lives.
-
-### Current implementation status
-
-- `client/src/components/MyDig/storefront/` holds the ported primitives (WallRail, WallLP, TapeLabel, ShelfUnit, Cubby) + Room / Storefront composition + FakeCover placeholders + palettes (dark Hongdae Dusk).
-- `/my-preview` route renders the scene with fake data for design iteration. Not wired to the mydig API — that swap happens when the visual is final.
-- `/my/:username` still runs the earlier Phase 3a skeleton (dashed borders on grid slots) while the storefront iterates at /my-preview.
-
-### Data model deltas (refined at 3a)
-
-```sql
--- Username + privacy
-users.username TEXT UNIQUE
-users.mydig_public INTEGER DEFAULT 1
-
--- Vinyl Wall — 22 slots, duplicates allowed
-vinyl_wall_items (
-  id, user_id, album_id, position INT (0-21),
-  UNIQUE(user_id, position)
-)
-
--- Crates — user-named collections. First-class data entity.
--- Visibility on the public storefront comes from placement in a
--- shelf_slot, not from being "featured" on a separate tier.
-crates (
-  id, user_id, title, description, created_at,
-  UNIQUE(user_id, title)
-)
-crate_items (
-  id, crate_id, album_id, position,
-  UNIQUE(crate_id, position)
-)
-
--- Shelf — 6 polymorphic slots per user. Each slot holds either a
--- single album or a crate reference, decided per slot.
-shelf_slots (
-  id, user_id, position INT (0-5),
-  label TEXT,                       -- masking-tape text, freeform
-  target_type TEXT CHECK(target_type IN ('album','crate')),
-  target_id INTEGER,                -- album_id or crate_id per target_type
-  UNIQUE(user_id, position)
-)
-
--- Deferred to 3e
-mydig_now_playing (user_id, kind, external_url, album_id, updated_at)
-mydig_guestbook (id, page_user_id, author_user_id, body, created_at)
-mydig_visits (user_id, day, count)
-```
-
-Dropped from the original plan:
-- `genres` table + admin CRUD — shelf labels are freeform per slot now; no admin taxonomy needed
-- `shelf_items` separate table — replaced by the polymorphic `shelf_slots.target_type` + `target_id`; `crate_items` is the authoritative item list when a slot points at a crate
-- `crate_boxes` (position-indexed) — crates no longer live on a floor tier, they live in the user's private library and get placed onto shelf slots
-- `albums.cover_dominant_color` — spine view is out, so dominant-color extraction is unneeded
-
-### Visual implementation philosophy
-
-CSS + `perspective` / `rotateY` tricks, same as the existing album flip card. No WebGL. Framer Motion is allowed but optional. Mobile parity is mandatory — every interaction needs a touch equivalent.
+- Server: `routes/mydig.ts` (wall + snapshots + candidate picker + read-only shelf/crate), `routes/follows.ts`, `routes/me.ts` (`/me/profile`, `/me/username`, `/me/avatar`, `/me/{reviews,upvotes,collection,wantlist}`, `/users/:id/public`).
+- Client: `pages/MyDig.tsx` for `/my/:username`, `pages/MyPreview.tsx` for `/my-preview`. `components/MyDig/` (VinylWallEditor, GraffitiSnapshotList, SnapshotSaveModal, ShareButton, QuickRegister) + `components/MyDig/storefront/` (palettes, primitives, scene).
 
 ---
 
@@ -237,36 +126,40 @@ Current per-review cost is ~$0.001 via the `scrapeReviewFromUrl` path, which rou
 
 ---
 
-## Phase 3 cleanup candidates (known debt at Phase 2 close)
+## Cleanup candidates (known debt at Phase 3 close)
 
-Known-but-deliberately-deferred items surfaced by the Phase 2 closeout audit. Each is functional today — don't fix just because you're in the area, but bundle into a Phase 3 cleanup pass if the file needs other work.
+Known-but-deliberately-deferred items. Each is functional today — don't fix just because you're in the area, but bundle into a Phase 4 cleanup pass if the file needs other work.
 
-- **Legacy `album_requests` table + `requestNotifier` cron job**: user submissions now land directly in `albums` with `requested_by_user_id`; nothing writes to `album_requests` anymore. The cron (`server/src/jobs/requestNotifier.ts`) queries it every 5 minutes and finds nothing. Defer DROP TABLE until Phase 3 schema pass so the migration is batched with mydig-related schema changes.
-- **Home-feed N+1 subqueries** (`GET /api/albums`, `ALBUM_ROW_SELECT` around `server/src/routes/albums.ts:598`): 7 correlated subqueries per row (votes SUM×2, reviews AVG/COUNT, user_reviews COUNT, collections, wants). Fine at current traffic. Collapse into a single JOIN+GROUP BY if the feed shows up in latency telemetry. Same pattern in `server/src/routes/userReviews.ts:118` feed.
-- **`generate-summary` missing per-call budget tracking** (`server/src/routes/albums.ts` — the `/:id/reviews/generate-summary` handler): admin-only, `adminClaudeLimiter` (20/min) caps the worst case at ~$0.40/min of Sonnet. Adequate for now; add an explicit budget check when other admin Claude paths gain tracking.
+- **Home-feed N+1 subqueries** (`GET /api/albums`, `ALBUM_ROW_SELECT` around `server/src/routes/albums.ts:598`): 7 correlated subqueries per row (votes SUM×2, reviews AVG/COUNT, user_reviews COUNT, collections, wants). Fine at current traffic. Collapse into a single JOIN+GROUP BY if the feed shows up in latency telemetry. Same pattern in `server/src/routes/userReviews.ts` feed.
+- **`generate-summary` missing per-call budget tracking** (`server/src/routes/albums.ts` — the `/:id/reviews/generate-summary` handler): admin-only, `adminClaudeLimiter` (60/min) caps the worst case at ~$1/min of Sonnet. Adequate for now; add an explicit budget check when other admin Claude paths gain tracking.
 - **No orphan sweep for `server/data/avatars/` and `custom-covers/`**: account/album deletion removes DB rows but leaves uploaded files on disk. Disk is cheap on Railway so this is accumulation, not a bug. A weekly cron that lists the dirs and deletes files not referenced by any row would close the loop.
+- **Wall reorder is last-write-wins** (`PUT /api/mydig/vinyl-wall/items` in `server/src/routes/mydig.ts`): the bulk-replace transaction can clobber a concurrent edit from another tab/device. Fine for the single-owner-single-tab default; add ETag/version CAS if multi-device editing becomes a real complaint.
+- **Concurrent external-API fan-out** in similar-album enrichment (`server/src/routes/albums.ts:1501-1598`): each similar album gets searchTrack + searchVideo + searchBandcamp + searchMasterUrl in parallel, no rate limiter. Worth wrapping in `p-limit` before the Phase 4 nightly pipeline lands a second fan-out path on the same external services.
+- **`port-kill` via `execSync(lsof | xargs kill)`** in `server/src/index.ts`: works, PORT comes from env so no real injection vector, but the shell glob style is unsafe-looking and doesn't belong on the boot path. Replace with native `net.Server` probe + `process.kill` when something else in that file needs work.
+- **`users.mydig_public` vestigial column**: declared but never read or written. Either drop it in the next schema batch or wire it to a real privacy gate when the per-layer privacy work happens.
 ---
 
 ## File map (where things live)
 
 ### Client
 
-- `client/src/pages/` — `Home.tsx`, `Album.tsx`, `Admin.tsx`, `Profile.tsx`
+- `client/src/pages/` — `Home`, `Album`, `Admin`, `Profile`, `MyDig`, `MyPreview`
 - `client/src/components/` — top-level: `AlbumCard`, `TopNav`, `LoginButton`, `SearchBar`, `RegisterAlbumModal`, `VoteButtons`, `CoverArt`, `PurchaseLinksPanel`, `SiteFooter`
 - `client/src/components/AlbumDetail/` — `HeaderSection`, `BuySection`, `UserReviewsSection` (50자 평), `ReviewSection`, `SimilarAlbums`, `OwnershipButtons`
 - `client/src/components/Home/` — `CommentTicker`, `SortMenu`
-- `client/src/hooks/` — data hooks keyed by domain (`useAlbum`, `useMe`, `useAlbumRequests`, `useOwnership`, `usePurchaseLinks`, `useUserReviews`, `useUserReviewsFeed`, `useSearch`)
-- `client/src/contexts/` — `AuthContext`, `HomeStateContext`, `SearchOverlayContext`
+- `client/src/components/MyDig/` — `VinylWallEditor`, `GraffitiSnapshotList`, `SnapshotSaveModal`, `ShareButton`, `QuickRegister`, plus `storefront/` (palettes + primitives + scene composition)
+- `client/src/hooks/` — data hooks keyed by domain (`useAlbum`, `useMe`, `useAlbumRequests`, `useOwnership`, `usePurchaseLinks`, `useUserReviews`, `useUserReviewsFeed`, `useSearch`, mydig hooks)
+- `client/src/contexts/` — `AuthContext`, `HomeStateContext`, `SearchOverlayContext`, persistent-player context
 - `client/src/lib/` — `homeSort`, `adminSeen` (localStorage seenAt helpers)
 - `client/src/utils/` — `apiUrl`, `relativeTime`, `score`, `spotify`
 
 ### Server
 
-- `server/src/routes/` — `albums` (large — includes admin, similar, reviews endpoints), `albumRequests` (user submissions + approve flow), `admin` (stats, Claude usage, reset/dump), `me` (profile), `userReviews` (50자 평 feed + CRUD), `ownership`, `purchaseLinks`, `reviews` (delete/retranslate)
-- `server/src/services/` — `claude` (Anthropic client + pronunciation + summary + similar-descriptions), `reviews` (the 3-step review pipeline), `musicbrainz`, `lastfm`, `discogs`, `spotify`, `youtube`, `bandcamp`, `exchangeRates`, `avatarHost`
-- `server/src/utils/` — `cache` (DB read/write helpers for albums + reviews), `slug`, `albumSearch`, `externalSearch`, `memoCache`
+- `server/src/routes/` — `albums` (large; album CRUD + similar + admin), `albumReviews` (review-pipeline: discover, scrape, summary, score/excerpt admin), `albumRequests` (user submissions land in `albums.requested_by_user_id`), `admin` (stats, Claude usage, reset/dump), `me` (profile + username + avatar + collection feeds + account delete), `userReviews` (50자 평 feed + CRUD), `mydig` (wall + snapshots + candidate picker + read-only shelf/crate), `follows`, `ownership`, `purchaseLinks`, `votes`, `reviews` (delete/retranslate), `home`, `search`, `labels`, `labelFeed`, `cover`, `customCovers`, `avatars`, `sitemap`, `stats`, `auth` (Google OAuth callback)
+- `server/src/services/` — `claude` (Anthropic client + pronunciation + summary + similar-descriptions), `reviews` (3-step review pipeline), `albumUrlExtract`, `musicbrainz`, `lastfm`, `discogs`, `spotify`, `youtube`, `bandcamp`, `serper`, `jina`, `deepseek`, `exchangeRates`, `avatarHost`, `customCoverHost`
+- `server/src/utils/` — `cache` (DB read/write helpers for albums + reviews), `slug`, `username`, `albumSearch`, `externalSearch`, `memoCache`
 - `server/src/db/` — `index.ts` (DB init + query helpers), `schema.ts` (all CREATE TABLE + migrations via `runOnce`)
-- `server/src/jobs/` — `rankScheduler`, `requestNotifier`
+- `server/src/jobs/` — `rankScheduler`, `labelFeedPoller`, `usageLogPruner`
 - `server/src/middleware/auth.ts` — `requireAuth`, `requireAdmin`
 - `server/src/auth/passport.ts` — Google OAuth
 - `server/seed/diggershaus.db` — ships-with-repo seed used on first boot when data/ is empty

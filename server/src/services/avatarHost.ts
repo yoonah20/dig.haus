@@ -31,6 +31,25 @@ export class AvatarError extends Error {
   }
 }
 
+// Magic-byte sniff. multer's fileFilter only sees the client-supplied
+// mimetype, which is trivial to forge; sharp itself is hardened but
+// SVG is XML and historically the most fertile source of XXE / script-
+// injection issues in image pipelines, so we reject it outright before
+// the sharp call. Any non-raster format the user actually wants
+// (HEIC etc.) we'd rather convert client-side.
+function detectRasterFormat(buf: Buffer): 'png' | 'jpeg' | 'gif' | 'webp' | 'bmp' | null {
+  if (buf.length < 12) return null;
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return 'png';
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return 'gif';
+  if (
+    buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+    buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
+  ) return 'webp';
+  if (buf[0] === 0x42 && buf[1] === 0x4d) return 'bmp';
+  return null;
+}
+
 /**
  * Resize an uploaded avatar buffer to 200×200 WebP and persist under
  * server/data/avatars/. Filename is hashed off the user id + content so
@@ -40,6 +59,10 @@ export async function hostAvatarFromBuffer(
   userId: number,
   input: Buffer
 ): Promise<string> {
+  if (!detectRasterFormat(input)) {
+    throw new AvatarError(400, '지원하지 않는 이미지 형식이에요. PNG/JPEG/GIF/WebP/BMP만 받아요.');
+  }
+
   let buffer: Buffer;
   try {
     buffer = await sharp(input)

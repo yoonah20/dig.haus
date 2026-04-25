@@ -14,6 +14,10 @@ const MIN_NON_WHITESPACE_CHARS = 5;
 // spam without blocking a user who legitimately wants to fix a typo
 // on their own comment a couple of times. Admin endpoints (delete on
 // someone else's review) go through a different surface.
+//
+// Admin bypasses entirely — same rationale as albumRequests' skipIfAdmin:
+// the limiter is an abuse guard for normal users, not a throttle on the
+// site owner's own seeding / smoke-testing of the endpoint.
 const upsertLimiter = rateLimit({
   windowMs: 60 * 1000,
   limit: 3,
@@ -23,6 +27,7 @@ const upsertLimiter = rateLimit({
     const uid = (req.user as AppUser | undefined)?.id;
     return uid ? `u:${uid}` : (req.ip || 'anon');
   },
+  skip: (req) => !!(req.user as AppUser | undefined)?.is_admin,
   message: { error: '잠시 뒤에 다시 시도해주세요 (1분에 최대 3개).' },
 });
 
