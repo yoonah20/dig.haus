@@ -148,8 +148,8 @@ export default function PriceTagStack({ links, maxVisible = 3, showOverflow = tr
       // as the card shrinks. Floors at 2px / caps at 8px (matches
       // the previous fixed bottom-2/right-2 spacing at full size).
       style={{
-        bottom: 'clamp(2px, 2.5cqw, 8px)',
-        right: 'clamp(2px, 2.5cqw, 8px)',
+        bottom: 'clamp(4px, 3.2cqw, 11px)',
+        right: 'clamp(4px, 3.2cqw, 11px)',
       }}
     >
       {visible.map((link, i) => {

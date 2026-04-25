@@ -145,22 +145,48 @@ function CoverStickerBadge({
 }) {
   const palette = STICKER_PALETTE[kind];
   const lines = linesOverride ?? palette.lines;
+  // SOON sticker swaps the whole label (both the "D-" prefix and the
+  // digits) to Archivo Black — Syne's stylised display numerals lose
+  // too much at sticker size, and once we picked a more legible font
+  // for the digits the prefix needed to follow so the two halves stop
+  // reading as a typesetting mistake. Archivo Black is single-weight
+  // 400 (the design is always heavy), so we override the parent's
+  // font-extrabold (= 800) explicitly to avoid faux-bold synthesis.
+  // NEW / HOT keep Syne since their static labels render fine at
+  // sticker size — the readability problem is countdown-specific.
+  const isCountdown = kind === 'soon';
   return (
     <span
       className="inline-flex flex-col items-center justify-center font-extrabold uppercase rounded-sm shadow-md"
       style={{
         background: palette.bg,
         color: palette.fg,
-        fontFamily: "'Syne', 'Inter', sans-serif",
+        fontFamily: isCountdown
+          ? "'Archivo Black', 'Inter', sans-serif"
+          : "'Syne', 'Inter', sans-serif",
+        // Archivo Black is a static (non-variable) font with naturally
+        // narrower-but-taller letterforms than Syne. CSS font-stretch
+        // can't reach a non-existent width axis, so we widen + flatten
+        // with a 2-axis transform to bring the SOON sticker visually
+        // in line with the Syne-set NEW / HOT chips. Origin pinned to
+        // the chip's top-left so the scale extends away from the card
+        // corner instead of pulling the sticker off-screen.
+        ...(isCountdown
+          ? {
+              fontWeight: 400,
+              transform: 'scaleX(1.15) scaleY(0.85)',
+              transformOrigin: 'top left',
+            }
+          : {}),
         // Scale the sticker with the card container (see containerType:
         // inline-size on the Link root). Floor at 6px so labels stay
         // legible on the tightest ultra-density tier; max at the
         // original tuned values so wide comfortable-density covers
         // look exactly as before.
         fontSize:
-          palette.fontSize ?? `clamp(6px, 4.2cqw, 8.3px)`,
+          palette.fontSize ?? `clamp(7px, 4.9cqw, 10px)`,
         letterSpacing: palette.letterSpacing ?? '0.06em',
-        padding: palette.padding ?? 'clamp(1px, 1.1cqw, 2.2px) clamp(3px, 2.7cqw, 5.4px)',
+        padding: palette.padding ?? 'clamp(1.2px, 1.3cqw, 2.6px) clamp(3.5px, 3.1cqw, 6.3px)',
         lineHeight: palette.lineHeight ?? 1,
         minWidth: palette.minWidth,
         // Tabular numerals keep the countdown digits from jiggling as
@@ -170,18 +196,15 @@ function CoverStickerBadge({
       aria-label={ariaOverride ?? palette.aria}
     >
       {lines.map((line) => {
-        // D-N countdown: keep the 'D-' prefix at the same size as
-        // NEW/HOT/SOLD, scale just the digits up so they're
-        // readable at small densities without changing the chip's
-        // overall footprint. em-relative size means it tracks the
-        // clamp() parent without a second clamp of its own.
-        const dayMatch =
-          kind === 'soon' ? line.match(/^(D-)(\d+)$/) : null;
-        if (dayMatch) {
+        // SOON line scales the whole D-N up at 1.35em — Archivo Black
+        // at the base sticker size reads slightly small next to the
+        // adjacent NEW / HOT chips, so the 1.35em bump puts the
+        // countdown at a comparable optical weight. em-relative so
+        // it tracks the cqw parent without a second clamp of its own.
+        if (kind === 'soon') {
           return (
-            <span key={line}>
-              {dayMatch[1]}
-              <span style={{ fontSize: '1.35em' }}>{dayMatch[2]}</span>
+            <span key={line} style={{ fontSize: '1.35em' }}>
+              {line}
             </span>
           );
         }
@@ -401,8 +424,8 @@ export default function AlbumCard({
                 // 2px (always visibly off the edge) and caps at 8px
                 // (the previous fixed top-2/left-2 value).
                 style={{
-                  top: 'clamp(2px, 2.5cqw, 8px)',
-                  left: 'clamp(2px, 2.5cqw, 8px)',
+                  top: 'clamp(4px, 3.2cqw, 11px)',
+                  left: 'clamp(4px, 3.2cqw, 11px)',
                 }}
               >
                 {isSoon && (
