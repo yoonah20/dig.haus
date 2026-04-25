@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   useMyDig,
@@ -870,12 +871,19 @@ function VinylWallGrid({
         marginLeft: 0,
         marginRight: 'auto',
         paddingTop: 12,
-        // Very subtle "painted" post-process so the photographic
-        // covers and the SVG rails read as closer siblings of the
-        // painted wall backdrop — slight desaturation + softer
-        // contrast + tiny brightness knock pull the records out of
-        // their photo-crisp look without making them hard to read.
-        filter: 'contrast(0.94) saturate(0.88) brightness(0.97)',
+        // Earlier the container carried a `filter: contrast(0.94)
+        // saturate(0.88) brightness(0.97)` to harmonise covers with
+        // the painted-wall backdrop. Removed because CSS `filter`
+        // establishes a containing block for fixed-position
+        // descendants AND a stacking context, which (a) anchored the
+        // mobile comment toast to the wall instead of the viewport,
+        // and (b) appeared to constrain the visual extent of scaled
+        // wall cells on mobile Safari (the active LP's 1.26× scale
+        // got cut along the wood-rail line of the row above). If the
+        // covers read too photo-crisp against the backdrop now, move
+        // the same filter onto each WallLP cover instead — that scope
+        // doesn't include the toast portal target or the cell scale
+        // overflow, so the bug doesn't come back.
       }}
     >
       {rows.map(({ positions }, ri) => (
@@ -1393,8 +1401,17 @@ function CommentBubble({
   // the cell). 120px clears the 80px Spotify embed + 16px bottom
   // offset + breathing room; safe-area-inset-bottom lifts past the
   // iOS home indicator.
+  //
+  // Portalled to document.body because the VinylWallGrid container has
+  // a CSS filter, which establishes a containing block for fixed-
+  // position descendants per spec. Without the portal, `bottom: 120px`
+  // anchors to that filter parent rather than the viewport — the toast
+  // ended up wherever the filter parent's bottom edge happened to be,
+  // so on a scrolled page it disappeared off-screen and "나왔다 안나왔다"
+  // looked like a render bug.
   if (forceShow) {
-    return (
+    if (typeof document === 'undefined') return null;
+    return createPortal(
       <div
         aria-hidden
         className="fixed left-1/2 z-50 pointer-events-none animate-[fadeInUp_220ms_ease-out]"
@@ -1417,7 +1434,8 @@ function CommentBubble({
           {ratingIcon && <span className="not-italic ml-1.5">{ratingIcon}</span>}
           {emoji && <span className="not-italic ml-1">{emoji}</span>}
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
 
