@@ -11,9 +11,18 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 // Width capped at 890px to match mydig's wall column — that keeps the
 // 5-col layout's effective lpSize identical between the two surfaces
 // (≈150px on desktop) so covers don't read bigger here than on mydig.
-// Padding-top pushes the wall toward the vertical middle of the
-// viewport on tall screens; with only two rails of LPs, the page
-// otherwise stranded a lot of empty space below the wall.
+//
+// Vertical layout: bottom-anchored, NOT viewport-percentage. Earlier
+// iterations used paddingTop = (100vh − wallHeight) × ratio so the
+// wall floated near the vertical middle, but that recomputes whenever
+// the viewport height changes — when the user resized the window the
+// rails wobbled up + down even though the LPs stayed at the same
+// horizontal position, which made the page feel unstable to build on.
+// Switching to flex justify-end + a constant paddingBottom pins the
+// rails at a fixed distance from the viewport bottom regardless of
+// height; tall screens just gain empty wallpaper above the wall (and
+// that empty wallpaper is the storefront backdrop, which is the page's
+// atmospheric register anyway).
 
 export default function Home() {
   useDocumentHead({
@@ -24,10 +33,7 @@ export default function Home() {
   });
 
   return (
-    <div
-      className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16"
-      style={{ paddingTop: 'max(48px, calc((100vh - 460px) * 0.4))' }}
-    >
+    <div className="flex-1 flex flex-col justify-end px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-[100px] md:pb-[116px]">
       <section className="w-full max-w-[890px] mx-auto">
         <HomeWall />
       </section>
