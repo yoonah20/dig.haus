@@ -3,8 +3,6 @@ import { useEffect } from 'react';
 import { useAlbumBase, useAlbumReviews, useAlbumSimilar, useAlbumNeighbors } from '../hooks/useAlbum';
 import { useHomeState } from '../contexts/HomeStateContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useCurationProgress } from '../contexts/CurationProgressContext';
-import { useGenerateReviewSummary, useMarkNoReviews, useDeleteAllReviews } from '../hooks/useAlbum';
 import { useInView } from '../hooks/useInView';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import HeaderSection from '../components/AlbumDetail/HeaderSection';
@@ -12,6 +10,7 @@ import BuySection from '../components/AlbumDetail/BuySection';
 import UserReviewsSection from '../components/AlbumDetail/UserReviewsSection';
 import ReviewSection from '../components/AlbumDetail/ReviewSection';
 import SimilarAlbums from '../components/AlbumDetail/SimilarAlbums';
+import ReviewsAdminBar from '../components/AlbumDetail/ReviewsAdminBar';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 
@@ -34,10 +33,6 @@ export default function Album() {
   const prefillManualUrl = searchParams.get('retry-url');
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
-  const generateSummary = useGenerateReviewSummary(slug!);
-  const markNoReviews = useMarkNoReviews(slug!);
-  const deleteAllReviews = useDeleteAllReviews(slug!);
-  const curation = useCurationProgress();
   const { data: base, isLoading: baseLoading, error: baseError } = useAlbumBase(slug!);
   const baseReady = !!base;
   const { sort } = useHomeState();
@@ -179,139 +174,13 @@ export default function Album() {
             albumArtist={album.artist}
             prefillManualUrl={prefillManualUrl}
             pendingNotice={
-              base.album.reviewsCrawledAt === null
-                ? isAdmin
-                  ? (
-                      <div className="rounded-xl border border-[#e8a020]/25 bg-[#1a1a1a]/80 px-4 sm:px-5 py-3">
-                        <div className="flex items-center justify-center gap-2 flex-wrap">
-                          {(() => {
-                            // Three visual states:
-                            //   idle         → "🔍 자동 큐레이션"
-                            //   already queued/running/done for THIS album
-                            //                → spinner + "큐레이션 중…" (disabled)
-                            //   running but THIS album not queued yet
-                            //                → "🔍 큐에 추가" (click appends)
-                            const thisInQueue =
-                              !!curation.run?.albums.some(
-                                (a) => a.albumMbid === slug
-                              );
-                            const otherInProgress =
-                              curation.isRunning && !thisInQueue;
-                            const lockedOut =
-                              thisInQueue ||
-                              generateSummary.isPending ||
-                              markNoReviews.isPending ||
-                              deleteAllReviews.isPending;
-                            const label = thisInQueue
-                              ? '큐레이션 중…'
-                              : otherInProgress
-                                ? '🔍 큐에 추가'
-                                : '🔍 자동 큐레이션';
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (lockedOut) return;
-                                  curation.startRun([
-                                    { mbid: slug!, title: album.title },
-                                  ]);
-                                }}
-                                disabled={lockedOut}
-                                className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/15 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5"
-                                title={
-                                  otherInProgress
-                                    ? '다른 앨범이 처리 중 — 클릭하면 대기열 뒤에 추가됩니다'
-                                    : 'URL 자동 검색 → 리뷰 수집 → 한국어 요약까지 한 번에 실행'
-                                }
-                              >
-                                {thisInQueue && (
-                                  <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
-                                )}
-                                {label}
-                              </button>
-                            );
-                          })()}
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (generateSummary.isPending) return;
-                              try {
-                                await generateSummary.mutateAsync();
-                              } catch (err: any) {
-                                alert(
-                                  err?.response?.data?.error ||
-                                    '요약 생성에 실패했습니다. 리뷰가 2개 이상 필요합니다.'
-                                );
-                              }
-                            }}
-                            disabled={
-                              generateSummary.isPending ||
-                              markNoReviews.isPending ||
-                              reviewsData.reviews.length < 2
-                            }
-                            className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/50 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                            title="이미 등록된 리뷰만으로 한국어 요약 생성 (~$0.01). 리뷰가 2개 이상 있어야 가능."
-                          >
-                            {generateSummary.isPending ? '생성 중…' : '📝 요약 생성'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (markNoReviews.isPending) return;
-                              try {
-                                await markNoReviews.mutateAsync();
-                              } catch (err: any) {
-                                alert(err?.response?.data?.error || '표시에 실패했습니다.');
-                              }
-                            }}
-                            disabled={
-                              generateSummary.isPending ||
-                              markNoReviews.isPending
-                            }
-                            className="text-xs text-gray-400 bg-white/5 hover:bg-white/10 border border-white/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                            title="외부 API 호출 없이 크롤링 완료로만 표시 (비용 0)"
-                          >
-                            {markNoReviews.isPending ? '표시 중…' : '🙅 리뷰 없음'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (deleteAllReviews.isPending) return;
-                              const reviewCount = reviewsData.reviews.length;
-                              if (reviewCount === 0) {
-                                alert('삭제할 리뷰가 없습니다.');
-                                return;
-                              }
-                              if (
-                                !confirm(
-                                  `이 앨범의 리뷰 ${reviewCount}개를 전부 삭제할까요?\n한국어 요약도 함께 초기화되고 수집-대기 상태로 돌아갑니다.\n앨범 자체는 유지됩니다 (앨범 삭제는 ⚙️ 관리 메뉴).`
-                                )
-                              )
-                                return;
-                              try {
-                                await deleteAllReviews.mutateAsync();
-                              } catch (err: any) {
-                                alert(
-                                  err?.response?.data?.error ||
-                                    '리뷰 삭제에 실패했습니다.'
-                                );
-                              }
-                            }}
-                            disabled={
-                              generateSummary.isPending ||
-                              markNoReviews.isPending ||
-                              deleteAllReviews.isPending
-                            }
-                            className="text-xs text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                            title="이 앨범의 수집된 리뷰 전체 삭제 (앨범은 유지됨)"
-                          >
-                            {deleteAllReviews.isPending ? '삭제 중…' : '🗑️ 리뷰 전체 삭제'}
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  : null
-                : null
+              base.album.reviewsCrawledAt === null && isAdmin ? (
+                <ReviewsAdminBar
+                  slug={slug!}
+                  albumTitle={album.title}
+                  reviewCount={reviewsData.reviews.length}
+                />
+              ) : null
             }
           />
         ) : null}
