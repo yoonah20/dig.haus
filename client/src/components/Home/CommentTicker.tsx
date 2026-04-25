@@ -162,13 +162,15 @@ export function TickerItem({
         style={BUBBLE_STYLE}
       >
         {/* Body with trailing rating + feeling emojis — the 50자 cap
-            combined with the card's max-width means the text wraps to
-            ≤3 lines naturally, so no line-clamp is needed and nothing
-            gets truncated. The emojis sit at the end of the text
-            (whitespace-nowrap keeps them glued to the final word and
-            to each other) so they read as punctuation rather than a
-            separate badge. */}
-        <p className="flex-1 min-w-0 text-gray-100 text-[13px] leading-snug break-words">
+            combined with the card's max-width *usually* wraps to ≤3
+            lines, but ASCII-heavy bodies + narrow bubble widths can
+            push to 4. line-clamp-3 caps the bubble height so the
+            ticker rhythm stays visually uniform; the emojis sit at the
+            end of the text (whitespace-nowrap keeps them glued to the
+            final word) so they fall inside the clamp window like
+            punctuation rather than a separate badge that would risk
+            being eaten. */}
+        <p className="flex-1 min-w-0 text-gray-100 text-[13px] leading-snug break-words line-clamp-3">
           {item.body}
           {hasBadges && (
             <span className="whitespace-nowrap" aria-hidden>
