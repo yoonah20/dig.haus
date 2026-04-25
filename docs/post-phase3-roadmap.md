@@ -1,0 +1,175 @@
+# Post-Phase 3 roadmap
+
+Strategic backlog after Phase 3 winds down. Drafted 2026-04-25 from a conversation laying out the next ~6 months of dig.haus.
+
+This is intentionally a **roadmap**, not a plan. It captures what's on the table and recommended sequencing. Per-item plans (schemas, PRs, costs) live in their own docs once an item moves into active work.
+
+---
+
+## Where we are (2026-04-25)
+
+- **Phase 1, 2 done**, **Phase 3 winding down**: vinyl wall + snapshots + follow + persistent player shipped. Shelf/crate mutation endpoints + storefront illustrated visual deferred.
+- **Phase 4 drafted** at `docs/phase4-nightly-pipeline.md` (RTX 5080 + local LLM nightly curation).
+- **Live MyDig storefront** is the transitional Hongdae-dusk composition. Long-term target is Path B per `docs/phase3-storefront-decisions.md` entries 18–19 (illustrated lofi-bedroom background asset behind CSS/SVG overlays).
+- **DB scale**: ~350 albums. Comfortable usable scale is closer to 30,000.
+
+---
+
+## Items on the table
+
+Numbered as the user listed them. **0 is the immediate work; 1–4 are the strategic queue.**
+
+### 0. Album detail page refactor — *immediate*
+
+Foundation tokens (palettes hoist, 4 primitives: Panel/Chip/Field/SectionTitle) → 디제이 노트 (D) ornament direction → selective absorption from 레코드샵 카운터 (A). Separate decision in `~/.claude/projects/-home-yoonah-diggershaus/memory/project_album_page_redesign.md` (Claude memory) and tracked across 7 PRs ending in admin-chrome isolation.
+
+**Why now**: the page is the last surface stuck in early-development chrome. Foundation work is orthogonal to MyDig's visual direction (whether it lands on Path A or Path B), so this can ship without waiting on the wireframe MVP. PR1 (token hoist) and PR2 (primitives) become reusable assets every other surface inherits.
+
+**Scope caveats**:
+- PR6 (Discography → Cubby strip) is the one item with MyDig coupling risk — `Cubby` may not survive the turntable-console pivot. Plan to either (a) drop PR6, (b) use masking-tape labels only without the cubby form, or (c) hold PR6 until storefront wireframe validates.
+
+### 1. Social — main page right rail expansion + shareable wall image
+
+Two distinct sub-items inside this:
+
+**1a. Topster-style PNG export of vinyl wall.**
+The current "share" surface is just a URL. A square PNG (Instagram-friendly, 1080×1080) of the user's wall lets the wall escape dig.haus into Instagram / Twitter / Threads / KakaoTalk. The Korean 미니홈피 + topster lineage already has cultural fit.
+
+**1b. Right-rail social pane.**
+The home right rail currently shows only "최근 기록." Open it up to: following users' recent activity, recently-snapshotted walls, shared crates, "지금 듣는" turntable picks. Goal stated by the user: "사용자가 오래 머물 수 있게."
+
+**Tension to resolve**: 1b's "long stay" framing is engagement-maximizing language, which is exactly what dig.haus's anti-algorithm positioning rejects (CLAUDE.md vision section, the "no spoon-feeding curation" rule, "no for-you carousel" non-goal). The dig.haus version of social has to be **passive ambience** rather than **active feed** — closer to the existing CommentTicker (peripheral overheard voices) than to a TikTok-style scroll.
+
+Concrete shape that respects the vision: a **multi-channel ambient ticker** in the rail — same metaphor as the existing comment ticker but with channels you can switch between (latest comments / following activity / fresh snapshots / labels you watch). No ranking, no "for you," strict reverse-chronological. A user staying long because they're enjoying ambient activity is fine; a user staying long because we made the feed sticky is not.
+
+### 2. MyDig 강화 — Crate as the unlimited "magic record cabinet"
+
+Crate as a first-class user-named container, **unlimited capacity**, replacing 샀음/살거. Public storefront optionally surfaces selected crates as visual stacks below the wall. The "physically impossible storage" framing is the design hook — what's the visual that says "this holds 1,000 records but it's clearly not a real crate"?
+
+This subsumes two open items from the Phase 3 status:
+- Shelf + Crate mutation endpoints (currently read-only).
+- Decisions log entry 20 (샀음 / 살거 vs Crate boundary) — this commits to the absorption side: 샀음/살거 disappear, replaced by system-managed default crates if needed.
+
+**Add-on**: visitor comments as Post-Its stuck on the wall. Already aligned with the deferred guestbook concept (Phase 5+ ambience pass), but Post-Its-on-wall fits the existing wall metaphor far better than a separate guestbook corner.
+
+**Open questions**:
+- Default crates auto-populated from existing 샀음/살거 data on migration — yes or no?
+- Unlimited capacity rendering: virtualization needed past ~200 albums per crate. The "magic cabinet" visual has to gracefully degrade for a 1,000-album crate without dropping frames.
+- Post-Its: comment visibility (public / friends-only / owner-only), max count on the wall before they get archived to a side stack, moderation hooks.
+
+### 3. Shop-feel visual polish — vinyl jacket as plastic-wrapped object
+
+Layer a plastic-wrap PNG over jacket covers, render the wrap "tearing" when an album moves into a user's crate. Eventually 3D CSS thickness on the jacket itself.
+
+This is a **direct extension of `docs/phase3-storefront-decisions.md` entry 18 Path B** — accept that CSS can't reach the illustrated aesthetic alone, layer purchased assets on top.
+
+**Sequencing dependency**: the "tearing wrap when moved into crate" payoff moment only exists if crates exist. Item 3 must follow item 2.
+
+**Cost shape**: asset purchase ($20–200 per pack range, modest), no recurring cost. Risk: asset library lock-in if the chosen pack stops getting updated. Mitigate by scoping the visual identity to be replaceable (ratio + lighting hooks defined, specific assets swappable).
+
+### 4. DB scale via local LLM nightly pipeline — *Phase 4*
+
+Already drafted at `docs/phase4-nightly-pipeline.md`. RTX 5080 + Qwen3-14B (or whichever local model wins the comparison toolbox at `pages/LlmCompare.tsx`). Goal: 350 → 30,000 albums with review summaries.
+
+**Cost discipline**: cloud Claude is too expensive at this scale (current ~$0.001/album × 30k = ~$30 just for review summaries, plus discovery + scoring + Korean summary, plus retries — easily 5–10× that in practice). Local LLM with the existing comparison tooling validates quality before bulk-running.
+
+**The actual hard part is curatorial, not technical**: who picks the 30k? "Most popular international albums on Discogs" is one path, "every album above N user-marks on RYM" is another, admin-curated genre sweeps a third. The LLM cost is solvable; the question of *which* 30k albums dig.haus stands behind is a positioning decision and should not be answered by "whatever Discogs's top-N happens to be."
+
+---
+
+## Recommended sequencing
+
+```
+0  Album page                  (now, ~2-3 weeks across 7 PRs)
+   ├─ ships independently, blocks nothing
+   └─ output: tokens + 4 primitives reusable everywhere else
+
+4  Phase 4 nightly pipeline    (start in parallel as soon as a local LLM
+                                wins the comparison; runs as background
+                                process, doesn't block client work)
+
+2  Crate implementation        (after 0)
+   ├─ resolves entry 20 (샀음/살거 boundary)
+   └─ unblocks 3 and 1a's "share my crate" surface
+
+3  Shop-feel visual            (after 2; payoff needs crate destination)
+   ├─ asset purchase
+   └─ plastic-wrap + tear effect on crate transfer
+
+1a Topster PNG export          (after 2; wall is stable, crates exist
+                                to share too)
+
+1b Right-rail social ticker    (last; needs the multi-channel ambient
+                                ticker shape decided first — do not ship
+                                a "feed" without the dig.haus-flavored
+                                answer to "what is this without being
+                                an algorithm")
+```
+
+**Why this order:**
+- 0 is independent and produces shared assets — start it now.
+- 4 is a background process from the moment a local LLM is picked. The nightly pipeline doesn't conflict with anything else, so it can grind away while client work happens.
+- 2 → 3 → 1a is a single sequenced chain (crate → wrap-tear effect needing crates → topster-with-crates).
+- 1b last, and gated on a vision answer rather than an engineering one.
+
+---
+
+## Cross-cutting concerns
+
+**Vision discipline**. Items 1b and 4 both push toward "more content, more activity," which is exactly the failure mode CLAUDE.md flags ("no spoon-feeding curation," "no for-you carousel"). The mitigation is built in: 1b's social pane stays as ambient ticker not algorithmic feed, and 4's curatorial selection stays intentional rather than chart-scraped. Both rules will need re-stating when the work actually lands, because the easy implementation choice will be the engagement-maximizing one each time.
+
+**Korean cultural alignment**. Topster, Post-Its on wall, magic record cabinet, masking-tape labels — all 미니홈피 / 싸이월드-coded. Strong fit. Worth being explicit in the visual brief that this is the lineage we're drawing on (alongside lofi-bedroom from entry 12), so it doesn't drift into a generic "cute UI" pastiche.
+
+**Cost stack**. Local LLM hardware (already owned) + cloud Claude for the cleanup pass on local output + asset packs ($100–300 one-time per visual theme). No recurring infrastructure bumps until DB scale forces a Postgres migration (well past 30k albums).
+
+**Phase 3 unresolved items still in scope**. Schema-vs-plan reconciliation (`shelf_slots.genre_id` vs freeform labels, `crate_boxes.position` semantics, `users.mydig_public` vestige) should land as part of item 2's schema work, not as a separate cleanup PR.
+
+---
+
+## Beyond the listed roadmap — additions for consideration
+
+Captured 2026-04-25 from a brainstorm round after the main 0–4 list. **None of these are committed.** They live here so they don't get lost; the next review pass decides which graduate into a sequenced phase and which get dropped.
+
+### A. Discogs collection import — cold-start accelerator
+
+Most serious Korean vinyl collectors already maintain a public Discogs collection. Reading it via the public Discogs API on first signup and pre-filling 샀음 (later: default crate per item 2) lets a first-time visitor land on a populated wall + crate within 5 minutes. Without this, every visual and social feature in items 1–3 sits on top of an empty store for new users. Discogs API is free, OAuth path is clean.
+
+**Sequencing**: independent of the main chain. Lands cleanly any time after item 2's crate schema is settled, since the import target is a crate.
+
+### B. Label pages as first-class destinations — positioning move
+
+Real record-shop culture identifies a digger by **label** more than by genre or era — "ECM 좋아함," "Numero Group은 무조건 사," "Stones Throw 신보 챙김." Currently labels are a single line of album metadata, not a destination. Promoting labels into their own first-class surface (label vinyl wall, admin-written label intro, chronological discography, label-level reviews, follow-this-label) is the strongest dig.haus-vs-Discogs/RYM differentiation lever on the table. Aligns directly with item 4's "curate by label sweep" instead of chart-scraping.
+
+**Sequencing**: substantial enough to plan as its own phase rather than fold into another item's PR chain.
+
+### C. Random dig button — anti-algorithm in one feature
+
+Pulls one random album from a random other user's wall. Zero personalization, zero ranking, zero filter. Pitched here as the purest single-feature expression of "No algorithms needed. Keep digging."
+
+**Honesty caveat from the conversation that surfaced this idea**: the user (themselves a target-persona vinyl collector) reports never having clicked a "random" button on any other site they've used. Strong signal that the feature is *philosophically on-brand* but possibly not *actually useful*. Kept on the list, but the next review pass should specifically ask whether random discovery is something dig.haus visitors will actually invoke, or whether it's a feature that looks great in a vision deck and gets ignored in practice. If the answer is the latter, drop it without hesitation — keeping unused features for ideological reasons would itself be unidiomatic for the site.
+
+If kept: scope is tiny (one-line `ORDER BY RANDOM() LIMIT 1` + a cinematic cover-pull animation reusing MyDig wall assets).
+
+### D. Curatorial daily log / 오늘의 발굴 — visible-owner thread
+
+Real local record shops are defined by their owner. dig.haus's admin is currently invisible — new albums flow into the home grid silently. A small daily slot on the home page ("2026-04-25 · 오늘 디그하우스가 발굴한 다섯 장") with a one-line owner comment per pick accumulates into editorial backbone. After 30 days the site visibly has a person behind it; without it, it reads as a database. Cost is admin writing time, not API/infra.
+
+### E. dig.haus 라이너 노트 — 1–3 sentence owner notes per album
+
+Per-album owner note alongside the LLM Korean summary. Short and optional ("새벽 3시 음악," "재발매판은 마스터링이 아쉬움," "세 번째 트랙부터 진짜다"). Only on albums the owner cared enough to write about — most albums have no liner note, and that's fine. Survives any future LLM quality improvement because the value is the handwriting being a person's, not the prose being good. Pairs with item D as the second editorial line in the same voice.
+
+### F. Letter to a stranger — anonymous asymmetric note on an album
+
+Small paper note (masking-tape attached) on an album page. A random 1–2 of any existing notes show to subsequent visitors of that album page. Quota-limited so it doesn't flood. Anonymous, one-way (no read receipts, no replies), only writable on albums the author 굿굿'd. Distinct from item 2's wall post-its: those are "visitor → my wall" addressed to the wall owner; these are "visitor → an album" addressed to the next visitor. Same handwriting/paper visual asset family — implementing one materially reduces the cost of the other.
+
+---
+
+## Anti-features — explicitly out of scope
+
+These are not "deferred." They are wrong for dig.haus regardless of timing. Preserved here so the next contributor — or the next month's version of this team — doesn't accidentally re-propose them.
+
+- **Personalized recommendations / "이거 좋아하면 저것도"** — direct contradiction of CLAUDE.md's anti-algorithm vision and the "no spoon-feeding curation" rule. Every other site does this; dig.haus's positioning *is* not doing it.
+- **Trending / 인기 차트** — the HOT sticker is the limit of chart surface dig.haus tolerates. Beyond that, the site becomes a chart site, which already has many strong competitors.
+- **Live chat rooms / synchronous discussion threads** — moderation cost is unsustainable for a 1-person operation. dig.haus's social model is intentionally asymmetric (post-its, anonymous notes, ambient ticker), not synchronous.
+- **AI voice / in-store audio announcements** — kitsch risk. Breaks the handwriting metaphor that the rest of the visual identity converges on.
+- **Spotify Wrapped-style annual stats cards** — that vocabulary belongs to platforms. dig.haus is a shop, not a platform. If a year-end surface is wanted, it should be editorial (item D extended to year-end form) rather than algorithmic stats.
