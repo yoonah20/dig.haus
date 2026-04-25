@@ -20,7 +20,7 @@ import ShareButton from '../components/MyDig/ShareButton';
 import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
 import { useUserPublic } from '../hooks/useMe';
-import { extractSpotifyAlbumId } from '../hooks/useNowPlaying';
+import { extractSpotifyAlbumId, useNowPlaying } from '../hooks/useNowPlaying';
 import PlayChip from '../components/PlayChip';
 import {
   setActiveWallCellId,
@@ -208,6 +208,14 @@ export default function MyDig() {
     }
   };
 
+  // PersistentNowPlayingPlayer is fixed to the viewport bottom (16px
+  // offset, ~80px height) and overlays the page when active. On
+  // mobile the default pb-8 (32px) is not enough headroom — the last
+  // wall row sits behind the player iframe. When the player is
+  // active, override with ~140px + safe-area-inset-bottom to clear
+  // the player and the iOS home indicator.
+  const playerActive = !!useNowPlaying();
+
   return (
     <div className="flex-1">
       {/* pb-24 on md+ reserves space under the wall so the last row
@@ -219,11 +227,14 @@ export default function MyDig() {
           top padding. */}
       <main
         className="max-w-[1400px] mx-auto px-4 md:pl-10 md:pr-4 pt-2 pb-8 md:pb-24 space-y-1"
-        style={
-          isMobile
-            ? undefined
-            : { paddingTop: 'max(8px, calc((100vh - 900px) * 0.3))' }
-        }
+        style={{
+          ...(isMobile
+            ? {}
+            : { paddingTop: 'max(8px, calc((100vh - 900px) * 0.3))' }),
+          ...(isMobile && playerActive
+            ? { paddingBottom: 'calc(140px + env(safe-area-inset-bottom))' }
+            : {}),
+        }}
       >
         {isOnboardingOwner ? (
           // First-visit owner path. No wall, no sidebar, no
@@ -471,7 +482,7 @@ function ProfileHeader({
                 : '벽 제목·설명·앨범 편집'
             }
           >
-            ✏️ 편집
+            <span className="hidden md:inline">✏️ </span>편집
           </button>
         )}
         {isOwner && mode === 'live' && (
@@ -481,7 +492,7 @@ function ProfileHeader({
             className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
             title="현재 구성을 기억으로 남기기"
           >
-            📸 기억 남기기
+            <span className="hidden md:inline">📸 </span>기억<span className="hidden md:inline"> 남기기</span>
           </button>
         )}
         {isOwner && mode === 'snapshot' && (
@@ -492,7 +503,13 @@ function ProfileHeader({
             className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="스냅샷 삭제"
           >
-            {deleteSnapshotPending ? '삭제 중…' : '🗑 삭제'}
+            {deleteSnapshotPending ? (
+              '삭제 중…'
+            ) : (
+              <>
+                <span className="hidden md:inline">🗑 </span>삭제
+              </>
+            )}
           </button>
         )}
         {!isOwner && userId != null && (
@@ -529,7 +546,7 @@ function ProfileHeader({
           the signature shares the same y-band as the action
           chips. Non-owner viewers get [팔로우 공유]; owner viewers
           get [편집 · 기억/삭제 · 공유]. */}
-      <div className="absolute top-[15px] right-6 z-10 flex items-center gap-2 flex-wrap justify-end">
+      <div className="absolute top-[15px] right-2 md:right-6 z-10 flex items-center gap-2 flex-wrap justify-end">
         {renderActions()}
       </div>
 
@@ -1352,23 +1369,58 @@ function CommentBubble({
   rating: string | null;
   lpSize: number;
   // Mobile path: the outer cell is in its tap-activated state and
-  // group-hover won't fire on touch. forceShow flips the bubble
-  // fully visible without needing :hover on an ancestor.
+  // group-hover won't fire on touch. forceShow switches the bubble
+  // to a viewport-fixed toast (see early return below) so the
+  // rightmost-column case can't push past the viewport edge or get
+  // clipped by an ancestor's overflow.
   forceShow?: boolean;
-  // Desktop hover now scales the sleeve 1.26× from its bottom-centre
-  // origin, which means the scaled cover grows ~13% past its
-  // original top + sides. A top-placed bubble lands inside that
-  // new top strip and gets visually eaten. `placement: 'right'`
-  // offsets the bubble past the scaled-out right edge instead so
-  // the hover interaction stays clean. Mobile keeps 'top' (no hover
-  // scale to dodge) so the bubble sits above the cell, centred.
+  // Desktop hover scales the sleeve 1.26× from its bottom-centre
+  // origin, so the scaled cover grows ~13% past its original top +
+  // sides. `placement: 'right'` offsets the bubble past the
+  // scaled-out right edge so hover stays clean. `top` is kept for
+  // any future caller that wants the centred-above variant.
   placement?: 'top' | 'right';
 }) {
   const ratingIcon =
     rating === 'up' ? '👍' : rating === 'down' ? '👎' : null;
-  const visibilityClasses = forceShow
-    ? 'opacity-100 scale-100'
-    : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100';
+
+  // Mobile tap path — render as a viewport-fixed toast above the
+  // persistent player. The previous in-cell bubble approach overflowed
+  // the viewport for rightmost-column LPs (cell-relative maxWidth +
+  // translateX(-50%) couldn't be clamped to the viewport from inside
+  // the cell). 120px clears the 80px Spotify embed + 16px bottom
+  // offset + breathing room; safe-area-inset-bottom lifts past the
+  // iOS home indicator.
+  if (forceShow) {
+    return (
+      <div
+        aria-hidden
+        className="fixed left-1/2 z-50 pointer-events-none animate-[fadeInUp_220ms_ease-out]"
+        style={{
+          bottom: 'calc(120px + env(safe-area-inset-bottom))',
+          transform: 'translateX(-50%)',
+          width: 'min(360px, calc(100vw - 32px))',
+        }}
+      >
+        <div
+          className="px-3.5 py-2.5 rounded-xl text-[12px] leading-snug font-serif italic text-center"
+          style={{
+            background: '#f5e8c8',
+            color: '#141008',
+            boxShadow:
+              '0 8px 20px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(20,14,8,0.2)',
+          }}
+        >
+          {body}
+          {ratingIcon && <span className="not-italic ml-1.5">{ratingIcon}</span>}
+          {emoji && <span className="not-italic ml-1">{emoji}</span>}
+        </div>
+      </div>
+    );
+  }
+
+  const visibilityClasses =
+    'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100';
   // `right` placement needs to clear the 1.26× scale overflow on
   // the right edge (0.13·lpSize), then add a small breathing gap.
   const rightOffsetPx = Math.round(lpSize * 0.15 + 8);
