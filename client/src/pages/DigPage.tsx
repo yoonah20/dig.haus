@@ -406,18 +406,7 @@ export default function DigPage() {
   const desktopGap = DESKTOP_GAP_CLASSES[density];
 
   return (
-    <div
-      className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-4"
-      // Adaptive top padding only on desktop — mobile viewports
-      // don't get tall enough to need adaptive spread, and on
-      // tablets the 900px threshold was firing and pushing
-      // content unreasonably far from the nav.
-      style={
-        isMobile
-          ? undefined
-          : { paddingTop: 'max(16px, calc((100vh - 900px) * 0.2))' }
-      }
-    >
+    <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-4">
       <section className="w-full max-w-[1280px] mx-auto">
         {isMobile ? (
           // ─── Mobile: single unified infinite-scroll feed ────
@@ -513,8 +502,7 @@ export default function DigPage() {
 
             {totalPages > 1 && (
               <nav
-                className="flex items-center justify-center gap-1 flex-wrap"
-                style={{ marginTop: 'max(8px, calc((100vh - 900px) * 0.15))' }}
+                className="mt-6 flex items-center justify-center gap-1 flex-wrap"
                 aria-label="Pagination"
               >
                 <button

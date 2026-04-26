@@ -64,8 +64,22 @@ export default function TopNav() {
             <Link
               to="/"
               onClick={handleLogoClick}
-              className="text-[#e8a020] text-2xl md:text-3xl lowercase tracking-tight leading-none shrink-0 cursor-pointer"
-              style={{ fontFamily: "'Syne', 'Inter', sans-serif", fontWeight: 700, letterSpacing: '-0.03em' }}
+              // Thick-bordered amber box around the original Syne
+              // wordmark — a CSS-only echo of the sticker logo
+              // (logo.png in /textures) without giving up the
+              // typeset font. Border thickens slightly on desktop
+              // for the larger glyph weight.
+              className="inline-flex items-center text-[#e8a020] text-xl md:text-2xl lowercase tracking-tight leading-none shrink-0 cursor-pointer border-2 md:border-[3px] border-[#e8a020] px-1 py-0.5"
+              style={{
+                fontFamily: "'Syne', 'Inter', sans-serif",
+                fontWeight: 700,
+                letterSpacing: '-0.03em',
+                // Stamp tilt — left side dips, mirrors the
+                // hand-applied feel the dig.haus PICK badge has
+                // on the hero LPs.
+                transform: 'rotate(-3deg)',
+                transformOrigin: 'center',
+              }}
             >
               dig.haus
             </Link>

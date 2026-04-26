@@ -113,25 +113,29 @@ export default function HomeNextHeroMobile() {
       ref={containerRef}
       className="relative w-full overflow-hidden"
       style={{
-        // Warm dark-concrete base. The turbulence overlay below
-        // breaks the flat fill into a textured wall surface.
-        // Height auto-grows from the flow content (rails carry an
-        // extra 10 px shadow tail beyond their visible plank
-        // height, so a fixed-pixel heroH would clip the last row's
+        // Warm tan concrete base — eyeballed against the desktop
+        // basement4.avif backdrop's average wall tone so the
+        // mobile hero shares its colour family with the desktop
+        // hero. The turbulence overlay below grain-breaks the
+        // flat fill so it doesn't read as painted plastic. Height
+        // auto-grows from the flow content (rails carry an extra
+        // 10 px shadow tail beyond their visible plank height,
+        // so a fixed-pixel heroH would clip the last row's
         // shadow).
-        backgroundColor: '#3a2e22',
+        backgroundColor: '#7a6248',
       }}
     >
-      {/* Vertical lighting gradient — subtle top-down lift so the
-          wall reads as if there's ambient room light above it,
-          not painted-out. Kept faint so the flat colour still
-          shows through. */}
+      {/* Vertical lighting gradient — slight warm lift at top
+          (mimicking the desktop's dig.haus neon glow up-right)
+          fading into a touch of vignetting at the bottom edge.
+          Both stops are gentle so the flat colour still carries
+          most of the surface. */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'linear-gradient(to bottom, rgba(255, 220, 180, 0.07) 0%, transparent 35%, rgba(0, 0, 0, 0.12) 100%)',
+            'linear-gradient(to bottom, rgba(255, 220, 170, 0.10) 0%, transparent 30%, rgba(0, 0, 0, 0.18) 100%)',
         }}
       />
 
@@ -156,9 +160,11 @@ export default function HomeNextHeroMobile() {
       {/* Handwritten section title — anchored top-left of the
           wall. No tilt on mobile (the desktop -3° read as
           casual on a wide composition; on the narrower mobile
-          band the same tilt was just hard to read). Cream ink
-          on dark concrete for legibility against the darker
-          mobile bg. */}
+          band the same tilt was just hard to read). Dark ink on
+          warm-tan concrete (matches the desktop hero's title
+          colour and reads cleanly against the lighter mobile
+          bg now that the surface tone shifted to match
+          basement4).  */}
       {meta?.theme && meta.theme.trim().length > 0 && (
         <div
           className="absolute select-none pointer-events-none"
@@ -167,7 +173,7 @@ export default function HomeNextHeroMobile() {
             left: PAD_X,
             right: PAD_X,
             fontFamily: GRAFFITI_FONT_STACK,
-            color: '#f0e2cc',
+            color: '#1a1208',
           }}
         >
           <h2
