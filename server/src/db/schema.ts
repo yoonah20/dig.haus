@@ -1381,6 +1381,39 @@ export function initializeDatabase(db: Database.Database): void {
       "ALTER TABLE home_meta ADD COLUMN plastic_blend_mode TEXT DEFAULT 'normal'"
     );
   });
+
+  // home_meta tuner columns — migrate the home-hero LP / title
+  // tuning state from per-admin localStorage into the global DB
+  // row so a single 저장 click is visible to every visitor. The
+  // earlier tuner saved to `homeNext:heroTuner:v*` in
+  // localStorage which only updated the admin's own browser; new
+  // home-rendering reads these columns instead.
+  runOnce(db, 'home_meta_hero_tuner_2026_04_27', () => {
+    db.exec('ALTER TABLE home_meta ADD COLUMN lp_size INTEGER DEFAULT 357');
+    db.exec('ALTER TABLE home_meta ADD COLUMN lp_gap INTEGER DEFAULT 30');
+    db.exec(
+      'ALTER TABLE home_meta ADD COLUMN upper_lp_x_start INTEGER DEFAULT 531'
+    );
+    db.exec(
+      'ALTER TABLE home_meta ADD COLUMN lower_lp_x_start INTEGER DEFAULT 531'
+    );
+    db.exec('ALTER TABLE home_meta ADD COLUMN upper_lp_y INTEGER DEFAULT 279');
+    db.exec('ALTER TABLE home_meta ADD COLUMN lower_lp_y INTEGER DEFAULT 752');
+    db.exec(
+      'ALTER TABLE home_meta ADD COLUMN title_font_size INTEGER DEFAULT 67'
+    );
+    db.exec(
+      'ALTER TABLE home_meta ADD COLUMN title_rotation_deg INTEGER DEFAULT -1'
+    );
+    // Existing rows pre-date the new home-hero so header_*_px were
+    // calibrated for the deleted HomeWall layout (-120 / 4 / -4).
+    // Reset them to the values that match the new band hero so a
+    // fresh load lands the title in the right place; admins can
+    // re-tune via the in-page tuner after this.
+    db.exec(
+      'UPDATE home_meta SET header_top_px = 102, header_left_px = 305, header_rotation_deg = -1 WHERE id = 1'
+    );
+  });
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
      ON user_follows(followee_id, created_at DESC)`

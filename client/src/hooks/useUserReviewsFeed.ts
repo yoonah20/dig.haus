@@ -10,9 +10,11 @@ export interface UserReviewFeedItem {
   emoji: string | null;
   rating: 'up' | 'down' | 'soso' | null;
   createdAt: string;
-  // null when the author has deleted their account.
+  // null when the author has deleted their account, or when the
+  // user hasn't claimed a /my/:username slug yet.
   userId: number | null;
   userName: string | null;
+  userUsername: string | null;
   userAvatar: string | null;
   userUpvoteCount: number;
   userDownvoteCount: number;

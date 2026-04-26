@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   useHomeFeatures,
+  useUpdateHomeMeta,
   type HomeFeatureItem,
   type HomeMeta,
+  type HomeMetaPatch,
 } from '../../hooks/useHomeFeatures';
 import { useAuth } from '../../contexts/AuthContext';
 import { WallLP } from '../MyDig/storefront/primitives';
@@ -12,31 +14,30 @@ import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
-// basement4.avif: 2976×1430 wall-only strip (concrete-textured
+// basement5.avif: 2976×1500 wall-only strip (concrete-textured
 // wall with two baked-in wood shelves and a small dig.haus neon
 // in the top-right). The asset arrives pre-trimmed at the band
 // aspect we want, so we render it at its natural ratio without
 // further CSS cropping — the earlier HERO_ASPECT inner-frame
 // trick is gone, sceneH just tracks the source aspect again.
 //
-// Coordinates below live in source-image px (2976×1430); a
+// Coordinates below live in source-image px (2976×1500); a
 // single `scale` factor (renderedWidth / 2976) projects them
 // into screen px at render time.
 const SCENE_W = 2976;
-const SCENE_H = 1430;
+const SCENE_H = 1500;
 
 // Below MIN_W the scene stops shrinking and the surrounding
 // container's overflow:hidden crops it. Keeps the shelves
 // readable on narrow desktop windows / tablets.
 const MIN_W = 1024;
 
-// Top + bottom trim, in rendered px (constant regardless of
-// viewport scale). Shaves a small strip off the painted band
-// so the wall doesn't feel flush with the page edges. The
-// inner frame still holds the image at its natural aspect; the
-// outer container clips by these values via overflow-hidden.
-const TRIM_TOP_PX = 20;
-const TRIM_BOTTOM_PX = 20;
+// Top + bottom trim, in rendered px. basement5 was authored at
+// the band aspect we want, so no further CSS cropping — set to
+// 0 to render the full image. Constants kept around in case a
+// future asset wants the trim back.
+const TRIM_TOP_PX = 0;
+const TRIM_BOTTOM_PX = 0;
 
 interface TunerValues {
   lpSize: number;
@@ -66,6 +67,9 @@ interface TunerValues {
 // fresh session paints to the same placement without needing
 // a saved localStorage entry. Tuner remains the source of
 // truth for further refinements.
+// Local fallback when the home_meta query hasn't resolved yet.
+// Server returns the same values as defaults so this only flashes
+// for the brief window before /api/home/features comes back.
 const DEFAULT_TUNER: TunerValues = {
   lpSize: 357,
   lpGap: 30,
@@ -79,31 +83,40 @@ const DEFAULT_TUNER: TunerValues = {
   titleRotationDeg: -1,
 };
 
-// v10 — split lpXStart into upper/lower; old saves carrying the
-// single field won't migrate, so bump the key to fall back to the
-// fresh defaults.
-const TUNER_STORAGE_KEY = 'homeNext:heroTuner:v10';
-
-function loadTuner(): TunerValues {
-  if (typeof window === 'undefined') return DEFAULT_TUNER;
-  try {
-    const raw = window.localStorage.getItem(TUNER_STORAGE_KEY);
-    if (!raw) return DEFAULT_TUNER;
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_TUNER, ...parsed };
-  } catch {
-    return DEFAULT_TUNER;
-  }
+// Map the server's home_meta payload into the tuner's local
+// shape. The title position fields reuse the existing
+// header_*_px columns (legacy from the deleted HomeWall) since
+// they're already wired into the meta PATCH endpoint; tuner
+// names stay title* so the UI labels read naturally.
+function metaToTuner(meta: HomeMeta | undefined): TunerValues {
+  if (!meta) return DEFAULT_TUNER;
+  return {
+    lpSize: meta.lpSize,
+    lpGap: meta.lpGap,
+    upperLpXStart: meta.upperLpXStart,
+    lowerLpXStart: meta.lowerLpXStart,
+    upperLpY: meta.upperLpY,
+    lowerLpY: meta.lowerLpY,
+    titleTopY: meta.headerTopPx,
+    titleLeftX: meta.headerLeftPx,
+    titleFontSize: meta.titleFontSize,
+    titleRotationDeg: meta.titleRotationDeg,
+  };
 }
 
-function saveTuner(values: TunerValues) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(TUNER_STORAGE_KEY, JSON.stringify(values));
-  } catch {
-    // localStorage may be disabled (Safari private mode etc.) — silent
-    // fail is fine, the tuner just won't persist across reloads.
-  }
+function tunerToPatch(t: TunerValues): HomeMetaPatch {
+  return {
+    lpSize: t.lpSize,
+    lpGap: t.lpGap,
+    upperLpXStart: t.upperLpXStart,
+    lowerLpXStart: t.lowerLpXStart,
+    upperLpY: t.upperLpY,
+    lowerLpY: t.lowerLpY,
+    headerTopPx: t.titleTopY,
+    headerLeftPx: t.titleLeftX,
+    titleFontSize: t.titleFontSize,
+    titleRotationDeg: t.titleRotationDeg,
+  };
 }
 
 // Plastic-wrap textures — same pool as the live HomeWall.
@@ -141,26 +154,25 @@ export default function HomeNextHero() {
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
 
-  // Two tuner states: `committed` is what's persisted to
-  // localStorage and what the page mounts with on a fresh load.
-  // `draft` is the live working copy the sliders write to and
-  // the hero renders against — that gives a real-time preview as
-  // the admin drags handles. The 저장 button copies draft into
-  // committed (and writes through to localStorage); 되돌리기
-  // throws away unsaved changes by snapping draft back to
-  // committed. Without this split, sliders auto-saved on every
-  // change which made experimenting feel risky — there was no
-  // "checkpoint" you could roll back to.
-  const [committed, setCommitted] = useState<TunerValues>(DEFAULT_TUNER);
-  const [draft, setDraft] = useState<TunerValues>(DEFAULT_TUNER);
+  // Tuner values now live in home_meta on the server so a 저장
+  // click publishes globally. `committed` is derived from
+  // data?.meta each render; `draft` is the local working copy
+  // sliders write to. When the meta query refreshes (after a
+  // save), the effect resyncs draft from committed so isDirty
+  // collapses to false. 되돌리기 = setDraft(committed).
+  const committed = metaToTuner(data?.meta);
+  const [draft, setDraft] = useState<TunerValues>(committed);
   const [tunerOpen, setTunerOpen] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  // Keep draft in sync with committed (server) whenever it
+  // changes. Compares JSON form to avoid clobbering an in-flight
+  // edit when the query revalidates with the same content.
+  const committedKey = JSON.stringify(committed);
   useEffect(() => {
-    const loaded = loadTuner();
-    setCommitted(loaded);
-    setDraft(loaded);
-  }, []);
+    setDraft(metaToTuner(data?.meta));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [committedKey]);
 
   const tuner = draft;
 
@@ -176,9 +188,10 @@ export default function HomeNextHero() {
     draft.titleFontSize !== committed.titleFontSize ||
     draft.titleRotationDeg !== committed.titleRotationDeg;
 
+  const updateMeta = useUpdateHomeMeta();
+
   function handleSaveTuner() {
-    saveTuner(draft);
-    setCommitted(draft);
+    updateMeta.mutate(tunerToPatch(draft));
   }
 
   function handleRevertTuner() {
@@ -248,7 +261,7 @@ export default function HomeNextHero() {
           }}
         >
           <img
-            src="/backdrops/basement4.avif"
+            src="/backdrops/basement5.avif"
             alt=""
             aria-hidden
             className="absolute inset-0 w-full h-full pointer-events-none select-none"

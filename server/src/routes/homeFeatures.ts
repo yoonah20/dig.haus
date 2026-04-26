@@ -139,7 +139,15 @@ router.get('/home/features', async (_req, res) => {
             plastic_scale_pct AS plasticScalePct,
             plastic_offset_x_px AS plasticOffsetXPx,
             plastic_offset_y_px AS plasticOffsetYPx,
-            plastic_blend_mode AS plasticBlendMode
+            plastic_blend_mode AS plasticBlendMode,
+            lp_size AS lpSize,
+            lp_gap AS lpGap,
+            upper_lp_x_start AS upperLpXStart,
+            lower_lp_x_start AS lowerLpXStart,
+            upper_lp_y AS upperLpY,
+            lower_lp_y AS lowerLpY,
+            title_font_size AS titleFontSize,
+            title_rotation_deg AS titleRotationDeg
      FROM home_meta WHERE id = 1`
   ) as {
     theme: string | null;
@@ -151,6 +159,14 @@ router.get('/home/features', async (_req, res) => {
     plasticOffsetXPx: number | null;
     plasticOffsetYPx: number | null;
     plasticBlendMode: string | null;
+    lpSize: number | null;
+    lpGap: number | null;
+    upperLpXStart: number | null;
+    lowerLpXStart: number | null;
+    upperLpY: number | null;
+    lowerLpY: number | null;
+    titleFontSize: number | null;
+    titleRotationDeg: number | null;
   } | null;
 
   res.json({
@@ -168,6 +184,16 @@ router.get('/home/features', async (_req, res) => {
       plasticOffsetXPx: metaRow?.plasticOffsetXPx ?? 5,
       plasticOffsetYPx: metaRow?.plasticOffsetYPx ?? 0,
       plasticBlendMode: metaRow?.plasticBlendMode ?? 'normal',
+      // Hero LP / title tuner — defaults mirror the calibrated
+      // values the admin landed on in the localStorage era.
+      lpSize: metaRow?.lpSize ?? 357,
+      lpGap: metaRow?.lpGap ?? 30,
+      upperLpXStart: metaRow?.upperLpXStart ?? 531,
+      lowerLpXStart: metaRow?.lowerLpXStart ?? 531,
+      upperLpY: metaRow?.upperLpY ?? 279,
+      lowerLpY: metaRow?.lowerLpY ?? 752,
+      titleFontSize: metaRow?.titleFontSize ?? 67,
+      titleRotationDeg: metaRow?.titleRotationDeg ?? -1,
     },
   });
 });
@@ -193,6 +219,18 @@ router.patch('/home/meta', requireAdmin, (req, res) => {
     headerTopPx?: unknown;
     headerLeftPx?: unknown;
     headerRotationDeg?: unknown;
+    plasticScalePct?: unknown;
+    plasticOffsetXPx?: unknown;
+    plasticOffsetYPx?: unknown;
+    plasticBlendMode?: unknown;
+    lpSize?: unknown;
+    lpGap?: unknown;
+    upperLpXStart?: unknown;
+    lowerLpXStart?: unknown;
+    upperLpY?: unknown;
+    lowerLpY?: unknown;
+    titleFontSize?: unknown;
+    titleRotationDeg?: unknown;
   };
   // Each field is treated as "don't touch" when missing rather than
   // "clear to null"; the editor only sends the fields that actually
@@ -277,6 +315,34 @@ router.patch('/home/meta', requireAdmin, (req, res) => {
     }
     sets.push('plastic_blend_mode = ?');
     args.push(raw);
+  }
+  // Hero LP / title tuner — accept the same shape the in-page
+  // tuner panel posts. Each clamped to keep stray slider values
+  // (or a malicious payload) inside reasonable image-coord bounds.
+  const heroFields: Array<{
+    key: keyof typeof body;
+    column: string;
+    min: number;
+    max: number;
+  }> = [
+    { key: 'lpSize', column: 'lp_size', min: 50, max: 800 },
+    { key: 'lpGap', column: 'lp_gap', min: 0, max: 200 },
+    { key: 'upperLpXStart', column: 'upper_lp_x_start', min: 0, max: 4000 },
+    { key: 'lowerLpXStart', column: 'lower_lp_x_start', min: 0, max: 4000 },
+    { key: 'upperLpY', column: 'upper_lp_y', min: 0, max: 2000 },
+    { key: 'lowerLpY', column: 'lower_lp_y', min: 0, max: 2000 },
+    { key: 'titleFontSize', column: 'title_font_size', min: 12, max: 200 },
+    { key: 'titleRotationDeg', column: 'title_rotation_deg', min: -45, max: 45 },
+  ];
+  for (const f of heroFields) {
+    if (f.key in body) {
+      const v = clampInt(body[f.key], f.min, f.max);
+      if (v === null) {
+        return res.status(400).json({ error: `${f.key}는 정수여야 해요.` });
+      }
+      sets.push(`${f.column} = ?`);
+      args.push(v);
+    }
   }
   if (sets.length === 0) {
     return res.json({ ok: true });

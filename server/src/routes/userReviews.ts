@@ -119,6 +119,7 @@ router.get('/user-reviews/feed', (req, res) => {
   const rows = queryAll(
     `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
             COALESCE(u.display_name, u.name) AS user_name,
+            u.username AS user_username,
             COALESCE(u.custom_avatar_url, u.avatar_url) AS user_avatar,
             (SELECT COUNT(*) FROM album_votes av
              WHERE av.user_id = ur.user_id AND av.vote = 'up') AS user_upvote_count,
@@ -145,6 +146,7 @@ router.get('/user-reviews/feed', (req, res) => {
     created_at: string;
     user_id: number | null;
     user_name: string | null;
+    user_username: string | null;
     user_avatar: string | null;
     user_upvote_count: number | null;
     user_downvote_count: number | null;
@@ -165,6 +167,7 @@ router.get('/user-reviews/feed', (req, res) => {
       createdAt: r.created_at,
       userId: r.user_id,
       userName: r.user_name,
+      userUsername: r.user_username,
       userAvatar: r.user_avatar,
       userUpvoteCount: r.user_upvote_count ?? 0,
       userDownvoteCount: r.user_downvote_count ?? 0,

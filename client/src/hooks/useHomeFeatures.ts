@@ -54,6 +54,17 @@ export interface HomeMeta {
   plasticOffsetXPx: number;
   plasticOffsetYPx: number;
   plasticBlendMode: string;
+  // Hero LP / title tuner — moved off per-admin localStorage so
+  // saving from the in-page tuner publishes globally. All values
+  // live in source-image px (the basement5 coord space).
+  lpSize: number;
+  lpGap: number;
+  upperLpXStart: number;
+  lowerLpXStart: number;
+  upperLpY: number;
+  lowerLpY: number;
+  titleFontSize: number;
+  titleRotationDeg: number;
 }
 
 export function useHomeFeatures() {
@@ -79,6 +90,14 @@ export interface HomeMetaPatch {
   plasticOffsetXPx?: number;
   plasticOffsetYPx?: number;
   plasticBlendMode?: string;
+  lpSize?: number;
+  lpGap?: number;
+  upperLpXStart?: number;
+  lowerLpXStart?: number;
+  upperLpY?: number;
+  lowerLpY?: number;
+  titleFontSize?: number;
+  titleRotationDeg?: number;
 }
 
 export function useUpdateHomeMeta() {

@@ -15,6 +15,7 @@ import {
   type UserReviewFeedItem,
 } from '../hooks/useUserReviewsFeed';
 import CoverArt from '../components/CoverArt';
+import UserHoverCard from '../components/UserHoverCard';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { resolveApiUrl } from '../utils/apiUrl';
 import type { AlbumSearchResult } from '../types';
@@ -186,20 +187,6 @@ export default function HomeNext() {
             </section>
           )}
 
-          {/* ── 요즘 평 (amber ring) ──────────────────────────── */}
-          {!reviews.isLoading && (reviews.data?.items ?? []).length > 0 && (
-            <section>
-              <SectionTitle variant="tape" className="!mb-2">
-                랜덤 코멘트
-              </SectionTitle>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
-                {(reviews.data?.items ?? []).slice(0, 14).map((item) => (
-                  <BlurredReviewCard key={item.id} item={item} />
-                ))}
-              </div>
-            </section>
-          )}
-
           {/* ── 새로 남긴 기억 (violet ring) ──────────────────── */}
           {!snapshots.isLoading &&
             (snapshots.data?.snapshots ?? []).length > 0 && (
@@ -216,6 +203,20 @@ export default function HomeNext() {
                 </div>
               </section>
             )}
+
+          {/* ── 요즘 평 (amber ring) ──────────────────────────── */}
+          {!reviews.isLoading && (reviews.data?.items ?? []).length > 0 && (
+            <section>
+              <SectionTitle variant="tape" className="!mb-2">
+                랜덤 코멘트
+              </SectionTitle>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
+                {(reviews.data?.items ?? []).slice(0, 14).map((item) => (
+                  <BlurredReviewCard key={item.id} item={item} />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </div>
@@ -270,55 +271,109 @@ const RATING_THUMB: Record<'up' | 'down' | 'soso', string> = {
   soso: '🤷',
 };
 
+// Bottom 20% of every activity card — fixed identity strip with
+// avatar + username. The full strip is a <Link> to /my/{username}
+// (uniform amber on hover), and UserHoverCard is nested inside
+// with !flex/!w-full/!h-full so the popover trigger covers the
+// strip edge-to-edge instead of leaving inline-flex shrink-to-
+// fit gaps that read as darker corners. Anonymous / unclaimed
+// accounts (no mydig URL) fall back to a non-clickable plain row.
+function AuthorStrip({
+  userId,
+  mydigUrl,
+  avatarSrc,
+  displayName,
+}: {
+  userId: number | null;
+  mydigUrl: string | null;
+  avatarSrc: string | null;
+  displayName: string;
+}) {
+  const inner = (
+    <>
+      <MiniAvatar src={avatarSrc} name={displayName} size={20} />
+      <span className="text-[12px] text-gray-100 font-medium truncate">
+        {displayName}
+      </span>
+    </>
+  );
+  const stripBase =
+    'flex-[1_1_0%] min-h-0 flex items-center gap-2 pl-2 pr-2.5 border-t border-white/10 bg-black/55 transition-colors';
+
+  if (mydigUrl == null) {
+    return <div className={stripBase}>{inner}</div>;
+  }
+
+  const trigger =
+    userId != null ? (
+      <UserHoverCard
+        userId={userId}
+        className="!flex !w-full !h-full items-center gap-2 cursor-pointer"
+      >
+        {inner}
+      </UserHoverCard>
+    ) : (
+      inner
+    );
+
+  return (
+    <Link
+      to={mydigUrl}
+      aria-label={`${displayName}의 마이딕`}
+      className={`${stripBase} hover:bg-[#e8a020]/15 hover:text-[#e8a020]`}
+    >
+      {trigger}
+    </Link>
+  );
+}
+
 function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
   const isAnon = item.userId == null;
   const displayName = isAnon ? '탈퇴한 사용자' : item.userName || '익명';
   const ratingThumb = item.rating ? RATING_THUMB[item.rating] : null;
   const feelingEmoji = item.emoji;
   const hasBadges = !!(ratingThumb || feelingEmoji);
+  const mydigUrl = item.userUsername ? `/my/${item.userUsername}` : null;
 
-  // Card flips like AlbumCard on hover: front shows the comment
-  // overlaid on a blurred cover; the flip's back face reveals
-  // the cover unblurred without the comment text. The flip
-  // doubles as the reveal gesture, so the front blur sits
-  // lighter than before — heavy enough to keep the cover
-  // unrecognisable through the scrim, not so heavy that the
-  // colour wash fills the whole frame.
   return (
-    <Link
-      to={`/album/${item.albumSlug}`}
-      className="group relative block aspect-square"
-      style={{ perspective: '1000px' }}
-    >
-      <div className="relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out group-hover:[transform:rotateY(180deg)]">
-        {/* ── Front: blurred cover + comment + author ──── */}
-        <div
-          className="absolute inset-0 overflow-hidden rounded-lg border border-[#e8a020]/25 group-hover:border-[#e8a020]/60 transition-colors"
-          style={{
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-          }}
-        >
+    <div className="group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-[#e8a020]/25 hover:border-[#e8a020]/60 transition-colors bg-[#1a1208]">
+      <Link
+        to={`/album/${item.albumSlug}`}
+        className="relative block flex-[4_1_0%] min-h-0"
+        style={{ perspective: '1000px' }}
+      >
+        <div className="relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out group-hover/card:[transform:rotateY(180deg)]">
+          {/* Front: letterboxed blurred cover + comment. Same
+              object-contain treatment as the back face so the
+              cover doesn't get top/bottom-cropped on non-square
+              art. The blur is heavier here (8 px vs 4) since
+              the cover's job up front is to be a colour wash
+              behind the comment, not a recognisable image. */}
           <div
-            className="absolute inset-0 scale-110"
-            style={{ filter: 'blur(8px) saturate(1.1) brightness(0.55)' }}
-            aria-hidden
+            className="absolute inset-0 overflow-hidden"
+            style={{
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
           >
-            {item.albumCoverUrl ? (
-              <CoverArt
-                src={item.albumCoverUrl}
-                fallbacks={item.albumCoverFallbacks}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full bg-[#1a1208]" />
-            )}
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/15 to-black/55" />
-
-          <div className="relative h-full flex flex-col justify-between p-2.5">
-            <div className="flex-1 flex items-center">
+            <div
+              className="absolute inset-0 flex items-center justify-center bg-[#1a1208]"
+              style={{ filter: 'blur(8px) saturate(1.1) brightness(0.55)' }}
+              aria-hidden
+            >
+              {item.albumCoverUrl ? (
+                <CoverArt
+                  src={item.albumCoverUrl}
+                  fallbacks={item.albumCoverFallbacks}
+                  alt=""
+                  className="max-w-full max-h-full w-auto h-auto object-contain"
+                />
+              ) : (
+                <div className="w-full h-full bg-[#1a1208]" />
+              )}
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/15 to-black/55" />
+            <div className="relative h-full flex items-center px-2.5">
               <p className="text-[12px] md:text-[13px] text-gray-50 font-medium leading-snug line-clamp-4">
                 {item.body}
                 {hasBadges && (
@@ -334,49 +389,47 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
                 )}
               </p>
             </div>
-            <div className="flex items-center gap-1.5 min-w-0">
-              <MiniAvatar
-                src={item.userAvatar}
-                name={item.userName}
-                size={18}
-              />
-              <span className="text-[11px] text-gray-100 font-medium truncate">
-                {displayName}
-              </span>
-            </div>
           </div>
-        </div>
 
-        {/* ── Back: lighter blur, no comment text ────────
-            Back face keeps the cover blurred at the same level
-            the old hover de-blur landed on (~4px) — peeling all
-            the blur off would give the album away, defeating the
-            "어떤 앨범일까" mystery the comment card preserves. */}
-        <div
-          className="absolute inset-0 overflow-hidden rounded-lg border border-[#e8a020]/60 bg-[#1a1208]"
-          style={{
-            backfaceVisibility: 'hidden',
-            WebkitBackfaceVisibility: 'hidden',
-            transform: 'rotateY(180deg)',
-          }}
-        >
+          {/* Back: full cover with the same 4-px blur the front
+              face wears. object-contain keeps the cover from
+              being top/bottom-cropped by the square frame; the
+              blur stays so the album identity remains a tease
+              rather than a giveaway. The flip's payoff is
+              "comment fades, cover surfaces" — not "album
+              revealed". */}
           <div
-            className="absolute inset-0 scale-110"
-            style={{ filter: 'blur(4px) brightness(0.75)' }}
-            aria-hidden
+            className="absolute inset-0 overflow-hidden bg-[#1a1208] flex items-center justify-center"
+            style={{
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+              transform: 'rotateY(180deg)',
+            }}
           >
             {item.albumCoverUrl && (
-              <CoverArt
-                src={item.albumCoverUrl}
-                fallbacks={item.albumCoverFallbacks}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+              <div
+                className="flex items-center justify-center w-full h-full"
+                style={{ filter: 'blur(4px) brightness(0.85)' }}
+              >
+                <CoverArt
+                  src={item.albumCoverUrl}
+                  fallbacks={item.albumCoverFallbacks}
+                  alt=""
+                  className="max-w-full max-h-full w-auto h-auto object-contain"
+                />
+              </div>
             )}
           </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+
+      <AuthorStrip
+        userId={item.userId}
+        mydigUrl={mydigUrl}
+        avatarSrc={item.userAvatar}
+        displayName={displayName}
+      />
+    </div>
   );
 }
 
@@ -387,108 +440,70 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
   const overflow = total - 5;
   const showOverflow = overflow > 0;
   const displayName = snap.user.displayName || snap.user.username;
+  const mydigUrl = `/my/${snap.user.username}`;
 
-  // Card is locked to aspect-square via the outer Link. The
-  // 3×2 cover grid (each cell aspect-square) naturally takes
-  // the top 2/3 of the card's height; flex-1 footer absorbs
-  // the remaining 1/3 so the whole composition fills the
-  // square with no leftover gap. The avatar is sized off the
-  // footer height (h-full) so it scales with the card, which
-  // keeps the footer feeling balanced regardless of breakpoint.
+  // Same 80/20 vertical split as the review card. Top region
+  // (snapshot covers + memory name caption) → snapshot detail.
+  // Bottom strip (avatar + username) → /my/{username}. Memory
+  // name moves into a small caption above the cover grid since
+  // the bottom strip is now reserved for identity.
   return (
-    <Link
-      to={`/my/${snap.user.username}/snap/${snap.slug}`}
-      // Violet ring distinguishes "memory" cards from the warm
-      // amber 50자 평 cards above. Bg stays the same dark plate
-      // because the cards still need to sit on their own
-      // canvas — only the chrome shifts hue.
-      className="group flex flex-col aspect-square rounded-lg border border-violet-400/30 bg-[#110b04]/60 p-2 hover:border-violet-400/60 transition-colors"
-    >
-      <div className="grid grid-cols-3 gap-0.5">
-        {Array.from({ length: 6 }, (_, i) => {
-          if (i < 5) {
-            const item = visible[i];
+    <div className="group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-violet-400/30 hover:border-violet-400/60 transition-colors bg-[#110b04]">
+      <Link
+        to={`${mydigUrl}/snap/${snap.slug}`}
+        className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1 p-2 hover:[&_.snap-name]:text-[#e8a020]"
+      >
+        <div className="snap-name text-[11px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
+          {snap.name}
+        </div>
+        <div className="grid grid-cols-3 gap-0.5">
+          {Array.from({ length: 6 }, (_, i) => {
+            if (i < 5) {
+              const item = visible[i];
+              return (
+                <div
+                  key={i}
+                  className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden"
+                >
+                  {item?.album?.coverArtUrl && (
+                    <CoverArt
+                      src={item.album.coverArtUrl}
+                      fallbacks={item.album.coverArtFallbacks}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  )}
+                </div>
+              );
+            }
+            if (showOverflow) {
+              return (
+                <div
+                  key={i}
+                  className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden flex items-center justify-center text-[12px] font-medium text-[#c9a060] tabular-nums"
+                  aria-label={`${overflow}개 더`}
+                >
+                  +{overflow}
+                </div>
+              );
+            }
             return (
               <div
                 key={i}
                 className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden"
-              >
-                {item?.album?.coverArtUrl && (
-                  <CoverArt
-                    src={item.album.coverArtUrl}
-                    fallbacks={item.album.coverArtFallbacks}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                )}
-              </div>
+              />
             );
-          }
-          if (showOverflow) {
-            return (
-              <div
-                key={i}
-                className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden flex items-center justify-center text-[12px] font-medium text-[#c9a060] tabular-nums"
-                aria-label={`${overflow}개 더`}
-              >
-                +{overflow}
-              </div>
-            );
-          }
-          return (
-            <div
-              key={i}
-              className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden"
-            />
-          );
-        })}
-      </div>
-      <div className="flex-1 min-h-0 mt-1.5 flex items-center gap-2">
-        <div className="flex-1 min-w-0 text-[12px] text-gray-100 font-medium leading-tight line-clamp-2 group-hover:text-[#e8a020] transition-colors">
-          {snap.name}
+          })}
         </div>
-        {/* aspect-square + h-full sizes the avatar off the
-            footer's measured height — at typical card sizes
-            this lands ~30-44px which fills the right edge of
-            the footer cleanly. */}
-        <div className="h-full aspect-square shrink-0">
-          <MiniAvatarFill src={snap.user.avatarUrl} name={displayName} />
-        </div>
-      </div>
-    </Link>
-  );
-}
+      </Link>
 
-// Variant of MiniAvatar that fills its parent's bounds instead
-// of taking a fixed pixel size. Used in the snapshot mini card
-// where the avatar size is determined by the card's footer
-// height (which itself scales with card width).
-function MiniAvatarFill({
-  src,
-  name,
-}: {
-  src: string | null;
-  name: string | null;
-}) {
-  const resolved = resolveApiUrl(src);
-  if (resolved) {
-    return (
-      <img
-        src={resolved}
-        alt=""
-        aria-hidden
-        className="w-full h-full rounded-full object-cover border border-white/10"
-        referrerPolicy="no-referrer"
+      <AuthorStrip
+        userId={snap.user.id}
+        mydigUrl={mydigUrl}
+        avatarSrc={snap.user.avatarUrl}
+        displayName={displayName}
       />
-    );
-  }
-  const initial = (name || '?').trim().charAt(0).toUpperCase();
-  return (
-    <div
-      className="w-full h-full rounded-full bg-[#2a1f10] text-[#e8a020] flex items-center justify-center border border-white/10 font-semibold text-base"
-      aria-hidden
-    >
-      {initial}
     </div>
   );
 }
+
