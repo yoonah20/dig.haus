@@ -326,17 +326,6 @@ export default function HomeNextHero() {
           gradient stops just past 100% of the band so the
           transition into #0a0703 finishes cleanly inside the band
           rather than pushing colour past it. */}
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 h-[110px] pointer-events-none"
-        style={{
-          // Fade target matches the activity wrapper's bg
-          // (#120c05, same as the nav) so the hero hands off
-          // into the section grid without a tonal seam.
-          background:
-            'linear-gradient(to bottom, transparent 0%, rgba(18, 12, 5, 0.55) 55%, #120c05 100%)',
-        }}
-      />
 
       {isAdmin && !editing && (
         <button

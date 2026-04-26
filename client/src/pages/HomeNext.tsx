@@ -123,11 +123,13 @@ export default function HomeNext() {
             each type takes 1–3 rows: releases get the most space
             (3 rows = 18), reviews medium (2 rows = 12), snapshots
             compact (1 row = 6). */}
-        <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-3">
+        <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-10">
           {/* ── 최신 발매작 (sky ring) ─────────────────────────── */}
           {!releases.isLoading && recentReleased.length > 0 && (
             <section>
-              <SectionTitle variant="tape">새 앨범</SectionTitle>
+              <SectionTitle variant="tape" className="!mb-2">
+                새 앨범
+              </SectionTitle>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                 {recentReleased.map((album) => (
                   <div
@@ -148,7 +150,9 @@ export default function HomeNext() {
           {/* ── 요즘 평 (amber ring) ──────────────────────────── */}
           {!reviews.isLoading && (reviews.data?.items ?? []).length > 0 && (
             <section>
-              <SectionTitle variant="tape">새 코멘트</SectionTitle>
+              <SectionTitle variant="tape" className="!mb-2">
+                랜덤 코멘트
+              </SectionTitle>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
                 {(reviews.data?.items ?? []).slice(0, 14).map((item) => (
                   <BlurredReviewCard key={item.id} item={item} />
@@ -161,7 +165,9 @@ export default function HomeNext() {
           {!snapshots.isLoading &&
             (snapshots.data?.snapshots ?? []).length > 0 && (
               <section>
-                <SectionTitle variant="tape">새 기억</SectionTitle>
+                <SectionTitle variant="tape" className="!mb-2">
+                  새 기억
+                </SectionTitle>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
                   {(snapshots.data?.snapshots ?? [])
                     .slice(0, 7)
@@ -232,69 +238,93 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
   const feelingEmoji = item.emoji;
   const hasBadges = !!(ratingThumb || feelingEmoji);
 
+  // Card flips like AlbumCard on hover: front shows the comment
+  // overlaid on a blurred cover; the flip's back face reveals
+  // the cover unblurred without the comment text. The flip
+  // doubles as the reveal gesture, so the front blur sits
+  // lighter than before — heavy enough to keep the cover
+  // unrecognisable through the scrim, not so heavy that the
+  // colour wash fills the whole frame.
   return (
     <Link
       to={`/album/${item.albumSlug}`}
-      // Amber ring is the brand accent and the visual cue that
-      // tells these "요즘 평" cards apart from the violet
-      // snapshot cards stacked next to them in the unified grid.
-      className="group relative block aspect-square overflow-hidden rounded-lg border border-[#e8a020]/25 hover:border-[#e8a020]/60 transition-colors"
+      className="group relative block aspect-square"
+      style={{ perspective: '1000px' }}
     >
-      {/* Blurred cover — same de-blur-on-hover gesture as the
-          comment ticker. blur-[14px] at rest is heavy enough that
-          you can't quite identify the cover; group-hover drops to
-          [4px] which gives a teasing reveal without giving the
-          album name away. */}
-      <div
-        className="absolute inset-0 scale-110 blur-[14px] saturate-[1.1] brightness-[0.5] group-hover:blur-[4px] group-hover:brightness-[0.7] transition-[filter] duration-300"
-        aria-hidden
-      >
-        {item.albumCoverUrl ? (
-          <CoverArt
-            src={item.albumCoverUrl}
-            fallbacks={item.albumCoverFallbacks}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full bg-[#1a1208]" />
-        )}
-      </div>
-      {/* Dark scrim — gentle gradient so the comment text stays
-          legible regardless of cover palette, lightens slightly
-          on hover so the cover-reveal isn't fighting the scrim. */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/15 to-black/55 group-hover:from-black/15 group-hover:to-black/40 transition-colors" />
-
-      <div className="relative h-full flex flex-col justify-between p-2.5">
-        {/* Body — comment text with the thumb (rating) and feeling
-            emojis trailing. Mirrors CommentTicker's "emojis as
-            punctuation" treatment so the same review reads
-            consistently across surfaces. */}
-        <div className="flex-1 flex items-center">
-          <p className="text-[12px] md:text-[13px] text-gray-50 font-medium leading-snug line-clamp-4">
-            {item.body}
-            {hasBadges && (
-              <span className="whitespace-nowrap" aria-hidden>
-                {' '}
-                {ratingThumb && (
-                  <span className="leading-none">{ratingThumb}</span>
-                )}
-                {feelingEmoji && (
-                  <span className="leading-none">{feelingEmoji}</span>
-                )}
-              </span>
+      <div className="relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out group-hover:[transform:rotateY(180deg)]">
+        {/* ── Front: blurred cover + comment + author ──── */}
+        <div
+          className="absolute inset-0 overflow-hidden rounded-lg border border-[#e8a020]/25 group-hover:border-[#e8a020]/60 transition-colors"
+          style={{
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+          }}
+        >
+          <div
+            className="absolute inset-0 scale-110"
+            style={{ filter: 'blur(8px) saturate(1.1) brightness(0.55)' }}
+            aria-hidden
+          >
+            {item.albumCoverUrl ? (
+              <CoverArt
+                src={item.albumCoverUrl}
+                fallbacks={item.albumCoverFallbacks}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-[#1a1208]" />
             )}
-          </p>
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/15 to-black/55" />
+
+          <div className="relative h-full flex flex-col justify-between p-2.5">
+            <div className="flex-1 flex items-center">
+              <p className="text-[12px] md:text-[13px] text-gray-50 font-medium leading-snug line-clamp-4">
+                {item.body}
+                {hasBadges && (
+                  <span className="whitespace-nowrap" aria-hidden>
+                    {' '}
+                    {ratingThumb && (
+                      <span className="leading-none">{ratingThumb}</span>
+                    )}
+                    {feelingEmoji && (
+                      <span className="leading-none">{feelingEmoji}</span>
+                    )}
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <MiniAvatar
+                src={item.userAvatar}
+                name={item.userName}
+                size={18}
+              />
+              <span className="text-[11px] text-gray-100 font-medium truncate">
+                {displayName}
+              </span>
+            </div>
+          </div>
         </div>
-        {/* Footer — author identity replaces the previous album
-            title/artist line. The cover (de-blurred on hover) is
-            already pointing at the album; what's missing without
-            this footer is *who* wrote the comment. */}
-        <div className="flex items-center gap-1.5 min-w-0">
-          <MiniAvatar src={item.userAvatar} name={item.userName} size={18} />
-          <span className="text-[11px] text-gray-100 font-medium truncate">
-            {displayName}
-          </span>
+
+        {/* ── Back: cover unblurred, no comment ──────────── */}
+        <div
+          className="absolute inset-0 overflow-hidden rounded-lg border border-[#e8a020]/60 bg-[#1a1208]"
+          style={{
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            transform: 'rotateY(180deg)',
+          }}
+        >
+          {item.albumCoverUrl && (
+            <CoverArt
+              src={item.albumCoverUrl}
+              fallbacks={item.albumCoverFallbacks}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          )}
         </div>
       </div>
     </Link>
