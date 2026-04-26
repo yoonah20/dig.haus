@@ -93,6 +93,19 @@ interface Props {
   // a lot of work signalling "this is in front" (the home hero's
   // band trim leaves no Z-depth context to pop into anyway).
   popOnHover?: boolean;
+  // Vertical anchor for the hover scale's transform-origin. Default
+  // 'bottom' = grow purely upward (mydig's CommentBubble offsets
+  // assume this). Pass a percentage like '75%' to shift the anchor
+  // off the bottom edge so growth distributes mostly upward but
+  // partly downward — useful when the scene has empty space above
+  // AND below the sleeve and a fully-bottom anchor reads too rigid.
+  hoverOriginY?: string;
+  // Multiplier on the default play-chip size factor (0.208 of
+  // lpSize). 1 = unchanged. Pass <1 (e.g. 0.6) when the host
+  // surface already runs a large hover scale, since the chip
+  // grows with the cover and a default-sized chip on a 1.8×
+  // hover ends up dominating the sleeve.
+  playChipScale?: number;
 }
 
 // CAA covers come back at 250px. The home + mydig walls render up to
@@ -130,6 +143,8 @@ export default function WallHoverCard({
   hoverScalePct = 126,
   coverOverlay = null,
   popOnHover = true,
+  hoverOriginY = 'bottom',
+  playChipScale = 1,
 }: Props) {
   const spotifyAlbumId = extractSpotifyAlbumId(album.spotifyUrl ?? null);
   const hasPreview = !!spotifyAlbumId;
@@ -201,13 +216,13 @@ export default function WallHoverCard({
         // sleeves read as already-lifted at rest. The hover
         // transition then introduces the big downward drop, so
         // picking a record still feels like lifting it.
-        className={`absolute inset-0 z-10 origin-bottom transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(-3px_0_4px_rgba(0,0,0,0.4))_drop-shadow(3px_0_4px_rgba(0,0,0,0.4))] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] ${
+        className={`absolute inset-0 z-10 transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(-3px_0_4px_rgba(0,0,0,0.4))_drop-shadow(3px_0_4px_rgba(0,0,0,0.4))] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] ${
           popOnHover
             ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
             : 'group-hover:[transform:scale(var(--wall-hover-scale))]'
         }`}
         style={{
-          transformOrigin: 'center bottom',
+          transformOrigin: `center ${hoverOriginY}`,
           // preserve-3d so the inner tilt rotateX/Y composes with the
           // outer scale (+ optional translateZ pop) instead of getting
           // flattened. The Link parent has perspective:900px, which
@@ -326,7 +341,7 @@ export default function WallHoverCard({
               spotifyUrl={album.spotifyUrl ?? null}
               title={album.title}
               artist={album.artist}
-              size={Math.round(lpSize * 0.208)}
+              size={Math.round(lpSize * 0.208 * playChipScale)}
             />
           )}
         </div>

@@ -155,7 +155,7 @@ export default function HomeNext() {
           {!releases.isLoading && recentReleased.length > 0 && (
             <section>
               <SectionTitle variant="tape" className="!mb-2">
-                새 앨범
+                새 앨범 파 보기
               </SectionTitle>
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                 {recentReleased.map((album) => (
@@ -165,8 +165,8 @@ export default function HomeNext() {
                   >
                     <AlbumCard
                       album={album}
-                      hideNewSticker
                       hidePendingBadge
+                      bigDateSticker
                     />
                   </div>
                 ))}
@@ -192,7 +192,7 @@ export default function HomeNext() {
             (snapshots.data?.snapshots ?? []).length > 0 && (
               <section>
                 <SectionTitle variant="tape" className="!mb-2">
-                  새 기억
+                  유저 기억으로 파 보기
                 </SectionTitle>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
                   {(snapshots.data?.snapshots ?? [])
@@ -208,7 +208,7 @@ export default function HomeNext() {
           {!reviews.isLoading && (reviews.data?.items ?? []).length > 0 && (
             <section>
               <SectionTitle variant="tape" className="!mb-2">
-                랜덤 코멘트
+                50자 평으로 파 보기
               </SectionTitle>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
                 {(reviews.data?.items ?? []).slice(0, 14).map((item) => (
@@ -453,7 +453,7 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
         to={`${mydigUrl}/snap/${snap.slug}`}
         className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1 p-2 hover:[&_.snap-name]:text-[#e8a020]"
       >
-        <div className="snap-name text-[11px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
+        <div className="snap-name text-[12px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
           {snap.name}
         </div>
         <div className="grid grid-cols-3 gap-0.5">

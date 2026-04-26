@@ -75,6 +75,15 @@ function daysUntilRelease(releaseDate: string | null | undefined): number | null
   return Math.max(1, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 }
 
+// "YYYY-MM-DD" → "M/D" (no leading zeros). Used by the home
+// "새 앨범" section as the per-card recency label that replaces
+// the redundant NEW sticker.
+function formatReleaseDateMD(iso: string): string {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '';
+  return `${parseInt(m[2], 10)}/${parseInt(m[3], 10)}`;
+}
+
 // Record-shop sticker family. All share the same chip shape so a
 // card carrying multiple (stacked top-down: SOON / NEW → HOT) reads
 // as one column of labels rather than competing elements. The "soon"
@@ -90,7 +99,7 @@ function daysUntilRelease(releaseDate: string | null | undefined): number | null
 // carries those signals on the price tag itself (green fill, yellow
 // fill, strike-through) and doubling up made the cover area feel
 // crowded whenever two chips stacked in the same corner.
-type CoverStickerKind = 'soon' | 'new' | 'hot';
+type CoverStickerKind = 'soon' | 'hot' | 'date';
 
 interface StickerSpec {
   bg: string;
@@ -117,17 +126,24 @@ const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
     lines: ['SOON'],
     aria: '발매 예정',
   },
-  new: {
-    bg: '#5aa9e6',
-    fg: '#0b1d2e',
-    lines: ['NEW'],
-    aria: '최근 30일 이내 발매',
-  },
   hot: {
     bg: '#e84a3b',
     fg: '#ffffff',
     lines: ['HOT'],
     aria: '굿굿 또는 별루 상위 10',
+  },
+  // Recent-release sticker — replaces the old NEW chip across
+  // every surface. Same Archivo Black + scaleX/Y countdown
+  // typography as 'soon' so the two read as siblings (D-day for
+  // upcoming, date M/D for just-shipped); inherits NEW's sky-
+  // blue + dark-ink palette so the colour identity carries over.
+  // Default footprint matches 'soon' / 'hot'; the home hero
+  // 새 앨범 section bumps with `large` for a bigger primary badge.
+  date: {
+    bg: '#5aa9e6',
+    fg: '#0b1d2e',
+    lines: [],
+    aria: '발매일',
   },
 };
 
@@ -135,13 +151,18 @@ function CoverStickerBadge({
   kind,
   lines: linesOverride,
   ariaOverride,
+  large = false,
 }: {
   kind: CoverStickerKind;
   /** Replaces palette.lines for stickers whose label is data-driven
-   *  (currently only 'soon' for the D-N countdown). All other kinds
-   *  rely on the static palette text and leave this undefined. */
+   *  (currently 'soon' for D-N, 'date' for M/D). Static-label
+   *  kinds (HOT) leave this undefined. */
   lines?: string[];
   ariaOverride?: string;
+  /** Bump fontSize + padding ~30% over the default. Used by the
+   *  home hero 새 앨범 grid where the date sticker is the only
+   *  badge competing for attention and earns a bigger footprint. */
+  large?: boolean;
 }) {
   const palette = STICKER_PALETTE[kind];
   const lines = linesOverride ?? palette.lines;
@@ -154,7 +175,11 @@ function CoverStickerBadge({
   // font-extrabold (= 800) explicitly to avoid faux-bold synthesis.
   // NEW / HOT keep Syne since their static labels render fine at
   // sticker size — the readability problem is countdown-specific.
-  const isCountdown = kind === 'soon';
+  // 'soon' (D-day countdown) and 'date' (release M/D) share the
+  // Archivo Black numeral treatment — both are tiny digit pairs
+  // that need a heavier face than Syne's display weight to stay
+  // legible at sticker size.
+  const isCountdown = kind === 'soon' || kind === 'date';
   return (
     <span
       className="inline-flex flex-col items-center justify-center font-extrabold uppercase rounded-sm shadow-md"
@@ -182,11 +207,20 @@ function CoverStickerBadge({
         // inline-size on the Link root). Floor at 6px so labels stay
         // legible on the tightest ultra-density tier; max at the
         // original tuned values so wide comfortable-density covers
-        // look exactly as before.
+        // look exactly as before. `large` callers (the home 새 앨범
+        // grid) get ~30% bigger footprint by bumping every clamp
+        // stop at the same ratio.
         fontSize:
-          palette.fontSize ?? `clamp(7px, 4.9cqw, 10px)`,
+          palette.fontSize ??
+          (large
+            ? 'clamp(9px, 6.4cqw, 13px)'
+            : 'clamp(7px, 4.9cqw, 10px)'),
         letterSpacing: palette.letterSpacing ?? '0.06em',
-        padding: palette.padding ?? 'clamp(1.2px, 1.3cqw, 2.6px) clamp(3.5px, 3.1cqw, 6.3px)',
+        padding:
+          palette.padding ??
+          (large
+            ? 'clamp(1.6px, 1.7cqw, 3.4px) clamp(4.5px, 4cqw, 8.2px)'
+            : 'clamp(1.2px, 1.3cqw, 2.6px) clamp(3.5px, 3.1cqw, 6.3px)'),
         lineHeight: palette.lineHeight ?? 1,
         minWidth: palette.minWidth,
         // Tabular numerals keep the countdown digits from jiggling as
@@ -196,12 +230,14 @@ function CoverStickerBadge({
       aria-label={ariaOverride ?? palette.aria}
     >
       {lines.map((line) => {
-        // SOON line scales the whole D-N up at 1.35em — Archivo Black
-        // at the base sticker size reads slightly small next to the
-        // adjacent NEW / HOT chips, so the 1.35em bump puts the
-        // countdown at a comparable optical weight. em-relative so
-        // it tracks the cqw parent without a second clamp of its own.
-        if (kind === 'soon') {
+        // Countdown-style stickers (SOON D-N, date M/D) bump the
+        // digits 1.35× at the default size so Archivo Black
+        // reads at the same optical weight as the adjacent
+        // Syne-set HOT chip. The `large` mode already pre-bumps
+        // the parent fontSize (~30% bigger), so skipping the
+        // 1.35em there keeps the bump from compounding into a
+        // dominant double-sized chip.
+        if (isCountdown && !large) {
           return (
             <span key={line} style={{ fontSize: '1.35em' }}>
               {line}
@@ -217,26 +253,25 @@ function CoverStickerBadge({
 export default function AlbumCard({
   album,
   compact = false,
-  hideNewSticker = false,
   hidePendingBadge = false,
+  bigDateSticker = false,
 }: {
   album: AlbumSearchResult;
-  /** Strip all corner chrome — SOON/NEW/HOT stickers, price tag,
+  /** Strip all corner chrome — SOON/HOT/date stickers, price tag,
    *  admin pending emoji. Used at the tightest grid densities
    *  where the covers shrink below the point at which stickers
    *  still read (ultra density). Lets the user browse a
    *  higher-density grid as pure cover art. */
   compact?: boolean;
-  /** Suppress just the NEW sticker, leaving SOON / HOT and the
-   *  price tag intact. Used in surfaces that have already
-   *  filtered the feed to "recent releases" — the section
-   *  itself communicates newness, so per-card NEW chips are
-   *  redundant. */
-  hideNewSticker?: boolean;
   /** Suppress the admin "리뷰 수집 대기" ⚠️ badge. Home page
    *  surfaces want a clean look even for admins; the admin
    *  dashboard remains where pending counts surface. */
   hidePendingBadge?: boolean;
+  /** Render the date sticker at the larger 30%-bumped size
+   *  (matches the home 새 앨범 grid's primary-badge role).
+   *  Other surfaces leave it false and the date sticker shows
+   *  at the same default size as SOON / HOT. */
+  bigDateSticker?: boolean;
 }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
@@ -248,15 +283,23 @@ export default function AlbumCard({
   // mutually exclusive. The day the release date arrives, daysToRelease
   // returns null and isRecentRelease flips to true on the same render,
   // so the sticker auto-transitions to NEW with no server round-trip.
-  const isNew =
-    !hideNewSticker && !isSoon && isRecentRelease(album.releaseDate);
+  // The recent-release badge is the date sticker now (was NEW).
+  // Triggered by the same 30-day window NEW used. SOON wins the
+  // top slot for unreleased albums; the day the release lands
+  // (isSoon flips false, isRecentRelease flips true) the SOON
+  // chip auto-replaces with the date label.
+  const showDateSticker =
+    !isSoon && album.releaseDate && isRecentRelease(album.releaseDate);
+  const releaseDateLabel = showDateSticker
+    ? formatReleaseDateMD(album.releaseDate as string)
+    : null;
   // hasPreorderLink / hasSaleLink / hasSoldoutLink still come down
   // from the server but don't render as cover stickers — the
   // PriceTagStack already communicates those states on the price tag
   // itself (green for pre-order, yellow for sale, strike-through for
   // sold out), so carrying them as big chips on the cover too was
   // redundant and made the corner feel crowded.
-  const hasAnyCoverSticker = isSoon || isNew || album.isHot;
+  const hasAnyCoverSticker = isSoon || !!releaseDateLabel || album.isHot;
 
   // Flip-side glow + card-face score both need at least N scored
   // reviews before we surface a number — see MIN_SCORED_FOR_AVG for
@@ -448,7 +491,14 @@ export default function AlbumCard({
                     ariaOverride={`발매 ${daysToRelease}일 전`}
                   />
                 )}
-                {isNew && <CoverStickerBadge kind="new" />}
+                {releaseDateLabel && (
+                  <CoverStickerBadge
+                    kind="date"
+                    lines={[releaseDateLabel]}
+                    ariaOverride={`발매일 ${releaseDateLabel}`}
+                    large={bigDateSticker}
+                  />
+                )}
                 {album.isHot && <CoverStickerBadge kind="hot" />}
               </div>
             )}

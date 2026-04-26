@@ -31,20 +31,39 @@ interface Props {
   // Wall LP size in px; sticker width derives from this so it scales
   // with the cover.
   lpSize: number;
+  // Optional deterministic-rotation seed. Hashes into a -2°..+2°
+  // tilt so neighbouring stickers don't sit at the same angle —
+  // reads as hand-applied rather than CSS-perfect. The same seed
+  // always picks the same angle so re-renders don't reshuffle.
+  seed?: string;
 }
 
-export default function HomeFeatureSticker({ link, lpSize }: Props) {
+// FNV-1a 32-bit hash — same one the hero's plastic-texture picker
+// uses. Inlined here to keep this component self-contained.
+function hashStr(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+export default function HomeFeatureSticker({ link, lpSize, seed }: Props) {
   const isUsd = link.currency === 'USD';
   const isSoldout = link.status === 'soldout';
   const bg = isUsd ? STICKER_YELLOW : STICKER_GREEN;
-  // ~20% of LP width — small corner accent, not a full badge.
-  // Aspect ratio matches the asset's natural price-tag shape. Font
-  // multiplier dropped one step (0.24 → 0.21) so longer prices like
-  // ₩30,000 sit inside the tag rather than spilling out; floor 6px
-  // is the smallest size mono digits stay legible at.
-  const width = Math.round(lpSize * 0.2);
+  // ~17% of LP width (was 20%) — trimmed -15% so the tag sits as
+  // a smaller corner accent and doesn't visually compete with the
+  // hero's date sticker on the opposite corner. Font multiplier
+  // 0.21 stays the same so longer prices like ₩30,000 still fit
+  // inside the tag; floor 6px keeps mono digits legible at the
+  // tightest LP sizes.
+  const width = Math.round(lpSize * 0.17);
   const height = Math.round(width * 0.55);
   const fontSize = Math.max(6, Math.round(width * 0.21));
+  // Hand-applied tilt: hash → 0..400 → 0.00..4.00 → -2.00..+2.00.
+  const rot = seed ? (hashStr(seed) % 401) / 100 - 2 : 0;
 
   return (
     <div
@@ -64,6 +83,8 @@ export default function HomeFeatureSticker({ link, lpSize }: Props) {
         backgroundImage: `url('${bg}')`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
+        transform: rot ? `rotate(${rot.toFixed(2)}deg)` : undefined,
+        transformOrigin: 'top right',
       }}
     >
       <span

@@ -65,25 +65,19 @@ export default function UserHoverCard({
       const trigger = rootRef.current?.getBoundingClientRect();
       if (!trigger) return;
       const GAP = 8;
-      // Popover height isn't known until it mounts + lays out.
-      // First pass: guess (200px), measure once rendered, then
-      // re-run with the real number. Keeps positioning accurate
-      // without a flicker.
-      const popH = popoverRef.current?.offsetHeight ?? 200;
-      const spaceBelow = window.innerHeight - trigger.bottom;
-      const placement: 'below' | 'above' =
-        spaceBelow >= popH + GAP || trigger.top < popH + GAP
-          ? 'below'
-          : 'above';
-      const top =
-        placement === 'below'
-          ? trigger.bottom + GAP
-          : trigger.top - popH - GAP;
+      // Popover always anchors below the trigger — earlier the
+      // measure flipped above when there wasn't room, but on the
+      // home activity grid the strip sits at the bottom of every
+      // card, so a flip would land the popover ON TOP of the card
+      // it's supposed to describe. Better to clip at the viewport
+      // bottom (the inner content remains scrollable) than to
+      // cover the row.
+      const top = trigger.bottom + GAP;
       // Clamp left so a popover near the right edge doesn't
       // overflow; 288px matches w-72 below.
       const rightEdge = window.innerWidth - 288 - 8;
       const left = Math.max(8, Math.min(trigger.left, rightEdge));
-      setPos({ top, left, placement });
+      setPos({ top, left, placement: 'below' });
     };
     measure();
     // Re-measure on scroll/resize while open so the popover tracks

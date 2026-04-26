@@ -529,7 +529,9 @@ function ShelfRow({
                 plasticOffsetXPx={plasticMeta?.plasticOffsetXPx ?? 5}
                 plasticOffsetYPx={plasticMeta?.plasticOffsetYPx ?? 0}
                 plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
-                hoverScalePct={150}
+                hoverScalePct={180}
+                hoverOriginY="75%"
+                playChipScale={0.6}
                 popOnHover={false}
                 coverOverlay={
                   <>
@@ -540,7 +542,11 @@ function ShelfRow({
                       />
                     )}
                     {topLink && (
-                      <HomeFeatureSticker link={topLink} lpSize={lpSize} />
+                      <HomeFeatureSticker
+                        link={topLink}
+                        lpSize={lpSize}
+                        seed={item.album.mbid}
+                      />
                     )}
                   </>
                 }
