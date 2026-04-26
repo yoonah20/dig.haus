@@ -218,6 +218,7 @@ export default function AlbumCard({
   album,
   compact = false,
   hideNewSticker = false,
+  hidePendingBadge = false,
 }: {
   album: AlbumSearchResult;
   /** Strip all corner chrome — SOON/NEW/HOT stickers, price tag,
@@ -232,6 +233,10 @@ export default function AlbumCard({
    *  itself communicates newness, so per-card NEW chips are
    *  redundant. */
   hideNewSticker?: boolean;
+  /** Suppress the admin "리뷰 수집 대기" ⚠️ badge. Home page
+   *  surfaces want a clean look even for admins; the admin
+   *  dashboard remains where pending counts surface. */
+  hidePendingBadge?: boolean;
 }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
@@ -459,7 +464,7 @@ export default function AlbumCard({
                 flagging it reads as noise. The badge reappears the
                 day the release date arrives (isSoon flips false
                 via daysUntilRelease). */}
-            {isAdmin && reviewsPending && !isSoon && !compact && (
+            {isAdmin && reviewsPending && !isSoon && !compact && !hidePendingBadge && (
               <div
                 className="album-front-decor absolute top-1 right-1.5 leading-none select-none"
                 aria-label="리뷰 수집 대기"

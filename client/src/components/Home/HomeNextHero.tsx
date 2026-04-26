@@ -64,19 +64,16 @@ const DEFAULT_TUNER: TunerValues = {
   lpSize: 357,
   lpGap: 30,
   lpXStart: 531,
-  upperLpY: 282,
-  lowerLpY: 753,
+  upperLpY: 279,
+  lowerLpY: 752,
   titleTopY: 102,
-  titleLeftX: 339,
-  titleFontSize: 75,
-  titleRotationDeg: 0,
+  titleLeftX: 305,
+  titleFontSize: 67,
+  titleRotationDeg: -1,
 };
 
-// v7 — defaults updated to the calibrated values. Old saves
-// would still load (no schema change), but bumping the key
-// promotes the new defaults so admins start from the
-// calibrated state instead of stale tuner experiments.
-const TUNER_STORAGE_KEY = 'homeNext:heroTuner:v7';
+// v9 — defaults refreshed to the 2026-04-27 calibration screenshot.
+const TUNER_STORAGE_KEY = 'homeNext:heroTuner:v9';
 
 function loadTuner(): TunerValues {
   if (typeof window === 'undefined') return DEFAULT_TUNER;
@@ -277,12 +274,15 @@ export default function HomeNextHero() {
               {meta.description && meta.description.trim().length > 0 && (
                 <p
                   style={{
-                    // Description tracks ~43% of the title's px size
-                    // (the original 24/56 ratio) so the two scale as
-                    // a pair when the admin tunes title size.
-                    fontSize: tuner.titleFontSize * 0.43 * scale,
-                    fontWeight: 500,
-                    marginTop: 6 * scale,
+                    // Description tracks 50% of the title's px size
+                    // — the original 0.43 ratio felt too thin on
+                    // the lighter basement wall, but 0.6 turned it
+                    // into a near-second headline. 0.5 splits the
+                    // difference so the sub-line reads as a
+                    // sub-line.
+                    fontSize: tuner.titleFontSize * 0.5 * scale,
+                    fontWeight: 400,
+                    marginTop: 20 * scale,
                     marginBottom: 0,
                     lineHeight: 1.2,
                   }}
@@ -330,8 +330,11 @@ export default function HomeNextHero() {
         aria-hidden
         className="absolute inset-x-0 bottom-0 h-[110px] pointer-events-none"
         style={{
+          // Fade target matches the activity wrapper's bg
+          // (#120c05, same as the nav) so the hero hands off
+          // into the section grid without a tonal seam.
           background:
-            'linear-gradient(to bottom, transparent 0%, rgba(10, 7, 3, 0.55) 55%, #0a0703 100%)',
+            'linear-gradient(to bottom, transparent 0%, rgba(18, 12, 5, 0.55) 55%, #120c05 100%)',
         }}
       />
 

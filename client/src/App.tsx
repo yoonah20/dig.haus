@@ -170,13 +170,20 @@ export default function App() {
   // just the darkened painting behind the album grid.
   const isMydig = location.pathname.startsWith('/my/');
   const isDig = location.pathname === '/dig';
+  // Home tints the app-root bg the same warm-dark as the nav so
+  // the strip below the activity sections (where the footer
+  // shows through) doesn't read as a separate, darker band. Other
+  // routes keep the deeper page bg unchanged.
+  const isHome = location.pathname === '/';
   return (
     <AuthProvider>
       <SearchOverlayProvider>
         <HomeStateProvider>
           <CurationProgressProvider>
             <div
-              className="min-h-screen flex flex-col bg-[#0a0703] text-gray-100 relative"
+              className={`min-h-screen flex flex-col text-gray-100 relative ${
+                isHome ? 'bg-[#120c05]' : 'bg-[#0a0703]'
+              }`}
               // isolation:isolate creates a fresh stacking context
               // so the z-index:-1 backdrop layer stays behind this
               // app tree's content without escaping to compete with

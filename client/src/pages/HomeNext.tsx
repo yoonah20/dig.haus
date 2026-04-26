@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import HomeNextHero from '../components/Home/HomeNextHero';
 import AlbumCard from '../components/AlbumCard';
+import { SectionTitle } from '../components/ui';
 import {
   useHomeSnapshots,
   type HomeSnapshot,
@@ -106,7 +107,7 @@ export default function HomeNext() {
           on the shelves. Activity sections kick in on scroll. */}
       <HomeNextHero />
 
-      <div className="px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
+      <div className="bg-[#120c05] px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
         {/* Unified 6-col flow — three card types stacked back-to-
             back with no headings, only their ring colour to
             distinguish:
@@ -125,37 +126,50 @@ export default function HomeNext() {
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-3">
           {/* ── 최신 발매작 (sky ring) ─────────────────────────── */}
           {!releases.isLoading && recentReleased.length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
-              {recentReleased.map((album) => (
-                <div
-                  key={album.mbid}
-                  className="rounded-xl ring-1 ring-sky-400/25 hover:ring-sky-400/60 transition-[box-shadow]"
-                >
-                  <AlbumCard album={album} hideNewSticker />
-                </div>
-              ))}
-            </div>
+            <section>
+              <SectionTitle variant="tape">새 앨범</SectionTitle>
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
+                {recentReleased.map((album) => (
+                  <div
+                    key={album.mbid}
+                    className="rounded-xl ring-1 ring-sky-400/25 hover:ring-sky-400/60 transition-[box-shadow]"
+                  >
+                    <AlbumCard
+                      album={album}
+                      hideNewSticker
+                      hidePendingBadge
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
           )}
 
           {/* ── 요즘 평 (amber ring) ──────────────────────────── */}
           {!reviews.isLoading && (reviews.data?.items ?? []).length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
-              {(reviews.data?.items ?? []).slice(0, 14).map((item) => (
-                <BlurredReviewCard key={item.id} item={item} />
-              ))}
-            </div>
+            <section>
+              <SectionTitle variant="tape">새 코멘트</SectionTitle>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
+                {(reviews.data?.items ?? []).slice(0, 14).map((item) => (
+                  <BlurredReviewCard key={item.id} item={item} />
+                ))}
+              </div>
+            </section>
           )}
 
           {/* ── 새로 남긴 기억 (violet ring) ──────────────────── */}
           {!snapshots.isLoading &&
             (snapshots.data?.snapshots ?? []).length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
-                {(snapshots.data?.snapshots ?? [])
-                  .slice(0, 7)
-                  .map((snap) => (
-                    <SnapshotMiniCard key={snap.id} snap={snap} />
-                  ))}
-              </div>
+              <section>
+                <SectionTitle variant="tape">새 기억</SectionTitle>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
+                  {(snapshots.data?.snapshots ?? [])
+                    .slice(0, 7)
+                    .map((snap) => (
+                      <SnapshotMiniCard key={snap.id} snap={snap} />
+                    ))}
+                </div>
+              </section>
             )}
         </div>
       </div>

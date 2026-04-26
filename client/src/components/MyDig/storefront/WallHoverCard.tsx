@@ -192,18 +192,16 @@ export default function WallHoverCard({
       } as React.CSSProperties}
     >
       <div
-        // At-rest shadow uses two stacked drop-shadows: a wide
-        // halo with no y-offset (puts most of the darkening on
-        // the LEFT and RIGHT edges where the LP's thickness
-        // separates it from the wall), plus a tiny downward one
-        // for the small gap above the shelf lip. The bottom of
-        // the halo is hidden by the shelf's painted front lip
-        // either way, so leading with side-spread reads as a
-        // record leaning against the wall rather than floating
-        // a few px off the surface. Hover shadow stays as the
-        // single bigger drop so picking a record still feels
-        // like lifting it.
-        className={`absolute inset-0 z-10 origin-bottom transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(0_0_7px_rgba(0,0,0,0.45))_drop-shadow(0_2px_3px_rgba(0,0,0,0.35))] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] ${
+        // At-rest shadow is side-only: a left- and right-offset
+        // drop-shadow pair that casts on the wall where the LP's
+        // thickness separates it from the surface behind. No
+        // y-component, so nothing bleeds down onto the shelf —
+        // a record resting on a shelf has no gap below to cast a
+        // shadow into, and earlier "halo" drops were making the
+        // sleeves read as already-lifted at rest. The hover
+        // transition then introduces the big downward drop, so
+        // picking a record still feels like lifting it.
+        className={`absolute inset-0 z-10 origin-bottom transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(-3px_0_4px_rgba(0,0,0,0.4))_drop-shadow(3px_0_4px_rgba(0,0,0,0.4))] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] ${
           popOnHover
             ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
             : 'group-hover:[transform:scale(var(--wall-hover-scale))]'
