@@ -54,7 +54,7 @@ export default function SiteFooter({ pinned = false }: { pinned?: boolean }) {
         {users > 0 && (
           <>
             {' · '}
-            {users.toLocaleString()}명이 땅 파는 중
+            {users.toLocaleString()}명이 파는 중
           </>
         )}
         {albums > 0 && (

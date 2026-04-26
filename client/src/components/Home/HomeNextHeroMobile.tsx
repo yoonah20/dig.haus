@@ -113,40 +113,42 @@ export default function HomeNextHeroMobile() {
       ref={containerRef}
       className="relative w-full overflow-hidden"
       style={{
-        // Warm tan concrete base — eyeballed against the desktop
-        // basement4.avif backdrop's average wall tone so the
-        // mobile hero shares its colour family with the desktop
-        // hero. The turbulence overlay below grain-breaks the
-        // flat fill so it doesn't read as painted plastic. Height
-        // auto-grows from the flow content (rails carry an extra
-        // 10 px shadow tail beyond their visible plank height,
-        // so a fixed-pixel heroH would clip the last row's
-        // shadow).
-        backgroundColor: '#7a6248',
+        // Mobile uses a real photo texture (mobild_drop.webp,
+        // tall portrait aged-paper / wallpaper feel) instead of
+        // the earlier CSS concrete sim. Tiles vertically when
+        // the hero runs taller than the source — the texture is
+        // seam-tolerant so repeats read as continuous wall.
+        // Height auto-grows from the flow content (rails carry
+        // an extra 10 px shadow tail beyond their visible plank
+        // height, so a fixed-pixel heroH would clip the last
+        // row's shadow).
+        backgroundImage: "url('/textures/mobild_drop.webp')",
+        backgroundSize: '100% auto',
+        backgroundRepeat: 'repeat-y',
+        backgroundPosition: 'top center',
+        backgroundColor: '#c9b290',
       }}
     >
-      {/* Vertical lighting gradient — slight warm lift at top
-          (mimicking the desktop's dig.haus neon glow up-right)
-          fading into a touch of vignetting at the bottom edge.
-          Both stops are gentle so the flat colour still carries
-          most of the surface. */}
+      {/* Soft vignette only — the photo carries enough natural
+          tone variation that the earlier turbulence + linear
+          gradient overlays just muddied it. Bottom darken keeps
+          the activity sections handing-off cleanly. */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'linear-gradient(to bottom, rgba(255, 220, 170, 0.10) 0%, transparent 30%, rgba(0, 0, 0, 0.18) 100%)',
+            'linear-gradient(to bottom, transparent 0%, transparent 70%, rgba(0, 0, 0, 0.22) 100%)',
         }}
       />
 
-      {/* Turbulence noise — gives the flat colour the rough,
-          pitted texture of stamped concrete. Opacity + blend
-          mode tuned so the noise layer adds grain without
-          tinting the base brown. */}
+      {/* Legacy noise overlay kept around (now hidden) in case
+          we want to layer texture on top of the photo later;
+          removing the SVG entirely loses the filter id reference
+          if anything else picks it up. */}
       <svg
         aria-hidden
-        className="absolute inset-0 w-full h-full pointer-events-none"
-        style={{ opacity: 0.55, mixBlendMode: 'overlay' }}
+        className="hidden"
       >
         <defs>
           <filter id="mobileConcreteNoise">

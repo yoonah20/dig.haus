@@ -84,6 +84,18 @@ function formatReleaseDateMD(iso: string): string {
   return `${parseInt(m[2], 10)}/${parseInt(m[3], 10)}`;
 }
 
+// FNV-1a 32-bit — same hash the hero's PICK sticker uses for
+// its rotation seed, inlined here so the card can run the same
+// per-album angle without importing from a hero-specific module.
+function mbidHash(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
 // Record-shop sticker family. All share the same chip shape so a
 // card carrying multiple (stacked top-down: SOON / NEW → HOT) reads
 // as one column of labels rather than competing elements. The "soon"
@@ -255,6 +267,7 @@ export default function AlbumCard({
   compact = false,
   hidePendingBadge = false,
   bigDateSticker = false,
+  showPickSticker = false,
 }: {
   album: AlbumSearchResult;
   /** Strip all corner chrome — SOON/HOT/date stickers, price tag,
@@ -272,6 +285,11 @@ export default function AlbumCard({
    *  Other surfaces leave it false and the date sticker shows
    *  at the same default size as SOON / HOT. */
   bigDateSticker?: boolean;
+  /** Render the bottom-left dig.haus PICK badge when the album
+   *  clears the score gate (averageScore ≥ 86 with ≥3 scored
+   *  reviews backing it). Off by default; the home 새 앨범
+   *  grid opts in. */
+  showPickSticker?: boolean;
 }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
@@ -300,6 +318,21 @@ export default function AlbumCard({
   // sold out), so carrying them as big chips on the cover too was
   // redundant and made the corner feel crowded.
   const hasAnyCoverSticker = isSoon || !!releaseDateLabel || album.isHot;
+  // dig.haus PICK gate — same threshold the hero LPs use:
+  // averageScore ≥ 86 with ≥3 scored reviews backing it. The
+  // host opts in via `showPickSticker` so the badge only fires
+  // on surfaces (home 새 앨범) that earn the visual weight.
+  const pickScore = album.averageScore ?? null;
+  const pickReviewCount = album.reviewCount ?? 0;
+  const isPick =
+    showPickSticker &&
+    !compact &&
+    pickScore != null &&
+    pickScore >= 86 &&
+    pickReviewCount >= 3;
+  // Deterministic -2°..+2° tilt seeded by mbid so neighbouring
+  // PICK stickers on the same row don't sit at identical angles.
+  const pickRot = isPick ? (mbidHash(album.mbid) % 401) / 100 - 2 : 0;
 
   // Flip-side glow + card-face score both need at least N scored
   // reviews before we surface a number — see MIN_SCORED_FOR_AVG for
@@ -526,6 +559,27 @@ export default function AlbumCard({
             )}
             {!compact && (
               <PriceTagStack links={priceTagLinks} maxVisible={1} showOverflow={false} />
+            )}
+            {isPick && (
+              <img
+                src="/textures/dighauspick.webp"
+                alt=""
+                aria-hidden
+                className="absolute pointer-events-none select-none"
+                style={{
+                  bottom: 'clamp(3px, 2.4cqw, 8px)',
+                  left: 'clamp(3px, 2.4cqw, 8px)',
+                  // +30% on every clamp stop vs the original
+                  // 17cqw / 22-64px values so the PICK badge
+                  // gets the bigger primary-badge weight that
+                  // matches the home 새 앨범 grid's date sticker.
+                  width: 'clamp(28px, 22cqw, 84px)',
+                  height: 'auto',
+                  transform: `rotate(${pickRot.toFixed(2)}deg)`,
+                  transformOrigin: 'bottom left',
+                  maxWidth: 'none',
+                }}
+              />
             )}
           </div>
 

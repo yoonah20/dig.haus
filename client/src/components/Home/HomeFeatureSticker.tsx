@@ -72,14 +72,14 @@ export default function HomeFeatureSticker({ link, lpSize, seed }: Props) {
       aria-hidden
       className="absolute z-10 pointer-events-none flex items-center justify-center"
       style={{
-        // 2px breathing space off the top-right corner — fully
-        // tight against (0, 0) read as clipped to the sleeve edge
-        // rather than stuck on it. Bottom-right stays reserved for
-        // the ▶ play chip. Drop shadow omitted: the plastic-wrap
-        // overlay sits a few px past the sleeve edge so the sticker
-        // reads as adhered to the wrap.
-        top: 2,
-        right: 2,
+        // Nudged a few px off the top-right corner so the tag
+        // breathes against the sleeve edge instead of looking
+        // glued to the corner pixel. Bottom-right still reserved
+        // for the ▶ play chip. Drop shadow omitted: the plastic-
+        // wrap overlay sits a few px past the sleeve edge so the
+        // sticker reads as adhered to the wrap.
+        top: 4,
+        right: 4,
         width,
         height,
         backgroundImage: `url('${bg}')`,

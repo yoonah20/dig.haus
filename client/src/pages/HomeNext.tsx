@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 import CoverArt from '../components/CoverArt';
 import UserHoverCard from '../components/UserHoverCard';
 import { useTapActivate } from '../hooks/useTapActivate';
+import { useGridCols, trimToFullRows } from '../hooks/useGridCols';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { resolveApiUrl } from '../utils/apiUrl';
 import type { AlbumSearchResult } from '../types';
@@ -116,6 +117,16 @@ export default function HomeNext() {
   const reviews = useUserReviewsFeed(true, 21);
   const isMobile = useIsMobileHero();
 
+  // Per-section col maps drive the responsive grid + the
+  // trim-to-full-rows behaviour below. The 새 앨범 section runs
+  // a denser layout that starts at 3 cols on mobile (album cards
+  // are smaller / chrome-lighter), the activity sections start
+  // at 2 since their square cards need more room to breathe.
+  const RELEASE_COLS = { base: 3, sm: 4, md: 5, lg: 6, xl: 7 };
+  const ACTIVITY_COLS = { base: 2, sm: 3, md: 4, lg: 5, xl: 7 };
+  const releaseCols = useGridCols(RELEASE_COLS);
+  const activityCols = useGridCols(ACTIVITY_COLS);
+
   // Filter to released-and-recent only; cap at 21 (7 cols × 3 rows)
   // matching the unified grid below. Memoised so we don't re-run
   // the filter on every render — the server response is stable
@@ -159,8 +170,13 @@ export default function HomeNext() {
               <SectionTitle variant="tape" className="!mb-2">
                 새 앨범 파 보기
               </SectionTitle>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
-                {recentReleased.map((album) => (
+              <div
+                className="grid gap-3"
+                style={{
+                  gridTemplateColumns: `repeat(${releaseCols}, minmax(0, 1fr))`,
+                }}
+              >
+                {trimToFullRows(recentReleased, releaseCols).map((album) => (
                   <div
                     key={album.mbid}
                     className="rounded-xl ring-1 ring-sky-400/25 hover:ring-sky-400/60 transition-[box-shadow]"
@@ -169,6 +185,7 @@ export default function HomeNext() {
                       album={album}
                       hidePendingBadge
                       bigDateSticker
+                      showPickSticker
                     />
                   </div>
                 ))}
@@ -196,12 +213,18 @@ export default function HomeNext() {
                 <SectionTitle variant="tape" className="!mb-2">
                   유저 기억으로 파 보기
                 </SectionTitle>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
-                  {(snapshots.data?.snapshots ?? [])
-                    .slice(0, 7)
-                    .map((snap) => (
-                      <SnapshotMiniCard key={snap.id} snap={snap} />
-                    ))}
+                <div
+                  className="grid gap-3"
+                  style={{
+                    gridTemplateColumns: `repeat(${activityCols}, minmax(0, 1fr))`,
+                  }}
+                >
+                  {trimToFullRows(
+                    (snapshots.data?.snapshots ?? []).slice(0, 14),
+                    activityCols
+                  ).map((snap) => (
+                    <SnapshotMiniCard key={snap.id} snap={snap} />
+                  ))}
                 </div>
               </section>
             )}
@@ -212,8 +235,16 @@ export default function HomeNext() {
               <SectionTitle variant="tape" className="!mb-2">
                 50자 평으로 파 보기
               </SectionTitle>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
-                {(reviews.data?.items ?? []).slice(0, 14).map((item) => (
+              <div
+                className="grid gap-3"
+                style={{
+                  gridTemplateColumns: `repeat(${activityCols}, minmax(0, 1fr))`,
+                }}
+              >
+                {trimToFullRows(
+                  (reviews.data?.items ?? []).slice(0, 21),
+                  activityCols
+                ).map((item) => (
                   <BlurredReviewCard key={item.id} item={item} />
                 ))}
               </div>
