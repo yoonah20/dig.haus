@@ -20,16 +20,24 @@ function escapeXml(value: string): string {
 
 router.get('/sitemap.xml', (_req, res) => {
   try {
-    const rows = queryAll(
+    const albumRows = queryAll(
       `SELECT slug, mbid, updated_at FROM albums
        WHERE COALESCE(slug, mbid) IS NOT NULL
        ORDER BY updated_at DESC`
     ) as Array<{ slug: string | null; mbid: string; updated_at: string | null }>;
 
+    // Users with a claimed mydig slug — /my/:username pages are
+    // their public profile and should be crawlable.
+    const userRows = queryAll(
+      `SELECT username FROM users
+       WHERE username IS NOT NULL AND username != ''`
+    ) as Array<{ username: string }>;
+
     const urls: string[] = [];
     urls.push(`<url><loc>${SITE_ORIGIN}/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>`);
+    urls.push(`<url><loc>${SITE_ORIGIN}/dig</loc><changefreq>daily</changefreq><priority>0.9</priority></url>`);
 
-    for (const row of rows) {
+    for (const row of albumRows) {
       const id = row.slug || row.mbid;
       if (!id) continue;
       const loc = `${SITE_ORIGIN}/album/${escapeXml(id)}`;
@@ -37,6 +45,11 @@ router.get('/sitemap.xml', (_req, res) => {
         ? `<lastmod>${escapeXml(row.updated_at.replace(' ', 'T'))}Z</lastmod>`
         : '';
       urls.push(`<url><loc>${loc}</loc>${lastmod}<changefreq>weekly</changefreq><priority>0.8</priority></url>`);
+    }
+
+    for (const row of userRows) {
+      const loc = `${SITE_ORIGIN}/my/${escapeXml(row.username)}`;
+      urls.push(`<url><loc>${loc}</loc><changefreq>weekly</changefreq><priority>0.6</priority></url>`);
     }
 
     const xml =

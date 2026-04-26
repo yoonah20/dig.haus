@@ -8,6 +8,7 @@ import TopNav from './components/TopNav';
 import SiteFooter from './components/SiteFooter';
 import PersistentNowPlayingPlayer from './components/PersistentNowPlayingPlayer';
 import CurationProgressPanel from './components/CurationProgressPanel';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const Home = lazy(() => import('./pages/HomeNext'));
 const DigPage = lazy(() => import('./pages/DigPage'));
@@ -331,8 +332,9 @@ export default function App() {
                 </>
               )}
               <TopNav />
-              <Suspense fallback={<RouteFallback />}>
-                <Routes>
+              <ErrorBoundary>
+                <Suspense fallback={<RouteFallback />}>
+                  <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/dig" element={<DigPage />} />
                   <Route path="/album/:slug" element={<Album />} />
@@ -352,8 +354,9 @@ export default function App() {
                   />
                   <Route path="/admin/api-console" element={<ApiConsole />} />
                   <Route path="/admin/compare" element={<LlmCompare />} />
-                </Routes>
-              </Suspense>
+                  </Routes>
+                </Suspense>
+              </ErrorBoundary>
               {/* Footer on mydig is `pinned` — fixed to the viewport
                   bottom so it tracks the backdrop's bottom anchor no
                   matter how the wall + snapshot strip change length.

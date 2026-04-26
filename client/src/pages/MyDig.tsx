@@ -12,6 +12,7 @@ import {
 } from '../hooks/useMyDig';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import { useDocumentHead } from '../hooks/useDocumentHead';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
 import GraffitiSnapshotList, {
@@ -99,6 +100,20 @@ export default function MyDig() {
     activeSlug ?? undefined
   );
   const deleteSnap = useDeleteVinylWallSnapshot(username);
+
+  // SEO + share-preview head. Title flips to the resolved display
+  // name once the mydig payload arrives; first paint stays at the
+  // generic "마이딕" so search-engine crawlers without JS still see
+  // a sensible title.
+  const headDisplayName = data?.user.displayName || username || '';
+  useDocumentHead({
+    title: headDisplayName ? `${headDisplayName}의 마이딕 | dig.haus` : '마이딕 | dig.haus',
+    description: headDisplayName
+      ? `${headDisplayName}의 vinyl wall — dig.haus에서 발굴한 추천 앨범`
+      : 'dig.haus의 사용자 vinyl wall',
+    url: username ? `https://dig.haus/my/${username}` : undefined,
+    type: 'website',
+  });
 
   // PersistentNowPlayingPlayer is fixed to the viewport bottom (16px
   // offset, ~80px height) and overlays the page when active. On
