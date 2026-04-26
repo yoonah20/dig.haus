@@ -22,7 +22,13 @@ import HomeFeatureSticker from './HomeFeatureSticker';
 // orientation flips: desktop renders 5×2 (wide horizontal), mobile
 // flips to 2×5 (narrow vertical scroll). Resolved per-render below
 // based on the container width vs the mobile breakpoint.
-const SLOT_COUNT = 10;
+//
+// Both counts are overridable via props so the new vertical-scroll
+// home composition (HomeNext) can render the wall as a 1×5 hero
+// row above its other sections without forking the component.
+const DEFAULT_SLOT_COUNT = 10;
+const DEFAULT_ROWS_DESKTOP = 2;
+const DEFAULT_ROWS_MOBILE = 5;
 const MOBILE_BREAKPOINT = 520;
 
 // Plastic-wrap texture pool. Each LP picks one based on a hash of
@@ -63,9 +69,33 @@ function pickPlasticTexture(seed: string): string {
   ]!;
 }
 
-export default function HomeWall() {
+interface HomeWallProps {
+  /** Override the total slot count. Defaults to 10 (the live home).
+   *  When set, the wall slices the saved features list to this many
+   *  positions so callers can render a smaller hero row without
+   *  touching the underlying picks. */
+  slotCount?: number;
+  /** Override the desktop row count. Mobile flips to a vertical
+   *  layout regardless. Defaults to 2 (5×2). */
+  desktopRows?: number;
+  /** Hide the admin edit affordance — the editor expects the live
+   *  10-slot layout, so any caller that overrides slotCount should
+   *  set this to true. */
+  readOnly?: boolean;
+  /** Hide the wood rails painted under each row. Use when the host
+   *  scene already has shelves baked into its backdrop image (like
+   *  the HomeNext hero) — drawing rails on top would double up. */
+  hideRails?: boolean;
+}
+
+export default function HomeWall({
+  slotCount = DEFAULT_SLOT_COUNT,
+  desktopRows = DEFAULT_ROWS_DESKTOP,
+  readOnly = false,
+  hideRails = false,
+}: HomeWallProps = {}) {
   const { user } = useAuth();
-  const isAdmin = !!user?.isAdmin;
+  const isAdmin = !!user?.isAdmin && !readOnly;
   const { data, isLoading } = useHomeFeatures();
   const [editing, setEditing] = useState(false);
 
@@ -88,10 +118,16 @@ export default function HomeWall() {
   }, [isLoading]);
 
   const mobile = width < MOBILE_BREAKPOINT;
-  // Desktop = 5 wide × 2 rows. Mobile flips to 2 wide × 5 rows so
-  // the wall reads as a vertical scroll rather than a tiny strip.
-  const slotsPerRow = mobile ? 2 : 5;
-  const rowCount = mobile ? 5 : 2;
+  // Desktop = slotCount distributed across `desktopRows` rows.
+  // Mobile flips to a tall 2-wide grid regardless of the desktop
+  // shape — narrow viewports always read better as vertical scroll.
+  // Both axes derive from slotCount so a 5/1 caller renders 1×5 on
+  // desktop and stacks to (slotCount/2 ≈ 3) rows × 2 on mobile.
+  const desktopSlotsPerRow = Math.max(1, Math.ceil(slotCount / desktopRows));
+  const slotsPerRow = mobile ? Math.min(2, slotCount) : desktopSlotsPerRow;
+  const rowCount = mobile
+    ? Math.max(1, Math.ceil(slotCount / slotsPerRow))
+    : desktopRows;
   const gapX = mobile ? 12 : 16;
   const overhang = mobile ? 12 : 36;
   const rowGap = mobile ? 28 : 32;
@@ -124,7 +160,7 @@ export default function HomeWall() {
   // Saved values still propagate into the wall via these props; if a
   // future iteration wants a tuner UI back, restore local state +
   // PlasticTuner here.
-  const slots = Array.from({ length: SLOT_COUNT }, (_, i) =>
+  const slots = Array.from({ length: slotCount }, (_, i) =>
     items.find((it) => it.position === i) ?? null
   );
 
@@ -246,7 +282,7 @@ export default function HomeWall() {
                   item={slots[position]}
                   position={position}
                   lpSize={lpSize}
-                  lampBias={1 - (ri * slotsPerRow + ci) / SLOT_COUNT}
+                  lampBias={1 - (ri * slotsPerRow + ci) / slotCount}
                   plasticScalePct={meta.plasticScalePct}
                   plasticOffsetXPx={meta.plasticOffsetXPx}
                   plasticOffsetYPx={meta.plasticOffsetYPx}
@@ -256,15 +292,19 @@ export default function HomeWall() {
             </div>
             {/* Rails sit centred under each LP row — no per-row x
                 offset. The bohemian-misaligned look mydig uses isn't
-                a fit for the entry-page first impression. */}
-            <div style={{ position: 'relative', marginTop: 0 }}>
-              <WallRail
-                width={railWidth}
-                seed={ri * 37 + 13}
-                height={railHeight}
-                style={{ display: 'block' }}
-              />
-            </div>
+                a fit for the entry-page first impression. Skipped
+                entirely when the host already paints shelves into
+                its scene (HomeNext hero). */}
+            {!hideRails && (
+              <div style={{ position: 'relative', marginTop: 0 }}>
+                <WallRail
+                  width={railWidth}
+                  seed={ri * 37 + 13}
+                  height={railHeight}
+                  style={{ display: 'block' }}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>
