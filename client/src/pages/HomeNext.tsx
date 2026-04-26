@@ -85,16 +85,16 @@ export default function HomeNext() {
   });
 
   const releases = useRecentReleases(60);
-  const snapshots = useHomeSnapshots(true, 12);
-  const reviews = useUserReviewsFeed(true, 18);
+  const snapshots = useHomeSnapshots(true, 14);
+  const reviews = useUserReviewsFeed(true, 21);
 
-  // Filter to released-and-recent only; cap at 18 (6 cols × 3 rows)
+  // Filter to released-and-recent only; cap at 21 (7 cols × 3 rows)
   // matching the unified grid below. Memoised so we don't re-run
   // the filter on every render — the server response is stable
   // across renders most of the time.
   const recentReleased = useMemo(() => {
     const all = releases.data?.albums ?? [];
-    return all.filter((a) => isWithinRecentWindow(a.releaseDate)).slice(0, 18);
+    return all.filter((a) => isWithinRecentWindow(a.releaseDate)).slice(0, 21);
   }, [releases.data]);
 
   return (
@@ -106,7 +106,7 @@ export default function HomeNext() {
           on the shelves. Activity sections kick in on scroll. */}
       <HomeNextHero />
 
-      <div className="px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-24">
+      <div className="px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
         {/* Unified 6-col flow — three card types stacked back-to-
             back with no headings, only their ring colour to
             distinguish:
@@ -125,13 +125,13 @@ export default function HomeNext() {
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-3">
           {/* ── 최신 발매작 (sky ring) ─────────────────────────── */}
           {!releases.isLoading && recentReleased.length > 0 && (
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
               {recentReleased.map((album) => (
                 <div
                   key={album.mbid}
                   className="rounded-xl ring-1 ring-sky-400/25 hover:ring-sky-400/60 transition-[box-shadow]"
                 >
-                  <AlbumCard album={album} />
+                  <AlbumCard album={album} hideNewSticker />
                 </div>
               ))}
             </div>
@@ -139,8 +139,8 @@ export default function HomeNext() {
 
           {/* ── 요즘 평 (amber ring) ──────────────────────────── */}
           {!reviews.isLoading && (reviews.data?.items ?? []).length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-              {(reviews.data?.items ?? []).slice(0, 12).map((item) => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
+              {(reviews.data?.items ?? []).slice(0, 14).map((item) => (
                 <BlurredReviewCard key={item.id} item={item} />
               ))}
             </div>
@@ -149,9 +149,9 @@ export default function HomeNext() {
           {/* ── 새로 남긴 기억 (violet ring) ──────────────────── */}
           {!snapshots.isLoading &&
             (snapshots.data?.snapshots ?? []).length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-3">
                 {(snapshots.data?.snapshots ?? [])
-                  .slice(0, 6)
+                  .slice(0, 7)
                   .map((snap) => (
                     <SnapshotMiniCard key={snap.id} snap={snap} />
                   ))}

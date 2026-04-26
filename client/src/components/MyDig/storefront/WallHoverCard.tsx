@@ -86,6 +86,13 @@ interface Props {
   // the price sticker. Distinct from `children` (which renders
   // outside the scale wrapper, used by mydig's CommentBubble).
   coverOverlay?: ReactNode;
+  // When true (the default), the hover transform also pushes the
+  // sleeve forward in 3D via translateZ — the "popping out of the
+  // wall" emphasis. Set false to keep the scale + tilt + specular
+  // but flatten the lift; useful when the host scene already does
+  // a lot of work signalling "this is in front" (the home hero's
+  // band trim leaves no Z-depth context to pop into anyway).
+  popOnHover?: boolean;
 }
 
 // CAA covers come back at 250px. The home + mydig walls render up to
@@ -122,6 +129,7 @@ export default function WallHoverCard({
   plasticBlendMode = 'normal',
   hoverScalePct = 126,
   coverOverlay = null,
+  popOnHover = true,
 }: Props) {
   const spotifyAlbumId = extractSpotifyAlbumId(album.spotifyUrl ?? null);
   const hasPreview = !!spotifyAlbumId;
@@ -184,15 +192,31 @@ export default function WallHoverCard({
       } as React.CSSProperties}
     >
       <div
-        className="absolute inset-0 z-10 origin-bottom transition-[transform,filter] duration-[260ms] ease-out group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))]"
+        // At-rest shadow uses two stacked drop-shadows: a wide
+        // halo with no y-offset (puts most of the darkening on
+        // the LEFT and RIGHT edges where the LP's thickness
+        // separates it from the wall), plus a tiny downward one
+        // for the small gap above the shelf lip. The bottom of
+        // the halo is hidden by the shelf's painted front lip
+        // either way, so leading with side-spread reads as a
+        // record leaning against the wall rather than floating
+        // a few px off the surface. Hover shadow stays as the
+        // single bigger drop so picking a record still feels
+        // like lifting it.
+        className={`absolute inset-0 z-10 origin-bottom transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(0_0_7px_rgba(0,0,0,0.45))_drop-shadow(0_2px_3px_rgba(0,0,0,0.35))] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] ${
+          popOnHover
+            ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
+            : 'group-hover:[transform:scale(var(--wall-hover-scale))]'
+        }`}
         style={{
           transformOrigin: 'center bottom',
           // preserve-3d so the inner tilt rotateX/Y composes with the
-          // outer scale + translateZ instead of getting flattened. The
-          // Link parent has perspective:900px, which means translateZ
-          // produces a real "closer to viewer" zoom on top of the
-          // scale — that's what gives the "픽업한다" feel rather than
-          // a plain 2D enlargement.
+          // outer scale (+ optional translateZ pop) instead of getting
+          // flattened. The Link parent has perspective:900px, which
+          // means translateZ — when popOnHover is on — produces a real
+          // "closer to viewer" zoom that reads as "픽업한다". With
+          // popOnHover off the same chain still preserves the cursor-
+          // driven tilt; only the forward push is dropped.
           transformStyle: 'preserve-3d',
         }}
       >

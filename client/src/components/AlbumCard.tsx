@@ -217,6 +217,7 @@ function CoverStickerBadge({
 export default function AlbumCard({
   album,
   compact = false,
+  hideNewSticker = false,
 }: {
   album: AlbumSearchResult;
   /** Strip all corner chrome — SOON/NEW/HOT stickers, price tag,
@@ -225,6 +226,12 @@ export default function AlbumCard({
    *  still read (ultra density). Lets the user browse a
    *  higher-density grid as pure cover art. */
   compact?: boolean;
+  /** Suppress just the NEW sticker, leaving SOON / HOT and the
+   *  price tag intact. Used in surfaces that have already
+   *  filtered the feed to "recent releases" — the section
+   *  itself communicates newness, so per-card NEW chips are
+   *  redundant. */
+  hideNewSticker?: boolean;
 }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
@@ -236,7 +243,8 @@ export default function AlbumCard({
   // mutually exclusive. The day the release date arrives, daysToRelease
   // returns null and isRecentRelease flips to true on the same render,
   // so the sticker auto-transitions to NEW with no server round-trip.
-  const isNew = !isSoon && isRecentRelease(album.releaseDate);
+  const isNew =
+    !hideNewSticker && !isSoon && isRecentRelease(album.releaseDate);
   // hasPreorderLink / hasSaleLink / hasSoldoutLink still come down
   // from the server but don't render as cover stickers — the
   // PriceTagStack already communicates those states on the price tag

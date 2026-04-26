@@ -12,30 +12,31 @@ import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
-// store3.webp: 2528×1300 painted storefront with two empty wood
-// shelves baked into the wall, monstera plant on the left, alley
-// + dig.haus neon sign on the right. The hero composes the live
-// LPs from /api/home/features on top of those shelves.
+// basement3.avif: 2976×1432 wall-only strip (concrete-textured
+// wall with two baked-in wood shelves and a small dig.haus neon
+// in the top-right). The asset arrives pre-trimmed at the band
+// aspect we want, so we render it at its natural ratio without
+// further CSS cropping — the earlier HERO_ASPECT inner-frame
+// trick is gone, sceneH just tracks the source aspect again.
 //
-// Scaling model is **width-driven**: the scene fills the
-// viewport's width (down to a min-width floor) and its height
-// follows from the source aspect ratio. Earlier height-driven
-// scaling (height=100vh, width=aspect) had the scene overflow
-// horizontally on most desktops because 100vh × 1.5 ratio is
-// almost always wider than viewport — the alley and neon sign
-// got clipped. Width-driven keeps the full painting visible
-// edge-to-edge and produces a shorter, more stable hero.
-//
-// Coordinates below all live in source-image px (2528×1400);
-// a single `scale` factor (renderedWidth / 2528) projects them
+// Coordinates below live in source-image px (2976×1432); a
+// single `scale` factor (renderedWidth / 2976) projects them
 // into screen px at render time.
-const SCENE_W = 2528;
-const SCENE_H = 1300;
+const SCENE_W = 2976;
+const SCENE_H = 1432;
 
 // Below MIN_W the scene stops shrinking and the surrounding
 // container's overflow:hidden crops it. Keeps the shelves
 // readable on narrow desktop windows / tablets.
 const MIN_W = 1024;
+
+// Top + bottom trim, in rendered px (constant regardless of
+// viewport scale). Shaves a small strip off the painted band
+// so the wall doesn't feel flush with the page edges. The
+// inner frame still holds the image at its natural aspect; the
+// outer container clips by these values via overflow-hidden.
+const TRIM_TOP_PX = 20;
+const TRIM_BOTTOM_PX = 20;
 
 interface TunerValues {
   lpSize: number;
@@ -45,28 +46,37 @@ interface TunerValues {
   lowerLpY: number;
   titleTopY: number;
   titleLeftX: number;
+  // Source-image px font size for the handwritten title; the
+  // description sub-line scales proportionally (≈43% of title)
+  // so admins only have to tune one number. Tilt is in degrees,
+  // negative = counter-clockwise.
+  titleFontSize: number;
+  titleRotationDeg: number;
 }
 
-// Defaults eyeballed against store3.webp; the in-page tuner is
-// the source of truth for refinements (writes to localStorage,
-// hard-coded defaults updated when we settle).
+// Defaults match the values an admin landed on against
+// basement3.avif via the in-page tuner — captured from the
+// 2026-04-27 calibration screenshot and folded back here so a
+// fresh session paints to the same placement without needing
+// a saved localStorage entry. Tuner remains the source of
+// truth for further refinements.
 const DEFAULT_TUNER: TunerValues = {
-  lpSize: 300,
-  lpGap: 24,
-  lpXStart: 470,
-  // LP top-edge Y for each row. Upper shelf surface ≈ y=480 in
-  // source, so a 300-px LP sits with its top at 480-300=180.
-  // Lower shelf surface ≈ y=860, so 860-300=560.
-  upperLpY: 180,
-  lowerLpY: 560,
-  titleTopY: 80,
-  titleLeftX: 470,
+  lpSize: 357,
+  lpGap: 30,
+  lpXStart: 531,
+  upperLpY: 282,
+  lowerLpY: 753,
+  titleTopY: 102,
+  titleLeftX: 339,
+  titleFontSize: 75,
+  titleRotationDeg: 0,
 };
 
-// v2 — store3.webp shelves moved relative to store2, so any
-// values an admin saved against the old asset would land off
-// the new shelves. Bumping the key forces a fresh start.
-const TUNER_STORAGE_KEY = 'homeNext:heroTuner:v2';
+// v7 — defaults updated to the calibrated values. Old saves
+// would still load (no schema change), but bumping the key
+// promotes the new defaults so admins start from the
+// calibrated state instead of stale tuner experiments.
+const TUNER_STORAGE_KEY = 'homeNext:heroTuner:v7';
 
 function loadTuner(): TunerValues {
   if (typeof window === 'undefined') return DEFAULT_TUNER;
@@ -155,7 +165,9 @@ export default function HomeNextHero() {
     draft.upperLpY !== committed.upperLpY ||
     draft.lowerLpY !== committed.lowerLpY ||
     draft.titleTopY !== committed.titleTopY ||
-    draft.titleLeftX !== committed.titleLeftX;
+    draft.titleLeftX !== committed.titleLeftX ||
+    draft.titleFontSize !== committed.titleFontSize ||
+    draft.titleRotationDeg !== committed.titleRotationDeg;
 
   function handleSaveTuner() {
     saveTuner(draft);
@@ -185,7 +197,14 @@ export default function HomeNextHero() {
   }, []);
 
   const sceneW = Math.max(containerW, MIN_W);
-  const sceneH = sceneW * (SCENE_H / SCENE_W);
+  // sceneFullH = the image's natural rendered height (aspect
+  // preserved). The inner frame is sized to this so LPs and
+  // the image share one coord system. sceneH (the visible
+  // band) trims TRIM_TOP_PX + TRIM_BOTTOM_PX off; the outer
+  // container clips to sceneH and the inner frame is shifted
+  // up by TRIM_TOP_PX so the trim falls on top + bottom.
+  const sceneFullH = sceneW * (SCENE_H / SCENE_W);
+  const sceneH = Math.max(0, sceneFullH - TRIM_TOP_PX - TRIM_BOTTOM_PX);
   const scale = sceneW / SCENE_W;
 
   const lpSize = Math.max(40, Math.round(tuner.lpSize * scale));
@@ -201,21 +220,28 @@ export default function HomeNextHero() {
     <div
       ref={containerRef}
       className="group/hero relative w-full overflow-hidden bg-[#0a0703]"
-      // Container's intrinsic height matches the scene height so
-      // the page flow below the hero starts immediately under
-      // the painting's bottom edge. minHeight pegs to the same
-      // floor as MIN_W * aspect so a sub-min viewport still
-      // reserves the right amount of vertical real estate for
-      // the (centred, clipped) scene.
-      style={{ height: sceneH || (MIN_W * SCENE_H) / SCENE_W }}
+      // Outer container sits at sceneH (image height minus the
+      // top + bottom trim). Inner frame still holds the image at
+      // its natural aspect — shifted up by TRIM_TOP_PX so the
+      // top trim lands above the visible band and overflow-hidden
+      // chops the matching strip off the bottom.
+      style={{
+        height:
+          sceneH ||
+          (MIN_W * SCENE_H) / SCENE_W - TRIM_TOP_PX - TRIM_BOTTOM_PX,
+      }}
     >
       {sceneW > 0 && (
         <div
-          className="absolute top-0 left-1/2 -translate-x-1/2"
-          style={{ width: sceneW, height: sceneH }}
+          className="absolute left-1/2 -translate-x-1/2"
+          style={{
+            top: -TRIM_TOP_PX,
+            width: sceneW,
+            height: sceneFullH,
+          }}
         >
           <img
-            src="/backdrops/store3.webp"
+            src="/backdrops/basement3.avif"
             alt=""
             aria-hidden
             className="absolute inset-0 w-full h-full pointer-events-none select-none"
@@ -232,14 +258,14 @@ export default function HomeNextHero() {
                 left: tuner.titleLeftX * scale,
                 top: tuner.titleTopY * scale,
                 fontFamily: GRAFFITI_FONT_STACK,
-                transform: 'rotate(-3deg)',
+                transform: `rotate(${tuner.titleRotationDeg}deg)`,
                 transformOrigin: 'top left',
                 color: '#1a1208',
               }}
             >
               <h2
                 style={{
-                  fontSize: 56 * scale,
+                  fontSize: tuner.titleFontSize * scale,
                   fontWeight: 700,
                   letterSpacing: '0.01em',
                   margin: 0,
@@ -251,7 +277,10 @@ export default function HomeNextHero() {
               {meta.description && meta.description.trim().length > 0 && (
                 <p
                   style={{
-                    fontSize: 24 * scale,
+                    // Description tracks ~43% of the title's px size
+                    // (the original 24/56 ratio) so the two scale as
+                    // a pair when the admin tunes title size.
+                    fontSize: tuner.titleFontSize * 0.43 * scale,
                     fontWeight: 500,
                     marginTop: 6 * scale,
                     marginBottom: 0,
@@ -299,10 +328,10 @@ export default function HomeNextHero() {
           rather than pushing colour past it. */}
       <div
         aria-hidden
-        className="absolute inset-x-0 bottom-0 h-[140px] pointer-events-none"
+        className="absolute inset-x-0 bottom-0 h-[110px] pointer-events-none"
         style={{
           background:
-            'linear-gradient(to bottom, transparent 0%, rgba(10, 7, 3, 0.6) 60%, #0a0703 100%)',
+            'linear-gradient(to bottom, transparent 0%, rgba(10, 7, 3, 0.55) 55%, #0a0703 100%)',
         }}
       />
 
@@ -422,6 +451,7 @@ function ShelfRow({
                 plasticOffsetYPx={plasticMeta?.plasticOffsetYPx ?? 0}
                 plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
                 hoverScalePct={150}
+                popOnHover={false}
                 coverOverlay={
                   topLink ? (
                     <HomeFeatureSticker link={topLink} lpSize={lpSize} />
@@ -574,6 +604,22 @@ function HeroTuner({
           max={SCENE_H - 100}
           step={1}
           onChange={(v) => onChange({ ...values, titleTopY: v })}
+        />
+        <TunerRow
+          label="제목 크기"
+          value={values.titleFontSize}
+          min={20}
+          max={120}
+          step={1}
+          onChange={(v) => onChange({ ...values, titleFontSize: v })}
+        />
+        <TunerRow
+          label="제목 기울기"
+          value={values.titleRotationDeg}
+          min={-20}
+          max={20}
+          step={1}
+          onChange={(v) => onChange({ ...values, titleRotationDeg: v })}
         />
       </div>
       {/* Footer: 저장 / 되돌리기. 저장 commits draft to
