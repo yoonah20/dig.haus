@@ -12,18 +12,18 @@ import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
-// basement3.avif: 2976×1432 wall-only strip (concrete-textured
+// basement4.avif: 2976×1430 wall-only strip (concrete-textured
 // wall with two baked-in wood shelves and a small dig.haus neon
 // in the top-right). The asset arrives pre-trimmed at the band
 // aspect we want, so we render it at its natural ratio without
 // further CSS cropping — the earlier HERO_ASPECT inner-frame
 // trick is gone, sceneH just tracks the source aspect again.
 //
-// Coordinates below live in source-image px (2976×1432); a
+// Coordinates below live in source-image px (2976×1430); a
 // single `scale` factor (renderedWidth / 2976) projects them
 // into screen px at render time.
 const SCENE_W = 2976;
-const SCENE_H = 1432;
+const SCENE_H = 1430;
 
 // Below MIN_W the scene stops shrinking and the surrounding
 // container's overflow:hidden crops it. Keeps the shelves
@@ -41,7 +41,13 @@ const TRIM_BOTTOM_PX = 20;
 interface TunerValues {
   lpSize: number;
   lpGap: number;
-  lpXStart: number;
+  // Per-row LP X start (in source-image px). Splitting these
+  // lets admins offset the upper and lower rows by a few pixels
+  // so the wall doesn't read as a perfectly-aligned grid — a
+  // small horizontal stagger between rows reads as more
+  // hand-arranged.
+  upperLpXStart: number;
+  lowerLpXStart: number;
   upperLpY: number;
   lowerLpY: number;
   titleTopY: number;
@@ -63,7 +69,8 @@ interface TunerValues {
 const DEFAULT_TUNER: TunerValues = {
   lpSize: 357,
   lpGap: 30,
-  lpXStart: 531,
+  upperLpXStart: 531,
+  lowerLpXStart: 531,
   upperLpY: 279,
   lowerLpY: 752,
   titleTopY: 102,
@@ -72,8 +79,10 @@ const DEFAULT_TUNER: TunerValues = {
   titleRotationDeg: -1,
 };
 
-// v9 — defaults refreshed to the 2026-04-27 calibration screenshot.
-const TUNER_STORAGE_KEY = 'homeNext:heroTuner:v9';
+// v10 — split lpXStart into upper/lower; old saves carrying the
+// single field won't migrate, so bump the key to fall back to the
+// fresh defaults.
+const TUNER_STORAGE_KEY = 'homeNext:heroTuner:v10';
 
 function loadTuner(): TunerValues {
   if (typeof window === 'undefined') return DEFAULT_TUNER;
@@ -158,7 +167,8 @@ export default function HomeNextHero() {
   const isDirty =
     draft.lpSize !== committed.lpSize ||
     draft.lpGap !== committed.lpGap ||
-    draft.lpXStart !== committed.lpXStart ||
+    draft.upperLpXStart !== committed.upperLpXStart ||
+    draft.lowerLpXStart !== committed.lowerLpXStart ||
     draft.upperLpY !== committed.upperLpY ||
     draft.lowerLpY !== committed.lowerLpY ||
     draft.titleTopY !== committed.titleTopY ||
@@ -238,7 +248,7 @@ export default function HomeNextHero() {
           }}
         >
           <img
-            src="/backdrops/basement3.avif"
+            src="/backdrops/basement4.avif"
             alt=""
             aria-hidden
             className="absolute inset-0 w-full h-full pointer-events-none select-none"
@@ -299,7 +309,7 @@ export default function HomeNextHero() {
                 slots={slots.slice(0, 5)}
                 firstPosition={0}
                 rowTopY={tuner.upperLpY * scale}
-                rowLeftX={tuner.lpXStart * scale}
+                rowLeftX={tuner.upperLpXStart * scale}
                 lpSize={lpSize}
                 lpGap={lpGap}
                 plasticMeta={meta}
@@ -308,7 +318,7 @@ export default function HomeNextHero() {
                 slots={slots.slice(5, 10)}
                 firstPosition={5}
                 rowTopY={tuner.lowerLpY * scale}
-                rowLeftX={tuner.lpXStart * scale}
+                rowLeftX={tuner.lowerLpXStart * scale}
                 lpSize={lpSize}
                 lpGap={lpGap}
                 plasticMeta={meta}
@@ -327,21 +337,39 @@ export default function HomeNextHero() {
           transition into #0a0703 finishes cleanly inside the band
           rather than pushing colour past it. */}
 
-      {isAdmin && !editing && (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          // Top-right edit chip — opens the same VinylWallEditor
-          // mydig uses, with target=home-features so it writes
-          // into the home-features pick set instead of the
-          // current user's wall. Hidden until the admin hovers
-          // anywhere over the hero, so it doesn't compete with
-          // the painted scene during normal viewing.
-          className="absolute top-3 right-3 z-30 text-[11px] text-gray-200 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-[opacity,colors] opacity-0 group-hover/hero:opacity-100 focus:opacity-100"
-          title="dig.haus 벽 편집"
+      {/* Admin chip pair — both 편집 and 보정 sit centred at the
+          hero's bottom edge and only fade in on hover. Group keeps
+          them paired visually so the two affordances read as a
+          single "admin tools" cluster rather than two separate
+          ornaments. Hidden while the editor or tuner panel is
+          open so the chips don't sit underneath their own popups. */}
+      {isAdmin && !editing && !tunerOpen && (
+        <div
+          className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity"
         >
-          ✏️ 편집
-        </button>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-[11px] text-gray-200 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-colors"
+            title="dig.haus 벽 편집"
+          >
+            ✏️ 편집
+          </button>
+          <button
+            type="button"
+            onClick={() => setTunerOpen(true)}
+            className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-colors flex items-center gap-1.5"
+            title="Hero 위치 보정"
+          >
+            ⚙ 보정
+            {isDirty && (
+              <span
+                aria-hidden
+                className="w-1.5 h-1.5 rounded-full bg-[#e8a020]"
+              />
+            )}
+          </button>
+        </div>
       )}
 
       {isAdmin && editing && (
@@ -357,16 +385,15 @@ export default function HomeNextHero() {
         />
       )}
 
-      {isAdmin && (
-        <HeroTuner
+      {isAdmin && tunerOpen && (
+        <HeroTunerPanel
           values={draft}
           onChange={setDraft}
           isDirty={isDirty}
           onSave={handleSaveTuner}
           onRevert={handleRevertTuner}
           onReset={handleResetTuner}
-          open={tunerOpen}
-          onOpenChange={setTunerOpen}
+          onClose={() => setTunerOpen(false)}
         />
       )}
     </div>
@@ -396,6 +423,46 @@ function homeItemsToWallItems(items: HomeFeatureItem[]): MyDigWallItem[] {
   }));
 }
 
+// Small triangular badge marking standout records (avgScore ≥ 86
+// with ≥3 scored reviews backing it). Sits at the LP's bottom-
+// left inside the cover-overlay slot so it tilts + scales with
+// the sleeve. Width sits at 17.5% of LP — small enough not to
+// dominate the cover. Per-LP rotation in the [-2°, 2°] range
+// derived from a hash of the album mbid so the sticker reads
+// as hand-applied (slightly off-square each time) but stable
+// across renders for the same album.
+function DighausPickSticker({
+  lpSize,
+  seed,
+}: {
+  lpSize: number;
+  seed: string;
+}) {
+  const width = Math.round(lpSize * 0.175);
+  // hashStr returns 0..2^32-1; modulo 401 gives 0..400, divided
+  // by 100 → 0.00..4.00, shifted → -2.00..+2.00 in 0.01° steps.
+  const rot = (hashStr(seed) % 401) / 100 - 2;
+  return (
+    <img
+      src="/textures/dighauspick.webp"
+      alt=""
+      aria-hidden
+      className="absolute z-10 pointer-events-none select-none"
+      style={{
+        bottom: 4,
+        left: 4,
+        width,
+        height: 'auto',
+        transform: `rotate(${rot.toFixed(2)}deg)`,
+        transformOrigin: 'bottom left',
+        // Drop the default img max-width:100% from tailwind
+        // preflight so the sticker isn't capped by parent width.
+        maxWidth: 'none',
+      }}
+    />
+  );
+}
+
 function ShelfRow({
   slots,
   firstPosition,
@@ -419,6 +486,13 @@ function ShelfRow({
         const position = firstPosition + i;
         const cellLeft = rowLeftX + i * (lpSize + lpGap);
         const topLink = item?.album.priceTagLinks?.[0] ?? null;
+        // dig.haus PICK gate: needs the same MIN_SCORED_FOR_AVG=3
+        // floor as the rest of the site so a single 100-point
+        // review can't promote an album. Threshold 86 is the
+        // "this is genuinely good" line agreed for the home wall.
+        const score = item?.album.averageScore ?? null;
+        const reviewCount = item?.album.reviewCount ?? 0;
+        const isPick = score != null && score >= 86 && reviewCount >= 3;
         return (
           <div
             key={position}
@@ -445,9 +519,17 @@ function ShelfRow({
                 hoverScalePct={150}
                 popOnHover={false}
                 coverOverlay={
-                  topLink ? (
-                    <HomeFeatureSticker link={topLink} lpSize={lpSize} />
-                  ) : null
+                  <>
+                    {isPick && (
+                      <DighausPickSticker
+                        lpSize={lpSize}
+                        seed={item.album.mbid}
+                      />
+                    )}
+                    {topLink && (
+                      <HomeFeatureSticker link={topLink} lpSize={lpSize} />
+                    )}
+                  </>
                 }
               />
             ) : (
@@ -469,15 +551,14 @@ function ShelfRow({
 // position knob, persisted to localStorage. Pinned to the
 // hero's bottom-right when expanded; collapses to a small
 // chip when not in use so it doesn't compete with the scene.
-function HeroTuner({
+function HeroTunerPanel({
   values,
   onChange,
   isDirty,
   onSave,
   onRevert,
   onReset,
-  open,
-  onOpenChange,
+  onClose,
 }: {
   values: TunerValues;
   onChange: (next: TunerValues) => void;
@@ -485,31 +566,8 @@ function HeroTuner({
   onSave: () => void;
   onRevert: () => void;
   onReset: () => void;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
 }) {
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => onOpenChange(true)}
-        // Dirty pip on the chip when there are unsaved changes,
-        // so the admin doesn't lose track of pending edits while
-        // the panel is collapsed.
-        className="absolute bottom-3 right-3 z-30 text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-colors flex items-center gap-1.5"
-        title="Hero 위치 보정"
-      >
-        ⚙ 보정
-        {isDirty && (
-          <span
-            aria-hidden
-            className="w-1.5 h-1.5 rounded-full bg-[#e8a020]"
-          />
-        )}
-      </button>
-    );
-  }
-
   return (
     <div className="absolute bottom-3 right-3 z-30 w-[280px] bg-black/85 border border-white/15 rounded-lg p-3 backdrop-blur-sm shadow-2xl">
       <div className="flex items-center justify-between mb-2">
@@ -532,7 +590,7 @@ function HeroTuner({
           </button>
           <button
             type="button"
-            onClick={() => onOpenChange(false)}
+            onClick={onClose}
             className="text-[10px] text-gray-400 hover:text-gray-100 px-1.5 py-0.5 transition-colors"
             aria-label="닫기"
           >
@@ -557,12 +615,20 @@ function HeroTuner({
         onChange={(v) => onChange({ ...values, lpGap: v })}
       />
       <TunerRow
-        label="LP 시작 X"
-        value={values.lpXStart}
+        label="상단 LP X"
+        value={values.upperLpXStart}
         min={0}
         max={SCENE_W - 100}
         step={1}
-        onChange={(v) => onChange({ ...values, lpXStart: v })}
+        onChange={(v) => onChange({ ...values, upperLpXStart: v })}
+      />
+      <TunerRow
+        label="하단 LP X"
+        value={values.lowerLpXStart}
+        min={0}
+        max={SCENE_W - 100}
+        step={1}
+        onChange={(v) => onChange({ ...values, lowerLpXStart: v })}
       />
       <TunerRow
         label="상단 LP Y"

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SearchOverlayProvider } from './contexts/SearchOverlayContext';
@@ -163,6 +163,22 @@ function useStripUrlNoise() {
 export default function App() {
   useStripUrlNoise();
   const location = useLocation();
+
+  // Reset scroll on route change. Without this, navigating from
+  // a deep-scrolled / to /dig (or any other route) inherits the
+  // previous page's scroll position, which on mobile in particular
+  // dropped users into the middle of the album feed instead of
+  // its header. Skip when the path is unchanged but the query
+  // string changes (search overlay, q= deep-link cleanup) so
+  // scroll surveys stay put.
+  const lastPathRef = useRef(location.pathname);
+  useEffect(() => {
+    if (lastPathRef.current === location.pathname) return;
+    lastPathRef.current = location.pathname;
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
+    }
+  }, [location.pathname]);
   // Routes under `/my/:username` (including snapshots) get the
   // full painted-wall backdrop across the full page, nav to
   // footer. The home grid also gets a dimmer version of the same

@@ -478,7 +478,12 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
 // ─── GET /api/albums — list all albums (paginated + sorted) ─────────────
 
 const ALBUM_PAGE_SIZE_DEFAULT = 20;
-const ALBUM_PAGE_SIZE_MAX = 50;
+// Ceiling for client-requested pageSize. Bumped from 50 to 150 so
+// /dig's adaptive sizing can fully fill ultra-density × tall
+// monitors (10 cols × ≥10 rows). The server-side N+1 subqueries
+// per row are still cheap enough at this scale to not need
+// JOIN/GROUP-BY collapsing.
+const ALBUM_PAGE_SIZE_MAX = 150;
 
 const SORT_CLAUSES: Record<string, string> = {
   registered_desc:   `a.id DESC`,

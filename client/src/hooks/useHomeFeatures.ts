@@ -18,6 +18,13 @@ export interface HomeFeatureAlbum {
   coverDominantColor?: string | null;
   spotifyUrl?: string | null;
   releaseDate?: string | null;
+  // Aggregated review score (0-100, integer) and the number of
+  // *scored* reviews behind it. Powers the dig.haus PICK sticker
+  // gate on the home wall — show only when averageScore is at the
+  // pick threshold AND reviewCount clears MIN_SCORED_FOR_AVG so a
+  // single high-scoring review can't promote an album.
+  averageScore?: number | null;
+  reviewCount?: number;
   // Top purchase-link sticker (≤1 entry). Server picks soldout-last,
   // then ascending KRW; empty array when no purchase links registered.
   priceTagLinks?: PriceTagLink[];

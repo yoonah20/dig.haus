@@ -25,7 +25,16 @@ router.get('/home/features', async (_req, res) => {
             a.cover_art_fallbacks AS coverArtFallbacks,
             a.cover_dominant_color AS coverDominantColor,
             a.spotify_url AS spotifyUrl,
-            a.release_date AS releaseDate
+            a.release_date AS releaseDate,
+            (SELECT AVG(CASE
+                          WHEN COALESCE(r.manual_score, r.score) IS NOT NULL AND r.score_max > 0
+                          THEN (COALESCE(r.manual_score, r.score) * 1.0 / r.score_max) * 100
+                        END)
+             FROM reviews r WHERE r.album_mbid = a.mbid) AS avg_score,
+            (SELECT COUNT(*) FROM reviews r
+             WHERE r.album_mbid = a.mbid
+               AND COALESCE(r.manual_score, r.score) IS NOT NULL
+               AND r.score_max > 0) AS review_count
      FROM home_features hf
      JOIN albums a ON a.id = hf.album_id
      ORDER BY hf.position ASC`
@@ -108,6 +117,11 @@ router.get('/home/features', async (_req, res) => {
         coverDominantColor: row.coverDominantColor ?? null,
         spotifyUrl: row.spotifyUrl ?? null,
         releaseDate: row.releaseDate ?? null,
+        // averageScore + reviewCount mirror /api/albums shape so the
+        // home wall can apply the same MIN_SCORED_FOR_AVG gate before
+        // surfacing the dig.haus PICK sticker on standout records.
+        averageScore: row.avg_score != null ? Math.round(row.avg_score) : null,
+        reviewCount: row.review_count || 0,
         // priceTagLinks always returns an array (possibly empty) so
         // the client can do a uniform `[0]` lookup; the wall sticker
         // only uses the top entry but the array shape stays

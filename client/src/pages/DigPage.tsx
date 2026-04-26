@@ -7,19 +7,11 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
-import ActivityRail from '../components/Home/ActivityRail';
-import CommentTicker, { TickerItem } from '../components/Home/CommentTicker';
-import SnapshotCard from '../components/Home/SnapshotCard';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { useHomeState, type DensityValue } from '../contexts/HomeStateContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useHomeSnapshots, type HomeSnapshot } from '../hooks/useHomeSnapshots';
 import { useInView } from '../hooks/useInView';
-import {
-  useUserReviewsFeed,
-  type UserReviewFeedItem,
-} from '../hooks/useUserReviewsFeed';
 import type { AlbumSearchResult } from '../types';
 import { type SortValue, SORT_OPTIONS } from '../lib/homeSort';
 
@@ -31,20 +23,59 @@ interface AlbumListResponse {
   totalPages: number;
 }
 
-// Per-density page sizes. Single table regardless of rail state —
-// the grid column counts at lg/xl also stay constant per density,
-// so page_size is always an exact multiple of the xl col count
-// (comfortable 6×3, dense 8×4, ultra 10×5) and the last row fills
-// at the primary desktop breakpoints. What DOES change with rail
-// state is card size (main is ~77% width when the rail is open),
-// which is an acceptable trade for keeping the ticker's y-position
-// fixed when the user toggles density.
+// Per-density column counts at the primary desktop breakpoint
+// (lg+) and approximate row heights — used by the adaptive
+// pageSize so the grid fills as much of the viewport as the
+// current density wants, with row count growing on taller
+// monitors and shrinking on laptop screens. Row heights are
+// eyeballed against the live grid: comfortable shows the largest
+// covers + title/artist text below them, dense drops the title
+// chrome to its compact form, ultra is cover-only.
 const MOBILE_QUERY = '(max-width: 767px)';
-const PAGE_SIZE_BY_DENSITY: Record<string, number> = {
-  comfortable: 18,
-  dense: 32,
-  ultra: 50,
+const COLS_AT_XL_BY_DENSITY: Record<DensityValue, number> = {
+  comfortable: 6,
+  dense: 8,
+  ultra: 10,
 };
+// Row heights computed against the actual rendered cell at the
+// 1280-max-width xl layout. AlbumCard is aspect-square with no
+// title/artist chrome below the cover (the metadata only shows
+// on the flip-back), so the row's vertical footprint is just the
+// cell width + the y-gap. Earlier estimates over-budgeted by
+// ~30-40 px each, which made comfortable + ultra sit one row
+// short of what the viewport could actually fit.
+const ROW_H_BY_DENSITY: Record<DensityValue, number> = {
+  // comfortable: 6 cols on a 1152-px inner → ~178 px cell, gap-y-17 → 195
+  comfortable: 195,
+  // dense: 8 cols → ~135 px cell, gap-2.5 (10) → 145
+  dense: 145,
+  // ultra: 10 cols → ~110 px cell, gap-1.5 (6) → 116
+  ultra: 116,
+};
+// Reserved viewport space outside the grid: nav + sort header +
+// pagination + page paddings. Trimmed from the earlier 280 so
+// the formula returns more rows where the fold actually has
+// room — over-budgeting the reserved area was making each
+// density look like it skipped a tier of viewport-height
+// adaptation.
+const GRID_RESERVED_H = 220;
+function computeAdaptivePageSize(
+  density: DensityValue,
+  viewportH: number
+): number {
+  const cols = COLS_AT_XL_BY_DENSITY[density];
+  const rowH = ROW_H_BY_DENSITY[density];
+  const available = Math.max(rowH, viewportH - GRID_RESERVED_H);
+  let rows = Math.max(2, Math.floor(available / rowH));
+  // Dense and ultra both compute right at the visible-fold edge,
+  // so the formula's last row often pushes the pagination past
+  // the fold by a hair. Comfortable has more breathing room from
+  // its larger row height and doesn't need the trim.
+  if (density === 'dense' || density === 'ultra') {
+    rows = Math.max(2, rows - 1);
+  }
+  return cols * rows;
+}
 // Mobile infinite-scroll batch size. 10 = 5 rows of the 2-col
 // mobile grid. Each batch ends with a snapshot card + 2 comment
 // cards so the stream reads as an activity-rich unified feed
@@ -132,117 +163,41 @@ function useMobileAlbumList(
   });
 }
 
-// One infinite-scroll batch on mobile — 10 albums (2 × 5 rows)
-// followed by one snapshot card and two comment cards. The
-// snapshot + comments anchor each batch as a mini activity
-// interlude so the stream isn't just a flat album grid. Reveal
-// animation gated by IntersectionObserver so batches the sentinel
-// fetched eagerly don't burn their wave while the user is still
-// scrolling above them.
+// One infinite-scroll batch on mobile — 10 albums (2 × 5 rows).
+// The earlier "snapshot + two comment cards" interlude got
+// pulled out: home now owns activity surfaces (요즘 평 / 새 기억
+// sections), and /dig is the pure browsing surface across both
+// breakpoints. Reveal animation gated by IntersectionObserver
+// so batches the sentinel fetched eagerly don't burn their wave
+// while the user is still scrolling above them.
 const MOBILE_ROW_STAGGER_MS = 90;
 const MOBILE_COLS = 2;
-function MobileUnifiedBatch({
-  albums,
-  snapshot,
-  comments,
-}: {
-  albums: AlbumSearchResult[];
-  snapshot: HomeSnapshot | null;
-  comments: UserReviewFeedItem[];
-}) {
+function MobileUnifiedBatch({ albums }: { albums: AlbumSearchResult[] }) {
   // rootMargin 0px: fires the moment any part of the batch crosses
   // into the viewport. A pre-fetch margin would defeat the purpose —
   // we'd fire the wave for off-screen batches.
   const { ref, inView } = useInView<HTMLDivElement>('0px');
   const cardClass = inView ? 'album-reveal' : 'album-reveal-off';
 
-  // Activity block (snapshot + two comment cards) gets a little
-  // extra breathing above and below vs the album grid's tight
-  // row rhythm, so the interlude reads as "here's a break from
-  // scrolling covers" rather than another row of the catalog.
-  const hasActivity = snapshot != null || comments.length > 0;
   return (
-    <div ref={ref} className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-5">
-        {albums.map((album, idx) => (
-          <div
-            key={album.mbid}
-            className={cardClass}
-            style={
-              inView
-                ? {
-                    animationDelay: `${Math.floor(idx / MOBILE_COLS) * MOBILE_ROW_STAGGER_MS}ms`,
-                  }
-                : undefined
-            }
-          >
-            <AlbumCard album={album} />
-          </div>
-        ))}
-      </div>
-      {hasActivity && (
-        <div className="flex flex-col gap-5 mt-9 mb-9">
-          {snapshot && <SnapshotCard snap={snapshot} tinted />}
-          {comments.map((c, i) => (
-            <TickerItem
-              key={c.id}
-              item={c}
-              fullWidth
-              orientation={i % 2 === 0 ? 'left' : 'right'}
-            />
-          ))}
+    <div ref={ref} className="grid grid-cols-2 gap-5">
+      {albums.map((album, idx) => (
+        <div
+          key={album.mbid}
+          className={cardClass}
+          style={
+            inView
+              ? {
+                  animationDelay: `${Math.floor(idx / MOBILE_COLS) * MOBILE_ROW_STAGGER_MS}ms`,
+                }
+              : undefined
+          }
+        >
+          <AlbumCard album={album} />
         </div>
-      )}
+      ))}
     </div>
   );
-}
-
-// Deterministic PRNG so each batch's comment picks stay stable
-// across re-renders (scrolling up and back down shows the same
-// picks rather than reshuffling). Seeded with the batch index.
-function mulberry32(a: number) {
-  return function () {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// Snapshots cycle in recency order. Batch 0 gets the freshest
-// snapshot, batch N loops back to start when snapshots are
-// exhausted. Server caps the list at 20; 21st batch reuses the
-// first snapshot, which is fine — the intent is a steady drip
-// of memories, not uniqueness across the whole session.
-function pickSnapshot(
-  snapshots: HomeSnapshot[] | undefined,
-  batchIndex: number
-): HomeSnapshot | null {
-  if (!snapshots || snapshots.length === 0) return null;
-  return snapshots[batchIndex % snapshots.length];
-}
-
-// Comments pick 2 items per batch from the top 20 most-recent
-// reviews, using a PRNG seeded by the batch index. "Recent
-// focused" emerges from sampling only the top slice; full random
-// within that slice keeps each batch's pair feeling fresh rather
-// than predictable.
-function pickComments(
-  pool: UserReviewFeedItem[] | undefined,
-  batchIndex: number,
-  count = 2
-): UserReviewFeedItem[] {
-  if (!pool || pool.length === 0) return [];
-  const top = pool.slice(0, Math.min(20, pool.length));
-  if (top.length <= count) return top;
-  const rng = mulberry32(batchIndex * 37 + 1);
-  const chosen: number[] = [];
-  while (chosen.length < count) {
-    const i = Math.floor(rng() * top.length);
-    if (!chosen.includes(i)) chosen.push(i);
-  }
-  return chosen.map((i) => top[i]);
 }
 
 function paginationItems(current: number, total: number): Array<number | 'ellipsis-left' | 'ellipsis-right'> {
@@ -275,9 +230,19 @@ export default function DigPage() {
     seed,
     density,
     setDensity,
-    railOpen,
-    setRailOpen,
   } = useHomeState();
+
+  // Track viewport height so the adaptive pageSize updates when
+  // the user resizes / opens devtools / rotates the device.
+  const [viewportH, setViewportH] = useState<number>(() =>
+    typeof window === 'undefined' ? 900 : window.innerHeight
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const update = () => setViewportH(window.innerHeight);
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   useDocumentHead({
     title: 'Home | dig.haus',
@@ -306,8 +271,7 @@ export default function DigPage() {
   // finishes its first render (which it has by the time Home's
   // effects run).
   const seedReady = sort !== 'random' || seed !== undefined;
-  const pageSize =
-    PAGE_SIZE_BY_DENSITY[density] ?? PAGE_SIZE_BY_DENSITY.comfortable;
+  const pageSize = computeAdaptivePageSize(density, viewportH);
 
   // Desktop keeps the original rail + pagination layout. Mobile
   // runs a single unified infinite-scroll feed — albums in 30-per
@@ -330,12 +294,6 @@ export default function DigPage() {
     : desktopQuery.data?.albums ?? [];
   const totalPages = desktopQuery.data?.totalPages ?? 1;
   const isLoading = isMobile ? mobileQuery.isLoading : desktopQuery.isLoading;
-
-  // Data for the mobile unified feed's inter-batch cards. Fetched
-  // once and sampled per batch — snapshots cycle in order,
-  // comments pick 2 at random from the top 20 most-recent.
-  const mobileSnapshotsQuery = useHomeSnapshots(isMobile, 20);
-  const mobileCommentsQuery = useUserReviewsFeed(isMobile, 60);
 
   // Shuffle the reveal delays per page so the (up to 50) tiles don't
   // all land in a single sweep. Reshuffles whenever the rendered page
@@ -489,18 +447,7 @@ export default function DigPage() {
             ) : (
               <div className="flex flex-col gap-6">
                 {mobileQuery.data?.pages.map((pg, i) => (
-                  <MobileUnifiedBatch
-                    key={i}
-                    albums={pg.albums}
-                    snapshot={pickSnapshot(
-                      mobileSnapshotsQuery.data?.snapshots,
-                      i
-                    )}
-                    comments={pickComments(
-                      mobileCommentsQuery.data?.items,
-                      i
-                    )}
-                  />
+                  <MobileUnifiedBatch key={i} albums={pg.albums} />
                 ))}
                 <div
                   ref={setSentinelEl}
@@ -516,94 +463,53 @@ export default function DigPage() {
             )}
           </>
         ) : (
-          // ─── Desktop: grid + rail ─────────
-          // Two-column: album grid on the left, ActivityRail
-          // (snapshot feed) on the right, collapsible via the
-          // inline chevron next to density. FeatureRail sits above
-          // this whole section. The tab UI is deliberately mobile-
-          // only — this viewport has the real estate to show both
-          // roles simultaneously without tabs.
+          // ─── Desktop: full-width grid ─────────
+          // Single-column album grid that fills the viewport.
+          // Adaptive pageSize (computed off viewportH × density)
+          // means tall monitors get more rows on first paint;
+          // /dig used to reserve the right rail for ActivityRail
+          // and ran a comment ticker below, but the home page
+          // now surfaces both kinds of activity in dedicated
+          // sections, so /dig can be the pure browsing surface.
           <>
-            <div
-              // Gap is driven off a CSS variable so it transitions
-              // from 40px to 0 in lockstep with the column collapse.
-              // Before, lg:gap-10 was static — closing the rail left
-              // a permanent 40px dead strip on the right of the grid
-              // which read as a "pop" at the end of the animation.
-              // Below lg we stay flex-col with gap-6 (the variable
-              // class only applies at lg+).
-              className="flex flex-col gap-6 lg:grid lg:gap-[var(--rail-gap,40px)] lg:items-stretch lg:transition-[grid-template-columns,gap] lg:duration-300 lg:ease-out"
-              style={{
-                gridTemplateColumns: railOpen
-                  ? 'minmax(0, 7.7fr) minmax(0, 2.3fr)'
-                  : 'minmax(0, 7.7fr) minmax(0, 0fr)',
-                ['--rail-gap' as string]: railOpen ? '40px' : '0px',
-              }}
-            >
-              <main className="order-1 min-w-0">
-                {albums.length > 0 && (
-                  <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
-                    <SortTrigger
-                      sort={sort}
-                      onChange={setSort}
-                      label={currentSortLabel}
-                    />
-                    <div className="flex items-center gap-3">
-                      <DensitySwitcher
-                        density={density}
-                        onChange={setDensity}
-                      />
-                      {!railOpen && (
-                        <OpenRailHandle onClick={() => setRailOpen(true)} />
-                      )}
+            <main className="min-w-0">
+              {albums.length > 0 && (
+                <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
+                  <SortTrigger
+                    sort={sort}
+                    onChange={setSort}
+                    label={currentSortLabel}
+                  />
+                  <DensitySwitcher density={density} onChange={setDensity} />
+                </div>
+              )}
+              {isLoading && albums.length === 0 ? (
+                <div className="text-center py-20 text-sm text-gray-500">
+                  불러오는 중...
+                </div>
+              ) : albums.length === 0 ? (
+                <div className="text-center py-20 text-sm text-gray-500">
+                  등록된 앨범이 없습니다.
+                </div>
+              ) : (
+                <div
+                  key={`grid-${albums.length}-${albums[0]?.mbid ?? ''}-${albums[albums.length - 1]?.mbid ?? ''}`}
+                  className={`grid ${desktopGridCols} ${desktopGap}`}
+                >
+                  {albums.map((album, i) => (
+                    <div
+                      key={album.mbid}
+                      className="album-reveal"
+                      style={{
+                        animationDelay: `${(revealDelays[i] ?? i) * STAGGER_MS}ms`,
+                      }}
+                    >
+                      <AlbumCard album={album} compact={density === 'ultra'} />
                     </div>
-                  </div>
-                )}
-                {isLoading && albums.length === 0 ? (
-                  <div className="text-center py-20 text-sm text-gray-500">
-                    불러오는 중...
-                  </div>
-                ) : albums.length === 0 ? (
-                  <div className="text-center py-20 text-sm text-gray-500">
-                    등록된 앨범이 없습니다.
-                  </div>
-                ) : (
-                  <div
-                    key={`grid-${albums.length}-${albums[0]?.mbid ?? ''}-${albums[albums.length - 1]?.mbid ?? ''}`}
-                    className={`grid ${desktopGridCols} ${desktopGap}`}
-                  >
-                    {albums.map((album, i) => (
-                      <div
-                        key={album.mbid}
-                        className="album-reveal"
-                        style={{
-                          animationDelay: `${(revealDelays[i] ?? i) * STAGGER_MS}ms`,
-                        }}
-                      >
-                        <AlbumCard album={album} compact={density === 'ultra'} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </main>
-              <div
-                id="home-activity-rail"
-                // Just a fade. The earlier translate-x-full on close
-                // was 100% of the element's own width — and the
-                // element's width was collapsing at the same time,
-                // so translate-x was interpolating against a moving
-                // reference, which read as a jitter/pop rather than
-                // a clean slide. The column collapse alone carries
-                // the slide-out feel; opacity softens the finish.
-                className={`order-2 min-w-0 overflow-hidden lg:transition-opacity lg:duration-300 lg:ease-out ${
-                  railOpen
-                    ? 'lg:opacity-100'
-                    : 'lg:opacity-0 lg:pointer-events-none'
-                }`}
-              >
-                <ActivityRail onClose={() => setRailOpen(false)} />
-              </div>
-            </div>
+                  ))}
+                </div>
+              )}
+            </main>
 
             {totalPages > 1 && (
               <nav
@@ -653,62 +559,10 @@ export default function DigPage() {
               </nav>
             )}
 
-            {/* Comment ticker restored on /dig — the catalog browse
-                page keeps the marquee of 50자 평 since this surface
-                is for browsing-mode visitors who benefit from the
-                ambient activity stream. The home page (/) doesn't
-                show this; that's where the wood-rail wall lives. */}
-            {albums.length > 0 && (
-              <div
-                aria-hidden={!railOpen}
-                className={`grid transition-[grid-template-rows,opacity,transform] duration-300 ease-out ${
-                  railOpen
-                    ? 'grid-rows-[1fr] opacity-100 translate-y-0'
-                    : 'grid-rows-[0fr] opacity-0 translate-y-6 pointer-events-none'
-                }`}
-              >
-                <div className="min-h-0 overflow-hidden">
-                  <CommentTicker />
-                </div>
-              </div>
-            )}
           </>
         )}
       </section>
     </div>
-  );
-}
-
-// Small open-rail handle. Only renders when the rail is collapsed
-// on desktop — the rail's own close button (inside its section
-// header) handles the other direction. Styled identically to the
-// close button so the two affordances feel like a paired set
-// rather than two unrelated glyphs.
-function OpenRailHandle({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-expanded={false}
-      aria-controls="home-activity-rail"
-      title="활동 레일 펴기"
-      aria-label="활동 레일 펴기"
-      className="inline-flex items-center justify-center w-5 h-5 rounded-md border border-white/15 bg-[#1a130a]/40 hover:border-[#e8a020]/60 hover:bg-[#e8a020]/10 text-gray-400 hover:text-[#e8a020] transition-colors cursor-pointer"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="w-3 h-3"
-        aria-hidden
-      >
-        <path d="M15.75 19.5L8.25 12l7.5-7.5" />
-      </svg>
-    </button>
   );
 }
 

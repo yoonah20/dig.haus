@@ -1,0 +1,343 @@
+import { useLayoutEffect, useRef, useState } from 'react';
+import {
+  useHomeFeatures,
+  type HomeFeatureItem,
+  type HomeMeta,
+} from '../../hooks/useHomeFeatures';
+import { WallLP, WallRail } from '../MyDig/storefront/primitives';
+import WallHoverCard from '../MyDig/storefront/WallHoverCard';
+import HomeFeatureSticker from './HomeFeatureSticker';
+import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
+
+// Mobile hero uses a different visual strategy from the desktop
+// asset-driven hero. The painted basement strip relies on the
+// image being wide enough to fill the viewport horizontally;
+// portrait phone viewports clip too aggressively for that to
+// work. Instead, the mobile hero ducks the image entirely:
+// flat dark-concrete bg simulated with a turbulence noise
+// layer + a subtle vertical gradient, then five WallRail SVGs
+// (the same primitive mydig uses) painted in DOM, two LPs per
+// rail. No baked shelves, no hand-tuned coordinate math —
+// everything composes from primitives the layout already trusts.
+//
+// Activity sections below the hero stay shared across mobile
+// and desktop; only the hero swaps.
+
+// Plastic-wrap textures — same pool as the desktop hero so
+// covers across breakpoints share the same weathered feel.
+const PLASTIC_TEXTURE_PATHS = [
+  '/textures/swrap01.webp',
+  '/textures/swrap02.webp',
+  '/textures/swrap03.webp',
+  '/textures/swrap04.webp',
+  '/textures/swrap09.webp',
+  '/textures/swrap15.webp',
+  '/textures/swrap16.webp',
+  '/textures/swrap17.webp',
+  '/textures/swrap19.webp',
+  '/textures/swrap21.webp',
+];
+
+function hashStr(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+function pickPlasticTexture(seed: string): string {
+  if (PLASTIC_TEXTURE_PATHS.length === 0) return '';
+  return PLASTIC_TEXTURE_PATHS[hashStr(seed) % PLASTIC_TEXTURE_PATHS.length]!;
+}
+
+const COLS = 2;
+const ROWS = 5;
+// Padding from viewport edges. Tight margins on phones — the
+// covers want to feel close to the screen edge so the wall
+// reads as a tall stripe rather than a centred frame.
+const PAD_X = 16;
+// PAD_TOP includes breathing room above the title (top:32) AND
+// below it before the first row of LPs starts. The earlier 80
+// landed the title flush against the upper LP row; bumping to
+// 108 gives the handwritten copy a clear band of empty wall on
+// both sides of itself.
+const PAD_TOP = 108;
+const PAD_BOTTOM = 24;
+const TITLE_TOP_PX = 32;
+const COVER_GAP_X = 14;
+const ROW_GAP_Y = 22;
+// Rail is a hair thicker (was 14) and slightly longer past the
+// LPs (was 12 each side) so it reads as a real plank, not a
+// thin shelf strip.
+const RAIL_HEIGHT = 20;
+const RAIL_OVERHANG_PX = 18;
+
+export default function HomeNextHeroMobile() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerW, setContainerW] = useState(0);
+  const { data, isLoading } = useHomeFeatures();
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => setContainerW(el.clientWidth);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const innerW = Math.max(0, containerW - PAD_X * 2);
+  // Two LPs per row + a single horizontal gap between them. Cap
+  // at 200 so on borderline-tablet widths the LPs don't grow
+  // beyond a comfortable phone-cover scale. The 0.9 multiplier
+  // shrinks each cover ~10% from the row's full available width
+  // so they don't crowd the screen edges; the leftover slack is
+  // absorbed by `justifyContent: center` on the row grid.
+  const lpSize = Math.min(
+    200,
+    Math.floor(((innerW - COVER_GAP_X) / COLS) * 0.9)
+  );
+  const railWidth = lpSize * COLS + COVER_GAP_X + RAIL_OVERHANG_PX * 2;
+
+  const items = data?.items ?? [];
+  const meta = data?.meta;
+  const slots = Array.from({ length: ROWS * COLS }, (_, i) =>
+    items.find((it) => it.position === i) ?? null
+  );
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full overflow-hidden"
+      style={{
+        // Warm dark-concrete base. The turbulence overlay below
+        // breaks the flat fill into a textured wall surface.
+        // Height auto-grows from the flow content (rails carry an
+        // extra 10 px shadow tail beyond their visible plank
+        // height, so a fixed-pixel heroH would clip the last row's
+        // shadow).
+        backgroundColor: '#3a2e22',
+      }}
+    >
+      {/* Vertical lighting gradient — subtle top-down lift so the
+          wall reads as if there's ambient room light above it,
+          not painted-out. Kept faint so the flat colour still
+          shows through. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'linear-gradient(to bottom, rgba(255, 220, 180, 0.07) 0%, transparent 35%, rgba(0, 0, 0, 0.12) 100%)',
+        }}
+      />
+
+      {/* Turbulence noise — gives the flat colour the rough,
+          pitted texture of stamped concrete. Opacity + blend
+          mode tuned so the noise layer adds grain without
+          tinting the base brown. */}
+      <svg
+        aria-hidden
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        style={{ opacity: 0.55, mixBlendMode: 'overlay' }}
+      >
+        <defs>
+          <filter id="mobileConcreteNoise">
+            <feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="2" seed="11" />
+            <feColorMatrix values="0 0 0 0 0.55  0 0 0 0 0.5  0 0 0 0 0.45  0 0 0 0.55 0" />
+          </filter>
+        </defs>
+        <rect width="100%" height="100%" filter="url(#mobileConcreteNoise)" />
+      </svg>
+
+      {/* Handwritten section title — anchored top-left of the
+          wall. No tilt on mobile (the desktop -3° read as
+          casual on a wide composition; on the narrower mobile
+          band the same tilt was just hard to read). Cream ink
+          on dark concrete for legibility against the darker
+          mobile bg. */}
+      {meta?.theme && meta.theme.trim().length > 0 && (
+        <div
+          className="absolute select-none pointer-events-none"
+          style={{
+            top: TITLE_TOP_PX,
+            left: PAD_X,
+            right: PAD_X,
+            fontFamily: GRAFFITI_FONT_STACK,
+            color: '#f0e2cc',
+          }}
+        >
+          <h2
+            style={{
+              fontSize: 26,
+              fontWeight: 700,
+              letterSpacing: '0.01em',
+              margin: 0,
+              lineHeight: 1.05,
+            }}
+          >
+            {meta.theme}
+          </h2>
+          {meta.description && meta.description.trim().length > 0 && (
+            <p
+              style={{
+                fontSize: 13,
+                fontWeight: 400,
+                marginTop: 6,
+                marginBottom: 0,
+                lineHeight: 1.2,
+              }}
+            >
+              {meta.description}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Rails + LPs — five rows stacked vertically. Each row's
+          rail is centred under the two covers; rail seed varies
+          per-row so successive rails don't share the same knot
+          pattern. */}
+      {!isLoading && lpSize > 0 && (
+        <div
+          className="relative"
+          style={{
+            paddingTop: PAD_TOP,
+            paddingBottom: PAD_BOTTOM,
+            paddingLeft: PAD_X,
+            paddingRight: PAD_X,
+          }}
+        >
+          {Array.from({ length: ROWS }, (_, ri) => {
+            const startPos = ri * COLS;
+            return (
+              <div key={ri} style={{ marginBottom: ri < ROWS - 1 ? ROW_GAP_Y : 0 }}>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: `repeat(${COLS}, ${lpSize}px)`,
+                    gap: COVER_GAP_X,
+                    justifyContent: 'center',
+                    alignItems: 'end',
+                  }}
+                >
+                  {Array.from({ length: COLS }, (_, ci) => {
+                    const position = startPos + ci;
+                    const item = slots[position];
+                    return (
+                      <div
+                        key={position}
+                        style={{ width: lpSize, height: lpSize, position: 'relative' }}
+                      >
+                        {item ? (
+                          <MobileFeatureCell
+                            item={item}
+                            position={position}
+                            lpSize={lpSize}
+                            plasticMeta={meta}
+                          />
+                        ) : (
+                          <WallLP
+                            size={lpSize}
+                            seed={position}
+                            empty
+                            lampBias={1 - position / (ROWS * COLS)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-center" style={{ marginTop: 0 }}>
+                  <WallRail
+                    width={railWidth}
+                    seed={ri * 37 + 13}
+                    height={RAIL_HEIGHT}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileFeatureCell({
+  item,
+  position,
+  lpSize,
+  plasticMeta,
+}: {
+  item: HomeFeatureItem;
+  position: number;
+  lpSize: number;
+  plasticMeta: HomeMeta | undefined;
+}) {
+  const album = item.album;
+  const target = album.slug || album.mbid;
+  const topLink = album.priceTagLinks?.[0] ?? null;
+  const score = album.averageScore ?? null;
+  const reviewCount = album.reviewCount ?? 0;
+  const isPick = score != null && score >= 86 && reviewCount >= 3;
+
+  return (
+    <WallHoverCard
+      album={album}
+      position={position}
+      lpSize={lpSize}
+      lampBias={1 - position / 10}
+      href={`/album/${target}`}
+      plasticOverlaySrc={pickPlasticTexture(album.mbid)}
+      plasticScalePct={plasticMeta?.plasticScalePct ?? 15}
+      plasticOffsetXPx={plasticMeta?.plasticOffsetXPx ?? 5}
+      plasticOffsetYPx={plasticMeta?.plasticOffsetYPx ?? 0}
+      plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
+      hoverScalePct={130}
+      popOnHover={false}
+      coverOverlay={
+        <>
+          {isPick && <MobilePickSticker lpSize={lpSize} seed={album.mbid} />}
+          {topLink && <HomeFeatureSticker link={topLink} lpSize={lpSize} />}
+        </>
+      }
+    />
+  );
+}
+
+// Mirror of the desktop's DighausPickSticker — same gate, same
+// asset, same hand-applied rotation. Lives here rather than
+// imported because the desktop component lives next door and
+// duplicating ~20 lines is cheaper than refactoring both
+// components into a third shared file just for one badge.
+function MobilePickSticker({
+  lpSize,
+  seed,
+}: {
+  lpSize: number;
+  seed: string;
+}) {
+  const width = Math.round(lpSize * 0.175);
+  const rot = (hashStr(seed) % 401) / 100 - 2;
+  return (
+    <img
+      src="/textures/dighauspick.webp"
+      alt=""
+      aria-hidden
+      className="absolute z-10 pointer-events-none select-none"
+      style={{
+        bottom: 4,
+        left: 4,
+        width,
+        height: 'auto',
+        transform: `rotate(${rot.toFixed(2)}deg)`,
+        transformOrigin: 'bottom left',
+        maxWidth: 'none',
+      }}
+    />
+  );
+}

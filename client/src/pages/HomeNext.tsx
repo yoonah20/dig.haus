@@ -1,8 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import HomeNextHero from '../components/Home/HomeNextHero';
+import HomeNextHeroMobile from '../components/Home/HomeNextHeroMobile';
 import AlbumCard from '../components/AlbumCard';
 import { SectionTitle } from '../components/ui';
 import {
@@ -17,6 +18,28 @@ import CoverArt from '../components/CoverArt';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { resolveApiUrl } from '../utils/apiUrl';
 import type { AlbumSearchResult } from '../types';
+
+// Below this width the desktop hero (asset-driven painted basement
+// strip + width-locked LP coordinates) starts to fail — narrow
+// viewports clip the painted alley and shrink LPs past readable
+// size. Mobile branch swaps to a CSS-simulated concrete wall +
+// dynamic SVG rails + 2×5 LP layout instead.
+const MOBILE_HERO_BREAKPOINT_PX = 1024;
+
+function useIsMobileHero() {
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia(
+      `(max-width: ${MOBILE_HERO_BREAKPOINT_PX - 1}px)`
+    );
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}
 
 // HomeNext is a scratch composition for the next iteration of /. The
 // live home is a single-viewport storefront wall — visually settled
@@ -88,6 +111,7 @@ export default function HomeNext() {
   const releases = useRecentReleases(60);
   const snapshots = useHomeSnapshots(true, 14);
   const reviews = useUserReviewsFeed(true, 21);
+  const isMobile = useIsMobileHero();
 
   // Filter to released-and-recent only; cap at 21 (7 cols × 3 rows)
   // matching the unified grid below. Memoised so we don't re-run
@@ -101,11 +125,13 @@ export default function HomeNext() {
   return (
     <div className="flex-1 flex flex-col">
       {/* ── Hero ───────────────────────────────────────────────────
-          Painted storefront scene — wood shelves baked into the
-          backdrop image, LPs from /api/home/features rendered on
-          top in the same coordinate system so they sit exactly
-          on the shelves. Activity sections kick in on scroll. */}
-      <HomeNextHero />
+          Desktop: painted basement strip with LPs sitting on the
+          baked shelves. Mobile: concrete wall sim + dynamic SVG
+          rails + 2×5 LP layout. isMobile null on first render
+          (SSR/hydration safety) — render the desktop hero in
+          that brief window since it's the more common case;
+          the mobile swap kicks in once matchMedia resolves. */}
+      {isMobile ? <HomeNextHeroMobile /> : <HomeNextHero />}
 
       <div className="bg-[#120c05] px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
         {/* Unified 6-col flow — three card types stacked back-to-
@@ -123,7 +149,7 @@ export default function HomeNext() {
             each type takes 1–3 rows: releases get the most space
             (3 rows = 18), reviews medium (2 rows = 12), snapshots
             compact (1 row = 6). */}
-        <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-10">
+        <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-6">
           {/* ── 최신 발매작 (sky ring) ─────────────────────────── */}
           {!releases.isLoading && recentReleased.length > 0 && (
             <section>
@@ -143,6 +169,19 @@ export default function HomeNext() {
                     />
                   </div>
                 ))}
+              </div>
+              {/* Footer link → /dig for browsing beyond the
+                  21-card recency window. mt-1 keeps the link
+                  hugging the grid so the section's bottom edge
+                  doesn't drift further from the next section
+                  than the inter-section gap-10 already gives. */}
+              <div className="mt-1 text-right">
+                <Link
+                  to="/dig"
+                  className="text-sm text-gray-400 hover:text-[#e8a020] transition-colors"
+                >
+                  앨범 더 보러가기 →
+                </Link>
               </div>
             </section>
           )}
@@ -308,7 +347,11 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
           </div>
         </div>
 
-        {/* ── Back: cover unblurred, no comment ──────────── */}
+        {/* ── Back: lighter blur, no comment text ────────
+            Back face keeps the cover blurred at the same level
+            the old hover de-blur landed on (~4px) — peeling all
+            the blur off would give the album away, defeating the
+            "어떤 앨범일까" mystery the comment card preserves. */}
         <div
           className="absolute inset-0 overflow-hidden rounded-lg border border-[#e8a020]/60 bg-[#1a1208]"
           style={{
@@ -317,14 +360,20 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
             transform: 'rotateY(180deg)',
           }}
         >
-          {item.albumCoverUrl && (
-            <CoverArt
-              src={item.albumCoverUrl}
-              fallbacks={item.albumCoverFallbacks}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          )}
+          <div
+            className="absolute inset-0 scale-110"
+            style={{ filter: 'blur(4px) brightness(0.75)' }}
+            aria-hidden
+          >
+            {item.albumCoverUrl && (
+              <CoverArt
+                src={item.albumCoverUrl}
+                fallbacks={item.albumCoverFallbacks}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            )}
+          </div>
         </div>
       </div>
     </Link>
