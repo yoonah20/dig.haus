@@ -1,9 +1,10 @@
 import { useRef, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import CoverArt from '../../CoverArt';
 import PlayChip from '../../PlayChip';
 import { WallLP } from './primitives';
 import { extractSpotifyAlbumId } from '../../../hooks/useNowPlaying';
+import { useTapActivate } from '../../../hooks/useTapActivate';
 
 // Desktop wall-cell hover treatment shared by mydig + the home wall.
 //
@@ -106,6 +107,12 @@ interface Props {
   // grows with the cover and a default-sized chip on a 1.8×
   // hover ends up dominating the sleeve.
   playChipScale?: number;
+  // Enable tap-to-activate on touch devices: first tap shows the
+  // hover scale, second tap navigates. Default false keeps the
+  // mydig + mobile-hero direct-tap behaviour where the card just
+  // navigates immediately on touch (those surfaces don't run
+  // a big hover scale that needs revealing).
+  tapToActivate?: boolean;
 }
 
 // CAA covers come back at 250px. The home + mydig walls render up to
@@ -145,6 +152,7 @@ export default function WallHoverCard({
   popOnHover = true,
   hoverOriginY = 'bottom',
   playChipScale = 1,
+  tapToActivate = false,
 }: Props) {
   const spotifyAlbumId = extractSpotifyAlbumId(album.spotifyUrl ?? null);
   const hasPreview = !!spotifyAlbumId;
@@ -185,13 +193,30 @@ export default function WallHoverCard({
   const wallCoverUrl = upgradeWallCoverUrl(album.coverArtUrl);
   const wallCoverFallbacks = upgradeWallCoverFallbacks(album.coverArtFallbacks);
 
+  // Tap-to-activate on touch devices when the host opts in (the
+  // home hero does — its 1.8× hover scale is the whole point of
+  // the gesture). Mydig + the mobile-band hero leave it off so
+  // taps still navigate immediately.
+  const navigate = useNavigate();
+  const tap = useTapActivate({
+    cardId: `wall-${album.mbid}-${position}`,
+    outsideSelector: '.wall-hover-outer',
+    enabled: tapToActivate,
+  });
+
   return (
     <Link
       ref={cardRef}
       to={href}
-      className="group relative block hover:z-20"
+      className="wall-hover-outer group relative block hover:z-20"
       onMouseMove={handleCursorMove}
       onMouseLeave={handleCursorLeave}
+      onTouchStart={tap.handlers.onTouchStart}
+      onTouchMove={tap.handlers.onTouchMove}
+      onTouchCancel={tap.handlers.onTouchCancel}
+      onTouchEnd={(e) => tap.handlers.onTouchEnd(e, () => navigate(href))}
+      onClick={tap.handlers.onClick}
+      data-tap-active={tap.isActive ? 'true' : undefined}
       style={{
         width: lpSize,
         height: lpSize,
@@ -216,10 +241,10 @@ export default function WallHoverCard({
         // sleeves read as already-lifted at rest. The hover
         // transition then introduces the big downward drop, so
         // picking a record still feels like lifting it.
-        className={`absolute inset-0 z-10 transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(-3px_0_4px_rgba(0,0,0,0.4))_drop-shadow(3px_0_4px_rgba(0,0,0,0.4))] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] ${
+        className={`absolute inset-0 z-10 transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(-3px_0_4px_rgba(0,0,0,0.4))_drop-shadow(3px_0_4px_rgba(0,0,0,0.4))] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] group-data-[tap-active=true]:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] ${
           popOnHover
-            ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
-            : 'group-hover:[transform:scale(var(--wall-hover-scale))]'
+            ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
+            : 'group-hover:[transform:scale(var(--wall-hover-scale))] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))]'
         }`}
         style={{
           transformOrigin: `center ${hoverOriginY}`,

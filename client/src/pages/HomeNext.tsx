@@ -14,8 +14,10 @@ import {
   useUserReviewsFeed,
   type UserReviewFeedItem,
 } from '../hooks/useUserReviewsFeed';
+import { useNavigate } from 'react-router-dom';
 import CoverArt from '../components/CoverArt';
 import UserHoverCard from '../components/UserHoverCard';
+import { useTapActivate } from '../hooks/useTapActivate';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { resolveApiUrl } from '../utils/apiUrl';
 import type { AlbumSearchResult } from '../types';
@@ -328,6 +330,7 @@ function AuthorStrip({
 }
 
 function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
+  const navigate = useNavigate();
   const isAnon = item.userId == null;
   const displayName = isAnon ? '탈퇴한 사용자' : item.userName || '익명';
   const ratingThumb = item.rating ? RATING_THUMB[item.rating] : null;
@@ -335,14 +338,35 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
   const hasBadges = !!(ratingThumb || feelingEmoji);
   const mydigUrl = item.userUsername ? `/my/${item.userUsername}` : null;
 
+  // Touch devices get a two-tap gesture: first tap flips the card
+  // to reveal the cover; second tap navigates to the album page.
+  // Hover devices keep the normal Link behaviour (instant nav on
+  // click, flip on hover).
+  const albumHref = `/album/${item.albumSlug}`;
+  const tap = useTapActivate({
+    cardId: `review-${item.id}`,
+    outsideSelector: '.review-card-outer',
+  });
+
   return (
-    <div className="group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-[#e8a020]/25 hover:border-[#e8a020]/60 transition-colors bg-[#1a1208]">
+    <div className="review-card-outer group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-[#e8a020]/25 hover:border-[#e8a020]/60 transition-colors bg-[#1a1208]">
       <Link
-        to={`/album/${item.albumSlug}`}
+        to={albumHref}
         className="relative block flex-[4_1_0%] min-h-0"
         style={{ perspective: '1000px' }}
+        onTouchStart={tap.handlers.onTouchStart}
+        onTouchMove={tap.handlers.onTouchMove}
+        onTouchCancel={tap.handlers.onTouchCancel}
+        onTouchEnd={(e) =>
+          tap.handlers.onTouchEnd(e, () => navigate(albumHref))
+        }
+        onClick={tap.handlers.onClick}
       >
-        <div className="relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out group-hover/card:[transform:rotateY(180deg)]">
+        <div
+          className={`relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out group-hover/card:[transform:rotateY(180deg)] ${
+            tap.isActive ? '[transform:rotateY(180deg)]' : ''
+          }`}
+        >
           {/* Front: letterboxed blurred cover + comment. Same
               object-contain treatment as the back face so the
               cover doesn't get top/bottom-cropped on non-square

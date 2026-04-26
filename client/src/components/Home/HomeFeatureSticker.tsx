@@ -56,12 +56,14 @@ export default function HomeFeatureSticker({ link, lpSize, seed }: Props) {
   // ~17% of LP width (was 20%) — trimmed -15% so the tag sits as
   // a smaller corner accent and doesn't visually compete with the
   // hero's date sticker on the opposite corner. Font multiplier
-  // 0.21 stays the same so longer prices like ₩30,000 still fit
-  // inside the tag; floor 6px keeps mono digits legible at the
-  // tightest LP sizes.
+  // bumped 0.21 → 0.27 to keep the digits' on-screen size close
+  // to where they read at the larger sticker; longer prices
+  // (₩30,000) still fit because the box height also grew slightly
+  // via the 0.27 ratio. Floor 7px keeps mono digits legible at
+  // the tightest LP sizes.
   const width = Math.round(lpSize * 0.17);
   const height = Math.round(width * 0.55);
-  const fontSize = Math.max(6, Math.round(width * 0.21));
+  const fontSize = Math.max(7, Math.round(width * 0.24));
   // Hand-applied tilt: hash → 0..400 → 0.00..4.00 → -2.00..+2.00.
   const rot = seed ? (hashStr(seed) % 401) / 100 - 2 : 0;
 

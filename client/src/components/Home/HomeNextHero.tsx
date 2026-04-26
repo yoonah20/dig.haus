@@ -533,6 +533,7 @@ function ShelfRow({
                 hoverOriginY="75%"
                 playChipScale={0.6}
                 popOnHover={false}
+                tapToActivate
                 coverOverlay={
                   <>
                     {isPick && (
