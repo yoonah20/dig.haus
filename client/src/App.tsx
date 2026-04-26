@@ -9,8 +9,7 @@ import SiteFooter from './components/SiteFooter';
 import PersistentNowPlayingPlayer from './components/PersistentNowPlayingPlayer';
 import CurationProgressPanel from './components/CurationProgressPanel';
 
-const Home = lazy(() => import('./pages/Home'));
-const HomeNext = lazy(() => import('./pages/HomeNext'));
+const Home = lazy(() => import('./pages/HomeNext'));
 const DigPage = lazy(() => import('./pages/DigPage'));
 const Album = lazy(() => import('./pages/Album'));
 const Admin = lazy(() => import('./pages/Admin'));
@@ -170,11 +169,6 @@ export default function App() {
   // wall as a backdrop texture — no lamp pools, no dust motes,
   // just the darkened painting behind the album grid.
   const isMydig = location.pathname.startsWith('/my/');
-  // /home-next paints its own hero-scoped backdrop (so the rest of
-  // the page can fade to a flat dark wash for the activity sections
-  // below the fold), so it does NOT share the global isHome
-  // backdrop layer.
-  const isHome = location.pathname === '/';
   const isDig = location.pathname === '/dig';
   return (
     <AuthProvider>
@@ -199,26 +193,6 @@ export default function App() {
                   // share the same flat tone here.
                   className="absolute inset-0 pointer-events-none"
                   style={{ zIndex: -1, backgroundColor: '#1a1a1a' }}
-                />
-              )}
-              {isHome && (
-                <div
-                  aria-hidden
-                  // Home (dig.haus's own wall) sits against the
-                  // store-interior backdrop in its native colours —
-                  // no brightness / saturation pass. backgroundSize
-                  // stays at the authored 2401×1372 since the rest
-                  // of the home composition was calibrated against
-                  // that render. backgroundPosition center bottom
-                  // pins the image to the viewport's bottom-centre.
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    zIndex: -1,
-                    backgroundImage: "url('/backdrops/store.webp')",
-                    backgroundSize: '2401px 1372px',
-                    backgroundPosition: 'center bottom',
-                    backgroundRepeat: 'no-repeat',
-                  }}
                 />
               )}
               {isMydig && (
@@ -337,7 +311,6 @@ export default function App() {
               <Suspense fallback={<RouteFallback />}>
                 <Routes>
                   <Route path="/" element={<Home />} />
-                  <Route path="/home-next" element={<HomeNext />} />
                   <Route path="/dig" element={<DigPage />} />
                   <Route path="/album/:slug" element={<Album />} />
                   <Route path="/admin" element={<Admin />} />

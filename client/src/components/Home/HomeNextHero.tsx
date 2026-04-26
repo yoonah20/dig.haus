@@ -7,6 +7,8 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { WallLP } from '../MyDig/storefront/primitives';
 import WallHoverCard from '../MyDig/storefront/WallHoverCard';
+import VinylWallEditor from '../MyDig/VinylWallEditor';
+import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
@@ -136,6 +138,7 @@ export default function HomeNextHero() {
   const [committed, setCommitted] = useState<TunerValues>(DEFAULT_TUNER);
   const [draft, setDraft] = useState<TunerValues>(DEFAULT_TUNER);
   const [tunerOpen, setTunerOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     const loaded = loadTuner();
@@ -197,7 +200,7 @@ export default function HomeNextHero() {
   return (
     <div
       ref={containerRef}
-      className="relative w-full overflow-hidden bg-[#0a0703]"
+      className="group/hero relative w-full overflow-hidden bg-[#0a0703]"
       // Container's intrinsic height matches the scene height so
       // the page flow below the hero starts immediately under
       // the painting's bottom edge. minHeight pegs to the same
@@ -286,6 +289,53 @@ export default function HomeNextHero() {
         </div>
       )}
 
+      {/* Bottom fade — softens the hard horizontal cut between
+          the painted floor and the dark page bg of the activity
+          sections that follow. Anchored to the section bottom (not
+          the scaled scene anchor) so the fade band stays at a
+          stable px height regardless of viewport size. The
+          gradient stops just past 100% of the band so the
+          transition into #0a0703 finishes cleanly inside the band
+          rather than pushing colour past it. */}
+      <div
+        aria-hidden
+        className="absolute inset-x-0 bottom-0 h-[140px] pointer-events-none"
+        style={{
+          background:
+            'linear-gradient(to bottom, transparent 0%, rgba(10, 7, 3, 0.6) 60%, #0a0703 100%)',
+        }}
+      />
+
+      {isAdmin && !editing && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          // Top-right edit chip — opens the same VinylWallEditor
+          // mydig uses, with target=home-features so it writes
+          // into the home-features pick set instead of the
+          // current user's wall. Hidden until the admin hovers
+          // anywhere over the hero, so it doesn't compete with
+          // the painted scene during normal viewing.
+          className="absolute top-3 right-3 z-30 text-[11px] text-gray-200 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-[opacity,colors] opacity-0 group-hover/hero:opacity-100 focus:opacity-100"
+          title="dig.haus 벽 편집"
+        >
+          ✏️ 편집
+        </button>
+      )}
+
+      {isAdmin && editing && (
+        <VinylWallEditor
+          target={{ kind: 'home-features' }}
+          initialWall={homeItemsToWallItems(items)}
+          initialTheme={meta?.theme ?? null}
+          initialDescription={meta?.description ?? null}
+          initialHeaderTopPx={meta?.headerTopPx ?? -120}
+          initialHeaderLeftPx={meta?.headerLeftPx ?? 4}
+          initialHeaderRotationDeg={meta?.headerRotationDeg ?? -4}
+          onClose={() => setEditing(false)}
+        />
+      )}
+
       {isAdmin && (
         <HeroTuner
           values={draft}
@@ -300,6 +350,29 @@ export default function HomeNextHero() {
       )}
     </div>
   );
+}
+
+// home_features rows carry HomeFeatureAlbum (mbid-keyed, no
+// numeric DB id). VinylWallEditor's draft state expects
+// MyDigAlbum; padding with id=0 because home-features saves
+// route by mbid, not albumId.
+function homeItemsToWallItems(items: HomeFeatureItem[]): MyDigWallItem[] {
+  return items.map((it) => ({
+    position: it.position,
+    album: {
+      id: 0,
+      mbid: it.album.mbid,
+      slug: it.album.slug,
+      title: it.album.title,
+      artist: it.album.artist,
+      releaseYear: null,
+      coverArtUrl: it.album.coverArtUrl,
+      coverArtFallbacks: it.album.coverArtFallbacks ?? [],
+      coverDominantColor: it.album.coverDominantColor ?? null,
+      spotifyUrl: it.album.spotifyUrl ?? null,
+    },
+    userReview: null,
+  }));
 }
 
 function ShelfRow({
