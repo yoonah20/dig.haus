@@ -192,6 +192,28 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
       });
     }
 
+    // Backfill artist_credit_json for legacy rows that pre-date the
+    // multi-artist column. Fires only on real MB ids (Discogs path
+    // synthesises a single-element credit at insert time and never
+    // benefits from a second fetch). Also overwrites artist_name with
+    // the comma-joined credit so list endpoints that don't return
+    // the structured array still render the full collab text.
+    if (
+      !cached.artist_credit_json &&
+      cached.mbid &&
+      !cached.mbid.startsWith('discogs-')
+    ) {
+      getRelease(cached.mbid).then((mb) => {
+        if (!mb?.artistCredit || mb.artistCredit.length === 0) return;
+        updateAlbumFields(mbid, {
+          artist_credit_json: JSON.stringify(mb.artistCredit),
+          artist_name: mb.artist,
+        });
+      }).catch((err) => {
+        console.warn(`[backfill] artist_credit failed for mbid=${mbid}:`, (err as Error).message);
+      });
+    }
+
     // Refresh Discogs prices if stale (>24h) — fire and forget
     const formatsUpdatedAt = cached.discogs_formats_updated_at;
     const formatsStale = !formatsUpdatedAt ||
@@ -233,6 +255,23 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
       }
     }
 
+    // Parse the multi-artist credit JSON if present. Older cached
+    // rows have artist_credit_json = NULL — synthesise a 1-element
+    // credit from the legacy single fields so the response shape
+    // is uniform (display layer doesn't have to special-case
+    // missing-credit). Async backfill above may populate the JSON
+    // on a subsequent visit.
+    let artistCredit: Array<{ name: string; mbid: string | null }>;
+    if (cached.artist_credit_json) {
+      try {
+        artistCredit = JSON.parse(cached.artist_credit_json);
+      } catch {
+        artistCredit = [{ name: cached.artist_name, mbid: cached.artist_mbid || null }];
+      }
+    } else {
+      artistCredit = [{ name: cached.artist_name, mbid: cached.artist_mbid || null }];
+    }
+
     return {
       album: {
         mbid: cached.mbid,
@@ -240,6 +279,7 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
         title: cached.title,
         artist: cached.artist_name,
         artistMbid: cached.artist_mbid,
+        artistCredit,
         releaseDate: cached.release_date || cached.release_year?.toString() || '',
         releaseYear: cached.release_year ?? null,
         format: cached.format || null,
@@ -279,6 +319,11 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
   let primaryCoverArtUrl = '';
   let artistMbid: string | null = null;
   let discogsArtistId: number | null = null;
+  // Multi-artist credit collected from whichever source we end up
+  // hitting. MusicBrainz populates this with the full collab array;
+  // Discogs only gives us a single string so we synthesise a 1-
+  // element credit so the cache + response shape is uniform.
+  let artistCredit: Array<{ name: string; mbid: string | null }> = [];
 
   if (isDiscogs) {
     // Two shapes accepted:
@@ -310,6 +355,13 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     format = detail.format;
     genres = detail.genres;
     primaryCoverArtUrl = detail.coverArtUrl;
+    // Discogs gives a single-string artist (often already comma- or
+    // " & "-joined when the release is a collab). We don't try to
+    // split it back into structured entries — it'd be a heuristic
+    // hack — so synthesise a one-element credit. Albums sourced via
+    // Discogs that turn out to be collabs will only get the
+    // structured credit if/when admin re-fetches via MusicBrainz.
+    artistCredit = [{ name: artistName, mbid: null }];
   } else {
     const mbRelease = await getRelease(mbid);
     if (!mbRelease) return null;
@@ -323,6 +375,10 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     genres = mbRelease.genres || [];
     primaryCoverArtUrl = mbRelease.coverArtUrl || '';
     artistMbid = mbRelease.artistMbid || null;
+    artistCredit = mbRelease.artistCredit || [];
+    if (artistCredit.length === 0 && artistName) {
+      artistCredit = [{ name: artistName, mbid: artistMbid }];
+    }
   }
 
   // Fetch links + metadata in parallel
@@ -390,6 +446,7 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     title: albumTitle,
     artist: artistName,
     artistMbid: artistMbid,
+    artistCredit,
     releaseDate,
     releaseYear: releaseYear ? parseInt(releaseYear, 10) : null,
     format: format || null,
@@ -430,6 +487,7 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     title: albumTitle,
     artist_name: artistName,
     artist_mbid: artistMbid,
+    artist_credit: artistCredit,
     label_name: labelName,
     label_id: null,
     release_year: releaseYear ? parseInt(releaseYear, 10) : null,

@@ -55,15 +55,27 @@ async function _searchAlbums(query: string): Promise<
       unique.push(r);
     }
 
-    return unique.map((r: any) => ({
-      mbid: r.id,
-      title: r.title,
-      artist: r['artist-credit']?.[0]?.name || 'Unknown',
-      year: r.date?.substring(0, 4) || '',
-      format: r.media?.[0]?.format || '',
-      label: r['label-info']?.[0]?.label?.name || '',
-      coverArtUrl: `https://coverartarchive.org/release/${r.id}/front-250`,
-    }));
+    return unique.map((r: any) => {
+      // Same comma-joined credit treatment used in _getRelease so
+      // a search result for a collab album surfaces both artists
+      // in the dropdown ("Nine Inch Nails, Boys Noize") instead
+      // of only the first credit. Empty arrays fall through to
+      // 'Unknown' the same way the previous single-credit code did.
+      const credits = Array.isArray(r['artist-credit']) ? r['artist-credit'] : [];
+      const names = credits
+        .map((c: any) => c?.name || c?.artist?.name || '')
+        .filter((s: string) => s.length > 0);
+      const artist = names.length > 0 ? names.join(', ') : 'Unknown';
+      return {
+        mbid: r.id,
+        title: r.title,
+        artist,
+        year: r.date?.substring(0, 4) || '',
+        format: r.media?.[0]?.format || '',
+        label: r['label-info']?.[0]?.label?.name || '',
+        coverArtUrl: `https://coverartarchive.org/release/${r.id}/front-250`,
+      };
+    });
   } catch (err) {
     console.warn(`[mb] searchAlbums failed for "${query}":`, (err as Error).message);
     return [];
@@ -111,11 +123,34 @@ async function _getRelease(mbid: string): Promise<any | null> {
     // ORIGINAL year of the album, which is what we want to display.
     const firstReleaseDate: string = r['release-group']?.['first-release-date'] || '';
     const originalDate = firstReleaseDate || r.date || '';
+    // Multi-artist credit. MB returns `artist-credit` as an array
+    // with each entry carrying name + artist.id + an optional
+    // `joinphrase` (" & ", " feat. ", " vs " etc). We discard the
+    // joinphrase and always render with ", " on the client per the
+    // site's house style; the site doesn't model the original
+    // joining word as a meaningful distinction yet. Empty / single-
+    // entry albums collapse to a 1-element array so the cache shape
+    // is uniform.
+    const credits = Array.isArray(r['artist-credit']) ? r['artist-credit'] : [];
+    const artistCredit = credits
+      .map((c: any) => ({
+        name: c?.name || c?.artist?.name || '',
+        mbid: c?.artist?.id || null,
+      }))
+      .filter((c: any) => c.name.length > 0);
+    const joinedArtist = artistCredit.length > 0
+      ? artistCredit.map((c: any) => c.name).join(', ')
+      : 'Unknown';
     return {
       mbid: r.id,
       title: r.title,
-      artist: r['artist-credit']?.[0]?.name || 'Unknown',
-      artistMbid: r['artist-credit']?.[0]?.artist?.id || '',
+      // `artist` stays the comma-joined display string so single-
+      // string callers still see the full collab text. Structured
+      // form lives on `artistCredit` for callers that render each
+      // name as its own clickable element.
+      artist: joinedArtist,
+      artistMbid: artistCredit[0]?.mbid || '',
+      artistCredit,
       date: originalDate,
       year: originalDate.substring(0, 4) || '',
       // Keep raw release-specific fields available for callers that need them

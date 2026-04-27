@@ -631,6 +631,14 @@ export function initializeDatabase(db: Database.Database): void {
     'preview_track_url TEXT',
     'preview_track_name TEXT',
     'preview_lookup_at TEXT',
+    // Multi-artist credit. JSON array of `{name, mbid}` entries —
+    // populated from MusicBrainz's `artist-credit` whenever an album
+    // is fetched fresh. NULL on legacy rows; display layer falls
+    // back to `artist_name` (single-artist string) when absent.
+    // `artist_name` is now also populated as a comma-joined string
+    // of all credit names so list endpoints that don't return the
+    // structured array still surface the full collab text.
+    'artist_credit_json TEXT',
   ]);
 
   // One-time backfill: every album that existed BEFORE we split the

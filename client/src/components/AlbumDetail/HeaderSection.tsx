@@ -8,11 +8,11 @@ import CoverArt from '../CoverArt';
 import PlayChip from '../PlayChip';
 import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
-import { useSearchOverlay } from '../../contexts/SearchOverlayContext';
 import VoteButtons from '../VoteButtons';
 import OwnershipButtons from './OwnershipButtons';
 import CopyTitleButton from '../CopyTitleButton';
 import ShareLinkButton from '../ShareLinkButton';
+import ArtistCredit from '../ArtistCredit';
 
 function AdminMenuItem({
   onClick,
@@ -307,7 +307,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { openOverlay } = useSearchOverlay();
 
   const albumId = album.slug || album.mbid;
 
@@ -902,13 +901,19 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => openOverlay(album.artist)}
+          {/* Multi-artist collabs (e.g. Nine Inch Nails, Boys Noize)
+              render each name as its own clickable element so a
+              reader can jump to either artist's catalog. Single-
+              artist albums collapse to one button visually identical
+              to the prior single-button render. */}
+          <ArtistCredit
+            credit={album.artistCredit}
+            fallback={album.artist}
             className="text-2xl md:text-3xl text-[#e8a020] hover:underline inline-block font-serif cursor-pointer text-left"
-          >
-            {album.artist}
-          </button>
+          />
+          {/* The button-version above replaces the previous single
+              `openOverlay(album.artist)` button; openOverlay is now
+              fired per-artist from inside ArtistCredit. */}
 
           {editingKo ? (
             <div className="mt-4 mb-5 bg-white/5 border border-white/10 rounded-lg p-3 max-w-md">

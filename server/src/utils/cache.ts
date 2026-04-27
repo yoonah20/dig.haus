@@ -9,10 +9,19 @@ export function cacheAlbum(data: Record<string, any>): void {
   const similarAi = Array.isArray(data.similar_albums_ai)
     ? JSON.stringify(data.similar_albums_ai)
     : (data.similar_albums_ai ?? null);
+  // artist_credit accepts either a pre-stringified JSON or an array
+  // of `{name, mbid}` entries. Most callers pass the array straight
+  // from MusicBrainz, but the Discogs path builds it inline as a
+  // single-element array, so handle both shapes here rather than
+  // forcing each call site to stringify.
+  const artistCreditJson = Array.isArray(data.artist_credit)
+    ? JSON.stringify(data.artist_credit)
+    : (data.artist_credit_json ?? null);
 
   execute(`
     INSERT INTO albums (
-      mbid, slug, title, artist_name, artist_mbid, label_name, label_id,
+      mbid, slug, title, artist_name, artist_mbid, artist_credit_json,
+      label_name, label_id,
       release_year, release_date, format, genres, cover_art_url, cover_art_fallbacks,
       spotify_url, apple_music_url, apple_music_embed_url, youtube_url, bandcamp_url,
       discogs_id, discogs_artist_id, discogs_url, discogs_median_price, discogs_lowest_price, discogs_copies_for_sale,
@@ -21,7 +30,8 @@ export function cacheAlbum(data: Record<string, any>): void {
       similar_albums_ai, similar_albums_ai_generated_at,
       updated_at
     ) VALUES (
-      ?, ?, ?, ?, ?, ?, ?,
+      ?, ?, ?, ?, ?, ?,
+      ?, ?,
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?,
@@ -35,6 +45,7 @@ export function cacheAlbum(data: Record<string, any>): void {
       title = COALESCE(excluded.title, title),
       artist_name = COALESCE(excluded.artist_name, artist_name),
       artist_mbid = COALESCE(excluded.artist_mbid, artist_mbid),
+      artist_credit_json = COALESCE(excluded.artist_credit_json, artist_credit_json),
       label_name = COALESCE(excluded.label_name, label_name),
       label_id = COALESCE(excluded.label_id, label_id),
       release_year = COALESCE(excluded.release_year, release_year),
@@ -62,7 +73,7 @@ export function cacheAlbum(data: Record<string, any>): void {
       similar_albums_ai_generated_at = COALESCE(excluded.similar_albums_ai_generated_at, similar_albums_ai_generated_at),
       updated_at = datetime('now')
   `, [
-    data.mbid ?? null, data.slug ?? null, data.title ?? null, data.artist_name ?? null, data.artist_mbid ?? null,
+    data.mbid ?? null, data.slug ?? null, data.title ?? null, data.artist_name ?? null, data.artist_mbid ?? null, artistCreditJson,
     data.label_name ?? null, data.label_id ?? null,
     data.release_year ?? null, data.release_date ?? null, data.format ?? null, genres, data.cover_art_url ?? null,
     data.cover_art_fallbacks ? JSON.stringify(data.cover_art_fallbacks) : null,

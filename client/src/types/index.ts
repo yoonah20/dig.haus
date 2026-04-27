@@ -169,13 +169,32 @@ export interface LabelInfo {
   notableReleases: Array<{ title: string; artist: string; year: number | null; mbid?: string }>;
 }
 
+/**
+ * Multi-artist credit entry. Server populates this from MusicBrainz's
+ * `artist-credit` array on fresh fetches and lazily backfills cached
+ * rows. Single-artist albums collapse to a 1-element array so the
+ * client never has to special-case missing credit.
+ */
+export interface ArtistCreditEntry {
+  name: string;
+  mbid: string | null;
+}
+
 export interface AlbumDetail {
   album: {
     mbid: string;
     slug: string | null;
     title: string;
+    /** Comma-joined display string of all credit names. Kept as the
+     *  fallback for surfaces that haven't migrated to the structured
+     *  credit (search dropdowns, list rows, similar-album cards). */
     artist: string;
+    /** Primary (first) artist's mbid. */
     artistMbid: string | null;
+    /** Structured credit array — render each entry as its own
+     *  clickable element separated by ", ". Length ≥ 1; legacy
+     *  cached rows synthesise a single entry from `artist`. */
+    artistCredit: ArtistCreditEntry[];
     releaseDate: string;
     releaseYear?: number | null;
     format?: string | null;
