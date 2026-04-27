@@ -215,7 +215,7 @@ export default function WallHoverCard({
     <Link
       ref={cardRef}
       to={href}
-      className="wall-hover-outer group relative block hover:z-20"
+      className="wall-hover-outer group relative block hover:z-20 data-[tap-active=true]:z-20"
       onMouseMove={handleCursorMove}
       onMouseLeave={handleCursorLeave}
       onTouchStart={tap.handlers.onTouchStart}
@@ -253,10 +253,16 @@ export default function WallHoverCard({
         // The clip-path inset crops top + bottom flush to the
         // LP edges so no bleed reaches the wall above or the
         // shelf below; sides are extended -18 px to let the
-        // wide layer breathe. Hover swaps both filter (big lift
-        // drop) and clip-path (very loose) so the hover lift
-        // shadow can fully show.
-        className={`absolute inset-0 z-10 transition-[transform,filter,clip-path] duration-[260ms] ease-out [filter:drop-shadow(-2px_0_0_rgba(0,0,0,0.40))_drop-shadow(2px_0_0_rgba(0,0,0,0.40))_drop-shadow(-5px_8px_4px_rgba(0,0,0,0.30))_drop-shadow(5px_8px_4px_rgba(0,0,0,0.30))_drop-shadow(-9px_18px_8px_rgba(0,0,0,0.18))_drop-shadow(9px_18px_8px_rgba(0,0,0,0.18))] [clip-path:inset(0_-18px_0_-18px)] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] group-hover:[clip-path:inset(-60px_-60px_-60px_-60px)] group-data-[tap-active=true]:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] group-data-[tap-active=true]:[clip-path:inset(-60px_-60px_-60px_-60px)] ${
+        // wide layer breathe. Hover swaps both filter (six-layer
+        // lift drop sharing the at-rest function structure so
+        // CSS interpolates per-function smoothly — earlier we
+        // collapsed to a single drop-shadow on hover, which made
+        // the function counts mismatch and the browser had to
+        // discrete-swap the filter mid-transition: the new
+        // shadow popped in as a hard cut once the scale was
+        // already done) and clip-path (very loose) so the hover
+        // lift shadow can fully show.
+        className={`absolute inset-0 z-10 transition-[transform,filter,clip-path] duration-[260ms] ease-out [filter:drop-shadow(-2px_0_0_rgba(0,0,0,0.40))_drop-shadow(2px_0_0_rgba(0,0,0,0.40))_drop-shadow(-5px_8px_4px_rgba(0,0,0,0.30))_drop-shadow(5px_8px_4px_rgba(0,0,0,0.30))_drop-shadow(-9px_18px_8px_rgba(0,0,0,0.18))_drop-shadow(9px_18px_8px_rgba(0,0,0,0.18))] [clip-path:inset(0_-18px_0_-18px)] group-hover:[filter:drop-shadow(-3px_6px_4px_rgba(0,0,0,0.40))_drop-shadow(3px_6px_4px_rgba(0,0,0,0.40))_drop-shadow(-8px_14px_10px_rgba(0,0,0,0.40))_drop-shadow(8px_14px_10px_rgba(0,0,0,0.40))_drop-shadow(-14px_26px_22px_rgba(0,0,0,0.30))_drop-shadow(14px_26px_22px_rgba(0,0,0,0.30))] group-hover:[clip-path:inset(-60px_-60px_-60px_-60px)] group-data-[tap-active=true]:[filter:drop-shadow(-3px_6px_4px_rgba(0,0,0,0.40))_drop-shadow(3px_6px_4px_rgba(0,0,0,0.40))_drop-shadow(-8px_14px_10px_rgba(0,0,0,0.40))_drop-shadow(8px_14px_10px_rgba(0,0,0,0.40))_drop-shadow(-14px_26px_22px_rgba(0,0,0,0.30))_drop-shadow(14px_26px_22px_rgba(0,0,0,0.30))] group-data-[tap-active=true]:[clip-path:inset(-60px_-60px_-60px_-60px)] ${
           popOnHover
             ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
             : 'group-hover:[transform:scale(var(--wall-hover-scale))] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))]'
