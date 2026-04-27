@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { resolveAlbumPk } from '../utils/slug.js';
@@ -25,7 +25,13 @@ const upsertLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const uid = (req.user as AppUser | undefined)?.id;
-    return uid ? `u:${uid}` : (req.ip || 'anon');
+    if (uid) return `u:${uid}`;
+    // ipKeyGenerator canonicalises IPv6 addresses to a /56 subnet so
+    // a single user can't bypass the limit by rotating through their
+    // ISP's IPv6 range. express-rate-limit v8 hard-fails at startup
+    // if a custom keyGenerator references req.ip without going
+    // through this helper.
+    return req.ip ? ipKeyGenerator(req.ip) : 'anon';
   },
   skip: (req) => !!(req.user as AppUser | undefined)?.is_admin,
   message: { error: '잠시 뒤에 다시 시도해주세요 (1분에 최대 3개).' },

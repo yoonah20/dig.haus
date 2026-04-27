@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { getCachedAlbum } from '../utils/cache.js';
@@ -16,7 +16,13 @@ const router = Router();
 
 function userKey(req: { user?: unknown; ip?: string }): string {
   const uid = (req.user as AppUser | undefined)?.id;
-  return uid ? `u:${uid}` : (req.ip || 'anon');
+  if (uid) return `u:${uid}`;
+  // ipKeyGenerator canonicalises IPv6 to a /56 subnet so a single
+  // user can't bypass the per-IP limit by rotating IPv6 addresses
+  // within their ISP range. express-rate-limit v8 hard-fails at
+  // startup if a custom keyGenerator references req.ip without going
+  // through this helper.
+  return req.ip ? ipKeyGenerator(req.ip) : 'anon';
 }
 
 // Admin bypass for both create limiters. Admin curation sessions
