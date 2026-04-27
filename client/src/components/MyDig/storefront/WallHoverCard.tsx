@@ -249,13 +249,12 @@ export default function WallHoverCard({
         // owes one blur pass; the splay is sacrificed for the
         // sake of the animation staying at frame rate. Hover
         // grows the shadow rather than swapping its shape.
-        // clip-path keeps the top + side hard crop so the
-        // shadow can't bleed onto the wall above the LP or the
-        // shelf-edge to either side; only the bottom inset
-        // animates open (-40 px on lift) to let the lift shadow
-        // show below. Animating one inset axis is cheap next to
-        // the old six-blur cost so the perf win still holds.
-        className={`absolute inset-0 z-10 transition-[transform,filter,clip-path] duration-[260ms] ease-out [filter:drop-shadow(0_4px_6px_rgba(0,0,0,0.30))] [clip-path:inset(0_-18px_0_-18px)] group-hover:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] group-hover:[clip-path:inset(0_-18px_-40px_-18px)] group-data-[tap-active=true]:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] group-data-[tap-active=true]:[clip-path:inset(0_-18px_-40px_-18px)] ${
+        // clip-path is pinned to the at-rest inset (top + bottom
+        // hard crop, sides -18 px loose) and dropped from the
+        // transition list — the LP shouldn't bleed shadow onto
+        // the wall above or the shelf below at any state, only
+        // sideways. Static clip-path is essentially free.
+        className={`absolute inset-0 z-10 transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(0_4px_6px_rgba(0,0,0,0.30))] [clip-path:inset(0_-18px_0_-18px)] group-hover:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] group-data-[tap-active=true]:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] ${
           popOnHover
             ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
             : 'group-hover:[transform:scale(var(--wall-hover-scale))] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))]'
