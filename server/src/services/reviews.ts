@@ -323,6 +323,13 @@ export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
   // numeric ID combo is specific enough that non-sputnik hosts with
   // similar paths are unlikely false positives.
   /^\/bands\/[^/]+\/\d+/i,
+  // Sputnikmusic user-list page — /list.php?memberid=NNN is a member's
+  // personal album list (top-of-the-year picks, etc.) with one-line
+  // commentary per album, not editorial review prose. The memberid
+  // query parameter is the user-list signature; matching the query
+  // keeps this from false-positiving on other sites that happen to
+  // serve a list.php endpoint.
+  /\/list\.php\?[^"\s]*memberid=/i,
   // "Top albums of 20XX" style listicles on otherwise reputable
   // editorial sites (toiletovhell.com /top-albums-ov-2025-w-…/ was the
   // trigger). Each album gets a one-paragraph blurb inside the roundup

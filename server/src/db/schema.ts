@@ -866,6 +866,20 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // Purge sputnikmusic /list.php?memberid=… review rows. These are user-
+  // curated album lists with one-line commentary per pick, not editorial
+  // reviews — same class of mistake as soundoff.php. The path-pattern
+  // filter that catches future scrapes landed alongside this migration;
+  // existing rows get cleaned up here.
+  runOnce(db, 'purge-sputnik-list-review-urls-2026-04-28', () => {
+    const info = db
+      .prepare("DELETE FROM reviews WHERE full_review_url LIKE ?")
+      .run('%sputnikmusic.com/list.php?%memberid=%');
+    if ((info.changes as number) > 0) {
+      console.log(`[migration] purged ${info.changes} sputnik list.php review rows`);
+    }
+  });
+
   // Move hosts out of the code-level EXCLUDED_URL_DOMAINS into the DB
   // source_blacklist. The hardcoded baseline keeps shops / SNS /
   // streaming / YouTube (platform shapes that will never carry
