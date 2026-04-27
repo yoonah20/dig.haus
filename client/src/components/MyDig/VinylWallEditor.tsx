@@ -341,9 +341,9 @@ export default function VinylWallEditor({
     return slot.mbid !== serverItem.album.mbid;
   });
   // Title/description dirty applies to all targets. Public flag is a
-  // snapshot-only concept (wall mode handles mydig_public elsewhere;
-  // home-features has no concept of private). Header position knobs
-  // are home-features-only.
+  // snapshot-only concept — wall mode is public-by-default with no
+  // owner-side toggle, and home-features has no concept of private.
+  // Header position knobs are home-features-only.
   const headerPosDirty =
     isHomeFeaturesTarget &&
     (headerTopInput !== initialHeaderTopPx ||

@@ -672,12 +672,8 @@ export function initializeDatabase(db: Database.Database): void {
     // Phase 3 mydig. `username` is the URL slug (lowercase a-z0-9_-,
     // 3-20 chars) — no UNIQUE in migrateTable (it's ALTER TABLE which
     // doesn't add constraints), so a partial unique index is added
-    // separately below. `mydig_public` is vestigial: kept so the
-    // migration stays idempotent on existing DBs, but no read or
-    // write path references it any more (mydig is public by default
-    // and snapshots carry their own is_public flag).
+    // separately below.
     'username TEXT',
-    'mydig_public INTEGER DEFAULT 1',
     // Free-form title for the vinyl wall — displays as the h1 on
     // /my/:username. Owner-editable; NULL falls back to "my dig"
     // on render. Same role as a snapshot's name field: a place
@@ -1032,6 +1028,23 @@ export function initializeDatabase(db: Database.Database): void {
     console.log(
       `[migration] restore-black-metal-tag: restored=${restored}, already-had=${skipped}, missing-on-prod=${missing}, blacklist-removed=${unbanned.changes}`
     );
+  });
+
+  // Drop the vestigial users.mydig_public column. The page-level gate
+  // it was sized for went away when mydig went public-by-default;
+  // snapshots carry their own is_public flag and no read/write path
+  // has referenced this column since. SQLite 3.35+ supports DROP
+  // COLUMN natively (better-sqlite3 v12 ships with 3.45+), and the
+  // migrateTable definition above no longer lists the column so a
+  // fresh DB never gains it.
+  runOnce(db, 'drop-users-mydig-public-2026-04-28', () => {
+    try {
+      db.exec('ALTER TABLE users DROP COLUMN mydig_public');
+      console.log('[migration] dropped users.mydig_public column');
+    } catch (err: any) {
+      if (err.message?.includes('no such column')) return;
+      throw err;
+    }
   });
 
   // Move hosts out of the code-level EXCLUDED_URL_DOMAINS into the DB
