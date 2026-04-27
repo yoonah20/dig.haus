@@ -6,9 +6,9 @@ import { ensureCoverDominantColor } from '../utils/coverColor.js';
 import { ensureAlbumPreview } from '../utils/albumPreview.js';
 import {
   loadCoverDataUrl,
-  renderTopsterPng,
-  type TopsterSlot,
-} from '../services/topsterRenderer.js';
+  renderToasterPng,
+  type ToasterSlot,
+} from '../services/toasterRenderer.js';
 
 const router = Router();
 
@@ -1020,22 +1020,21 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
   });
 });
 
-// ─── Topster PNG export ───────────────────────────────────────
+// ─── 토스터 PNG export ────────────────────────────────────────
 //
 // Shareable image of a user's vinyl wall (or one of their snapshots)
-// in the classic RYM/Charts.fm topster format — 5×3 cover grid with
-// per-row "Artist - Album" caption columns, dig.haus brand stamp at
-// the bottom. Served as a 1500×800 PNG so it's small enough to
-// transmit on social previews but large enough to read captions.
-// Cover art is fetched through the existing fetchAndResize webp
-// cache, so repeated renders for the same wall cost no additional
-// external requests.
+// in a 3×5 cover grid with per-row "Artist - Album" caption columns,
+// dig.haus brand stamp at the bottom. Served as a 1080×1350 PNG —
+// Instagram 4:5 portrait, same image fits Twitter / KakaoTalk / X
+// inline previews with no extra crop logic. Cover art is fetched
+// through the existing fetchAndResize webp cache, so repeated renders
+// for the same wall cost no additional external requests.
 //
-// Public endpoint, no auth — anyone can grab any user's topster, the
+// Public endpoint, no auth — anyone can grab any user's 토스터, the
 // same way anyone can view their /my/:username page. Snapshot variant
 // honours the snapshot's own is_public flag.
 
-interface TopsterRow {
+interface ToasterRow {
   position: number;
   album_id: number | null;
   mbid: string | null;
@@ -1045,7 +1044,7 @@ interface TopsterRow {
   cover_art_fallbacks: string | null;
 }
 
-async function rowsToSlots(rows: TopsterRow[]): Promise<TopsterSlot[]> {
+async function rowsToSlots(rows: ToasterRow[]): Promise<ToasterSlot[]> {
   // Resolve cover URLs in parallel — 15 small webp fetches is much
   // faster as a Promise.all than serially when the cache is cold.
   const slots = await Promise.all(
@@ -1060,13 +1059,13 @@ async function rowsToSlots(rows: TopsterRow[]): Promise<TopsterSlot[]> {
         albumTitle: r.title,
         artistName: r.artist_name,
         coverDataUrl,
-      } satisfies TopsterSlot;
+      } satisfies ToasterSlot;
     })
   );
   return slots;
 }
 
-router.get('/mydig/:username/topster.png', async (req, res) => {
+router.get('/mydig/:username/toaster.png', async (req, res) => {
   const raw = String(req.params.username || '').trim();
   if (!raw) return res.status(400).send('username required');
   const user = resolveUserByUsername(raw);
@@ -1080,11 +1079,11 @@ router.get('/mydig/:username/topster.png', async (req, res) => {
      WHERE vwi.user_id = ?
      ORDER BY vwi.position ASC`,
     [user.id]
-  ) as TopsterRow[];
+  ) as ToasterRow[];
 
   try {
     const slots = await rowsToSlots(wallRows);
-    const png = await renderTopsterPng({
+    const png = await renderToasterPng({
       username: user.username,
       themeTitle: user.vinyl_wall_theme,
       slots,
@@ -1097,12 +1096,12 @@ router.get('/mydig/:username/topster.png', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(png);
   } catch (err) {
-    console.error('[topster]', (err as Error).message);
+    console.error('[toaster]', (err as Error).message);
     res.status(500).send('render failed');
   }
 });
 
-router.get('/mydig/:username/snapshots/:slug/topster.png', async (req, res) => {
+router.get('/mydig/:username/snapshots/:slug/toaster.png', async (req, res) => {
   const raw = String(req.params.username || '').trim();
   const slug = String(req.params.slug || '').trim();
   const user = resolveUserByUsername(raw);
@@ -1129,11 +1128,11 @@ router.get('/mydig/:username/snapshots/:slug/topster.png', async (req, res) => {
      WHERE i.snapshot_id = ?
      ORDER BY i.position ASC`,
     [snap.id]
-  ) as TopsterRow[];
+  ) as ToasterRow[];
 
   try {
     const slots = await rowsToSlots(items);
-    const png = await renderTopsterPng({
+    const png = await renderToasterPng({
       username: user.username,
       // Snapshot name takes precedence over the live wall theme so
       // the share image actually reflects what the user labelled
@@ -1149,7 +1148,7 @@ router.get('/mydig/:username/snapshots/:slug/topster.png', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.send(png);
   } catch (err) {
-    console.error('[topster]', (err as Error).message);
+    console.error('[toaster]', (err as Error).message);
     res.status(500).send('render failed');
   }
 });

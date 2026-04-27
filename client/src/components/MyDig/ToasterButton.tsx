@@ -1,8 +1,8 @@
-// Topster PNG download chip. Renders as an <a download> so the
-// browser handles the file save natively — no extra blob plumbing
-// needed. The PNG endpoint lives on the server and is rendered on
-// demand (1500×800 RYM-style cover grid + per-row caption columns +
-// dig.haus brand stamp); see server/src/services/topsterRenderer.ts
+// 토스터 PNG download chip. Renders as an <a download> so the browser
+// handles the file save natively — no extra blob plumbing needed. The
+// PNG endpoint lives on the server and is rendered on demand
+// (1080×1350 portrait, 3×5 cover grid + per-row caption columns +
+// dig.haus brand stamp); see server/src/services/toasterRenderer.ts
 // and the routes in server/src/routes/mydig.ts.
 //
 // Sibling to ShareButton: 공유 copies the URL to clipboard, 토스터
@@ -11,7 +11,7 @@
 // distinct intents — no point hiding one behind a dropdown when the
 // space exists for both.
 
-export default function TopsterButton({
+export default function ToasterButton({
   username,
   snapshotSlug,
   snapshotName,
@@ -28,8 +28,8 @@ export default function TopsterButton({
   themeTitle?: string | null;
 }) {
   const url = snapshotSlug
-    ? `/api/mydig/${encodeURIComponent(username)}/snapshots/${encodeURIComponent(snapshotSlug)}/topster.png`
-    : `/api/mydig/${encodeURIComponent(username)}/topster.png`;
+    ? `/api/mydig/${encodeURIComponent(username)}/snapshots/${encodeURIComponent(snapshotSlug)}/toaster.png`
+    : `/api/mydig/${encodeURIComponent(username)}/toaster.png`;
 
   const labelPart = snapshotName || themeTitle || 'wall';
   const safeLabel = labelPart
@@ -39,8 +39,8 @@ export default function TopsterButton({
     .slice(0, 40)
     .replace(/^-+|-+$/g, '');
   const fileName = safeLabel
-    ? `${username}-${safeLabel}-topster.png`
-    : `${username}-topster.png`;
+    ? `${username}-${safeLabel}-toaster.png`
+    : `${username}-toaster.png`;
 
   return (
     <a

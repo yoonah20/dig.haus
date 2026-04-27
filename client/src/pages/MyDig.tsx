@@ -19,7 +19,7 @@ import GraffitiSnapshotList, {
   GRAFFITI_FONT_STACK,
 } from '../components/MyDig/GraffitiSnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
-import TopsterButton from '../components/MyDig/TopsterButton';
+import ToasterButton from '../components/MyDig/ToasterButton';
 import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
 import { useUserPublic } from '../hooks/useMe';
@@ -106,15 +106,15 @@ export default function MyDig() {
   // SEO + share-preview head. Title flips to the resolved display
   // name once the mydig payload arrives; first paint stays at the
   // generic "마이딕" so search-engine crawlers without JS still see
-  // a sensible title. og:image points at the topster PNG endpoint —
+  // a sensible title. og:image points at the 토스터 PNG endpoint —
   // when the snapshot variant is active we route to the snapshot
   // image so Twitter / KakaoTalk previews show the actual archived
   // wall rather than the live wall the URL doesn't refer to.
   const headDisplayName = data?.user.displayName || username || '';
   const ogImageUrl = username
     ? activeSlug
-      ? `https://dig.haus/api/mydig/${encodeURIComponent(username)}/snapshots/${encodeURIComponent(activeSlug)}/topster.png`
-      : `https://dig.haus/api/mydig/${encodeURIComponent(username)}/topster.png`
+      ? `https://dig.haus/api/mydig/${encodeURIComponent(username)}/snapshots/${encodeURIComponent(activeSlug)}/toaster.png`
+      : `https://dig.haus/api/mydig/${encodeURIComponent(username)}/toaster.png`
     : null;
   useDocumentHead({
     title: headDisplayName ? `${headDisplayName}의 마이딕 | dig.haus` : '마이딕 | dig.haus',
@@ -486,7 +486,7 @@ function ProfileHeader({
   deleteSnapshotPending: boolean;
   shareUrl: string;
   // Snapshot slug + name when in snapshot mode. Drives the
-  // TopsterButton to point at the snapshot-variant endpoint and to
+  // ToasterButton to point at the snapshot-variant endpoint and to
   // generate a filename that distinguishes saved snapshot images
   // from each other.
   snapshotSlug: string | null;
@@ -565,7 +565,7 @@ function ProfileHeader({
           />
         )}
         <ShareButton url={shareUrl} label="공유" />
-        <TopsterButton
+        <ToasterButton
           username={username}
           snapshotSlug={snapshotSlug}
           snapshotName={snapshotName}
