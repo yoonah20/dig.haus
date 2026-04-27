@@ -4,6 +4,11 @@ import { requireAuth } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
 import { ensureCoverDominantColor } from '../utils/coverColor.js';
 import { ensureAlbumPreview } from '../utils/albumPreview.js';
+import {
+  loadCoverDataUrl,
+  renderTopsterPng,
+  type TopsterSlot,
+} from '../services/topsterRenderer.js';
 
 const router = Router();
 
@@ -1013,6 +1018,140 @@ router.get('/mydig/:username/snapshots/:slug', (req, res) => {
         : null,
     })),
   });
+});
+
+// ─── Topster PNG export ───────────────────────────────────────
+//
+// Shareable image of a user's vinyl wall (or one of their snapshots)
+// in the classic RYM/Charts.fm topster format — 5×3 cover grid with
+// per-row "Artist - Album" caption columns, dig.haus brand stamp at
+// the bottom. Served as a 1500×800 PNG so it's small enough to
+// transmit on social previews but large enough to read captions.
+// Cover art is fetched through the existing fetchAndResize webp
+// cache, so repeated renders for the same wall cost no additional
+// external requests.
+//
+// Public endpoint, no auth — anyone can grab any user's topster, the
+// same way anyone can view their /my/:username page. Snapshot variant
+// honours the snapshot's own is_public flag.
+
+interface TopsterRow {
+  position: number;
+  album_id: number | null;
+  mbid: string | null;
+  title: string | null;
+  artist_name: string | null;
+  cover_art_url: string | null;
+  cover_art_fallbacks: string | null;
+}
+
+async function rowsToSlots(rows: TopsterRow[]): Promise<TopsterSlot[]> {
+  // Resolve cover URLs in parallel — 15 small webp fetches is much
+  // faster as a Promise.all than serially when the cache is cold.
+  const slots = await Promise.all(
+    rows.map(async (r) => {
+      const fallbacks: string[] = r.cover_art_fallbacks
+        ? (JSON.parse(r.cover_art_fallbacks) as string[])
+        : [];
+      const coverDataUrl = await loadCoverDataUrl(r.cover_art_url, fallbacks);
+      return {
+        position: r.position,
+        albumMbid: r.mbid,
+        albumTitle: r.title,
+        artistName: r.artist_name,
+        coverDataUrl,
+      } satisfies TopsterSlot;
+    })
+  );
+  return slots;
+}
+
+router.get('/mydig/:username/topster.png', async (req, res) => {
+  const raw = String(req.params.username || '').trim();
+  if (!raw) return res.status(400).send('username required');
+  const user = resolveUserByUsername(raw);
+  if (!user) return res.status(404).send('not found');
+
+  const wallRows = queryAll(
+    `SELECT vwi.position, a.id AS album_id, a.mbid, a.title, a.artist_name,
+            a.cover_art_url, a.cover_art_fallbacks
+     FROM vinyl_wall_items vwi
+     JOIN albums a ON a.id = vwi.album_id
+     WHERE vwi.user_id = ?
+     ORDER BY vwi.position ASC`,
+    [user.id]
+  ) as TopsterRow[];
+
+  try {
+    const slots = await rowsToSlots(wallRows);
+    const png = await renderTopsterPng({
+      username: user.username,
+      themeTitle: user.vinyl_wall_theme,
+      slots,
+    });
+    res.setHeader('Content-Type', 'image/png');
+    // 1 hour public cache — wall changes are infrequent and the
+    // OG-image preview consumers (Twitter / Kakao) cache aggressively
+    // anyway. If admins start tweaking copy in real time we can lower
+    // this; for now an hour balances freshness against re-render cost.
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(png);
+  } catch (err) {
+    console.error('[topster]', (err as Error).message);
+    res.status(500).send('render failed');
+  }
+});
+
+router.get('/mydig/:username/snapshots/:slug/topster.png', async (req, res) => {
+  const raw = String(req.params.username || '').trim();
+  const slug = String(req.params.slug || '').trim();
+  const user = resolveUserByUsername(raw);
+  if (!user) return res.status(404).send('not found');
+
+  const viewer = req.user as AppUser | undefined;
+  const isOwner = !!viewer && viewer.id === user.id;
+
+  const snap = queryGet(
+    `SELECT id, name, is_public AS isPublic
+     FROM vinyl_wall_snapshots WHERE user_id = ? AND slug = ?`,
+    [user.id, slug]
+  ) as { id: number; name: string; isPublic: number } | null;
+  if (!snap) return res.status(404).send('not found');
+  if (!isOwner && snap.isPublic !== 1) {
+    return res.status(404).send('not found');
+  }
+
+  const items = queryAll(
+    `SELECT i.position, a.id AS album_id, a.mbid, a.title, a.artist_name,
+            a.cover_art_url, a.cover_art_fallbacks
+     FROM vinyl_wall_snapshot_items i
+     LEFT JOIN albums a ON a.id = i.album_id
+     WHERE i.snapshot_id = ?
+     ORDER BY i.position ASC`,
+    [snap.id]
+  ) as TopsterRow[];
+
+  try {
+    const slots = await rowsToSlots(items);
+    const png = await renderTopsterPng({
+      username: user.username,
+      // Snapshot name takes precedence over the live wall theme so
+      // the share image actually reflects what the user labelled
+      // this archived state as.
+      themeTitle: snap.name || user.vinyl_wall_theme,
+      slots,
+    });
+    res.setHeader('Content-Type', 'image/png');
+    // Snapshots are immutable except for name/description/visibility,
+    // so cache aggressively. Cache key is the URL which already
+    // includes the slug — different snapshot, different URL, no
+    // collision risk.
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(png);
+  } catch (err) {
+    console.error('[topster]', (err as Error).message);
+    res.status(500).send('render failed');
+  }
 });
 
 export default router;

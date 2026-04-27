@@ -19,6 +19,7 @@ import GraffitiSnapshotList, {
   GRAFFITI_FONT_STACK,
 } from '../components/MyDig/GraffitiSnapshotList';
 import ShareButton from '../components/MyDig/ShareButton';
+import TopsterButton from '../components/MyDig/TopsterButton';
 import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
 import { useUserPublic } from '../hooks/useMe';
@@ -105,14 +106,23 @@ export default function MyDig() {
   // SEO + share-preview head. Title flips to the resolved display
   // name once the mydig payload arrives; first paint stays at the
   // generic "마이딕" so search-engine crawlers without JS still see
-  // a sensible title.
+  // a sensible title. og:image points at the topster PNG endpoint —
+  // when the snapshot variant is active we route to the snapshot
+  // image so Twitter / KakaoTalk previews show the actual archived
+  // wall rather than the live wall the URL doesn't refer to.
   const headDisplayName = data?.user.displayName || username || '';
+  const ogImageUrl = username
+    ? activeSlug
+      ? `https://dig.haus/api/mydig/${encodeURIComponent(username)}/snapshots/${encodeURIComponent(activeSlug)}/topster.png`
+      : `https://dig.haus/api/mydig/${encodeURIComponent(username)}/topster.png`
+    : null;
   useDocumentHead({
     title: headDisplayName ? `${headDisplayName}의 마이딕 | dig.haus` : '마이딕 | dig.haus',
     description: headDisplayName
       ? `${headDisplayName}의 vinyl wall — dig.haus에서 발굴한 추천 앨범`
       : 'dig.haus의 사용자 vinyl wall',
     url: username ? `https://dig.haus/my/${username}` : undefined,
+    image: ogImageUrl,
     type: 'website',
   });
 
@@ -289,6 +299,8 @@ export default function MyDig() {
                 onDeleteSnapshot={handleDeleteSnapshot}
                 deleteSnapshotPending={deleteSnap.isPending}
                 shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
+                snapshotSlug={isSnapshotMode ? activeSlug : null}
+                snapshotName={isSnapshotMode ? snap?.name ?? null : null}
               />
             </div>
 
@@ -371,6 +383,8 @@ export default function MyDig() {
                     onDeleteSnapshot={handleDeleteSnapshot}
                     deleteSnapshotPending={deleteSnap.isPending}
                     shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
+                    snapshotSlug={isSnapshotMode ? activeSlug : null}
+                    snapshotName={isSnapshotMode ? snap?.name ?? null : null}
                   />
                   <GraffitiSnapshotList
                     username={username}
@@ -446,6 +460,8 @@ function ProfileHeader({
   wallTheme,
   wallDescription,
   snapshotMeta,
+  snapshotSlug,
+  snapshotName,
   mode,
   onEdit,
   onSaveSnapshot,
@@ -469,6 +485,12 @@ function ProfileHeader({
   onDeleteSnapshot: () => void;
   deleteSnapshotPending: boolean;
   shareUrl: string;
+  // Snapshot slug + name when in snapshot mode. Drives the
+  // TopsterButton to point at the snapshot-variant endpoint and to
+  // generate a filename that distinguishes saved snapshot images
+  // from each other.
+  snapshotSlug: string | null;
+  snapshotName: string | null;
 }) {
   const displayThemeText = wallTheme || 'my dig';
   const themePlaceholder = !wallTheme;
@@ -543,6 +565,12 @@ function ProfileHeader({
           />
         )}
         <ShareButton url={shareUrl} label="공유" />
+        <TopsterButton
+          username={username}
+          snapshotSlug={snapshotSlug}
+          snapshotName={snapshotName}
+          themeTitle={wallTheme}
+        />
       </>
     );
   }
