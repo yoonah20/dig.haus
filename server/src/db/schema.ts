@@ -1380,6 +1380,25 @@ export function initializeDatabase(db: Database.Database): void {
      ON shelf_items(slot_id, position)`
   );
 
+  // Tag blacklist — admin-curated list of genre/tag strings that
+  // should never appear on any album. Populated implicitly when
+  // admin × a tag in TagEditor (the PATCH /albums/:id/tags handler
+  // diffs old vs new and inserts the removed tags here). cleanGenres
+  // reads this set as an additional filter on top of the hard-coded
+  // EXCLUDED_TAGS, so even if a Last.fm / MusicBrainz refresh tries
+  // to re-introduce a tag it stays gone.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tag_blacklist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tag TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      added_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_tag_blacklist_tag ON tag_blacklist(tag COLLATE NOCASE)`
+  );
+
   // Crate — user-named container of unlimited capacity, replaces the
   // legacy collections + wants tables (post-Phase 3 roadmap item 2).
   // is_public defaults to 0: per the design discussion, "남들 눈치

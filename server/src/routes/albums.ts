@@ -17,7 +17,7 @@ import {
   cacheAlbum,
   updateAlbumFields,
 } from '../utils/cache.js';
-import { execute, queryAll, queryGet, transaction } from '../db/index.js';
+import { execute, queryAll, queryGet, transaction, getDb } from '../db/index.js';
 import { generateSlug, resolveAlbumId } from '../utils/slug.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
@@ -93,6 +93,32 @@ const EXCLUDED_PATTERNS: RegExp[] = [
   /\bbest\s+(song|songs|tracks?|ever|of)\b/i,
 ];
 
+// Admin-curated tag blacklist, layered on top of EXCLUDED_TAGS. Loaded
+// from the tag_blacklist table once and cached for 60s so the per-
+// album cleanGenres path doesn't hit SQLite on every call. The cache
+// is invalidated explicitly by the PATCH /tags handler when admin
+// blacklists new tags so the new entry takes effect immediately.
+let _tagBlacklistCache: Set<string> | null = null;
+let _tagBlacklistCacheAt = 0;
+const TAG_BLACKLIST_TTL_MS = 60_000;
+function getTagBlacklist(): Set<string> {
+  const now = Date.now();
+  if (
+    _tagBlacklistCache &&
+    now - _tagBlacklistCacheAt < TAG_BLACKLIST_TTL_MS
+  ) {
+    return _tagBlacklistCache;
+  }
+  const rows = queryAll(`SELECT tag FROM tag_blacklist`) as Array<{ tag: string }>;
+  _tagBlacklistCache = new Set(rows.map((r) => r.tag.toLowerCase()));
+  _tagBlacklistCacheAt = now;
+  return _tagBlacklistCache;
+}
+function invalidateTagBlacklistCache(): void {
+  _tagBlacklistCache = null;
+  _tagBlacklistCacheAt = 0;
+}
+
 // Known short genre names to keep (3 chars or less)
 const VALID_SHORT_GENRES = new Set([
   'emo', 'edm', 'rap', 'ska', 'dub', 'rnb',
@@ -111,12 +137,14 @@ function cleanGenres(raw: string[], artistName?: string): string[] {
   const seen = new Set<string>();
   const result: string[] = [];
   const artistLower = (artistName || '').toLowerCase().trim();
+  const blacklist = getTagBlacklist();
 
   for (const tag of raw) {
     const lower = tag.toLowerCase().trim();
     if (!lower) continue;
     if (seen.has(lower)) continue;
     if (EXCLUDED_TAGS.has(lower)) continue;
+    if (blacklist.has(lower)) continue;
     if (EXCLUDED_PATTERNS.some((re) => re.test(lower))) continue;
     // Filter artist name as tag
     if (artistLower && lower === artistLower) continue;
@@ -1220,12 +1248,25 @@ router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
 
 
 // ─── PATCH /api/albums/:id/tags — admin replace genre tag list ──────────
+//
+// Diffs the new tag list against what's currently saved. Anything
+// that disappeared in the diff lands on the tag_blacklist (idempotent
+// via UNIQUE on lower-cased tag) AND is stripped from every other
+// album that currently has it, so a single click on × does the work
+// of "remove from this album + never let this tag come back anywhere
+// else." The user's mental model in the UI is "delete = blacklist
+// permanently." Add-back via re-typing the same tag manually still
+// works — the blacklist filters auto-import via cleanGenres but the
+// PATCH endpoint trusts whatever admin sends.
 
 router.patch('/:id/tags', requireAdmin, (req, res) => {
   const resolved = resolveAlbumId(req.params.id as string);
   const mbid = resolved?.mbid || (req.params.id as string);
 
-  const row = queryGet('SELECT mbid FROM albums WHERE mbid = ?', [mbid]);
+  const row = queryGet(
+    'SELECT mbid, genres FROM albums WHERE mbid = ?',
+    [mbid]
+  ) as { mbid: string; genres: string | null } | null;
   if (!row) {
     return res.status(404).json({ error: 'Album not found' });
   }
@@ -1248,9 +1289,90 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
     if (cleaned.length >= 30) break;
   }
 
+  // Compute diff (tags in old but not in new) so each removal flows
+  // into the blacklist + global strip step below.
+  const previousTags: string[] = row.genres
+    ? (() => {
+        try {
+          const arr = JSON.parse(row.genres);
+          return Array.isArray(arr) ? arr.filter((t): t is string => typeof t === 'string') : [];
+        } catch {
+          return [];
+        }
+      })()
+    : [];
+  const newKeys = new Set(cleaned.map((t) => t.toLowerCase()));
+  const removedTags = previousTags.filter(
+    (t) => !newKeys.has(t.toLowerCase())
+  );
+
   try {
-    updateAlbumFields(mbid, { genres: JSON.stringify(cleaned) });
-    res.json({ ok: true, tags: cleaned });
+    transaction((): void => {
+      updateAlbumFields(mbid, { genres: JSON.stringify(cleaned) });
+
+      if (removedTags.length > 0) {
+        const adminId = (req.user as { id?: number } | undefined)?.id ?? null;
+        const db = getDb();
+        const insertBl = db.prepare(
+          `INSERT OR IGNORE INTO tag_blacklist (tag, added_by_user_id) VALUES (?, ?)`
+        );
+        for (const tag of removedTags) {
+          insertBl.run(tag.toLowerCase(), adminId);
+        }
+
+        // Strip the just-blacklisted tags from every other album that
+        // currently carries one. SQLite has no first-class JSON-array
+        // operator that handles case-insensitive removes cleanly, so
+        // we do it in JS: pull rows where the genres TEXT contains any
+        // of the removed tags as a substring (rough but cheap), then
+        // re-filter the parsed array exactly. The substring match
+        // overshoots (e.g. "rock" matches "rock and roll" rows even if
+        // they don't have "rock" as a tag) which is fine — the JS
+        // filter is the authoritative step.
+        const removedLower = new Set(
+          removedTags.map((t) => t.toLowerCase())
+        );
+        const likeClauses = removedTags.map(() => `genres LIKE ?`).join(' OR ');
+        const likeParams = removedTags.map((t) => `%${t.replace(/[%_]/g, '')}%`);
+        const candidates = queryAll(
+          `SELECT mbid, genres FROM albums WHERE mbid != ? AND genres IS NOT NULL AND (${likeClauses})`,
+          [mbid, ...likeParams]
+        ) as Array<{ mbid: string; genres: string }>;
+        const updateGenres = getDb().prepare(
+          `UPDATE albums SET genres = ? WHERE mbid = ?`
+        );
+        let strippedAlbumCount = 0;
+        for (const cand of candidates) {
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(cand.genres);
+          } catch {
+            continue;
+          }
+          if (!Array.isArray(parsed)) continue;
+          const tags = parsed.filter((t): t is string => typeof t === 'string');
+          const next = tags.filter(
+            (t) => !removedLower.has(t.toLowerCase())
+          );
+          if (next.length !== tags.length) {
+            updateGenres.run(JSON.stringify(next), cand.mbid);
+            strippedAlbumCount += 1;
+          }
+        }
+        if (strippedAlbumCount > 0) {
+          console.log(
+            `[tags] blacklisted ${removedTags.length} tag(s); stripped from ${strippedAlbumCount} other album(s)`
+          );
+        }
+      }
+    });
+
+    if (removedTags.length > 0) invalidateTagBlacklistCache();
+    res.json({
+      ok: true,
+      tags: cleaned,
+      blacklisted: removedTags.map((t) => t.toLowerCase()),
+    });
   } catch (error) {
     console.error('Update tags error:', error);
     res.status(500).json({ error: 'Failed to update tags' });
