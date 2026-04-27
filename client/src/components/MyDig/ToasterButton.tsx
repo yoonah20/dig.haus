@@ -35,9 +35,46 @@ export default function ToasterButton({
     : `/api/mydig/${encodeURIComponent(username)}/toaster.png?download=1`;
   const url = resolveApiUrl(path) ?? path;
 
+  // On mobile, the goal is to land in the photo album, not the
+  // Downloads folder. Web Share API with files brings up the OS share
+  // sheet (iOS / Android), which always exposes "Save to Photos" /
+  // "이미지 저장" as a primary option — that puts the toaster straight
+  // into the camera roll. Desktop browsers either lack canShare for
+  // files or surface a flow that's worse than a plain download, so we
+  // gate on coarse-pointer (touch primary) and fall through to the
+  // default <a> attachment download otherwise.
+  const handleClick = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+    const isCoarsePointer = window.matchMedia?.('(pointer: coarse)').matches;
+    if (!isCoarsePointer || typeof navigator.canShare !== 'function') return;
+    e.preventDefault();
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`fetch ${res.status}`);
+      const blob = await res.blob();
+      const file = new File([blob], `${username}-toaster.png`, {
+        type: 'image/png',
+      });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file] });
+        return;
+      }
+      // canShare rejected the file payload — fall back to direct nav
+      // so the user at least gets the PNG into Downloads.
+      window.location.assign(url);
+    } catch (err) {
+      // AbortError fires when the user dismisses the share sheet —
+      // that's a normal cancel, not a failure. Anything else falls
+      // back to the direct download path.
+      if ((err as { name?: string })?.name === 'AbortError') return;
+      window.location.assign(url);
+    }
+  };
+
   return (
     <a
       href={url}
+      onClick={handleClick}
       className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
       title="토스터 이미지 (PNG) 저장"
     >

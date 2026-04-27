@@ -248,7 +248,12 @@ function buildTree(input: ToasterInput): unknown {
       style: {
         width: W,
         height: H,
-        background: '#000000',
+        // Dark amber-brown (same #1a130a the 토스터 chip uses for its
+        // resting state) instead of the topster-default black. Ties the
+        // export to the dig.haus warm-craft palette and lets the amber
+        // wordmark in the footer read as belonging to the same surface
+        // rather than floating against neutral black.
+        background: '#1a130a',
         display: 'flex',
         flexDirection: 'column',
         fontFamily: '"JetBrains Mono", "Noto Sans KR"',
