@@ -33,9 +33,12 @@ const DEFAULT_ROW_SIZES = [5, 5, 5] as const;
 const HOME_FEATURES_ROW_SIZES = [5, 5] as const;
 
 // Header title builder. Per target:
-//   - wall          → "현재 마이딕 편집"
-//   - snapshot      → "{name} ({YYYY년 M월 D일}) 편집" (date optional)
-//   - home-features → "dig.haus 벽 편집" (admin-curated singleton)
+//   - wall            → "현재 마이딕 편집"
+//   - snapshot        → "{name} ({YYYY년 M월 D일}) 편집" (date optional)
+//   - home-features   → "dig.haus 벽 편집" (admin-curated singleton)
+//   - fresh-snapshot  → "새 기억 만들기" (blank canvas, save jumps
+//                       straight to snapshot capture without touching
+//                       the live wall)
 function editorTitle(
   targetKind: EditTarget['kind'],
   name: string | null,
@@ -43,6 +46,7 @@ function editorTitle(
 ): string {
   if (targetKind === 'home-features') return 'dig.haus 벽 편집';
   if (targetKind === 'wall') return '현재 마이딕 편집';
+  if (targetKind === 'fresh-snapshot') return '새 기억 만들기';
   const displayName = name?.trim() || '스냅샷';
   if (!createdAt) return `${displayName} 편집`;
   const d = new Date(createdAt);
@@ -65,15 +69,22 @@ interface CandidatePanelData {
 }
 
 // What the editor is editing.
-//   - wall           — owner's live mydig wall (PUT /api/mydig/vinyl-wall/items)
-//   - snapshot       — a specific saved snapshot row
-//   - home-features  — the admin-curated global home wall, single
-//                      `home_features` + `home_meta` row in DB; no
-//                      per-user scope, no snapshot concept
+//   - wall            — owner's live mydig wall (PUT /api/mydig/vinyl-wall/items)
+//   - snapshot        — a specific saved snapshot row
+//   - home-features   — the admin-curated global home wall, single
+//                       `home_features` + `home_meta` row in DB; no
+//                       per-user scope, no snapshot concept
+//   - fresh-snapshot  — blank-canvas snapshot composer. Identical UX
+//                       to wall mode but 저장 skips the "also save
+//                       wall?" branch and goes directly to the
+//                       snapshot capture modal; the live wall is
+//                       never touched. Entry point: 📸 기억 남기기
+//                       → "처음부터 새 기억" branch on /my/:username.
 export type EditTarget =
   | { kind: 'wall' }
   | { kind: 'snapshot'; id: number; slug: string }
-  | { kind: 'home-features' };
+  | { kind: 'home-features' }
+  | { kind: 'fresh-snapshot' };
 
 interface Props {
   // Optional because home-features has no per-user scope. Required
@@ -125,6 +136,7 @@ export default function VinylWallEditor({
   const isSnapshotTarget = target.kind === 'snapshot';
   const isHomeFeaturesTarget = target.kind === 'home-features';
   const isWallTarget = target.kind === 'wall';
+  const isFreshSnapshotTarget = target.kind === 'fresh-snapshot';
   // Slot count is target-driven: home-features uses 5-5 (10), the
   // mydig wall + snapshots stay on 5-5-5 (15). Server-side the
   // home_features.position CHECK is `< 15`, so 10 fits comfortably;
@@ -473,6 +485,15 @@ export default function VinylWallEditor({
       })();
       return;
     }
+    // Fresh-snapshot target: skip the "also save wall?" detour because
+    // the whole point of this entry path is to compose a snapshot
+    // without touching the live wall. Jump directly to the snapshot
+    // metadata modal; once it saves, the editor closes without
+    // committing anything to vinyl_wall_items.
+    if (isFreshSnapshotTarget) {
+      setSnapshotModalOpen(true);
+      return;
+    }
     // Wall target: ask whether to also save a snapshot before
     // committing. The modal handles the branch from here.
     setSaveChoicePrompt(true);
@@ -505,20 +526,33 @@ export default function VinylWallEditor({
   const handleClearAll = () => {
     // Fast path to a scratch wall — the owner typically hits this
     // right before building a themed snapshot that has nothing to
-    // do with what's currently on the live wall. Confirm when the
-    // current draft already has anything on it so the click isn't
-    // destructive.
-    const hasAnything = draft.some((s) => s != null);
-    if (hasAnything && !confirm(`벽의 ${wallTotal}장을 모두 비울까요?`)) return;
+    // do with what's currently on the live wall. Wipes the title +
+    // description inputs alongside the slot grid so a rebuild
+    // starts from a fully blank canvas instead of the previous
+    // theme leaking into the new arrangement. Confirm when there's
+    // anything on the wall (slots) OR in the meta inputs.
+    const hasAnything =
+      draft.some((s) => s != null) ||
+      themeInput.trim() !== '' ||
+      descriptionInput.trim() !== '';
+    if (hasAnything && !confirm(`벽의 ${wallTotal}장과 제목 · 설명을 모두 비울까요?`)) return;
     setDraft(new Array(wallTotal).fill(null));
+    setThemeInput('');
+    setDescriptionInput('');
     clearSelection();
   };
 
   // After the snapshot saves, ask whether to revert the wall to its
   // pre-edit state (snapshot already preserved the in-flight draft
-  // so it's safe to discard) or keep the draft on the wall.
+  // so it's safe to discard) or keep the draft on the wall. Fresh-
+  // snapshot mode skips this prompt entirely — that path never
+  // commits to the live wall, so there's nothing to revert.
   const handleAfterSnapshotSaved = () => {
     setSnapshotModalOpen(false);
+    if (isFreshSnapshotTarget) {
+      onClose();
+      return;
+    }
     setPostSnapshotPrompt(true);
   };
 
@@ -631,7 +665,7 @@ export default function VinylWallEditor({
             {editorTitle(target.kind, initialTheme, initialSnapshotDate)}
           </span>
           {dirty && (
-            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+            <span className="text-[12px] font-medium text-gray-500 uppercase tracking-wider">
               저장되지 않음
             </span>
           )}
@@ -641,7 +675,7 @@ export default function VinylWallEditor({
             type="button"
             onClick={handleClearAll}
             disabled={save.isPending || !draft.some((s) => s != null)}
-            className="text-xs text-gray-400 hover:text-white px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="text-sm text-gray-400 hover:text-white px-2.5 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             title="벽의 15장 모두 비우기"
           >
             🧹 다 지우기
@@ -656,7 +690,7 @@ export default function VinylWallEditor({
               snapshotMetaUpdate.isPending ||
               homeMetaUpdate.isPending
             }
-            className="text-xs text-gray-400 hover:text-white px-3 py-1.5 disabled:opacity-40 cursor-pointer"
+            className="text-sm text-gray-400 hover:text-white px-3 py-1.5 disabled:opacity-40 cursor-pointer"
           >
             취소
           </button>
@@ -670,7 +704,7 @@ export default function VinylWallEditor({
               homeMetaUpdate.isPending ||
               !dirty
             }
-            className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {save.isPending ||
             themeUpdate.isPending ||
@@ -694,12 +728,12 @@ export default function VinylWallEditor({
                 PATCH also renames the snapshot + flips public, which
                 previously lived in a separate SnapshotRenameModal. */}
             <div className="flex flex-col gap-2 pb-3 border-b border-white/10">
-              <label className="block text-[10px] uppercase tracking-wider text-gray-500">
+              <label className="block text-[12px] uppercase tracking-wider text-gray-500">
                 {isSnapshotTarget
                   ? '스냅샷 이름'
                   : isHomeFeaturesTarget
                     ? '시그니처 제목'
-                    : '벽 제목'}
+                    : '제목'}
               </label>
               <input
                 type="text"
@@ -715,12 +749,12 @@ export default function VinylWallEditor({
                 }
                 className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600"
               />
-              <label className="block text-[10px] uppercase tracking-wider text-gray-500 mt-1">
+              <label className="block text-[12px] uppercase tracking-wider text-gray-500 mt-1">
                 {isSnapshotTarget
                   ? '스냅샷 설명'
                   : isHomeFeaturesTarget
                     ? '시그니처 설명'
-                    : '벽 설명'}
+                    : '설명'}
               </label>
               <textarea
                 value={descriptionInput}
@@ -736,11 +770,11 @@ export default function VinylWallEditor({
                 }
                 className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none leading-snug"
               />
-              <p className="text-[10px] text-gray-600 text-right">
+              <p className="text-[12px] text-gray-600 text-right">
                 {descriptionInput.length}/240
               </p>
               {isSnapshotTarget && (
-                <label className="flex items-center gap-2 mt-1 cursor-pointer text-xs text-gray-300">
+                <label className="flex items-center gap-2 mt-1 cursor-pointer text-sm text-gray-300">
                   <input
                     type="checkbox"
                     checked={isPublicInput}
@@ -752,12 +786,12 @@ export default function VinylWallEditor({
               )}
               {isHomeFeaturesTarget && (
                 <div className="mt-2 pt-3 border-t border-white/10">
-                  <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">
+                  <div className="text-[12px] uppercase tracking-wider text-gray-500 mb-2">
                     손글씨 위치
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <label className="flex flex-col gap-1">
-                      <span className="text-[10px] text-gray-500">위 (px)</span>
+                      <span className="text-[12px] text-gray-500">위 (px)</span>
                       <input
                         type="number"
                         value={headerTopInput}
@@ -767,11 +801,11 @@ export default function VinylWallEditor({
                         min={-800}
                         max={800}
                         step={4}
-                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none"
+                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
                       />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-[10px] text-gray-500">왼쪽 (px)</span>
+                      <span className="text-[12px] text-gray-500">왼쪽 (px)</span>
                       <input
                         type="number"
                         value={headerLeftInput}
@@ -781,11 +815,11 @@ export default function VinylWallEditor({
                         min={-800}
                         max={1200}
                         step={4}
-                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none"
+                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
                       />
                     </label>
                     <label className="flex flex-col gap-1">
-                      <span className="text-[10px] text-gray-500">기울기 (°)</span>
+                      <span className="text-[12px] text-gray-500">기울기 (°)</span>
                       <input
                         type="number"
                         value={headerRotationInput}
@@ -795,11 +829,11 @@ export default function VinylWallEditor({
                         min={-45}
                         max={45}
                         step={1}
-                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-xs text-gray-200 focus:border-[#e8a020] focus:outline-none"
+                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
                       />
                     </label>
                   </div>
-                  <p className="text-[10px] text-gray-600 mt-1.5 leading-relaxed">
+                  <p className="text-[12px] text-gray-600 mt-1.5 leading-relaxed">
                     위는 음수일수록 위로, 왼쪽은 양수일수록 오른쪽으로. 저장하면 홈 화면에 바로 반영됩니다.
                   </p>
                 </div>
@@ -846,7 +880,7 @@ export default function VinylWallEditor({
               and has no per-user "굿굿 / 샀음 / 살거" semantics; the
               picker collapses to plain DB search. */}
           {!isHomeFeaturesTarget && (
-            <div className="flex border-b border-white/5 text-xs">
+            <div className="flex border-b border-white/5 text-sm">
               {([
                 { key: 'upvote', label: '굿굿' },
                 { key: 'collection', label: '샀음' },
@@ -885,14 +919,14 @@ export default function VinylWallEditor({
               className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
             />
             {selectedAlbum ? (
-              <div className="mt-2 text-[11px] text-[#e8a020]">
+              <div className="mt-2 text-[13px] text-[#e8a020]">
                 선택됨: {selectedAlbum.title}
                 {selectedSource !== null
                   ? ' — 다른 슬롯 탭으로 교환'
                   : ' — 슬롯 탭으로 배치'}
               </div>
             ) : (
-              <div className="mt-2 text-[10px] text-gray-600 leading-snug">
+              <div className="mt-2 text-[12px] text-gray-600 leading-snug">
                 앨범을 <span className="text-gray-400">드래그</span>해서 벽에 놓거나,
                 슬롯/앨범을 탭해 선택 후 다른 슬롯을 탭하세요.
               </div>
@@ -939,7 +973,7 @@ export default function VinylWallEditor({
         />
       )}
 
-      {isWallTarget && snapshotModalOpen && username && (
+      {(isWallTarget || isFreshSnapshotTarget) && snapshotModalOpen && username && (
         <SnapshotSaveModal
           username={username}
           items={draftItems()}
@@ -989,7 +1023,7 @@ function RevertOrKeepPrompt({
         <h2 className="text-lg text-white font-serif italic mb-1">
           기억 저장됨
         </h2>
-        <p className="text-xs text-gray-400 mb-5 leading-relaxed">
+        <p className="text-sm text-gray-400 mb-5 leading-relaxed">
           '기억'을 남겼으니 편집 하기 전 상태로 돌아갈까요? 아니라고
           하시면 지금의 구성이 현재 마이딕에 그대로 남아요.
         </p>
@@ -998,7 +1032,7 @@ function RevertOrKeepPrompt({
             type="button"
             onClick={onKeep}
             disabled={pending}
-            className="text-xs text-gray-300 hover:text-white px-3 py-1.5 rounded-md border border-white/10 hover:border-white/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="text-sm text-gray-300 hover:text-white px-3 py-1.5 rounded-md border border-white/10 hover:border-white/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {pending ? '저장 중…' : '아니요, 이 상태 유지'}
           </button>
@@ -1006,7 +1040,7 @@ function RevertOrKeepPrompt({
             type="button"
             onClick={onRevert}
             disabled={pending}
-            className="text-xs text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="text-sm text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             네, 원래대로
           </button>
@@ -1037,7 +1071,7 @@ function SaveChoicePrompt({
         <h2 className="text-lg text-white font-serif italic mb-1">
           저장하기
         </h2>
-        <p className="text-xs text-gray-400 mb-5 leading-relaxed">
+        <p className="text-sm text-gray-400 mb-5 leading-relaxed">
           지금의 앨범 구성을 '기억'할까요? 그렇게 하면 기록이 남아
           추후에 언제든지 이 구성을 확인할 수 있어요.
         </p>
@@ -1046,7 +1080,7 @@ function SaveChoicePrompt({
             type="button"
             onClick={onCancel}
             disabled={pending}
-            className="text-xs text-gray-500 hover:text-gray-300 px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="text-sm text-gray-500 hover:text-gray-300 px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             취소
           </button>
@@ -1054,7 +1088,7 @@ function SaveChoicePrompt({
             type="button"
             onClick={onWallOnly}
             disabled={pending}
-            className="text-xs text-gray-300 hover:text-white px-3 py-1.5 rounded-md border border-white/10 hover:border-white/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="text-sm text-gray-300 hover:text-white px-3 py-1.5 rounded-md border border-white/10 hover:border-white/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {pending ? '저장 중…' : '그냥 저장'}
           </button>
@@ -1062,7 +1096,7 @@ function SaveChoicePrompt({
             type="button"
             onClick={onWithSnapshot}
             disabled={pending}
-            className="text-xs text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="text-sm text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             📸 기억하며 저장
           </button>
@@ -1226,14 +1260,14 @@ function EditWallSlot({
               e.stopPropagation();
               onClear(position);
             }}
-            className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center text-[11px] bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-red-500 transition-opacity"
+            className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center text-[13px] bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-red-500 transition-opacity"
             aria-label="이 슬롯 비우기"
           >
             ×
           </button>
         </>
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-700">
+        <div className="w-full h-full flex items-center justify-center text-[12px] text-gray-700">
           {position + 1}
         </div>
       )}
@@ -1290,14 +1324,14 @@ function CandidateList({
   if (isLoading) {
     return (
       <div className="flex-1 overflow-y-auto">
-        <div className="p-4 text-xs text-gray-500">로딩 중…</div>
+        <div className="p-4 text-sm text-gray-500">로딩 중…</div>
       </div>
     );
   }
   if (albums.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto">
-        <div className="p-4 text-xs text-gray-500">
+        <div className="p-4 text-sm text-gray-500">
           {debouncedQ ? '검색 결과 없음' : '항목 없음'}
         </div>
       </div>
@@ -1329,10 +1363,10 @@ function CandidateList({
           fire as it scrolls into view. */}
       <div ref={sentinelRef} className="h-8 flex items-center justify-center">
         {isFetchingNextPage && (
-          <span className="text-[10px] text-gray-600">더 불러오는 중…</span>
+          <span className="text-[12px] text-gray-600">더 불러오는 중…</span>
         )}
         {!hasNextPage && albums.length > 20 && (
-          <span className="text-[10px] text-gray-700">더 없음</span>
+          <span className="text-[12px] text-gray-700">더 없음</span>
         )}
       </div>
     </div>
@@ -1391,8 +1425,8 @@ function CandidateRow({
         className="w-10 h-10 rounded object-cover flex-shrink-0"
       />
       <div className="flex-1 min-w-0">
-        <div className="text-xs text-white font-medium truncate">{album.title}</div>
-        <div className="text-[10px] text-gray-500 truncate">
+        <div className="text-sm text-white font-medium truncate">{album.title}</div>
+        <div className="text-[12px] text-gray-500 truncate">
           {album.artist}
           {album.releaseYear ? ` · ${album.releaseYear}` : ''}
         </div>

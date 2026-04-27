@@ -143,10 +143,17 @@ export default function MyDig() {
   const playerActive = !!useNowPlaying();
 
   const [editingWall, setEditingWall] = useState(false);
-  // "기억 남기기" surfaces SnapshotSaveModal directly against the
-  // live wall — no editing detour. Available on live mode only;
-  // snapshot mode keeps the 편집 / 🗑 pair.
+  // "📸 기억 남기기" forks: the click first opens a small choice
+  // prompt — capture the live wall as-is (existing flow, opens
+  // SnapshotSaveModal directly) or compose a fresh "새 기억" from a
+  // blank canvas (opens VinylWallEditor with target='fresh-snapshot'
+  // so the editor save jumps straight to snapshot capture without
+  // touching the live wall). Without the fork, owners building a
+  // themed snapshot had to clear the live wall, edit, save snapshot,
+  // then revert — which is non-obvious and easy to abort halfway.
+  const [snapshotChoicePrompt, setSnapshotChoicePrompt] = useState(false);
   const [savingSnapshot, setSavingSnapshot] = useState(false);
+  const [composingFreshSnapshot, setComposingFreshSnapshot] = useState(false);
 
   // When a legacy /my/:u/snap/:s URL lands here, rewrite the bar
   // to the in-page hash form so refresh / share / back all operate
@@ -301,7 +308,7 @@ export default function MyDig() {
                 }
                 mode={isSnapshotMode ? 'snapshot' : 'live'}
                 onEdit={() => setEditingWall(true)}
-                onSaveSnapshot={() => setSavingSnapshot(true)}
+                onSaveSnapshot={() => setSnapshotChoicePrompt(true)}
                 onDeleteSnapshot={handleDeleteSnapshot}
                 deleteSnapshotPending={deleteSnap.isPending}
                 shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
@@ -385,7 +392,7 @@ export default function MyDig() {
                     }
                     mode={isSnapshotMode ? 'snapshot' : 'live'}
                     onEdit={() => setEditingWall(true)}
-                    onSaveSnapshot={() => setSavingSnapshot(true)}
+                    onSaveSnapshot={() => setSnapshotChoicePrompt(true)}
                     onDeleteSnapshot={handleDeleteSnapshot}
                     deleteSnapshotPending={deleteSnap.isPending}
                     shareUrl={typeof window !== 'undefined' ? window.location.href : ''}
@@ -442,7 +449,102 @@ export default function MyDig() {
             onSaved={() => setSavingSnapshot(false)}
           />
         )}
+
+        {snapshotChoicePrompt && (
+          <SnapshotChoicePrompt
+            onCancel={() => setSnapshotChoicePrompt(false)}
+            onCaptureCurrent={() => {
+              setSnapshotChoicePrompt(false);
+              setSavingSnapshot(true);
+            }}
+            onComposeFresh={() => {
+              setSnapshotChoicePrompt(false);
+              setComposingFreshSnapshot(true);
+            }}
+          />
+        )}
+
+        {composingFreshSnapshot && username && (
+          <VinylWallEditor
+            username={username}
+            initialWall={[]}
+            initialTheme=""
+            initialDescription=""
+            target={{ kind: 'fresh-snapshot' }}
+            onClose={() => setComposingFreshSnapshot(false)}
+          />
+        )}
       </main>
+    </div>
+  );
+}
+
+// "📸 기억 남기기" branch dialog. Two paths:
+//   - 지금 그대로 → SnapshotSaveModal against the live wall
+//   - 처음부터 새로 → VinylWallEditor in fresh-snapshot mode (blank
+//     canvas; save jumps straight to snapshot capture without
+//     touching vinyl_wall_items)
+// Without this fork the only way to compose a themed memory was to
+// clear the live wall, build, save-with-snapshot, then revert — a
+// path the owner has no reason to discover.
+function SnapshotChoicePrompt({
+  onCancel,
+  onCaptureCurrent,
+  onComposeFresh,
+}: {
+  onCancel: () => void;
+  onCaptureCurrent: () => void;
+  onComposeFresh: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 className="text-lg text-white font-serif italic mb-1">
+          기억 남기기
+        </h2>
+        <p className="text-sm text-gray-400 mb-5 leading-relaxed">
+          지금 마이딕 그대로 기억할까요, 아니면 처음부터 새로
+          만들어볼까요?
+        </p>
+        <div className="flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={onCaptureCurrent}
+            className="text-sm text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
+          >
+            📸 지금 그대로 기억하기
+            <span className="block text-[12px] text-gray-500 mt-0.5 font-normal">
+              현재 마이딕에 걸린 15장을 그대로 저장합니다.
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onComposeFresh}
+            className="text-sm text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
+          >
+            ✨ 처음부터 새 기억 만들기
+            <span className="block text-[12px] text-gray-500 mt-0.5 font-normal">
+              빈 벽에 원하는 주제로 새로 구성합니다. 마이딕은
+              그대로 둬요.
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="text-sm text-gray-500 hover:text-gray-300 px-3 py-1.5 cursor-pointer transition-colors"
+          >
+            취소
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -629,11 +731,11 @@ function ProfileHeader({
           {displayThemeText}
         </div>
         {wallDescription ? (
-          <div className="text-[18px] text-[#3a2818] leading-relaxed pt-1">
+          <div className="text-[16px] md:text-[18px] text-[#3a2818] leading-relaxed pt-1">
             {wallDescription}
           </div>
         ) : mode === 'live' && isOwner ? (
-          <div className="text-[15px] text-[#5a4838] italic pt-1 font-normal">
+          <div className="text-[13px] md:text-[15px] text-[#5a4838] italic pt-1 font-normal">
             ✏️ 편집에서 간단한 설명을 추가할 수 있어요.
           </div>
         ) : null}
