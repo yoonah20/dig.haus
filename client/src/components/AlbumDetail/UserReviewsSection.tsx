@@ -85,6 +85,17 @@ function SpeechBubble({
   const hasStats =
     review.userId != null &&
     (review.userUpvoteCount > 0 || review.userDownvoteCount > 0);
+  // 굿굿 share of the commenter's lifetime vote split — surfaces
+  // their general positivity/critical tendency next to the raw
+  // counts so a reader can frame the comment ("90% 굿굿 사람이
+  // 이 앨범엔 별루를 줬다" reads very differently from "30% 굿굿
+  // 사람이 별루를 줬다"). Hidden under 3 total votes since the
+  // ratio reads as noise (e.g. "100%" off a single 굿굿).
+  const totalVotes = review.userUpvoteCount + review.userDownvoteCount;
+  const showVoteRatio = hasStats && totalVotes >= 3;
+  const upPct = showVoteRatio
+    ? Math.round((review.userUpvoteCount / totalVotes) * 100)
+    : null;
 
   // Speaker trigger: avatar + (name stacked above 굿굿/별루 counts),
   // grouped as one hover target so moving the mouse between the avatar,
@@ -109,6 +120,11 @@ function SpeechBubble({
             <span>
               <span aria-hidden>👎</span> {review.userDownvoteCount}
             </span>
+            {upPct != null && (
+              <span className="text-gray-400" title="이 사용자의 굿굿 비율">
+                {upPct}%
+              </span>
+            )}
           </span>
         )}
       </span>
