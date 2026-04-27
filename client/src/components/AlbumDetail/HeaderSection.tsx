@@ -74,7 +74,7 @@ function TagEditor({
   }, [adding]);
 
   const persist = useCallback(
-    async (nextTags: string[]) => {
+    async (nextTags: string[], removeOnly: string[] = []) => {
       setSaving(true);
       try {
         const res = await axios.patch<{
@@ -82,7 +82,14 @@ function TagEditor({
           tags: string[];
           blacklisted?: string[];
           strippedAlbumCount?: number;
-        }>(`/api/albums/${albumId}/tags`, { tags: nextTags });
+        }>(`/api/albums/${albumId}/tags`, {
+          tags: nextTags,
+          // Only sent when the admin used the − button — server
+          // strips these tags from this album but skips the
+          // tag_blacklist + cross-album strip path. Empty array on
+          // a normal × removal so nothing changes server-side.
+          removeOnly,
+        });
         await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
         await queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
         const banned = res.data?.blacklisted ?? [];
@@ -109,7 +116,17 @@ function TagEditor({
     [albumId, queryClient]
   );
 
-  const removeTag = (tag: string) => {
+  // Two distinct removal paths:
+  //   − (album-only): tag doesn't fit this album, but the tag itself
+  //     is still valid elsewhere. Listed in removeOnly so the server
+  //     skips the blacklist + cross-album strip.
+  //   × (blacklist): tag is globally bad. Default behaviour (empty
+  //     removeOnly), server diffs and bans it everywhere.
+  const removeTagFromAlbum = (tag: string) => {
+    if (saving) return;
+    void persist(tags.filter((t) => t !== tag), [tag]);
+  };
+  const removeTagAndBlacklist = (tag: string) => {
     if (saving) return;
     void persist(tags.filter((t) => t !== tag));
   };
@@ -169,15 +186,26 @@ function TagEditor({
         >
           <span>{g}</span>
           {isAdmin && (
-            <button
-              onClick={() => removeTag(g)}
-              disabled={saving}
-              className="text-gray-500 hover:text-red-400 disabled:opacity-40 cursor-pointer leading-none"
-              title={`"${g}" 삭제`}
-              aria-label={`"${g}" 태그 삭제`}
-            >
-              ×
-            </button>
+            <>
+              <button
+                onClick={() => removeTagFromAlbum(g)}
+                disabled={saving}
+                className="text-gray-500 hover:text-gray-200 disabled:opacity-40 cursor-pointer leading-none text-sm"
+                title={`"${g}" 이 앨범에서만 빼기 (블랙리스트 X)`}
+                aria-label={`"${g}" 태그 이 앨범에서만 제거`}
+              >
+                −
+              </button>
+              <button
+                onClick={() => removeTagAndBlacklist(g)}
+                disabled={saving}
+                className="text-gray-500 hover:text-red-400 disabled:opacity-40 cursor-pointer leading-none"
+                title={`"${g}" 블랙리스트 추가 + 모든 앨범에서 제거`}
+                aria-label={`"${g}" 태그 블랙리스트에 추가`}
+              >
+                ×
+              </button>
+            </>
           )}
         </span>
       ))}

@@ -1270,14 +1270,17 @@ router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
 // ─── PATCH /api/albums/:id/tags — admin replace genre tag list ──────────
 //
 // Diffs the new tag list against what's currently saved. Anything
-// that disappeared in the diff lands on the tag_blacklist (idempotent
-// via UNIQUE on lower-cased tag) AND is stripped from every other
-// album that currently has it, so a single click on × does the work
-// of "remove from this album + never let this tag come back anywhere
-// else." The user's mental model in the UI is "delete = blacklist
-// permanently." Add-back via re-typing the same tag manually still
-// works — the blacklist filters auto-import via cleanGenres but the
-// PATCH endpoint trusts whatever admin sends.
+// that disappeared in the diff is, by default, both blacklisted (via
+// tag_blacklist, idempotent on lower-cased tag) and stripped from
+// every other album currently carrying it — the curator's "this tag
+// is globally bad" stamp.
+//
+// `removeOnly` (optional string[]) carves out the second case: tags
+// the admin wants gone from THIS album because they don't fit, but
+// shouldn't be banned globally. Listed tags get the album-level
+// removal but skip the blacklist + cross-album strip. The two paths
+// have separate UI affordances (− and × respectively in TagEditor),
+// since the admin's intent differs between "wrong fit" and "bad tag".
 
 router.patch('/:id/tags', requireAdmin, (req, res) => {
   const resolved = resolveAlbumId(req.params.id as string);
@@ -1295,6 +1298,18 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
   if (!Array.isArray(raw)) {
     return res.status(400).json({ error: 'tags must be an array of strings' });
   }
+
+  // Tags listed here are removed from the album but skip the
+  // blacklist path. Lower-cased so the diff comparison below can
+  // match on a normalised key.
+  const removeOnlyRaw = (req.body ?? {}).removeOnly;
+  const removeOnly = new Set<string>(
+    Array.isArray(removeOnlyRaw)
+      ? removeOnlyRaw
+          .filter((t): t is string => typeof t === 'string')
+          .map((t) => t.toLowerCase())
+      : []
+  );
 
   const cleaned: string[] = [];
   const seen = new Set<string>();
@@ -1325,6 +1340,14 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
   const removedTags = previousTags.filter(
     (t) => !newKeys.has(t.toLowerCase())
   );
+  // Subset that should actually be blacklisted — drop anything the
+  // admin marked as remove-only ("doesn't fit this album, but the
+  // tag itself is fine"). The album-level removal still happens via
+  // the `cleaned` list above; only the global ban + cross-album
+  // strip is gated on this filter.
+  const tagsToBlacklist = removedTags.filter(
+    (t) => !removeOnly.has(t.toLowerCase())
+  );
 
   // Closure captures this so we can read the per-album strip total
   // out of the transaction for the response payload.
@@ -1333,13 +1356,13 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
     transaction((): void => {
       updateAlbumFields(mbid, { genres: JSON.stringify(cleaned) });
 
-      if (removedTags.length > 0) {
+      if (tagsToBlacklist.length > 0) {
         const adminId = (req.user as { id?: number } | undefined)?.id ?? null;
         const db = getDb();
         const insertBl = db.prepare(
           `INSERT OR IGNORE INTO tag_blacklist (tag, added_by_user_id) VALUES (?, ?)`
         );
-        for (const tag of removedTags) {
+        for (const tag of tagsToBlacklist) {
           insertBl.run(tag.toLowerCase(), adminId);
         }
 
@@ -1353,10 +1376,10 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
         // they don't have "rock" as a tag) which is fine — the JS
         // filter is the authoritative step.
         const removedLower = new Set(
-          removedTags.map((t) => t.toLowerCase())
+          tagsToBlacklist.map((t) => t.toLowerCase())
         );
-        const likeClauses = removedTags.map(() => `genres LIKE ?`).join(' OR ');
-        const likeParams = removedTags.map((t) => `%${t.replace(/[%_]/g, '')}%`);
+        const likeClauses = tagsToBlacklist.map(() => `genres LIKE ?`).join(' OR ');
+        const likeParams = tagsToBlacklist.map((t) => `%${t.replace(/[%_]/g, '')}%`);
         const candidates = queryAll(
           `SELECT mbid, genres FROM albums WHERE mbid != ? AND genres IS NOT NULL AND (${likeClauses})`,
           [mbid, ...likeParams]
@@ -1384,18 +1407,18 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
         }
         if (strippedAlbumCount > 0) {
           console.log(
-            `[tags] blacklisted ${removedTags.length} tag(s); stripped from ${strippedAlbumCount} other album(s)`
+            `[tags] blacklisted ${tagsToBlacklist.length} tag(s); stripped from ${strippedAlbumCount} other album(s)`
           );
         }
         strippedAlbumCountOut = strippedAlbumCount;
       }
     });
 
-    if (removedTags.length > 0) invalidateTagBlacklistCache();
+    if (tagsToBlacklist.length > 0) invalidateTagBlacklistCache();
     res.json({
       ok: true,
       tags: cleaned,
-      blacklisted: removedTags.map((t) => t.toLowerCase()),
+      blacklisted: tagsToBlacklist.map((t) => t.toLowerCase()),
       strippedAlbumCount: strippedAlbumCountOut,
     });
   } catch (error) {
