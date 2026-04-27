@@ -223,6 +223,35 @@ body {
   }
 }
 
+/* Scroll-hint chevron — sits at the bottom of the home hero on
+   desktop + mobile and bobs gently to suggest more content below.
+   Subtle on purpose; the site explicitly avoids algorithmic
+   guidance and an aggressive arrow would clash. Translation
+   stays small (4 px) so the motion reads as breathing rather
+   than waving. The animation runs on a single transform-only
+   element so it composites cheaply. */
+.scroll-hint {
+  animation: scrollHintBob 2.4s ease-in-out infinite;
+}
+
+@keyframes scrollHintBob {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translateY(4px);
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-hint {
+    animation: none;
+    opacity: 0.65;
+  }
+}
+
 /* Mobile iOS Safari auto-zooms when a text input has font-size < 16px;
    the zoom sticks around after focus, leaving the user pinched in and
    scrolling sideways to reach a Save button. Bumping every text-entry

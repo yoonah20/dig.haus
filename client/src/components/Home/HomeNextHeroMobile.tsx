@@ -279,6 +279,27 @@ export default function HomeNextHeroMobile() {
           })}
         </div>
       )}
+
+      {/* Scroll hint — handwritten ">>" rotated 90° so it points
+          down. Sits at the bottom of the hero so the user picks
+          up that the page continues past the LP wall. Dark ink
+          on the tan wallpaper matches the title's colour up top
+          so the two graffiti marks read as the same hand. */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 -translate-x-1/2 pointer-events-none select-none scroll-hint"
+        style={{
+          bottom: 6,
+          fontFamily: GRAFFITI_FONT_STACK,
+          fontSize: 22,
+          color: '#1a1208',
+          lineHeight: 1,
+        }}
+      >
+        <span style={{ display: 'inline-block', transform: 'rotate(90deg)' }}>
+          {'>>'}
+        </span>
+      </div>
     </div>
   );
 }
