@@ -357,15 +357,16 @@ export default function HomeNextHero() {
           transition into #0a0703 finishes cleanly inside the band
           rather than pushing colour past it. */}
 
-      {/* Admin chip pair — both 편집 and 보정 sit centred at the
-          hero's bottom edge and only fade in on hover. Group keeps
-          them paired visually so the two affordances read as a
-          single "admin tools" cluster rather than two separate
-          ornaments. Hidden while the editor or tuner panel is
-          open so the chips don't sit underneath their own popups. */}
+      {/* Admin chip pair — 편집 and 보정 anchored to the hero's top-
+          right corner. Top-right keeps the chips out of the wall LP
+          + title focal area but still inside the painted basement
+          band, so they read as a property of the hero rather than
+          floating page chrome. Fade in on hover only. Hidden while
+          the editor or tuner panel is open so the chips don't sit
+          underneath their own popups. */}
       {isAdmin && !editing && !tunerOpen && (
         <div
-          className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity"
+          className="absolute top-3 right-3 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity"
         >
           <button
             type="button"
@@ -422,11 +423,10 @@ export default function HomeNextHero() {
           picks up that the page continues past the painted
           basement strip. Lifted off the very edge to bottom 22
           so the chevron sits in the visible scene rather than
-          looking glued to the page chrome. Admin chip pair fades
-          in on hover at bottom-3 with z-30, painting above the
-          z-20 chevron in the rare admin-hover overlap. Hidden
-          while editing / tuner is open since the popups already
-          claim the page focus. */}
+          looking glued to the page chrome. Admin chip pair sits
+          in the top-right corner now (no overlap with the chevron).
+          Hidden while editing / tuner is open since the popups
+          already claim the page focus. */}
       {!editing && !tunerOpen && (
         <div
           aria-hidden
