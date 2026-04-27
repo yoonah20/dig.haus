@@ -56,6 +56,28 @@ export default function CrateButton({ albumId, crateCount }: Props) {
   // typing. Saves on Enter; Esc / blur collapses without commit.
   const [newCrateName, setNewCrateName] = useState<string | null>(null);
 
+  // Lightweight inline toast for add / remove confirmations. We don't
+  // wire up a global toast provider for this single surface — the
+  // chip is the only place a 담기 result needs surfacing. Auto-clears
+  // after ~1.6s, with the timeout id stashed on a ref so a repeat
+  // toggle resets the clock instead of stacking timers.
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  const showToast = (msg: string) => {
+    setToast(msg);
+    if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 1600);
+  };
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
+    },
+    []
+  );
+
   // Close on outside click. Pointerdown beats click for touch devices
   // where a tap on the chip would otherwise re-open immediately after
   // the outside handler closes.
@@ -84,10 +106,14 @@ export default function CrateButton({ albumId, crateCount }: Props) {
 
   const handleToggle = async (crateId: number) => {
     if (albumId == null) return;
+    const crate = myCrates.data?.crates.find((c) => c.id === crateId);
+    const title = crate?.title ?? '상자';
     if (inCrateIds.has(crateId)) {
       await remove.mutateAsync({ crateId, albumId });
+      showToast(`${title}에서 뺐어요`);
     } else {
       await add.mutateAsync({ crateId, albumId });
+      showToast(`${title}에 담았어요`);
     }
   };
 
@@ -102,12 +128,23 @@ export default function CrateButton({ albumId, crateCount }: Props) {
       const created = await create.mutateAsync({ title, isPublic: false });
       await add.mutateAsync({ crateId: created.id, albumId });
       setNewCrateName(null);
+      showToast(`${title}에 담았어요`);
     } catch (err: any) {
       alert(err?.response?.data?.error || '상자 만들기 실패');
     }
   };
 
   const isInAnyCrate = inCrateIds.size > 0;
+
+  // Count surfaced inside the chip:
+  //   - In any of the caller's own crates → ✓ N (personal count). The
+  //     personal "where I have it" stat is what owners actually want
+  //     to see at a glance — "did I save it, and how many times?"
+  //   - Otherwise, fall back to the public crateCount when > 0 so the
+  //     social signal ("N people have this") still shows.
+  //   - When nothing applies the chip just reads "📦 담기".
+  const chipCount = isInAnyCrate ? inCrateIds.size : crateCount;
+  const chipCountPrefix = isInAnyCrate ? '✓ ' : '';
 
   return (
     <div ref={containerRef} className="relative inline-block">
@@ -124,12 +161,26 @@ export default function CrateButton({ albumId, crateCount }: Props) {
       >
         <span style={{ fontSize: 13, lineHeight: 1 }}>📦</span>
         <span>담기</span>
-        {crateCount > 0 && (
+        {chipCount > 0 && (
           <span className="tabular-nums opacity-80">
-            {crateCount.toLocaleString()}
+            {chipCountPrefix}
+            {chipCount.toLocaleString()}
           </span>
         )}
       </button>
+
+      {/* Inline toast — sits just below the chip, fades out after a
+          beat. Pointer-events-none so it can't accidentally swallow
+          clicks meant for the chip mid-fade. */}
+      {toast && (
+        <div
+          className="absolute z-40 left-0 top-full mt-2 px-3 py-1.5 rounded-md text-[12px] text-[#141008] bg-[#e8a020] shadow-[0_4px_12px_rgba(0,0,0,0.45)] pointer-events-none whitespace-nowrap animate-[fadeInUp_220ms_ease-out]"
+          role="status"
+          aria-live="polite"
+        >
+          {toast}
+        </div>
+      )}
 
       {open && (
         <div
