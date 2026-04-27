@@ -5,8 +5,9 @@
 // Previously had an admin-only [등록 요청작] entry that swapped the grid
 // data source to pending album requests; moved to the admin dashboard
 // where it's a proper per-section surface rather than a sort-dropdown
-// hack. SortOption.adminOnly kept as a shape concept for any future
-// admin-scoped sorts, but no options currently use it.
+// hack. The current admin-only "리뷰 없음" entry is a work-queue surface
+// (uncrawled albums, registration newest first) so the curator can dig
+// into the scrape backlog without leaving /dig.
 
 export interface SortOption {
   value: string;
@@ -24,6 +25,10 @@ export const SORT_OPTIONS: readonly SortOption[] = [
   { value: 'downvotes_desc', label: '별루 많은순' },
   { value: 'user_review_count_desc', label: '코멘트 많은순' },
   { value: 'random', label: '랜덤 순서로' },
+  // Admin-only work queue: albums whose review pipeline has never run
+  // (reviews_crawled_at IS NULL), ordered by registration newest first.
+  // Hidden from non-admins via the visibleOptions filter in DigPage.
+  { value: 'no_reviews', label: '리뷰 없음', adminOnly: true },
 ] as const;
 
 export type SortValue = (typeof SORT_OPTIONS)[number]['value'];

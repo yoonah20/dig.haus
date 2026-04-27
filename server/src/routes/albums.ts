@@ -585,6 +585,10 @@ const SORT_CLAUSES: Record<string, string> = {
   user_review_count_desc: `user_review_count DESC, a.id DESC`,
   upvotes_desc:      `upvotes DESC, a.id DESC`,
   downvotes_desc:    `downvotes DESC, a.id DESC`,
+  // Admin-only "리뷰 없음" sort — registered newest first within the
+  // uncrawled subset. The WHERE filter that narrows to that subset
+  // lives in the request handler, paired with this ORDER BY.
+  no_reviews:        `a.id DESC`,
 };
 
 const ALBUM_ROW_SELECT = `
@@ -653,18 +657,28 @@ router.get('/', async (req, res) => {
     // review_count column because SQLite doesn't let us reference
     // aliased SELECT columns in WHERE.
     const isScoreSort = sortKey === 'score_desc' || sortKey === 'score_asc';
-    const scoreSortFilterSql = isScoreSort
-      ? `WHERE (SELECT COUNT(*) FROM reviews r
-               WHERE r.album_mbid = a.mbid
-                 AND COALESCE(r.manual_score, r.score) IS NOT NULL
-                 AND r.score_max > 0) >= 3`
-      : '';
+    // Admin-only work queue: albums where the review pipeline has
+    // never been triggered. reviews_crawled_at is the canonical
+    // signal — backfilled to NOT NULL on legacy rows; stays NULL on
+    // every new registration until admin runs the scrape. Ordering
+    // falls back to registered_desc inside SORT_CLAUSES below.
+    const isNoReviewsSort = sortKey === 'no_reviews';
+    let filterSql = '';
+    if (isScoreSort) {
+      filterSql = `WHERE (SELECT COUNT(*) FROM reviews r
+                          WHERE r.album_mbid = a.mbid
+                            AND COALESCE(r.manual_score, r.score) IS NOT NULL
+                            AND r.score_max > 0) >= 3`;
+    } else if (isNoReviewsSort) {
+      filterSql = `WHERE a.reviews_crawled_at IS NULL`;
+    }
 
-    const total = isScoreSort
-      ? (queryGet(
-          `SELECT COUNT(*) AS c FROM albums a ${scoreSortFilterSql}`
-        )?.c as number) || 0
-      : (queryGet('SELECT COUNT(*) AS c FROM albums')?.c as number) || 0;
+    const total =
+      isScoreSort || isNoReviewsSort
+        ? (queryGet(
+            `SELECT COUNT(*) AS c FROM albums a ${filterSql}`
+          )?.c as number) || 0
+        : (queryGet('SELECT COUNT(*) AS c FROM albums')?.c as number) || 0;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     let albums: any[];
@@ -701,7 +715,7 @@ router.get('/', async (req, res) => {
     } else {
       albums = queryAll(
         `${ALBUM_ROW_SELECT}
-         ${scoreSortFilterSql}
+         ${filterSql}
          ORDER BY ${orderBy}
          LIMIT ? OFFSET ?`,
         [pageSize, offset]
@@ -911,17 +925,23 @@ router.get('/neighbors', (req, res) => {
 
     const orderByClause = SORT_CLAUSES[sortKey] || SORT_CLAUSES.release_date_desc;
 
-    // Mirror the home-list score-sort filter (>= 3 scored reviews) so
-    // prev/next navigation doesn't jump to albums that wouldn't even
-    // appear in the filtered grid. Non-score sorts keep the full list.
+    // Mirror the home-list filters so prev/next navigation doesn't
+    // jump to albums that wouldn't appear in the filtered grid:
+    //   - score_*: at least 3 scored reviews
+    //   - no_reviews: reviews_crawled_at IS NULL (admin work queue)
+    // Other sorts keep the full list.
     const isScoreSortNeighbor =
       sortKey === 'score_desc' || sortKey === 'score_asc';
-    const neighborFilterSql = isScoreSortNeighbor
-      ? `WHERE (SELECT COUNT(*) FROM reviews r
+    const isNoReviewsNeighbor = sortKey === 'no_reviews';
+    let neighborFilterSql = '';
+    if (isScoreSortNeighbor) {
+      neighborFilterSql = `WHERE (SELECT COUNT(*) FROM reviews r
                WHERE r.album_mbid = a.mbid
                  AND COALESCE(r.manual_score, r.score) IS NOT NULL
-                 AND r.score_max > 0) >= 3`
-      : '';
+                 AND r.score_max > 0) >= 3`;
+    } else if (isNoReviewsNeighbor) {
+      neighborFilterSql = `WHERE a.reviews_crawled_at IS NULL`;
+    }
 
     // Strategy: get the full sorted list of (id, slug, mbid, title, artist, cover)
     // and find our position. For a DB of ~thousands this is fast enough.
