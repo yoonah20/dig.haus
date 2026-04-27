@@ -1647,7 +1647,23 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       // commentary about missing review content, not review content.
       /평가적\s*(?:문장|표현|내용|서술)[은는이가]?\s*(?:포함되[^가-힣]*않|없|찾을 수 없|부재)/,
       /(?:명시적인?|구체적인?|직접적인?)\s*(?:리뷰\s*텍스트|평가\s*문장|평가적\s*문장|리뷰\s*내용)/,
-      /(?:리뷰|평론)\s*(?:텍스트|내용|본문)[은는이가]?\s*(?:포함되[^가-힣]*않|없)/,
+      // The 포함되 → 않 gap may carry auxiliary verbs ("포함되어 있지
+      // 않다", "포함되지 않는다") so we can't constrain to non-Hangul
+      // chars between them; bound it to the same sentence (no period)
+      // and a reasonable distance instead.
+      /(?:리뷰|평론)\s*(?:텍스트|내용|본문)[은는이가]?\s*포함[되하][^.]{0,15}않/,
+      /(?:리뷰|평론)\s*(?:텍스트|내용|본문)[은는이가]?\s*없/,
+      // "리뷰가 [올라오지 / 게재되지 / 등록되지 / 작성되지 / 실리지]
+      // 않[다/았다]" — the page exists but has no review yet. Common
+      // phrasing on retail-site listings before a release lands.
+      /리뷰가?\s*(?:올라오|게재되|등록되|작성되|실리)[^.]{0,15}않/,
+      // "평가[를/가] [포함하지 / 담고 있지 / 싣지 / 제공하지] 않[다]" —
+      // LLM describing the source as evaluation-free instead of
+      // returning the {error} key.
+      /평가[을를는이가]?\s*(?:포함하지|담고\s*있지|싣지|제공하지|적지)[^.]{0,15}않/,
+      // "[발표 / 발매 / 보도 / 공연] 소식만 [전한다 / 알린다 / 다룬다]" —
+      // page is an announcement, not a review.
+      /(?:발표|발매|보도|공연|투어)\s*소식만\s*(?:전|알리|다루|기록|싣|올리)/,
       /앨범\s*세부\s*정보[을를은는이가]?\s*제공/,
       /트랙리스트[\s\S]{0,50}(?:발매\s*정보|세부\s*정보|메타데이터)/,
       /(?:page|article)\s+(?:provides|offers|shows)\s+(?:only\s+)?(?:tracklist|metadata|release\s+info)/i,
