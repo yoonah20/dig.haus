@@ -114,7 +114,7 @@ function getTagBlacklist(): Set<string> {
   _tagBlacklistCacheAt = now;
   return _tagBlacklistCache;
 }
-function invalidateTagBlacklistCache(): void {
+export function invalidateTagBlacklistCache(): void {
   _tagBlacklistCache = null;
   _tagBlacklistCacheAt = 0;
 }

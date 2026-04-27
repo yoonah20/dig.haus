@@ -12,6 +12,7 @@ import {
 } from '../services/claudeBudget.js';
 import { describeOperationRoutes } from '../services/llmRouter.js';
 import { bustSourceListCaches } from '../services/reviews.js';
+import { invalidateTagBlacklistCache } from './albums.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1051,6 +1052,48 @@ router.delete('/sources/blacklist/:host', requireAdmin, (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('[sources/blacklist] delete failed:', err);
+    res.status(500).json({ error: '삭제 실패' });
+  }
+});
+
+// ─── Tag blacklist (genre tags banned from auto-import) ────────────────
+//
+// Different table from source_blacklist (URL hosts) — these are genre
+// strings the curator has stamped as "never re-add". Populated implicitly
+// by the × button in TagEditor (PATCH /albums/:id/tags). Listed here
+// most-recent-first so the curator can find the entry they just added
+// by mistake at the top of the panel; DELETE removes the row and busts
+// the in-memory cleanGenres filter cache so subsequent imports stop
+// stripping the tag. Does NOT auto-restore the tag on albums it was
+// stripped from — the cross-album strip is irreversible without an
+// audit trail (admin must manually re-add via TagEditor input).
+router.get('/tag-blacklist', requireAdmin, (_req, res) => {
+  try {
+    const rows = queryAll(
+      `SELECT tb.tag, tb.created_at AS addedAt, u.email AS addedByEmail
+       FROM tag_blacklist tb
+       LEFT JOIN users u ON u.id = tb.added_by_user_id
+       ORDER BY tb.created_at DESC`
+    ) as Array<{ tag: string; addedAt: string; addedByEmail: string | null }>;
+    res.json({ tags: rows });
+  } catch (err) {
+    console.error('[tag-blacklist] query failed:', err);
+    res.status(500).json({ error: 'failed to fetch tag blacklist' });
+  }
+});
+
+router.delete('/tag-blacklist/:tag', requireAdmin, (req, res) => {
+  const tag = String(req.params.tag || '').trim();
+  if (!tag) return res.status(400).json({ error: 'tag required' });
+  try {
+    // tag column is COLLATE NOCASE so the match here is case-
+    // insensitive, mirroring how the blacklist filter check reads.
+    const result = execute(`DELETE FROM tag_blacklist WHERE tag = ?`, [tag]);
+    invalidateTagBlacklistCache();
+    if (result.changes === 0) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[tag-blacklist] delete failed:', err);
     res.status(500).json({ error: '삭제 실패' });
   }
 });

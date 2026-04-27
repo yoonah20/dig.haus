@@ -1034,6 +1034,17 @@ export default function Admin() {
             <SourcesPanel />
           </section>
 
+          {/* Tag blacklist — genre strings the curator stamped as
+              "never re-add" via the × button in TagEditor. Sits next
+              to the source trust panel because both are curated
+              "things admin pruned" lists, but operates on a different
+              axis (tag strings vs. URL hosts). Most-recent-first so
+              an accidental × click is easy to undo from the top of
+              the list. */}
+          <section className="mt-4">
+            <TagBlacklistPanel />
+          </section>
+
           {/* Scrape-failure log — surfaces hostnames that consistently
               fail URL scraping, so we can decide which need a
               site-specific parser vs. staying on the paste-in
@@ -1412,6 +1423,84 @@ function SourcesPanel() {
             isBusy={addBlacklist.isPending || removeBlacklist.isPending}
             accent="red"
           />
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+// ─── Tag blacklist panel ───────────────────────────────────────────────
+//
+// Genre strings auto-banned from re-import. Populated implicitly when
+// admin × a tag in TagEditor on an album page. Listed most-recent-first
+// so an accidental click is easy to spot at the top and undo with one
+// more click. Removing an entry deletes the row + invalidates the
+// in-memory cleanGenres filter cache, so the next album fetch can
+// re-import the tag freely. Does NOT auto-restore the tag to the
+// albums it was previously stripped from — that history isn't kept,
+// so admin re-adds via the TagEditor input on the relevant album.
+
+interface TagBlacklistEntry {
+  tag: string;
+  addedAt: string;
+  addedByEmail: string | null;
+}
+
+function TagBlacklistPanel() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useQuery<{ tags: TagBlacklistEntry[] }>({
+    queryKey: ['admin-tag-blacklist'],
+    queryFn: async () => (await axios.get('/api/admin/tag-blacklist')).data,
+    staleTime: 30_000,
+  });
+
+  const remove = useMutation({
+    mutationFn: async (tag: string) => {
+      await axios.delete(`/api/admin/tag-blacklist/${encodeURIComponent(tag)}`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-tag-blacklist'] }),
+  });
+
+  const tags = data?.tags ?? [];
+
+  return (
+    <Panel title="태그 블랙리스트" icon="🏷️" count={tags.length}>
+      {isLoading ? (
+        <EmptyRow>로딩 중...</EmptyRow>
+      ) : isError ? (
+        <EmptyRow>불러오지 못했습니다.</EmptyRow>
+      ) : tags.length === 0 ? (
+        <EmptyRow>비어 있음</EmptyRow>
+      ) : (
+        <div className="divide-y divide-white/5">
+          {tags.map((t) => (
+            <div
+              key={t.tag}
+              className="px-4 py-2.5 flex items-center gap-3"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-sm text-white truncate" title={t.tag}>
+                  {t.tag}
+                </div>
+                <div
+                  className="text-[10px] text-gray-500 mt-0.5"
+                  title={t.addedAt}
+                >
+                  {formatRelativeKo(t.addedAt)}
+                  {t.addedByEmail && ` · ${t.addedByEmail}`}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove.mutate(t.tag)}
+                disabled={remove.isPending}
+                className="text-[11px] text-gray-400 hover:text-red-300 border border-white/10 hover:border-red-400/60 rounded px-2 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
+                title={`"${t.tag}" 블랙리스트에서 제거 (앨범에 다시 등장 가능)`}
+              >
+                해제
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </Panel>
