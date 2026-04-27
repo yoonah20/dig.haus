@@ -840,7 +840,12 @@ router.put('/mydig/vinyl-wall/snapshots/:id/items', requireAuth, (req, res) => {
   }
 });
 
-// DELETE /api/mydig/vinyl-wall/snapshots/:id — owner-only.
+// DELETE /api/mydig/vinyl-wall/snapshots/:id — owner OR admin.
+// Admins can prune other users' snapshots (e.g. abandoned / off-
+// topic public ones surfacing in the home feed) without owning
+// the wall. Other snapshot mutations (rename, items replace,
+// visibility toggle) stay owner-only — admin moderation is delete
+// only for now.
 router.delete('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
   const me = req.user as AppUser;
   const id = parseInt(String(req.params.id), 10);
@@ -852,7 +857,7 @@ router.delete('/mydig/vinyl-wall/snapshots/:id', requireAuth, (req, res) => {
     [id]
   );
   if (!existing) return res.status(404).json({ error: '스냅샷을 찾을 수 없어요.' });
-  if (existing.user_id !== me.id) {
+  if (existing.user_id !== me.id && !me.is_admin) {
     return res.status(403).json({ error: '권한이 없어요.' });
   }
   try {

@@ -22,6 +22,7 @@ import ShareButton from '../components/MyDig/ShareButton';
 import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
 import { useUserPublic } from '../hooks/useMe';
+import { useAuth } from '../contexts/AuthContext';
 import { extractSpotifyAlbumId, useNowPlaying } from '../hooks/useNowPlaying';
 import PlayChip from '../components/PlayChip';
 import {
@@ -479,6 +480,13 @@ function ProfileHeader({
   // resolved yet see no follow chip until the wall data lands.
   const publicData = useUserPublic(userId, !!userId);
   const viewerIsFollowing = !!publicData.data?.followingByViewer;
+  // Admins can delete other users' snapshots — useful for pruning
+  // off-topic public snapshots that surface in the home 기억 feed.
+  // Other snapshot mutations (rename, items, visibility) stay
+  // owner-only on both server and client.
+  const { user: viewer } = useAuth();
+  const viewerIsAdmin = !!viewer?.isAdmin;
+  const canDeleteSnapshot = isOwner || viewerIsAdmin;
   // Non-owner viewers get "팔로우 · 공유"; owner viewers get the
   // edit/snapshot controls instead. Follower/following count chips
   // are gone (they disappeared against the painted-wall backdrop),
@@ -510,19 +518,20 @@ function ProfileHeader({
             <span className="hidden md:inline">📸 </span>기억<span className="hidden md:inline"> 남기기</span>
           </button>
         )}
-        {isOwner && mode === 'snapshot' && (
+        {canDeleteSnapshot && mode === 'snapshot' && (
           <button
             type="button"
             onClick={onDeleteSnapshot}
             disabled={deleteSnapshotPending}
             className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="스냅샷 삭제"
+            title={isOwner ? '스냅샷 삭제' : '스냅샷 삭제 (관리자)'}
           >
             {deleteSnapshotPending ? (
               '삭제 중…'
             ) : (
               <>
                 <span className="hidden md:inline">🗑 </span>삭제
+                {!isOwner && <span className="hidden md:inline"> (관리자)</span>}
               </>
             )}
           </button>
