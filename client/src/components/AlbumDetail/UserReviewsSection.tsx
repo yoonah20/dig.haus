@@ -121,9 +121,7 @@ function SpeechBubble({
               <span aria-hidden>👎</span> {review.userDownvoteCount}
             </span>
             {upPct != null && (
-              <span className="text-gray-400" title="이 사용자의 굿굿 비율">
-                {upPct}%
-              </span>
+              <span className="text-gray-400">(굿굿 {upPct}%)</span>
             )}
           </span>
         )}
