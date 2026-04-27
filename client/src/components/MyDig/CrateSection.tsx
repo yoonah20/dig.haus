@@ -58,7 +58,7 @@ export default function CrateSection({ username, isOwner }: Props) {
         </span>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-2.5">
         {list.map((c) => (
           <button
             key={c.id}
@@ -89,24 +89,24 @@ export default function CrateSection({ username, isOwner }: Props) {
                   })}
                 </div>
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-3xl text-gray-700">
+                <div className="w-full h-full flex items-center justify-center text-xl text-gray-700">
                   📦
                 </div>
               )}
               {!c.isPublic && (
                 <span
-                  className="absolute top-1.5 right-1.5 text-[11px] bg-black/70 text-gray-300 px-1.5 py-0.5 rounded-sm"
+                  className="absolute top-1 right-1 text-[9px] bg-black/70 text-gray-300 px-1 py-0.5 rounded-sm"
                   title="비공개"
                 >
                   🔒
                 </span>
               )}
             </div>
-            <div className="mt-2 flex items-baseline gap-1.5">
-              <span className="text-sm text-gray-200 truncate group-hover:text-[#e8a020] transition-colors">
+            <div className="mt-1.5 flex items-baseline gap-1">
+              <span className="text-[12px] text-gray-200 truncate group-hover:text-[#e8a020] transition-colors">
                 {c.title}
               </span>
-              <span className="text-[12px] text-gray-500 tabular-nums">
+              <span className="text-[10px] text-gray-500 tabular-nums">
                 {c.itemCount}
               </span>
             </div>
@@ -114,8 +114,8 @@ export default function CrateSection({ username, isOwner }: Props) {
         ))}
 
         {isOwner && composing && (
-          <div className="flex flex-col gap-2">
-            <div className="aspect-square rounded-md border-2 border-dashed border-[#e8a020]/40 flex items-center justify-center bg-[#0a0703]">
+          <div className="flex flex-col gap-1">
+            <div className="aspect-square rounded-md border-2 border-dashed border-[#e8a020]/40 flex items-center justify-center bg-[#0a0703] px-2">
               <input
                 type="text"
                 autoFocus
@@ -137,12 +137,12 @@ export default function CrateSection({ username, isOwner }: Props) {
                   }
                 }}
                 maxLength={60}
-                placeholder="상자 이름"
-                className="w-full mx-3 bg-transparent border-b border-[#e8a020]/40 px-1 py-1 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 text-center"
+                placeholder="이름"
+                className="w-full bg-transparent border-b border-[#e8a020]/40 px-0.5 py-0.5 text-[12px] text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 text-center"
               />
             </div>
-            <div className="text-[12px] text-gray-500 text-center">
-              Enter로 만들기
+            <div className="text-[10px] text-gray-500 text-center">
+              Enter
             </div>
           </div>
         )}
@@ -151,10 +151,10 @@ export default function CrateSection({ username, isOwner }: Props) {
           <button
             type="button"
             onClick={() => setComposing(true)}
-            className="aspect-square rounded-md border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 hover:bg-[#e8a020]/5 transition-colors flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-[#e8a020] cursor-pointer"
+            className="aspect-square rounded-md border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 hover:bg-[#e8a020]/5 transition-colors flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-[#e8a020] cursor-pointer"
           >
-            <span className="text-3xl">＋</span>
-            <span className="text-sm">새 상자</span>
+            <span className="text-xl">＋</span>
+            <span className="text-[11px]">새 상자</span>
           </button>
         )}
       </div>
