@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../../lib/axios';
 import type { SimilarAlbum } from '../../types';
@@ -241,11 +241,19 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
     );
   }
 
+  // In-DB picks deep-link to the local album page via React Router so
+  // navigation stays SPA-internal (no full reload, query cache
+  // preserved). Out-of-DB picks fall back to Discogs as before — open
+  // in a new tab so the source album page stays put. The wrapper
+  // element changes accordingly; the inner card markup is identical
+  // either way.
+  const inAppLink = !!(album.inDb && album.mbid);
   const discogsHref = album.discogsUrl
     || `https://www.discogs.com/search/?q=${encodeURIComponent(`${album.artist} ${album.title}`)}&type=master`;
+  const wrapperClassName = 'relative block group/card h-full';
 
-  return (
-    <a href={discogsHref} target="_blank" rel="noopener noreferrer" className="relative block group/card h-full">
+  const cardInner = (
+    <>
       <div className="h-full flex flex-col bg-panel rounded-panel overflow-hidden hover:bg-panel-hover transition-colors group">
         <div className="relative aspect-square bg-[#111] overflow-hidden">
           {album.imageUrl ? (
@@ -324,6 +332,21 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
           </CardOverlayButton>
         </div>
       )}
+    </>
+  );
+
+  return inAppLink ? (
+    <Link to={`/album/${album.mbid}`} className={wrapperClassName}>
+      {cardInner}
+    </Link>
+  ) : (
+    <a
+      href={discogsHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={wrapperClassName}
+    >
+      {cardInner}
     </a>
   );
 }

@@ -1840,7 +1840,30 @@ router.get('/:id/similar', async (req, res) => {
       }
     }
 
-    res.json({ similarAlbums });
+    // Annotate each pick with whether the mbid resolves to a row in
+    // the local albums table — the client uses this flag to route
+    // card clicks: in-DB picks navigate to /album/:mbid via SPA
+    // link, out-of-DB picks fall through to the Discogs URL. Stored
+    // blob doesn't carry inDb (registrations happen after picks
+    // were generated), so we compute it fresh on every request.
+    const mbidsToCheck = similarAlbums
+      .map((a) => a.mbid)
+      .filter((m: unknown): m is string => typeof m === 'string' && m.length > 0);
+    const existingMbids = new Set<string>();
+    if (mbidsToCheck.length > 0) {
+      const placeholders = mbidsToCheck.map(() => '?').join(',');
+      const rows = queryAll(
+        `SELECT mbid FROM albums WHERE mbid IN (${placeholders})`,
+        mbidsToCheck
+      ) as Array<{ mbid: string }>;
+      for (const r of rows) existingMbids.add(r.mbid);
+    }
+    const annotated = similarAlbums.map((a) => ({
+      ...a,
+      inDb: typeof a.mbid === 'string' && existingMbids.has(a.mbid),
+    }));
+
+    res.json({ similarAlbums: annotated });
   } catch (error) {
     console.error('Similar endpoint error:', error);
     res.status(500).json({ error: 'Failed to fetch similar albums' });

@@ -160,6 +160,10 @@ export interface SimilarAlbum {
   spotifyUrl: string | null;
   youtubeUrl: string | null;
   bandcampUrl: string | null;
+  // Set by GET /api/albums/:id/similar — true when mbid resolves to
+  // a row in the local albums table. Card click routes to the in-app
+  // album page instead of Discogs when this is true.
+  inDb?: boolean;
 }
 
 export interface LabelInfo {
