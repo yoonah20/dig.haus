@@ -175,18 +175,27 @@ function buildTree(input: ToasterInput): unknown {
       : `${input.username}'s wall`;
 
   const rowChildren = rows.map((rowSlots, rowIdx) => {
-    // Per-row caption gap. When the row's captions all fit on a
-    // single line, the column reads as a tight 3-line text block
-    // (gap: 0, lineHeight handles spacing). The moment any caption
-    // in the row stacks onto two lines, switch to a 12px gap so the
-    // 1-line entries don't visually merge with the 2-line one's
-    // artist+title pair — that ambiguity made it hard to tell where
-    // one caption ended and the next began.
+    // Per-pair spacing. A 2-line caption (artist + title stacked)
+    // needs breathing room from its neighbours so the artist/title
+    // pair doesn't visually merge with adjacent captions; a run of
+    // 1-line captions reads better tight (single text block, line-
+    // height carries the rhythm). Pairwise rule: insert space
+    // between captions i-1 and i only if EITHER is 2-line. That
+    // keeps a 2L-1L-1L row spaced after the 2L but tight between
+    // the trailing 1L pair, while a 1L-2L-1L row gets space on
+    // both sides of the middle. CSS flex `gap` is uniform across
+    // children so we can't express this with a single property —
+    // applied as per-caption marginTop in the map below instead.
     const rowCaptionLines = rowSlots.map(captionLines);
-    const anyMultiLine = rowCaptionLines.some(
-      (c) => c != null && !('single' in c)
-    );
-    const captionColumnGap = anyMultiLine ? 12 : 0;
+    const isMultiLine = (c: ReturnType<typeof captionLines>): boolean =>
+      c != null && !('single' in c);
+    const captionMarginTop = (i: number): number => {
+      if (i === 0) return 0;
+      return isMultiLine(rowCaptionLines[i]) ||
+        isMultiLine(rowCaptionLines[i - 1])
+        ? 12
+        : 0;
+    };
     return {
     type: 'div',
     key: `row-${rowIdx}`,
@@ -256,12 +265,11 @@ function buildTree(input: ToasterInput): unknown {
               fontSize: 15,
               lineHeight: 1.3,
               color: '#d8d8d8',
-              // Gap is driven by the row-level captionColumnGap above:
-              // 0 when all 3 captions in the row fit one line (tight
-              // text-document column), 12 when any caption stacks
-              // onto two lines (so the 2-line pair doesn't merge
-              // visually with neighbouring 1-line captions).
-              gap: captionColumnGap,
+              // Spacing between captions is per-pair (see
+              // captionMarginTop above), applied as marginTop on
+              // each caption rather than a uniform flex `gap` so a
+              // 2L-1L-1L row can space after the 2L while keeping
+              // the trailing 1L pair tight.
               minWidth: 0,
             },
             children: rowSlots.map((s, i) => {
@@ -299,6 +307,7 @@ function buildTree(input: ToasterInput): unknown {
                     display: 'flex',
                     flexDirection: 'column',
                     wordBreak: 'break-word',
+                    marginTop: captionMarginTop(i),
                   },
                   children: captionChildren,
                 },
