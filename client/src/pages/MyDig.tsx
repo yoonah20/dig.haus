@@ -412,7 +412,12 @@ export default function MyDig() {
               )}
             </div>
 
-            {username && (
+            {/* Crate is a live-state surface — the user's working
+                shelves change over time, and showing them under a
+                snapshot URL would mix today's contents with a
+                frozen wall capture. Snapshots stay wall-only so a
+                shared `/my/:u/snap/:s` link reads as one moment. */}
+            {username && !isSnapshotMode && (
               <CrateSection
                 username={username}
                 isOwner={!!data.user.isOwner}
