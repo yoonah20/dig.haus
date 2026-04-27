@@ -1098,6 +1098,47 @@ router.delete('/tag-blacklist/:tag', requireAdmin, (req, res) => {
   }
 });
 
+// ─── Tag usage count ────────────────────────────────────────────────────
+//
+// Pre-flight count for the × (blacklist) button in TagEditor — surfaces
+// the blast radius of a blacklist add before the click commits, so the
+// curator sees "이 태그는 47개 앨범에 있다" in the confirm popup
+// instead of having to discover it by undo. Mirrors the cross-album
+// strip path's substring-then-JS-filter approach (no first-class JSON
+// array operator in SQLite); the LIKE narrows candidates and the JS
+// loop is the authoritative case-insensitive equality check.
+router.get('/tags/usage/:tag', requireAdmin, (req, res) => {
+  const tag = String(req.params.tag || '').trim();
+  if (!tag) return res.status(400).json({ error: 'tag required' });
+  try {
+    const tagLower = tag.toLowerCase();
+    const candidates = queryAll(
+      `SELECT genres FROM albums WHERE genres IS NOT NULL AND genres LIKE ?`,
+      [`%${tag.replace(/[%_]/g, '')}%`]
+    ) as Array<{ genres: string }>;
+    let count = 0;
+    for (const c of candidates) {
+      try {
+        const arr = JSON.parse(c.genres);
+        if (
+          Array.isArray(arr) &&
+          arr.some(
+            (t) => typeof t === 'string' && t.toLowerCase() === tagLower
+          )
+        ) {
+          count++;
+        }
+      } catch {
+        // malformed genres JSON — ignore row
+      }
+    }
+    res.json({ tag, albumCount: count });
+  } catch (err) {
+    console.error('[tags/usage] query failed:', err);
+    res.status(500).json({ error: 'failed to count tag usage' });
+  }
+});
+
 // ─── POST /api/admin/curation-runs ────────────────────────────────────
 // Client (CurationProgressContext) pings this once per album as the
 // pipeline finishes — one row per album per run. Cost_usd is computed

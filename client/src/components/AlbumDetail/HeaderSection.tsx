@@ -120,14 +120,37 @@ function TagEditor({
   //   − (album-only): tag doesn't fit this album, but the tag itself
   //     is still valid elsewhere. Listed in removeOnly so the server
   //     skips the blacklist + cross-album strip.
-  //   × (blacklist): tag is globally bad. Default behaviour (empty
-  //     removeOnly), server diffs and bans it everywhere.
+  //   × (blacklist): tag is globally bad. Server diffs and bans it
+  //     everywhere — destructive, so a confirm popup gates it. The
+  //     count of currently-tagged albums prefetches into the popup
+  //     copy so the curator sees blast radius before committing
+  //     (an accidental click on "black metal" reads "47개 앨범에서
+  //     제거됩니다" and gets bailed out instead of swallowed silently).
   const removeTagFromAlbum = (tag: string) => {
     if (saving) return;
     void persist(tags.filter((t) => t !== tag), [tag]);
   };
-  const removeTagAndBlacklist = (tag: string) => {
+  const removeTagAndBlacklist = async (tag: string) => {
     if (saving) return;
+    let countLine = '';
+    try {
+      const { data } = await axios.get<{ albumCount: number }>(
+        `/api/admin/tags/usage/${encodeURIComponent(tag)}`
+      );
+      const n = data?.albumCount ?? 0;
+      if (n > 0) {
+        countLine = `\n\n현재 ${n}개 앨범에 등록돼 있고, 모두에서 제거됩니다.`;
+      }
+    } catch {
+      // Count fetch is best-effort; the confirm still fires without it.
+    }
+    const ok = window.confirm(
+      `"${tag}" 태그를 블랙리스트에 추가합니다.${countLine}\n\n` +
+        `• 향후 자동 import에서 차단\n` +
+        `• 되돌릴 경우 앨범별로 수동 재등록 필요\n\n` +
+        `계속할까요?`
+    );
+    if (!ok) return;
     void persist(tags.filter((t) => t !== tag));
   };
 
