@@ -14,7 +14,7 @@ import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
-// basement5.avif: 2976×1500 wall-only strip (concrete-textured
+// basement_gray.avif: 2976×1500 wall-only strip (concrete-textured
 // wall with two baked-in wood shelves and a small dig.haus neon
 // in the top-right). The asset arrives pre-trimmed at the band
 // aspect we want, so we render it at its natural ratio without
@@ -32,7 +32,7 @@ const SCENE_H = 1500;
 // readable on narrow desktop windows / tablets.
 const MIN_W = 1024;
 
-// Top + bottom trim, in rendered px. basement5 was authored at
+// Top + bottom trim, in rendered px. The backdrop is authored at
 // the band aspect we want, so no further CSS cropping — set to
 // 0 to render the full image. Constants kept around in case a
 // future asset wants the trim back.
@@ -268,7 +268,7 @@ export default function HomeNextHero() {
           }}
         >
           <img
-            src="/backdrops/basement5.avif"
+            src="/backdrops/basement_gray.avif"
             alt=""
             aria-hidden
             className="absolute inset-0 w-full h-full pointer-events-none select-none"

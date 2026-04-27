@@ -56,7 +56,7 @@ export interface HomeMeta {
   plasticBlendMode: string;
   // Hero LP / title tuner — moved off per-admin localStorage so
   // saving from the in-page tuner publishes globally. All values
-  // live in source-image px (the basement5 coord space).
+  // live in source-image px (the 2976×1500 backdrop coord space).
   lpSize: number;
   lpGap: number;
   upperLpXStart: number;
