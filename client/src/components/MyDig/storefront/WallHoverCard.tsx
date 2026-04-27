@@ -113,6 +113,11 @@ interface Props {
   // navigates immediately on touch (those surfaces don't run
   // a big hover scale that needs revealing).
   tapToActivate?: boolean;
+  // Inset (in % of LP width) for the ▶ play chip from the
+  // bottom-right corner. 6 is the PlayChip default; the home
+  // hero passes a smaller value so the chip pushes closer to
+  // the corner and away from the cover area.
+  playChipInsetPct?: number;
 }
 
 // CAA covers come back at 250px. The home + mydig walls render up to
@@ -153,6 +158,7 @@ export default function WallHoverCard({
   hoverOriginY = 'bottom',
   playChipScale = 1,
   tapToActivate = false,
+  playChipInsetPct,
 }: Props) {
   const spotifyAlbumId = extractSpotifyAlbumId(album.spotifyUrl ?? null);
   const hasPreview = !!spotifyAlbumId;
@@ -232,16 +238,24 @@ export default function WallHoverCard({
       } as React.CSSProperties}
     >
       <div
-        // At-rest shadow is side-only: a left- and right-offset
-        // drop-shadow pair that casts on the wall where the LP's
-        // thickness separates it from the surface behind. No
-        // y-component, so nothing bleeds down onto the shelf —
-        // a record resting on a shelf has no gap below to cast a
-        // shadow into, and earlier "halo" drops were making the
-        // sleeves read as already-lifted at rest. The hover
-        // transition then introduces the big downward drop, so
-        // picking a record still feels like lifting it.
-        className={`absolute inset-0 z-10 transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(-3px_0_4px_rgba(0,0,0,0.4))_drop-shadow(3px_0_4px_rgba(0,0,0,0.4))] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] group-data-[tap-active=true]:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] ${
+        // At-rest splay shadow — strictly side-only via clip-path.
+        // Three drop-shadow pairs build the shape:
+        //   • 2 px sharp stripe (close, runs full LP height)
+        //   • 5 px / blur 4 offset down 8 (mid, visible from
+        //     mid-height down)
+        //   • 9 px / blur 8 offset down 18 (wide soft, visible
+        //     near the LP bottom only)
+        // Each layer's y-offset means it's only visible from
+        // that y point downward (above that, the LP itself
+        // covers the shadow). Combined: narrow at top, wider at
+        // bottom — the splay the photo reference shows.
+        // The clip-path inset crops top + bottom flush to the
+        // LP edges so no bleed reaches the wall above or the
+        // shelf below; sides are extended -18 px to let the
+        // wide layer breathe. Hover swaps both filter (big lift
+        // drop) and clip-path (very loose) so the hover lift
+        // shadow can fully show.
+        className={`absolute inset-0 z-10 transition-[transform,filter,clip-path] duration-[260ms] ease-out [filter:drop-shadow(-2px_0_0_rgba(0,0,0,0.40))_drop-shadow(2px_0_0_rgba(0,0,0,0.40))_drop-shadow(-5px_8px_4px_rgba(0,0,0,0.30))_drop-shadow(5px_8px_4px_rgba(0,0,0,0.30))_drop-shadow(-9px_18px_8px_rgba(0,0,0,0.18))_drop-shadow(9px_18px_8px_rgba(0,0,0,0.18))] [clip-path:inset(0_-18px_0_-18px)] group-hover:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] group-hover:[clip-path:inset(-60px_-60px_-60px_-60px)] group-data-[tap-active=true]:[filter:drop-shadow(0_18px_22px_rgba(0,0,0,0.55))] group-data-[tap-active=true]:[clip-path:inset(-60px_-60px_-60px_-60px)] ${
           popOnHover
             ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
             : 'group-hover:[transform:scale(var(--wall-hover-scale))] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))]'
@@ -367,6 +381,14 @@ export default function WallHoverCard({
               title={album.title}
               artist={album.artist}
               size={Math.round(lpSize * 0.208 * playChipScale)}
+              style={
+                playChipInsetPct != null
+                  ? {
+                      right: `${playChipInsetPct}%`,
+                      bottom: `${playChipInsetPct}%`,
+                    }
+                  : undefined
+              }
             />
           )}
         </div>

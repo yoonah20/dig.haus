@@ -171,8 +171,16 @@ export default function HomeNextHeroMobile() {
         <div
           className="absolute select-none pointer-events-none"
           style={{
+            // Title sits well right of the wall padding — at
+            // PAD_X (16) it hugged the left edge of the hero
+            // band tighter than the LP rows below (which centre
+            // their 0.9-multiplier slack as edge gutters). +28
+            // brings the handwritten "딕하우스 …" copy roughly
+            // in line with where the leftmost LP cover lands
+            // after centring + the 0.9 inset, so the title and
+            // top row share a left edge.
             top: TITLE_TOP_PX,
-            left: PAD_X,
+            left: PAD_X + 28,
             right: PAD_X,
             fontFamily: GRAFFITI_FONT_STACK,
             color: '#1a1208',

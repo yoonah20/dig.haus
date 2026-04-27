@@ -531,7 +531,8 @@ function ShelfRow({
                 plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
                 hoverScalePct={180}
                 hoverOriginY="75%"
-                playChipScale={0.6}
+                playChipScale={0.75}
+                playChipInsetPct={4}
                 popOnHover={false}
                 tapToActivate
                 coverOverlay={
