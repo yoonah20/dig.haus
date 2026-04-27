@@ -18,6 +18,7 @@ const Profile = lazy(() => import('./pages/Profile'));
 const MyDig = lazy(() => import('./pages/MyDig'));
 const ApiConsole = lazy(() => import('./pages/ApiConsole'));
 const LlmCompare = lazy(() => import('./pages/LlmCompare'));
+const Bench = lazy(() => import('./pages/Bench'));
 
 function RouteFallback() {
   return (
@@ -354,6 +355,7 @@ export default function App() {
                   />
                   <Route path="/admin/api-console" element={<ApiConsole />} />
                   <Route path="/admin/compare" element={<LlmCompare />} />
+                  <Route path="/admin/bench" element={<Bench />} />
                   </Routes>
                 </Suspense>
               </ErrorBoundary>

@@ -39,6 +39,7 @@ import avatarsRouter from './routes/avatars.js';
 import albumRequestsRouter from './routes/albumRequests.js';
 import ownershipRouter from './routes/ownership.js';
 import publicStatsRouter from './routes/stats.js';
+import benchRouter from './routes/bench.js';
 
 let server: Server;
 
@@ -124,6 +125,7 @@ async function start() {
   app.use('/api/labels', labelsRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api/admin', labelFeedRouter);
+  app.use('/api/admin/bench', benchRouter);
   app.use('/api/reviews', reviewsRouter);
   app.use('/api', mydigRouter);
   app.use('/api', homeRouter);

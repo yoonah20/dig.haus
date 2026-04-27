@@ -12,11 +12,14 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    // WSL2: Vite's default 127.0.0.1 bind blocks requests from the
-    // Windows-host browser through WSL's localhost forwarder. host:
-    // true binds to all interfaces (IPv4 0.0.0.0) so the Windows
-    // side can hit it. Same trick as the server's 0.0.0.0 bind.
-    host: true,
+    // WSL2: Windows-side `localhost` forwarder is IPv4-only, so we
+    // bind explicitly to 0.0.0.0. `host: true` in some Vite versions
+    // resolves to a dual-stack '::' that ends up IPv6-only on Linux
+    // and silently breaks Windows-side `http://localhost:3000`. That
+    // matters because Google OAuth is registered against localhost
+    // (not 127.0.0.1 or the WSL IP) — we have to keep the localhost
+    // hostname working from the Windows browser.
+    host: '0.0.0.0',
     proxy: {
       "/api": {
         target: "http://localhost:3001",
