@@ -141,6 +141,67 @@ async function _getRelease(mbid: string): Promise<any | null> {
     const joinedArtist = artistCredit.length > 0
       ? artistCredit.map((c: any) => c.name).join(', ')
       : 'Unknown';
+
+    // Label resolution. The fetched MB release is a SPECIFIC pressing
+    // — its `label-info[0]` is the label of that pressing. For a JP
+    // (or other regional) reissue that means we'd surface "Universal
+    // Music Japan" or "Avex" instead of the original Western label.
+    // When the release date doesn't match the release-group's
+    // first-release-date, fetch the group's earliest release and use
+    // its label as the canonical answer. The current pressing's
+    // labels stay available as `releaseSpecificLabels` for callers
+    // that genuinely want the per-pressing info.
+    const releaseSpecificLabels = (r['label-info'] || []).map((li: any) => ({
+      name: li.label?.name || '',
+      catalogNumber: li['catalog-number'] || '',
+    }));
+    let labels = releaseSpecificLabels;
+    const rgId: string | undefined = r['release-group']?.id;
+    if (
+      rgId &&
+      firstReleaseDate &&
+      r.date &&
+      firstReleaseDate !== r.date
+    ) {
+      try {
+        const rgRes = await rateLimitedRequest(`${MB_BASE}/release`, {
+          'release-group': rgId,
+          inc: 'labels',
+          fmt: 'json',
+          limit: '100',
+        });
+        const releases: any[] = rgRes.data?.releases || [];
+        const candidates = releases
+          .filter(
+            (rel: any) =>
+              rel.date &&
+              Array.isArray(rel['label-info']) &&
+              rel['label-info'].length > 0 &&
+              rel['label-info'][0]?.label?.name
+          )
+          .sort((a: any, b: any) => a.date.localeCompare(b.date));
+        const canonical = candidates[0];
+        if (canonical) {
+          const canonicalLabels = (canonical['label-info'] || []).map(
+            (li: any) => ({
+              name: li.label?.name || '',
+              catalogNumber: li['catalog-number'] || '',
+            })
+          );
+          if (canonicalLabels.length > 0 && canonicalLabels[0].name) {
+            labels = canonicalLabels;
+          }
+        }
+      } catch (err) {
+        // Soft-fail to per-release labels if the group-wide lookup
+        // doesn't resolve — better to ship the JP label than nothing.
+        console.warn(
+          `[mb] release-group canonical-label lookup failed for rgId=${rgId}:`,
+          (err as Error).message
+        );
+      }
+    }
+
     return {
       mbid: r.id,
       title: r.title,
@@ -161,10 +222,8 @@ async function _getRelease(mbid: string): Promise<any | null> {
       barcode: r.barcode || '',
       status: r.status || '',
       packaging: r.packaging || '',
-      labels: (r['label-info'] || []).map((li: any) => ({
-        name: li.label?.name || '',
-        catalogNumber: li['catalog-number'] || '',
-      })),
+      labels,
+      releaseSpecificLabels,
       genres: (r.genres || []).map((g: any) => g.name),
       releaseGroup: r['release-group']
         ? {
