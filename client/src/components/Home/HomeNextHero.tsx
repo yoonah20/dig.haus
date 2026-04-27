@@ -14,12 +14,12 @@ import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
-// basement_gray.avif: 2976×1500 wall-only strip (concrete-textured
-// wall with two baked-in wood shelves and a small dig.haus neon
-// in the top-right). The asset arrives pre-trimmed at the band
-// aspect we want, so we render it at its natural ratio without
-// further CSS cropping — the earlier HERO_ASPECT inner-frame
-// trick is gone, sceneH just tracks the source aspect again.
+// basement_purple.avif: 2976×1500 wall-only strip (concrete-textured
+// wall with two baked-in wood shelves and a small dig.haus neon in
+// the top-right). The asset arrives pre-trimmed at the band aspect
+// we want, so we render it at its natural ratio without further CSS
+// cropping — the earlier HERO_ASPECT inner-frame trick is gone,
+// sceneH just tracks the source aspect again.
 //
 // Coordinates below live in source-image px (2976×1500); a
 // single `scale` factor (renderedWidth / 2976) projects them
@@ -268,7 +268,7 @@ export default function HomeNextHero() {
           }}
         >
           <img
-            src="/backdrops/basement_gray.avif"
+            src="/backdrops/basement_purple.avif"
             alt=""
             aria-hidden
             className="absolute inset-0 w-full h-full pointer-events-none select-none"
