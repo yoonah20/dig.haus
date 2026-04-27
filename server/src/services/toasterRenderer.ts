@@ -111,13 +111,51 @@ const FOOTER_HEIGHT = 90;
 const COLS = 3;
 const ROWS = 5;
 
-// Captions render as two lines — artist on top, `- title` below.
-// Always two lines regardless of length so the visual rhythm stays
-// consistent across the column; the row band has 220px height with
-// only 3 captions sharing it so the extra vertical never overflows.
+// Approximate pixel width of a string in the caption column at 15px
+// font. JetBrains Mono renders Latin / digit / punct at ~9px per
+// glyph (monospace), while Noto Sans KR renders Hangul + CJK at
+// ~15px. Used to decide whether "Artist - Title" fits a single
+// caption line or has to break onto a stacked "Artist / - Title"
+// pair. Approximate is fine — we leave a 20px cushion under the
+// real 300px column so satori's own measurement quirks don't push
+// a borderline string into a wrap.
+function approxPixelWidth(s: string): number {
+  let w = 0;
+  for (const ch of s) {
+    const code = ch.charCodeAt(0);
+    if (
+      (code >= 0xac00 && code <= 0xd7a3) || // Hangul syllables
+      (code >= 0x3131 && code <= 0x318e) || // Hangul jamo
+      (code >= 0x4e00 && code <= 0x9fff) // CJK unified ideographs
+    ) {
+      w += 15;
+    } else {
+      // 10px per Latin/digit/punct glyph in JetBrains Mono at 15px.
+      // The advertised em-width is closer to 9, but satori's measured
+      // run width consistently lands ~10 in practice — using 9 here
+      // marked borderline strings ("The Kooks - Junk of the Heart")
+      // as single-line that then visibly wrapped at render time.
+      w += 10;
+    }
+  }
+  return w;
+}
+
+// Captions render as one line when "Artist - Title" fits the caption
+// column, two lines otherwise. Earlier we forced two lines uniformly
+// for visual rhythm, but short captions ("Aara - Eiger") looked
+// padded out — the user preferred a single line for those and the
+// stacked variant only when the title genuinely needs the room.
 // Returns null for empty slots so the caller can skip rendering.
-function captionLines(slot: ToasterSlot): { artist: string; title: string } | null {
+const CAPTION_ONE_LINE_BUDGET_PX = 280;
+function captionLines(
+  slot: ToasterSlot
+): { single: string } | { artist: string; title: string } | null {
   if (!slot.artistName || !slot.albumTitle) return null;
+  const combined = `${slot.artistName} - ${slot.albumTitle}`;
+  if (approxPixelWidth(combined) <= CAPTION_ONE_LINE_BUDGET_PX) {
+    return { single: combined };
+  }
   return { artist: slot.artistName, title: `- ${slot.albumTitle}` };
 }
 
@@ -205,11 +243,42 @@ function buildTree(input: ToasterInput): unknown {
               fontSize: 15,
               lineHeight: 1.3,
               color: '#d8d8d8',
-              gap: 12,
+              // No gap between caption blocks — line-to-line rhythm
+              // is driven entirely by lineHeight so 1-line and 2-line
+              // captions sit at the same vertical cadence. Earlier
+              // gap: 12 made the between-caption spacing visibly
+              // looser than within-caption spacing, which read as
+              // padded-out instead of like text document lines.
+              gap: 0,
               minWidth: 0,
             },
             children: rowSlots.map((s, i) => {
               const lines = captionLines(s);
+              let captionChildren: unknown = null;
+              if (lines) {
+                if ('single' in lines) {
+                  captionChildren = [
+                    {
+                      type: 'div',
+                      key: 'single',
+                      props: { children: lines.single },
+                    },
+                  ];
+                } else {
+                  captionChildren = [
+                    {
+                      type: 'div',
+                      key: 'artist',
+                      props: { children: lines.artist },
+                    },
+                    {
+                      type: 'div',
+                      key: 'title',
+                      props: { children: lines.title },
+                    },
+                  ];
+                }
+              }
               return {
                 type: 'div',
                 key: `cap-${rowIdx}-${i}`,
@@ -219,20 +288,7 @@ function buildTree(input: ToasterInput): unknown {
                     flexDirection: 'column',
                     wordBreak: 'break-word',
                   },
-                  children: lines
-                    ? [
-                        {
-                          type: 'div',
-                          key: 'artist',
-                          props: { children: lines.artist },
-                        },
-                        {
-                          type: 'div',
-                          key: 'title',
-                          props: { children: lines.title },
-                        },
-                      ]
-                    : null,
+                  children: captionChildren,
                 },
               };
             }),

@@ -106,7 +106,7 @@ function useRecentReleases(fetchLimit = 60) {
 
 export default function HomeNext() {
   useDocumentHead({
-    title: 'dig.haus',
+    title: 'Home | dig.haus',
     description:
       'No algorithms needed. Keep digging. — 운영자가 발굴한 vinyl wall + 신보 + 기억 + 50자 평',
     type: 'website',
