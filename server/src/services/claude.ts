@@ -139,16 +139,20 @@ export async function generateKoreanSummary(
       `매체명 금지. 평론가 시점으로 앨범의 분위기, 사운드 특징, 컬렉팅 가치를 서술. ` +
       `출력 규칙: 요약 본문만 작성. 앨범 제목이나 아티스트명을 헤더로 넣지 말 것. ` +
       `마크다운(#, **, *, -) 사용하지 말고 순수 문장으로만.\n${reviewsText}`;
-    // Trial: drop default from SONNET to HAIKU to see if Haiku 4.5
-    // can hold Korean summary quality at ~3x lower cost. Sonnet is
-    // still reachable via LLM_PRIMARY_MODEL_SUMMARY_FALLBACK=claude-
-    // sonnet-4-5 if the output regresses; revert the constant below
-    // to SONNET if admin spot-check says Haiku's phrasing is worse.
+    // Default to DeepSeek (V4 Flash via the deepseek-chat alias).
+    // Earlier the default was Sonnet, then Haiku as a cost trial; V4
+    // Flash launched 2026-04-24 with Korean prose quality competitive
+    // with Haiku at ~10× lower cost ($0.14/$0.28 per 1M vs Haiku's
+    // $1/$5). Sonnet stays reachable via env if quality regresses
+    // — set LLM_PRIMARY_MODEL_SUMMARY_FALLBACK=claude-sonnet-4-5 on
+    // Railway to flip back. Note: any existing env override that
+    // pinned this op to Sonnet/Haiku needs clearing for the new
+    // default to take effect in production.
     const result = await invokeLlm({
       operation: 'summary_fallback',
       prompt: promptText,
       maxTokens: 500,
-      defaultModel: HAIKU,
+      defaultModel: 'deepseek-chat',
       albumTitle: `${artist} - ${albumTitle}`,
     });
     if (!result.text) return null;

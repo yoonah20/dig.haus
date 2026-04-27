@@ -11,6 +11,17 @@ const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
   'claude-sonnet-4-5': { input: 3, output: 15 },
   'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
+  // DeepSeek V4 Flash (launched 2026-04-24). The deepseek-chat API
+  // alias now routes to v4-flash for back-compat, so all new
+  // responses come back with model='deepseek-v4-flash' and we log
+  // those rows under that key. Cache-miss pricing (the conservative
+  // ceiling); cache-hit input is $0.0028 but billing it accurately
+  // would need cache_hit metadata which we don't track yet.
+  'deepseek-v4-flash': { input: 0.14, output: 0.28 },
+  // Legacy log rows logged under model='deepseek-chat' all pre-date
+  // 2026-04-24 — V3-era pricing. Kept at the historical V3 rate so
+  // the "지난 24h 지출" accounting against rows still in the rolling
+  // window doesn't under-report what actually got billed at the time.
   'deepseek-chat': { input: 0.27, output: 1.1 },
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
 };

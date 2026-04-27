@@ -44,11 +44,18 @@ const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
   'claude-sonnet-4-5': { input: 3, output: 15 },
   'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
-  // DeepSeek V3 — used for scrape extraction (Jina markdown → JSON).
-  // Much cheaper than Haiku for the input-heavy extraction path; we
-  // still log under the same claude_usage_log table keyed by the
-  // response's model string, so the admin panel surfaces a separate
-  // row.
+  // DeepSeek V4 Flash (launched 2026-04-24). The deepseek-chat API
+  // alias now routes to v4-flash for back-compat, so all new
+  // responses come back with model='deepseek-v4-flash' and we log
+  // those rows under that key. Cache-miss pricing (the conservative
+  // ceiling); cache-hit input is $0.0028 but billing it accurately
+  // would need cache_hit metadata we don't track yet. Used for
+  // scrape extraction (Jina markdown → JSON), pronunciation,
+  // similar-album descriptions, serper picks, and Korean review
+  // summaries.
+  'deepseek-v4-flash': { input: 0.14, output: 0.28 },
+  // Legacy log rows logged under model='deepseek-chat' all pre-date
+  // 2026-04-24 — V3-era pricing.
   'deepseek-chat': { input: 0.27, output: 1.1 },
   // Legacy / fallback
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
