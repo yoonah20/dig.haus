@@ -172,22 +172,23 @@ export default function PersistentNowPlayingPlayer() {
             minHeight: 80,
           }}
         />
-        {/* × button sits just outside the player's right edge —
-            previously inside top-right, but the embed already
-            crowds its own corner with Spotify's UI and the close
-            chip felt like it overlapped the album art / track
-            title. Lifted out of the iframe-clip wrapper so it
-            floats free on the right; absolute positioning is
-            relative to the outer relative div, not the rounded
-            iframe host below, so the chip isn't clipped by the
-            host's overflow-hidden. Hidden at rest, fades in on
-            hover over the player. */}
+        {/* × button sits just outside the player's right edge,
+            anchored to the top so the chip lines up with the
+            embed's header band rather than floating mid-side.
+            Lifted out of the iframe-clip wrapper so it floats free
+            on the right; absolute positioning is relative to the
+            outer relative div, not the rounded iframe host below,
+            so the chip isn't clipped by the host's overflow-
+            hidden. Amber-on-dark always-visible chip with a small
+            drop shadow — the previous dark-on-dark + hover-fade
+            treatment was hard to spot since the chip's own colour
+            matched both the player and the page bg. */}
         <button
           type="button"
           onClick={clearNowPlaying}
           aria-label="재생 닫기"
           title="재생 닫기"
-          className="absolute top-1/2 -translate-y-1/2 left-full ml-1.5 z-10 w-6 h-6 rounded-full border border-white/20 bg-[#141008] hover:bg-[#e8a020] hover:text-[#141008] hover:border-[#e8a020] text-gray-200 text-sm leading-none flex items-center justify-center cursor-pointer opacity-0 group-hover/np:opacity-100 transition-opacity duration-150"
+          className="absolute top-0 left-full ml-1.5 z-10 w-7 h-7 rounded-full border border-[#141008]/40 bg-[#e8a020] hover:bg-[#f0b040] text-[#141008] text-base leading-none flex items-center justify-center cursor-pointer transition-colors duration-150 shadow-[0_2px_6px_rgba(0,0,0,0.4)]"
         >
           ×
         </button>
