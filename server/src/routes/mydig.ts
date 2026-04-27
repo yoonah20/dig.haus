@@ -1044,6 +1044,39 @@ interface ToasterRow {
   cover_art_fallbacks: string | null;
 }
 
+// Compose a download filename from username + label (snapshot name or
+// live wall theme). Mirrors the slug rules used elsewhere in the app:
+// lowercase a-z0-9, Hangul preserved, spaces → hyphens, capped at 40
+// chars so the resulting filename stays under 64 bytes after the
+// "{user}-{label}-toaster.png" wrap.
+function buildToasterFilename(username: string, label: string | null): string {
+  const labelPart = (label || '').trim();
+  const slug = labelPart
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣\-_ ]+/g, '')
+    .replace(/\s+/g, '-')
+    .slice(0, 40)
+    .replace(/^-+|-+$/g, '');
+  return slug ? `${username}-${slug}-toaster.png` : `${username}-toaster.png`;
+}
+
+// Server has to control the download filename because the toaster
+// endpoint is cross-origin from the frontend in production (Vercel
+// www.dig.haus → Railway api.dig.haus), and browsers ignore the
+// <a download> attribute on cross-origin responses for security. The
+// only path to a real download is Content-Disposition: attachment
+// from the server. Both filename (ASCII fallback) and filename* (RFC
+// 5987 percent-encoded UTF-8) are emitted so Korean snapshot names
+// survive the round trip on modern browsers and degrade to ASCII on
+// anything older.
+function setDownloadHeaders(res: import('express').Response, filename: string) {
+  const ascii = filename.replace(/[^\x20-\x7e]/g, '_');
+  res.setHeader(
+    'Content-Disposition',
+    `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+  );
+}
+
 async function rowsToSlots(rows: ToasterRow[]): Promise<ToasterSlot[]> {
   // Resolve cover URLs in parallel — 15 small webp fetches is much
   // faster as a Promise.all than serially when the cache is cold.
@@ -1094,6 +1127,9 @@ router.get('/mydig/:username/toaster.png', async (req, res) => {
     // anyway. If admins start tweaking copy in real time we can lower
     // this; for now an hour balances freshness against re-render cost.
     res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (req.query.download !== undefined) {
+      setDownloadHeaders(res, buildToasterFilename(user.username, user.vinyl_wall_theme));
+    }
     res.send(png);
   } catch (err) {
     console.error('[toaster]', (err as Error).message);
@@ -1146,6 +1182,9 @@ router.get('/mydig/:username/snapshots/:slug/toaster.png', async (req, res) => {
     // includes the slug — different snapshot, different URL, no
     // collision risk.
     res.setHeader('Cache-Control', 'public, max-age=86400');
+    if (req.query.download !== undefined) {
+      setDownloadHeaders(res, buildToasterFilename(user.username, snap.name));
+    }
     res.send(png);
   } catch (err) {
     console.error('[toaster]', (err as Error).message);

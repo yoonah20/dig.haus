@@ -570,13 +570,12 @@ function ProfileHeader({
             following={viewerIsFollowing}
           />
         )}
-        <ShareButton url={shareUrl} label="공유" />
         <ToasterButton
           username={username}
           snapshotSlug={snapshotSlug}
-          snapshotName={snapshotName}
-          themeTitle={wallTheme}
         />
+        <ShareButton url={shareUrl} label="공유" />
+
       </>
     );
   }
