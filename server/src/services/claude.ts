@@ -227,6 +227,23 @@ const KO_TERM_REPLACEMENTS: Array<[RegExp, string]> = [
   // vinyl-listener audience expects the transliterated form.
   [/대안\s*메탈/g, '얼터너티브 메탈'],
   [/대안\s*록/g, '얼터너티브 록'],
+  // "underground {genre}" — Claude literal-translates "underground"
+  // as "지하" (the building-basement sense) when it precedes a genre
+  // name, producing "지하 힙합" / "지하 메탈" instead of the vernacular
+  // "언더그라운드 힙합". Trigger only on the recognised genre nouns so
+  // genuinely architectural prose ("지하 주차장에서 녹음한") survives.
+  [
+    /지하\s*(메탈|하드코어|펑크|록|힙합|재즈|일렉트로닉|인디|코어|둠|블랙|스래시|데스|프로그|포스트|포크|랩|레게|일렉트로|덴스|클럽)/g,
+    '언더그라운드 $1',
+  ],
+  // "industrial {genre}" — comes through as the adjective "산업적"
+  // ("industry-like") instead of the genre-name transliteration
+  // "인더스트리얼". Anchored to genre nouns so plain "산업적 사운드" /
+  // "산업적 분위기" descriptive prose keeps its adjective sense.
+  [
+    /산업적\s*(메탈|록|일렉트로닉|록큰롤|코어|덴스|테크노|노이즈|힙합)/g,
+    '인더스트리얼 $1',
+  ],
   // Genre "scene" → vernacular "씬", not literal "장면" ("scene" in
   // the film/moment sense) or "현장" ("field/site"). Covers the
   // common case "{genre} scene". Whitelist of trigger words instead
