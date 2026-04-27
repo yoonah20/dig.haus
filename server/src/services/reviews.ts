@@ -766,6 +766,25 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
     }
   }
 
+  // Get Ready To Rock — sign-off rating uses ASCII asterisks on a
+  // 5-star scale, in the body of the last paragraph: `<strong>. ****
+  // </strong>` for 4/5 (=80), `<strong>. ***1/2</strong>` for 3.5/5
+  // (=70). The site also publishes its star key in a sidebar widget
+  // ("***** Out of this world / **** Pretty damn fine / …"), so we
+  // anchor on the period prefix that only appears in the editorial
+  // sign-off — the legend lines never start with `. `. Half-star
+  // markers: 1/2, ½, .5.
+  if (host === 'getreadytorock.me.uk') {
+    const m = html.match(
+      /<(?:strong|b)>\s*\.\s*(\*{3,5})(?:\s*(1\/2|½|\.5))?\s*<\/(?:strong|b)>/i
+    );
+    if (m) {
+      const full = m[1].length;
+      const half = m[2] ? 0.5 : 0;
+      return Math.max(0, Math.min(100, Math.round(((full + half) / 5) * 100)));
+    }
+  }
+
   return null;
 }
 
@@ -837,25 +856,55 @@ function detectWpReviewPluginRating(html: string): number | null {
 // DIFFERENT scores, only the last was the current review; star
 // detector grabbed the first). If bestRating is missing, falls back
 // to 5 (the only common default for star-system reviews).
-function detectSchemaOrgRating(html: string): number | null {
-  // Form 1 — microdata: <meta itemprop="ratingValue" content="4">
-  const metaValue = html.match(
-    /<meta[^>]*itemprop\s*=\s*"ratingValue"[^>]*content\s*=\s*"([^"]+)"/i
+// Pull a microdata-tagged numeric value out of HTML. Tries the
+// `<meta itemprop="X" content="N">` form first (the schema.org
+// canonical encoding), then falls back to `<span itemprop="X">N</span>`
+// / `<div itemprop="X">N</div>` (element text — saladdaysmag uses this
+// shape for ratingValue while keeping bestRating in a meta tag, so
+// the meta-only variant misses the value entirely).
+function extractMicrodataNumber(html: string, propName: string): number | null {
+  const escaped = propName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const metaRe = new RegExp(
+    `<meta[^>]*itemprop\\s*=\\s*"${escaped}"[^>]*content\\s*=\\s*"([^"]+)"`,
+    'i'
   );
-  if (metaValue) {
-    const value = parseFloat(metaValue[1].replace(',', '.'));
-    if (Number.isFinite(value)) {
-      const metaBest = html.match(
-        /<meta[^>]*itemprop\s*=\s*"bestRating"[^>]*content\s*=\s*"([^"]+)"/i
-      );
-      const scale = metaBest ? parseFloat(metaBest[1]) : 5;
-      if (
-        [5, 10, 20, 100].includes(scale) &&
-        value >= 0 &&
-        value <= scale
-      ) {
-        return Math.max(0, Math.min(100, Math.round((value / scale) * 100)));
-      }
+  const meta = html.match(metaRe);
+  if (meta) {
+    const v = parseFloat(meta[1].replace(',', '.'));
+    if (Number.isFinite(v)) return v;
+  }
+  // Element-text form: opening tag with itemprop, immediate numeric
+  // text, matching close tag. Tolerates surrounding whitespace.
+  const textRe = new RegExp(
+    `<(span|div|p|strong|b)[^>]*itemprop\\s*=\\s*"${escaped}"[^>]*>\\s*(\\d+(?:[.,]\\d+)?)\\s*</\\1>`,
+    'i'
+  );
+  const text = html.match(textRe);
+  if (text) {
+    const v = parseFloat(text[2].replace(',', '.'));
+    if (Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+function detectSchemaOrgRating(html: string): number | null {
+  // Form 1 — schema.org microdata, either `<meta content>` or element
+  // text. ratingValue=0 is treated as a sentinel for "widget present
+  // but never configured" — WP Review and friends ship with a default
+  // 0 that stays put when an editor publishes without filling the
+  // rating in. mhf-mag's Aephanemer review had the body text reading
+  // "Rating : 80/100" while the JSON-LD carried ratingValue=0, and
+  // returning 0 short-circuited every downstream detector.
+  const microValue = extractMicrodataNumber(html, 'ratingValue');
+  if (microValue !== null && microValue > 0) {
+    const microBest = extractMicrodataNumber(html, 'bestRating');
+    const scale = microBest !== null ? microBest : 5;
+    if (
+      [5, 10, 20, 100].includes(scale) &&
+      microValue >= 0 &&
+      microValue <= scale
+    ) {
+      return Math.max(0, Math.min(100, Math.round((microValue / scale) * 100)));
     }
   }
 
@@ -866,12 +915,12 @@ function detectSchemaOrgRating(html: string): number | null {
   //      (plain, unescaped quotes)
   //   2. <div data-foo="…\"ratingValue\":4,…">
   //      (JSON serialised into an attribute — inner quotes escape-slashed)
-  // The pattern below tolerates both: "ratingValue" + any 1-10 non-digit
-  // chars (covers `":`, `\":`, `":` with whitespace, etc.) + the number.
+  // The pattern tolerates both via a small non-digit run between the
+  // key and its number. Same zero-sentinel rule as Form 1.
   const jsonValue = html.match(/ratingValue[^\d]{1,10}(\d+(?:\.\d+)?)/);
   if (jsonValue) {
     const value = parseFloat(jsonValue[1]);
-    if (Number.isFinite(value)) {
+    if (Number.isFinite(value) && value > 0) {
       const jsonBest = html.match(/bestRating[^\d]{1,10}(\d+(?:\.\d+)?)/);
       const scale = jsonBest ? parseFloat(jsonBest[1]) : 5;
       if (
