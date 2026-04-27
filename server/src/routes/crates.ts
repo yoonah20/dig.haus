@@ -161,7 +161,7 @@ router.post('/mydig/crates', requireAuth, (req, res) => {
     res.status(201).json({ crate: serialiseCrate(row) });
   } catch (err) {
     console.error('[crates] create failed:', err);
-    res.status(500).json({ error: '크레이트 만들기 실패' });
+    res.status(500).json({ error: '상자 만들기 실패' });
   }
 });
 

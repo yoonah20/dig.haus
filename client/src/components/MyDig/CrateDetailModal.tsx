@@ -103,7 +103,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
   };
 
   const handleDeleteCrate = async () => {
-    if (!confirm(`"${crate.title}" 크레이트를 삭제할까요? 안에 담긴 ${crate.itemCount}장도 함께 사라집니다.`)) {
+    if (!confirm(`"${crate.title}" 상자를 삭제할까요? 안에 담긴 ${crate.itemCount}장도 함께 사라집니다.`)) {
       return;
     }
     try {
@@ -198,7 +198,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
                   setDescDirty(true);
                 }}
                 onBlur={commitDescription}
-                placeholder="이 크레이트가 어떤 모음인지 짧게 적어보세요. (선택)"
+                placeholder="이 상자가 어떤 모음인지 짧게 적어보세요. (선택)"
                 maxLength={240}
                 rows={2}
                 className="w-full bg-[#0a0703] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none"
@@ -263,7 +263,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
               disabled={remove.isPending}
               className="text-sm text-red-400 hover:text-red-300 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              크레이트 삭제
+              상자 삭제
             </button>
           </div>
         )}

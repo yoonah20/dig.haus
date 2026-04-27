@@ -5,7 +5,7 @@ import CrateDetailModal from './CrateDetailModal';
 
 // Crate listing on /my/:username. Renders the user's crates as a row
 // of stacked-cover tiles with the crate title as a label below. Owner
-// sees an additional "+ 새 크레이트" tile that inlines a name input
+// sees an additional "+ 새 상자" tile that inlines a name input
 // and creates on Enter. Click any tile → opens CrateDetailModal.
 //
 // Visibility: visitors see is_public crates only (server-filtered);
@@ -45,14 +45,14 @@ export default function CrateSection({ username, isOwner }: Props) {
       setNewTitle('');
       setOpenId(created.id);
     } catch (err: any) {
-      alert(err?.response?.data?.error || '크레이트 만들기 실패');
+      alert(err?.response?.data?.error || '상자 만들기 실패');
     }
   };
 
   return (
     <section className="mt-12">
       <div className="flex items-baseline gap-2 mb-3">
-        <h2 className="text-lg font-serif italic text-white">📦 크레이트</h2>
+        <h2 className="text-lg font-serif italic text-white">📦 상자</h2>
         <span className="text-sm text-gray-500 tabular-nums">
           {list.length}
         </span>
@@ -137,7 +137,7 @@ export default function CrateSection({ username, isOwner }: Props) {
                   }
                 }}
                 maxLength={60}
-                placeholder="크레이트 이름"
+                placeholder="상자 이름"
                 className="w-full mx-3 bg-transparent border-b border-[#e8a020]/40 px-1 py-1 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 text-center"
               />
             </div>
@@ -154,7 +154,7 @@ export default function CrateSection({ username, isOwner }: Props) {
             className="aspect-square rounded-md border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 hover:bg-[#e8a020]/5 transition-colors flex flex-col items-center justify-center gap-2 text-gray-500 hover:text-[#e8a020] cursor-pointer"
           >
             <span className="text-3xl">＋</span>
-            <span className="text-sm">새 크레이트</span>
+            <span className="text-sm">새 상자</span>
           </button>
         )}
       </div>

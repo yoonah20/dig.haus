@@ -27,21 +27,27 @@ interface Props {
 //   2. Logged in   → toggles a dropdown anchored under the chip.
 //      The dropdown lists all of the caller's crates with a
 //      checkmark on those already containing the album. Top of
-//      the list is "+ 새 크레이트 만들기" which inlines a name
+//      the list is "+ 새 상자 만들기" which inlines a name
 //      input; Enter creates and adds the album in one shot.
 //   3. Clicking a crate row toggles membership (in → remove,
 //      out → add). The dropdown stays open so multiple crates
 //      can be picked in one session.
 //
-// Visibility: the chip itself doesn't reveal which crates the user
-// has the album in — only the dropdown does. The public crateCount
-// next to the chip is for everyone (logged in or not).
+// The chip itself reflects "is this album in any of my crates" via
+// fill/outline state — owners want a glance-confirm that they've
+// already saved it. The dropdown reveals which specific crates.
+// crateCount next to the chip is the public count and surfaces to
+// everyone, logged in or not.
 export default function CrateButton({ albumId, crateCount }: Props) {
   const { user, login } = useAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // myCrates is only fetched when the dropdown opens (full crate
+  // list with cover thumbs is wasteful otherwise). Membership runs
+  // as long as the user is logged in so the chip color is right
+  // before any click.
   const myCrates = useMyCrates(!!user && open);
-  const membership = useAlbumCrateMembership(albumId, !!user && open);
+  const membership = useAlbumCrateMembership(albumId, !!user);
   const add = useAddToCrate();
   const remove = useRemoveFromCrate();
   const create = useCreateCrate();
@@ -97,7 +103,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
       await add.mutateAsync({ crateId: created.id, albumId });
       setNewCrateName(null);
     } catch (err: any) {
-      alert(err?.response?.data?.error || '크레이트 만들기 실패');
+      alert(err?.response?.data?.error || '상자 만들기 실패');
     }
   };
 
@@ -140,7 +146,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
               className="w-full text-left px-3 py-2 text-sm text-[#e8a020] hover:bg-white/5 cursor-pointer flex items-center gap-1.5"
             >
               <span>＋</span>
-              <span>새 크레이트 만들기</span>
+              <span>새 상자 만들기</span>
             </button>
           ) : (
             <div className="px-3 py-2 flex items-center gap-2 border-b border-white/5">
@@ -158,7 +164,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
                     setNewCrateName(null);
                   }
                 }}
-                placeholder="크레이트 이름"
+                placeholder="상자 이름"
                 maxLength={60}
                 className="flex-1 min-w-0 bg-[#0a0703] border border-white/10 rounded px-2 py-1 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none"
               />
@@ -181,7 +187,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
             )}
             {!myCrates.isLoading && (myCrates.data?.crates.length ?? 0) === 0 && (
               <div className="px-3 py-2 text-sm text-gray-500">
-                아직 만든 크레이트가 없어요.
+                아직 만든 상자가 없어요.
               </div>
             )}
             {myCrates.data?.crates.map((c) => {

@@ -401,7 +401,7 @@ export default function Profile() {
                 <StatPill label="굿굿" value={stats.upvoteCount} accent="blue" />
                 <StatPill label="별루" value={stats.downvoteCount} accent="red" />
                 <StatPill
-                  label="크레이트"
+                  label="상자"
                   value={myCrates.data?.crates.length ?? 0}
                   accent="brand"
                 />

@@ -1492,6 +1492,11 @@ router.get('/:id', async (req, res) => {
     res.json({
       album: {
         ...result.album,
+        // Numeric DB pkey — needed for crate item endpoints which key
+        // on the integer FK rather than the mbid. CrateButton on the
+        // album page reads it; without it the 담기 dropdown can't
+        // toggle membership.
+        id: albumPk,
         upvotes,
         downvotes,
         userVote,
