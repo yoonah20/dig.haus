@@ -962,6 +962,78 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // One-shot recovery for "black metal" — accidental × click on the
+  // tag chip blacklisted it and stripped it from every album that
+  // carried it. The (mbid, original-casing) pairs below come straight
+  // from the local sanitised copy of production, so they reflect the
+  // pre-strip state for every album that had the tag at the time of
+  // the last sanitise. Per-album:
+  //   1. Load current genres array
+  //   2. If "black metal" (case-insensitive) is already present, skip
+  //   3. Else append the original casing the album had locally
+  // Idempotent — re-running doesn't double-add. Albums that exist on
+  // local but not on production are silently skipped (UPDATE matches
+  // 0 rows). Also removes "black metal" from tag_blacklist so future
+  // auto-imports stop filtering it; the new admin panel surfaces this
+  // for ad-hoc undo, but bundling it here closes the loop in one
+  // migration.
+  runOnce(db, 'restore-black-metal-tag-2026-04-28', () => {
+    const pairs: Array<[string, string]> = [
+      ['discogs-36762688', 'Black Metal'],
+      ['895665dd-deb1-43bb-b7ed-eafcadc00bd4', 'black metal'],
+      ['2e38be3f-86fd-43a4-bb65-0e30bfa6e448', 'black metal'],
+      ['discogs-master-1813051', 'Black Metal'],
+      ['1f60bc0e-fd14-4586-ae80-642ed5be5b67', 'black metal'],
+      ['discogs-master-3597101', 'Black Metal'],
+      ['28041d3b-8463-4fce-91bd-b0879ff295ad', 'black metal'],
+      ['644114e0-22b4-4506-8fc3-c049a8af1e5e', 'black metal'],
+      ['edf2b0df-99fb-431b-8313-72efa67490fb', 'black metal'],
+      ['ecc06a4f-3ce4-4113-9002-ce77ee7d2602', 'black metal'],
+      ['548115be-915c-4c7b-b0c2-15c2ea4645af', 'black metal'],
+      ['2ecf6610-9a5e-4cf5-855a-a8dbedd45374', 'black metal'],
+      ['a0aa3f41-7be3-4d99-9199-43e249a2ca6b', 'black metal'],
+      ['6b9e46cd-6ca9-4c92-b66d-59a12aa70926', 'black metal'],
+      ['1a4372b7-10a2-47f5-8030-beed91d68d01', 'black metal'],
+      ['91253c00-7cab-455b-af01-609bcd21bc9d', 'black metal'],
+      ['discogs-master-4157134', 'Black Metal'],
+      ['09d724db-741a-4b59-83f0-8833c8790700', 'Black Metal'],
+    ];
+    const select = db.prepare('SELECT genres FROM albums WHERE mbid = ?');
+    const update = db.prepare('UPDATE albums SET genres = ? WHERE mbid = ?');
+    let restored = 0;
+    let skipped = 0;
+    let missing = 0;
+    for (const [mbid, casing] of pairs) {
+      const row = select.get(mbid) as { genres: string | null } | undefined;
+      if (!row) {
+        missing++;
+        continue;
+      }
+      let arr: unknown;
+      try {
+        arr = row.genres ? JSON.parse(row.genres) : [];
+      } catch {
+        arr = [];
+      }
+      const tags = Array.isArray(arr)
+        ? arr.filter((t): t is string => typeof t === 'string')
+        : [];
+      if (tags.some((t) => t.toLowerCase() === 'black metal')) {
+        skipped++;
+        continue;
+      }
+      tags.push(casing);
+      update.run(JSON.stringify(tags), mbid);
+      restored++;
+    }
+    const unbanned = db
+      .prepare("DELETE FROM tag_blacklist WHERE tag = 'black metal'")
+      .run();
+    console.log(
+      `[migration] restore-black-metal-tag: restored=${restored}, already-had=${skipped}, missing-on-prod=${missing}, blacklist-removed=${unbanned.changes}`
+    );
+  });
+
   // Move hosts out of the code-level EXCLUDED_URL_DOMAINS into the DB
   // source_blacklist. The hardcoded baseline keeps shops / SNS /
   // streaming / YouTube (platform shapes that will never carry
