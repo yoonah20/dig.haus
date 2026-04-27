@@ -27,8 +27,15 @@ import {
 // produce a class name the build step never sees, leaving the
 // chip invisible in production. One entry per known parent
 // `group/<name>` used around the app.
+//
+// The unscoped `group-hover` entry also reveals on
+// `group-data-[tap-active=true]` so WallHoverCard's tap-to-
+// activate gesture (touch devices) shows the chip alongside
+// the scale-up — visitors on iPad / phones can hit play
+// without first having to tap into the album detail page.
 const HOVER_VISIBILITY: Record<string, string> = {
-  'group-hover': 'opacity-0 group-hover:opacity-100',
+  'group-hover':
+    'opacity-0 group-hover:opacity-100 group-data-[tap-active=true]:opacity-100',
   'group-hover/cover': 'opacity-0 group-hover/cover:opacity-100',
   'group-hover/card': 'opacity-0 group-hover/card:opacity-100',
 };

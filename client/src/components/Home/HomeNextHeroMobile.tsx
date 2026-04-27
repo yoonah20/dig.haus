@@ -314,6 +314,7 @@ function MobileFeatureCell({
       plasticOffsetYPx={plasticMeta?.plasticOffsetYPx ?? 0}
       plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
       hoverScalePct={130}
+      tapToActivate
       coverOverlay={
         <>
           {isPick && <MobilePickSticker lpSize={lpSize} seed={album.mbid} />}
