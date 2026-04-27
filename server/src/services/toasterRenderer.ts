@@ -174,7 +174,20 @@ function buildTree(input: ToasterInput): unknown {
       ? input.themeTitle.trim()
       : `${input.username}'s wall`;
 
-  const rowChildren = rows.map((rowSlots, rowIdx) => ({
+  const rowChildren = rows.map((rowSlots, rowIdx) => {
+    // Per-row caption gap. When the row's captions all fit on a
+    // single line, the column reads as a tight 3-line text block
+    // (gap: 0, lineHeight handles spacing). The moment any caption
+    // in the row stacks onto two lines, switch to a 12px gap so the
+    // 1-line entries don't visually merge with the 2-line one's
+    // artist+title pair — that ambiguity made it hard to tell where
+    // one caption ended and the next began.
+    const rowCaptionLines = rowSlots.map(captionLines);
+    const anyMultiLine = rowCaptionLines.some(
+      (c) => c != null && !('single' in c)
+    );
+    const captionColumnGap = anyMultiLine ? 12 : 0;
+    return {
     type: 'div',
     key: `row-${rowIdx}`,
     props: {
@@ -243,13 +256,12 @@ function buildTree(input: ToasterInput): unknown {
               fontSize: 15,
               lineHeight: 1.3,
               color: '#d8d8d8',
-              // No gap between caption blocks — line-to-line rhythm
-              // is driven entirely by lineHeight so 1-line and 2-line
-              // captions sit at the same vertical cadence. Earlier
-              // gap: 12 made the between-caption spacing visibly
-              // looser than within-caption spacing, which read as
-              // padded-out instead of like text document lines.
-              gap: 0,
+              // Gap is driven by the row-level captionColumnGap above:
+              // 0 when all 3 captions in the row fit one line (tight
+              // text-document column), 12 when any caption stacks
+              // onto two lines (so the 2-line pair doesn't merge
+              // visually with neighbouring 1-line captions).
+              gap: captionColumnGap,
               minWidth: 0,
             },
             children: rowSlots.map((s, i) => {
@@ -296,7 +308,8 @@ function buildTree(input: ToasterInput): unknown {
         },
       ],
     },
-  }));
+  };
+  });
 
   return {
     type: 'div',
