@@ -508,7 +508,7 @@ function SnapshotChoicePrompt({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg text-white font-serif italic mb-1">
-          기억 남기기
+          기억 만들기
         </h2>
         <p className="text-sm text-gray-400 mb-5 leading-relaxed">
           지금 마이딕 그대로 기억할까요, 아니면 처음부터 새로
@@ -643,9 +643,9 @@ function ProfileHeader({
             type="button"
             onClick={onSaveSnapshot}
             className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-            title="현재 구성을 기억으로 남기기"
+            title="현재 구성을 기억으로 만들기"
           >
-            <span className="hidden md:inline">📸 </span>기억<span className="hidden md:inline"> 남기기</span>
+            <span className="hidden md:inline">📸 </span>기억<span className="hidden md:inline"> 만들기</span>
           </button>
         )}
         {canDeleteSnapshot && mode === 'snapshot' && (
@@ -1367,7 +1367,7 @@ function CommentBubble({
         }}
       >
         <div
-          className="px-3.5 py-2.5 rounded-xl text-[12px] leading-snug font-serif italic text-center"
+          className="px-3.5 py-2.5 rounded-xl text-[13px] leading-snug font-serif italic text-center"
           style={{
             background: '#f5e8c8',
             color: '#141008',
@@ -1421,7 +1421,7 @@ function CommentBubble({
     >
       <div className="relative">
         <div
-          className="px-3 py-2 rounded-xl text-[11px] leading-snug font-serif italic"
+          className="px-3 py-2 rounded-xl text-[12px] leading-snug font-serif italic"
           style={{
             background: '#f5e8c8',
             color: '#141008',

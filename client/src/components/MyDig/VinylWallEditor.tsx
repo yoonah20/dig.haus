@@ -319,15 +319,17 @@ export default function VinylWallEditor({
   // Save flow. 저장 opens `saveChoicePrompt` first (wall target
   // only), asking whether to also capture the draft as a snapshot.
   // 기억하며 저장 → `snapshotModalOpen` opens the snapshot metadata
-  // form. After the snapshot saves, `postSnapshotPrompt` asks
-  // whether to revert the wall to its pre-edit state (the snapshot
-  // already preserved this moment) or keep the current draft on
-  // the wall. 그냥 저장 commits wall directly. Snapshot-target
-  // skips the entire flow because "save a snapshot edit as another
-  // snapshot" is nonsense.
+  // form. After the snapshot saves, the editor closes immediately —
+  // the draft is committed to the live wall and the snapshot is the
+  // archived moment. We previously prompted "revert or keep?" here
+  // but the question added a step without giving the user anything
+  // they couldn't already do (snapshots are immutable archives;
+  // "revert" was effectively asking them to discard their edit).
+  // 그냥 저장 commits wall directly. Snapshot-target skips the
+  // entire flow because "save a snapshot edit as another snapshot"
+  // is nonsense.
   const [saveChoicePrompt, setSaveChoicePrompt] = useState(false);
   const [snapshotModalOpen, setSnapshotModalOpen] = useState(false);
-  const [postSnapshotPrompt, setPostSnapshotPrompt] = useState(false);
 
   const itemsDirty = draft.some((slot, idx) => {
     const serverItem = initialWall.find((it) => it.position === idx);
@@ -542,32 +544,17 @@ export default function VinylWallEditor({
     clearSelection();
   };
 
-  // After the snapshot saves, ask whether to revert the wall to its
-  // pre-edit state (snapshot already preserved the in-flight draft
-  // so it's safe to discard) or keep the draft on the wall. Fresh-
-  // snapshot mode skips this prompt entirely — that path never
-  // commits to the live wall, so there's nothing to revert.
-  const handleAfterSnapshotSaved = () => {
+  // After the snapshot saves, commit the wall edit and close. Wall
+  // target: persist the draft into vinyl_wall_items (the user
+  // explicitly chose 기억하며 저장, so they want both the snapshot
+  // and the live wall updated). Fresh-snapshot target: skip the
+  // commit because that path never touches the live wall by design.
+  const handleAfterSnapshotSaved = async () => {
     setSnapshotModalOpen(false);
     if (isFreshSnapshotTarget) {
       onClose();
       return;
     }
-    setPostSnapshotPrompt(true);
-  };
-
-  // Revert → close without touching the wall. The snapshot is
-  // already saved, so the moment isn't lost; the wall just stays
-  // at whatever it was before the editor opened.
-  const handleRevertAfterSnapshot = () => {
-    setPostSnapshotPrompt(false);
-    onClose();
-  };
-
-  // Keep → commit the wall (items + theme/description) with the
-  // current draft + inputs.
-  const handleKeepAfterSnapshot = async () => {
-    setPostSnapshotPrompt(false);
     try {
       await commitWall();
       onClose();
@@ -989,63 +976,6 @@ export default function VinylWallEditor({
         />
       )}
 
-      {isWallTarget && postSnapshotPrompt && (
-        <RevertOrKeepPrompt
-          pending={save.isPending || themeUpdate.isPending}
-          onRevert={handleRevertAfterSnapshot}
-          onKeep={handleKeepAfterSnapshot}
-        />
-      )}
-    </div>
-  );
-}
-
-// After 기억하며 저장 finishes the snapshot half, ask whether to
-// roll the wall back or keep the draft. Snapshot captured the
-// moment already, so "roll back" costs nothing — it just skips the
-// wall PUT / theme PATCH. "Keep" commits the draft normally.
-function RevertOrKeepPrompt({
-  pending,
-  onRevert,
-  onKeep,
-}: {
-  pending: boolean;
-  onRevert: () => void;
-  onKeep: () => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
-      role="dialog"
-      aria-modal
-    >
-      <div className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5">
-        <h2 className="text-lg text-white font-serif italic mb-1">
-          기억 저장됨
-        </h2>
-        <p className="text-sm text-gray-400 mb-5 leading-relaxed">
-          '기억'을 남겼으니 편집 하기 전 상태로 돌아갈까요? 아니라고
-          하시면 지금의 구성이 현재 마이딕에 그대로 남아요.
-        </p>
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onKeep}
-            disabled={pending}
-            className="text-sm text-gray-300 hover:text-white px-3 py-1.5 rounded-md border border-white/10 hover:border-white/25 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {pending ? '저장 중…' : '아니요, 이 상태 유지'}
-          </button>
-          <button
-            type="button"
-            onClick={onRevert}
-            disabled={pending}
-            className="text-sm text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            네, 원래대로
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
