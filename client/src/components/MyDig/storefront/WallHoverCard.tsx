@@ -239,30 +239,22 @@ export default function WallHoverCard({
       } as React.CSSProperties}
     >
       <div
-        // At-rest splay shadow — strictly side-only via clip-path.
-        // Three drop-shadow pairs build the shape:
-        //   • 2 px sharp stripe (close, runs full LP height)
-        //   • 5 px / blur 4 offset down 8 (mid, visible from
-        //     mid-height down)
-        //   • 9 px / blur 8 offset down 18 (wide soft, visible
-        //     near the LP bottom only)
-        // Each layer's y-offset means it's only visible from
-        // that y point downward (above that, the LP itself
-        // covers the shadow). Combined: narrow at top, wider at
-        // bottom — the splay the photo reference shows.
-        // The clip-path inset crops top + bottom flush to the
-        // LP edges so no bleed reaches the wall above or the
-        // shelf below; sides are extended -18 px to let the
-        // wide layer breathe. Hover swaps both filter (six-layer
-        // lift drop sharing the at-rest function structure so
-        // CSS interpolates per-function smoothly — earlier we
-        // collapsed to a single drop-shadow on hover, which made
-        // the function counts mismatch and the browser had to
-        // discrete-swap the filter mid-transition: the new
-        // shadow popped in as a hard cut once the scale was
-        // already done) and clip-path (very loose) so the hover
-        // lift shadow can fully show.
-        className={`absolute inset-0 z-10 transition-[transform,filter,clip-path] duration-[260ms] ease-out [filter:drop-shadow(-2px_0_0_rgba(0,0,0,0.40))_drop-shadow(2px_0_0_rgba(0,0,0,0.40))_drop-shadow(-5px_8px_4px_rgba(0,0,0,0.30))_drop-shadow(5px_8px_4px_rgba(0,0,0,0.30))_drop-shadow(-9px_18px_8px_rgba(0,0,0,0.18))_drop-shadow(9px_18px_8px_rgba(0,0,0,0.18))] [clip-path:inset(0_-18px_0_-18px)] group-hover:[filter:drop-shadow(-3px_6px_4px_rgba(0,0,0,0.40))_drop-shadow(3px_6px_4px_rgba(0,0,0,0.40))_drop-shadow(-8px_14px_10px_rgba(0,0,0,0.40))_drop-shadow(8px_14px_10px_rgba(0,0,0,0.40))_drop-shadow(-14px_26px_22px_rgba(0,0,0,0.30))_drop-shadow(14px_26px_22px_rgba(0,0,0,0.30))] group-hover:[clip-path:inset(-60px_-60px_-60px_-60px)] group-data-[tap-active=true]:[filter:drop-shadow(-3px_6px_4px_rgba(0,0,0,0.40))_drop-shadow(3px_6px_4px_rgba(0,0,0,0.40))_drop-shadow(-8px_14px_10px_rgba(0,0,0,0.40))_drop-shadow(8px_14px_10px_rgba(0,0,0,0.40))_drop-shadow(-14px_26px_22px_rgba(0,0,0,0.30))_drop-shadow(14px_26px_22px_rgba(0,0,0,0.30))] group-data-[tap-active=true]:[clip-path:inset(-60px_-60px_-60px_-60px)] ${
+        // Single drop-shadow per state — earlier we ran a six-
+        // function side-splay that read closer to the photo
+        // reference, but six Gaussian blur passes per frame
+        // bogged down even desktop Chrome once the scale +
+        // filter transition kicked in. Collapsed to one
+        // function on each side so CSS still interpolates
+        // smoothly (matched function counts) and the GPU only
+        // owes one blur pass; the splay is sacrificed for the
+        // sake of the animation staying at frame rate. Hover
+        // grows the shadow rather than swapping its shape.
+        // clip-path no longer needs to animate (the at-rest
+        // shadow is small enough that bleeding past the LP edge
+        // doesn't read as wrong), so it's pinned to the loose
+        // inset and dropped from the transition list — one less
+        // property forcing recomposite per frame.
+        className={`absolute inset-0 z-10 transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(0_4px_6px_rgba(0,0,0,0.30))] [clip-path:inset(-60px_-60px_-60px_-60px)] group-hover:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] group-data-[tap-active=true]:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] ${
           popOnHover
             ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
             : 'group-hover:[transform:scale(var(--wall-hover-scale))] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))]'
