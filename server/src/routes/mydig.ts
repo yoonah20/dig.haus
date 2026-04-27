@@ -160,12 +160,17 @@ router.get('/mydig/:username', (req, res, next) => {
     const crateIds = crateRows.map((r: any) => r.crate_id);
     const placeholders = crateIds.map(() => '?').join(',');
     const items = queryAll(
-      `SELECT ci.crate_id, ci.position, a.id AS album_id, a.mbid, a.slug,
+      // crate_items.position was dropped in the 2026-04-28 rebuild
+      // (UNIQUE on album_id replaces UNIQUE on position) — sort by
+      // created_at DESC so the most-recently-담음 album surfaces
+      // first. The order is purely for visitor display; ownership
+      // semantics don't depend on position.
+      `SELECT ci.crate_id, a.id AS album_id, a.mbid, a.slug,
               a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
        FROM crate_items ci
        JOIN albums a ON a.id = ci.album_id
        WHERE ci.crate_id IN (${placeholders})
-       ORDER BY ci.crate_id, ci.position ASC`,
+       ORDER BY ci.crate_id, ci.created_at DESC`,
       crateIds
     );
     for (const item of items) {
