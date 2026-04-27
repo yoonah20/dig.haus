@@ -119,27 +119,37 @@ export default function HomeNextHeroMobile() {
       ref={containerRef}
       className="relative w-full overflow-hidden"
       style={{
-        // Mobile uses a real photo texture (mobild_drop.webp,
-        // tall portrait aged-paper / wallpaper feel) instead of
-        // the earlier CSS concrete sim. Tiles vertically when
-        // the hero runs taller than the source — the texture is
-        // seam-tolerant so repeats read as continuous wall.
-        // Height auto-grows from the flow content (rails carry
-        // an extra 10 px shadow tail beyond their visible plank
-        // height, so a fixed-pixel heroH would clip the last
-        // row's shadow).
-        backgroundImage: "url('/textures/mobild_drop.webp')",
-        backgroundSize: '100% auto',
-        backgroundRepeat: 'repeat-y',
-        backgroundPosition: 'top center',
-        // Wall fill comes from HERO_THEME so the mobile band reads
-        // as the same room as the desktop backdrop. Visible behind
-        // the paper texture's translucent areas; on whichever swap
-        // produces a fully-opaque texture this becomes the bg
-        // fallback only.
+        // Solid wall colour comes first so the surface tone
+        // matches the desktop backdrop. The paper texture is
+        // re-layered as a low-opacity grain overlay below so the
+        // colour drives the look and the texture only contributes
+        // surface noise. Height auto-grows from flow content
+        // (rails carry a 10 px shadow tail beyond their visible
+        // plank height, so a fixed-pixel heroH would clip the
+        // last row's shadow).
         backgroundColor: HERO_THEME.wall,
       }}
     >
+      {/* Paper-grain layer — the same mobild_drop.webp that used
+          to be the whole surface, now repurposed as a grain
+          overlay over the wall colour. Soft-light blend keeps the
+          paper's mid-tones translucent and lets the wall colour
+          set luminance + hue; opacity tames the result so the
+          grain reads as wall texture rather than a separate sheet
+          of paper laid on top. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: "url('/textures/mobild_drop.webp')",
+          backgroundSize: '100% auto',
+          backgroundRepeat: 'repeat-y',
+          backgroundPosition: 'top center',
+          mixBlendMode: 'soft-light',
+          opacity: 0.6,
+        }}
+      />
+
       {/* Soft vignette only — the photo carries enough natural
           tone variation that the earlier turbulence + linear
           gradient overlays just muddied it. Bottom darken keeps
