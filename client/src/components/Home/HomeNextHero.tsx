@@ -411,19 +411,21 @@ export default function HomeNextHero() {
       )}
 
       {/* Scroll hint — handwritten ">>" rotated 90° so it points
-          down. Sits at the very bottom-centre of the hero so the
-          user picks up that the page continues past the painted
-          basement strip. Anchored low (bottom 4) so when the
-          admin chip pair fades in on hover at bottom-3 it sits
-          above the chevron rather than colliding. Hidden while
-          editing / tuner is open since the popups already claim
-          the page focus. */}
+          down. Sits in the lower band of the hero so the user
+          picks up that the page continues past the painted
+          basement strip. Lifted off the very edge to bottom 22
+          so the chevron sits in the visible scene rather than
+          looking glued to the page chrome. Admin chip pair fades
+          in on hover at bottom-3 with z-30, painting above the
+          z-20 chevron in the rare admin-hover overlap. Hidden
+          while editing / tuner is open since the popups already
+          claim the page focus. */}
       {!editing && !tunerOpen && (
         <div
           aria-hidden
           className="absolute left-1/2 -translate-x-1/2 pointer-events-none select-none scroll-hint z-20"
           style={{
-            bottom: 4,
+            bottom: 22,
             fontFamily: GRAFFITI_FONT_STACK,
             fontSize: 20,
             color: 'rgba(245, 230, 200, 0.7)',
