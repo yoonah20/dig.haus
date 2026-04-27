@@ -593,80 +593,22 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_llm_comparison_created_at ON llm_comparison_log(created_at DESC)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_llm_comparison_operation ON llm_comparison_log(operation, created_at DESC)');
 
-  // L0c blind-bench harness for the Phase 4 nightly-curator pipeline.
-  // The plan is to compare candidate local LLMs (Qwen3-14B, EXAONE 3.5
-  // 7.8B, Qwen2.5-14B baseline, plus whatever else turns up) on the
-  // SAME English review excerpt → Korean excerptKo task, with model
-  // labels hidden during scoring so the rating isn't biased by name
-  // recognition. A `bench_run` is one comparison campaign; sources are
-  // the pinned English texts; outputs are per-model translations that
-  // get pasted in via the /admin/bench Setup tab; scores are filled
-  // during the Rate tab; closing a run reveals model labels and the
-  // aggregate per-model averages.
-  //
-  // Model count is intentionally not capped at three. The spec says
-  // 3-way but a fourth candidate (e.g. Gemma3-12B) might want adding
-  // mid-run, so `models_json` stores an arbitrary list and `output.model`
-  // is just a TEXT tag that has to match one of those entries.
-  //
-  // Scoring captures BOTH a 1-5 absolute score AND an optional rank
-  // (1=best, N=worst) within the source. Rank is per-source, so the
-  // unique key is (source_id, rank). Absolute and rank measure
-  // different things — absolute is "how good in isolation", rank is
-  // "which is best for this case" — keeping both lets us cross-check
-  // when one signal is noisy.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS bench_runs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      models_json TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      closed_at TEXT
-    )
-  `);
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS bench_sources (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      run_id INTEGER NOT NULL REFERENCES bench_runs(id) ON DELETE CASCADE,
-      album_mbid TEXT,
-      album_title TEXT,
-      source_review_id INTEGER,
-      source_text TEXT NOT NULL,
-      created_at TEXT DEFAULT (datetime('now'))
-    )
-  `);
-  db.exec('CREATE INDEX IF NOT EXISTS idx_bench_sources_run ON bench_sources(run_id)');
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS bench_outputs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      source_id INTEGER NOT NULL REFERENCES bench_sources(id) ON DELETE CASCADE,
-      model TEXT NOT NULL,
-      output TEXT NOT NULL,
-      latency_ms INTEGER,
-      created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(source_id, model)
-    )
-  `);
-  db.exec('CREATE INDEX IF NOT EXISTS idx_bench_outputs_source ON bench_outputs(source_id)');
-  // bench_scores is one row per output per scoring pass. Re-rating the
-  // same output overwrites via UNIQUE(output_id). `tags` is comma-
-  // separated short tokens (literal / jargon-error / length-bad /
-  // preamble-leak / natural) for grouping in the result view; rank is
-  // 1..N within the source (N = number of outputs scored for that
-  // source), nullable so admin can defer the rank until all outputs
-  // are scored.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS bench_scores (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      output_id INTEGER NOT NULL UNIQUE REFERENCES bench_outputs(id) ON DELETE CASCADE,
-      score INTEGER NOT NULL CHECK (score BETWEEN 1 AND 5),
-      rank INTEGER,
-      tags TEXT,
-      comment TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      updated_at TEXT DEFAULT (datetime('now'))
-    )
-  `);
+  // Drop the Phase 4 L0c bench tables. The whole local-LLM curation
+  // plan was parked on 2026-04-27 after Pre-L0 spot checks showed no
+  // currently-available local model passes the bar (see
+  // docs/phase4-nightly-pipeline.md for the failure-mode log). The
+  // bench harness was scaffolded earlier in the same session and
+  // touched production DB at deploy; this migration cleans it up so
+  // we don't carry orphan tables. If a future model passes Pre-L0
+  // and the bench harness is wanted again, it lives in git at
+  // c051df8 and can be cherry-picked + re-applied.
+  runOnce(db, 'drop-phase4-bench-tables-2026-04-27', () => {
+    db.exec('DROP TABLE IF EXISTS bench_scores');
+    db.exec('DROP TABLE IF EXISTS bench_outputs');
+    db.exec('DROP TABLE IF EXISTS bench_sources');
+    db.exec('DROP TABLE IF EXISTS bench_runs');
+    console.log('[migration] dropped Phase 4 bench tables (plan parked)');
+  });
 
   // Auto-migrate
   migrateTable(db, 'albums', [

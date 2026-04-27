@@ -1,9 +1,71 @@
 # Phase 4/5 — Nightly Local LLM Curation Pipeline (design brief)
 
-**Status**: parked until Phase 3 (mydig) closes.
+**Status**: **PARKED 2026-04-27** after Pre-L0 spot check failed. See "Pre-L0 결과" section below for the evaluation log + revival conditions. The original design brief is preserved unchanged below it for context if the plan is revived.
 **Drafted**: 2026-04-20, with web Claude Code. Reviewed by local Claude Code same day.
+**Parked**: 2026-04-27. Awaiting either better local LLMs or stronger hardware (the 16GB VRAM ceiling on RTX 5080 forced offloading on the only model with passable Korean output).
 
 This doc captures the full design brief the user drafted, plus a short "read this first" section with open questions surfaced during review. Written in Korean because the source was Korean; exception to the English-only rule for planning docs noted.
+
+---
+
+## Pre-L0 결과 (2026-04-27)
+
+Spot check 결과 어떤 후보 모델도 production Haiku/DeepSeek 출력에 비할 한국어 발췌 품질을 내지 못했음. 결과를 본 yoonah가 spec의 "결과가 기대 이하면 전체 플랜 피벗" 조항을 발동, 로컬 LLM 파이프라인 전체를 무기한 보류로 결정.
+
+### 평가한 모델
+
+- **qwen3:14b** (Qwen3 14B dense, Q-default via Ollama)
+- **qwen3.6:35b-a3b** (Qwen3.6 MoE, 35B 총 / 3B active)
+- **exaone3.5:7.8b** (LG AI Research, 한국어 네이티브 학습)
+
+다 Ollama로 받아서 같은 5개 영문 review excerpt에 동일 강화 prompt를 던지고 production excerpt_ko (Haiku/DeepSeek)와 옆에 띄워 평가.
+
+### 발견된 실패 모드 (재개 시 평가 베이스라인)
+
+미래 모델 평가 시 이 패턴들이 사라졌는지 우선 확인:
+
+1. **음역 / 고유명사 오타** — "Sweden → 스웨인", "Dream Theater → 드림 시터". 35B-A3B에서 가장 잦았음. 기본 한국어 음역 사전조차 흔들리는 모델은 무리.
+2. **한자어 직역** — "gold standard → 금자표", "heavy metal → 중금속". 의미 파악은 되는데 한국어 일상 표현으로 못 옮김. prompt에 명시 금지를 박아도 35B-A3B는 여전히 새어나옴.
+3. **관용구 직역** — "lightning in a bottle → 병에 담긴 번개". 영어 idiom을 그대로 글자 옮김. few-shot 없이는 못 잡힐 가능성.
+4. **Mid-word script mixing** — "Manifesto → 만ifesto", "Weekend → 위Kend". 음역 도중 영문/한글 섞이는 토큰 분할 오류. prompt rule로도 안 잡힘.
+5. **Markup leak** — `_TITLE_`, `<title>`, `**bold**` 같은 markdown/꺾쇠 marker가 답에 그대로 들어감.
+6. **Over-compression** — 7.8B EXAONE이 일관되게 50%+ 정보 손실. 53자/41자/82자처럼 130자 한계의 절반 미만으로 압축하면서 밴드명/장르명/세부 묘사 누락.
+7. **장르 misclassification** — "blackgaze → 블랙메탈" (서로 다른 장르). 7.8B 한계.
+
+### 결론
+
+- **qwen3:14b**: 의미 자체가 어긋나는 수준 (e.g. "no sophomore slump → 성장의 흔적이 없고"). 탈락.
+- **qwen3.6:35b-a3b**: 의미는 살리지만 표면 오류(2/3/4번)가 admin 수동 검수 없이는 못 통과. RTX 5080 16GB에 일부 CPU offload 발생, 샘플당 16초+ 지연.
+- **exaone3.5:7.8b**: 한국어 톤은 자연스러우나 7.8B 용량 한계로 정보 손실 + 장르 오류. 탈락.
+
+PROD(Haiku/DeepSeek)가 자기 prompt rule(존댓말 금지)을 가끔 어기는 약점이 있음에도 모든 후보보다 명확히 우위. **현 시점 로컬 LLM 인프라 구축은 가성비 부정적.**
+
+### 무엇을 남겼고 무엇을 지웠나
+
+남긴 것 — 미래 평가용 인프라:
+- **`server/scripts/preL0-spot-check.ts`** — 새 모델 등장 시 30초 평가용. Ollama native /api/chat, think:false, 강화된 한국어 prompt, 위 실패 모드를 prompt rule로 흡수한 상태로 동결됨. `OLLAMA_MODELS=newmodel:size npx tsx scripts/preL0-spot-check.ts`로 호출.
+
+지운 것 — Pre-L0 통과 모델이 없는 한 작동 불가능한 인프라:
+- `/admin/bench` 페이지 (`client/src/pages/Bench.tsx`)
+- `server/src/routes/bench.ts` (11개 엔드포인트)
+- `bench_runs / bench_sources / bench_outputs / bench_scores` 4개 DB 테이블 (drop migration `drop-phase4-bench-tables-2026-04-27`로 production에서도 정리)
+- App route `/admin/bench`, Admin nav의 🧪 벤치 링크
+
+→ 미래에 부활시킬 거면 git `c051df8`에서 cherry-pick 가능. 새 시점 schema 컬럼 변화에 따라 충돌 정리는 필요.
+
+### 재개 조건
+
+다음 중 하나 발생 시 재평가:
+
+1. **모델 측**: 14B-30B 사이에 한국어 IDIOM/transliteration이 검증된 신규 모델 등장. 위 7개 실패 모드 중 5개 이상 prompt rule로 잡히면 통과로 간주.
+2. **하드웨어 측**: 5090 (32GB VRAM) 또는 Mac Studio M4 Ultra 등으로 70B+ 풀 VRAM 추론 가능해짐. 70B+ dense / 235B+ MoE는 음역/idiom 약점이 본질적으로 줄어드는 사이즈.
+3. **공통**: yoonah가 "그래도 자동화의 가치가 품질 손실을 능가한다" 판단으로 **C 옵션** (excerptKo는 API 유지, 로컬은 pickEditorialUrls/pronunciation/similar descriptions만 담당) 으로 전환 결정. 이 경우 Pre-L0 통과 기준이 훨씬 낮아짐 (분류/한 줄 의역만 되면 됨).
+
+재개 시 첫 동작은 항상 **`server/scripts/preL0-spot-check.ts` 실행 → 결과가 PROD에 비할 만하면** 그때 git c051df8에서 bench harness 부활 + L0c 정식 평가 진행.
+
+---
+
+## (이하 원본 design brief — 2026-04-20 기록 그대로 보존)
 
 ---
 

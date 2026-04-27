@@ -328,15 +328,6 @@ function ClaudeUsageCard({
           >
             🔀 비교
           </Link>
-          <Link
-            to="/admin/bench"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] text-gray-500 hover:text-[#e8a020] underline-offset-2 hover:underline cursor-pointer"
-            title="Phase 4 L0c 블라인드 벤치 — 로컬 LLM 후보 모델 평가"
-          >
-            🧪 벤치
-          </Link>
           <button
             type="button"
             onClick={handleReset}
