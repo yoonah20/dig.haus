@@ -249,12 +249,15 @@ export default function WallHoverCard({
         // owes one blur pass; the splay is sacrificed for the
         // sake of the animation staying at frame rate. Hover
         // grows the shadow rather than swapping its shape.
-        // clip-path is pinned to the at-rest inset (top + bottom
-        // hard crop, sides -18 px loose) and dropped from the
-        // transition list — the LP shouldn't bleed shadow onto
-        // the wall above or the shelf below at any state, only
-        // sideways. Static clip-path is essentially free.
-        className={`absolute inset-0 z-10 transition-[transform,filter] duration-[260ms] ease-out [filter:drop-shadow(0_4px_6px_rgba(0,0,0,0.30))] [clip-path:inset(0_-18px_0_-18px)] group-hover:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] group-data-[tap-active=true]:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] ${
+        // clip-path crops top + bottom flush at rest so the LP
+        // on the shelf can't bleed shadow onto the wall above
+        // or the shelf below (sides -18 px loose). Once the
+        // sleeve lifts (hover / tap-active) the LP is no longer
+        // sitting on the shelf so all four sides open up
+        // (-60 px) and the lift shadow can fully show.
+        // Animating four inset axes is cheap next to the old
+        // six-blur drop-shadow load.
+        className={`absolute inset-0 z-10 transition-[transform,filter,clip-path] duration-[260ms] ease-out [filter:drop-shadow(0_4px_6px_rgba(0,0,0,0.30))] [clip-path:inset(0_-18px_0_-18px)] group-hover:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] group-hover:[clip-path:inset(-60px_-60px_-60px_-60px)] group-data-[tap-active=true]:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] group-data-[tap-active=true]:[clip-path:inset(-60px_-60px_-60px_-60px)] ${
           popOnHover
             ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
             : 'group-hover:[transform:scale(var(--wall-hover-scale))] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))]'
