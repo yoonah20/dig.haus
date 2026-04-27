@@ -13,6 +13,7 @@ import VinylWallEditor from '../MyDig/VinylWallEditor';
 import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
+import { HERO_BACKDROP_URL, HERO_THEME } from '../../lib/heroTheme';
 
 // basement_purple.avif: 2976×1500 wall-only strip (concrete-textured
 // wall with two baked-in wood shelves and a small dig.haus neon in
@@ -268,7 +269,7 @@ export default function HomeNextHero() {
           }}
         >
           <img
-            src="/backdrops/basement_purple.avif"
+            src={HERO_BACKDROP_URL}
             alt=""
             aria-hidden
             className="absolute inset-0 w-full h-full pointer-events-none select-none"
@@ -277,11 +278,10 @@ export default function HomeNextHero() {
 
           {/* Wall section header — handwritten title pulled from
               home_meta. Position tunable so we can nudge it
-              against the new backdrop's negative space. Cream-tone
-              chalk color matches the graffiti elsewhere in the hero
-              and reads on the purple backdrop where the original
-              dark-brown ink lost contrast; the soft shadow keeps
-              the letters from feeling pasted on top of the wall. */}
+              against the new backdrop's negative space. Title ink
+              and shadow come from HERO_THEME so a backdrop swap
+              auto-derives a readable contrast colour (see
+              server/scripts/extract-hero-theme.ts). */}
           {meta?.theme && meta.theme.trim().length > 0 && (
             <div
               className="absolute select-none pointer-events-none"
@@ -291,8 +291,8 @@ export default function HomeNextHero() {
                 fontFamily: GRAFFITI_FONT_STACK,
                 transform: `rotate(${tuner.titleRotationDeg}deg)`,
                 transformOrigin: 'top left',
-                color: '#f5e6c8',
-                textShadow: '0 1px 2px rgba(0, 0, 0, 0.45)',
+                color: HERO_THEME.ink,
+                textShadow: HERO_THEME.shadow,
               }}
             >
               <h2

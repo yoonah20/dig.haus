@@ -8,6 +8,7 @@ import { WallLP, WallRail } from '../MyDig/storefront/primitives';
 import WallHoverCard from '../MyDig/storefront/WallHoverCard';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
+import { HERO_THEME } from '../../lib/heroTheme';
 
 // Mobile hero uses a different visual strategy from the desktop
 // asset-driven hero. The painted basement strip relies on the
@@ -131,7 +132,12 @@ export default function HomeNextHeroMobile() {
         backgroundSize: '100% auto',
         backgroundRepeat: 'repeat-y',
         backgroundPosition: 'top center',
-        backgroundColor: '#c9b290',
+        // Wall fill comes from HERO_THEME so the mobile band reads
+        // as the same room as the desktop backdrop. Visible behind
+        // the paper texture's translucent areas; on whichever swap
+        // produces a fully-opaque texture this becomes the bg
+        // fallback only.
+        backgroundColor: HERO_THEME.wall,
       }}
     >
       {/* Soft vignette only — the photo carries enough natural
@@ -167,11 +173,11 @@ export default function HomeNextHeroMobile() {
       {/* Handwritten section title — anchored top-left of the
           wall. No tilt on mobile (the desktop -3° read as
           casual on a wide composition; on the narrower mobile
-          band the same tilt was just hard to read). Dark ink on
-          warm-tan concrete (matches the desktop hero's title
-          colour and reads cleanly against the lighter mobile
-          bg now that the surface tone shifted to match
-          basement4).  */}
+          band the same tilt was just hard to read). Ink colour
+          + shadow come from HERO_THEME so the mobile title
+          stays readable against whichever wall tone the desktop
+          backdrop drove (cream against dark plum, dark brown
+          against light tan, etc.). */}
       {meta?.theme && meta.theme.trim().length > 0 && (
         <div
           className="absolute select-none pointer-events-none"
@@ -188,7 +194,8 @@ export default function HomeNextHeroMobile() {
             left: PAD_X + 28,
             right: PAD_X,
             fontFamily: GRAFFITI_FONT_STACK,
-            color: '#1a1208',
+            color: HERO_THEME.ink,
+            textShadow: HERO_THEME.shadow,
           }}
         >
           <h2
