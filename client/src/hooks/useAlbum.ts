@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
+import type { ArtistCreditEntry } from '../types';
 
 interface AlbumBase {
   album: {
@@ -8,6 +9,12 @@ interface AlbumBase {
     title: string;
     artist: string;
     artistMbid: string | null;
+    /** Multi-artist credit array. Server always returns at least
+     *  a 1-element array (legacy single-artist rows synthesise one
+     *  from `artist`). HeaderSection renders each entry as its
+     *  own clickable element via the shared ArtistCredit
+     *  component. */
+    artistCredit: ArtistCreditEntry[];
     releaseDate: string;
     label: string | null;
     genres: string[];
