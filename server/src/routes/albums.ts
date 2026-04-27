@@ -1306,6 +1306,9 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
     (t) => !newKeys.has(t.toLowerCase())
   );
 
+  // Closure captures this so we can read the per-album strip total
+  // out of the transaction for the response payload.
+  let strippedAlbumCountOut = 0;
   try {
     transaction((): void => {
       updateAlbumFields(mbid, { genres: JSON.stringify(cleaned) });
@@ -1364,6 +1367,7 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
             `[tags] blacklisted ${removedTags.length} tag(s); stripped from ${strippedAlbumCount} other album(s)`
           );
         }
+        strippedAlbumCountOut = strippedAlbumCount;
       }
     });
 
@@ -1372,6 +1376,7 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
       ok: true,
       tags: cleaned,
       blacklisted: removedTags.map((t) => t.toLowerCase()),
+      strippedAlbumCount: strippedAlbumCountOut,
     });
   } catch (error) {
     console.error('Update tags error:', error);

@@ -51,6 +51,24 @@ function TagEditor({
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Inline confirmation row that surfaces what just happened — most
+  // visible when admin is in cleanup mode and clicking × repeatedly.
+  // Without it the only feedback was the tag chip vanishing, with no
+  // signal that the server-side blacklist + cross-album strip
+  // succeeded. Auto-clears after ~2.4s; the timer resets on each
+  // new event so back-to-back clicks don't stack stale messages.
+  const [toast, setToast] = useState<{
+    blacklisted: string[];
+    strippedTotal: number;
+  } | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current != null) window.clearTimeout(toastTimerRef.current);
+    },
+    []
+  );
+
   useEffect(() => {
     if (adding) inputRef.current?.focus();
   }, [adding]);
@@ -59,9 +77,28 @@ function TagEditor({
     async (nextTags: string[]) => {
       setSaving(true);
       try {
-        await axios.patch(`/api/albums/${albumId}/tags`, { tags: nextTags });
+        const res = await axios.patch<{
+          ok: boolean;
+          tags: string[];
+          blacklisted?: string[];
+          strippedAlbumCount?: number;
+        }>(`/api/albums/${albumId}/tags`, { tags: nextTags });
         await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
         await queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
+        const banned = res.data?.blacklisted ?? [];
+        if (banned.length > 0) {
+          setToast({
+            blacklisted: banned,
+            strippedTotal: res.data?.strippedAlbumCount ?? 0,
+          });
+          if (toastTimerRef.current != null) {
+            window.clearTimeout(toastTimerRef.current);
+          }
+          toastTimerRef.current = window.setTimeout(() => {
+            setToast(null);
+            toastTimerRef.current = null;
+          }, 2400);
+        }
       } catch (err) {
         console.error('Update tags error:', err);
         alert('태그 저장에 실패했습니다.');
@@ -101,7 +138,30 @@ function TagEditor({
   if (tags.length === 0 && !isAdmin) return null;
 
   return (
-    <div className="flex flex-wrap gap-2 mb-6">
+    <div className="mb-6">
+      {/* Blacklist confirmation — only renders for admin after a × that
+          fired the blacklist path. Sits above the tag chips so it's
+          visible without scrolling and pushes the chips down a touch
+          (they animate back up when the toast clears). */}
+      {toast && (
+        <div
+          className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#e8a020]/15 border border-[#e8a020]/40 text-[12px] text-[#e8a020] animate-[fadeInUp_220ms_ease-out]"
+          role="status"
+          aria-live="polite"
+        >
+          <span aria-hidden>🚫</span>
+          <span>
+            <strong className="font-semibold">{toast.blacklisted.join(', ')}</strong>
+            {' '}블랙리스트에 추가됨
+            {toast.strippedTotal > 0 && (
+              <span className="text-[#c47020]/80">
+                {' '}· 다른 앨범 {toast.strippedTotal}개에서도 제거
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
       {tags.map((g) => (
         <span
           key={g}
@@ -170,6 +230,7 @@ function TagEditor({
             + 태그 추가
           </button>
         ))}
+      </div>
     </div>
   );
 }
