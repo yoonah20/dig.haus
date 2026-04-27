@@ -170,8 +170,11 @@ export interface UserPublic {
     downvoteCount: number;
     upvotePct: number | null;
     downvotePct: number | null;
-    ownedCount?: number;
-    wantedCount?: number;
+    /** Distinct albums across all of the user's crates (replaces
+     *  the prior ownedCount + wantedCount split). */
+    crateAlbumCount?: number;
+    /** Total number of crates the user has created. */
+    crateCount?: number;
     followerCount?: number;
     followingCount?: number;
   };

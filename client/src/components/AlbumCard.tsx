@@ -692,7 +692,7 @@ export default function AlbumCard({
                     )}
                   </div>
                 )}
-                {!compact && ((album.ownedCount ?? 0) > 0 || (album.wantedCount ?? 0) > 0) && (
+                {!compact && (album.crateCount ?? 0) > 0 && (
                   <div
                     className="flex items-center gap-2 tabular-nums text-gray-300 flex-wrap"
                     style={{
@@ -700,16 +700,9 @@ export default function AlbumCard({
                       fontSize: 'clamp(8px, 6cqw, 12px)',
                     }}
                   >
-                    {(album.ownedCount ?? 0) > 0 && (
-                      <span>
-                        <span aria-hidden>💿</span> {album.ownedCount}
-                      </span>
-                    )}
-                    {(album.wantedCount ?? 0) > 0 && (
-                      <span>
-                        <span aria-hidden>🎯</span> {album.wantedCount}
-                      </span>
-                    )}
+                    <span>
+                      <span aria-hidden>📦</span> {album.crateCount}
+                    </span>
                   </div>
                 )}
               </div>

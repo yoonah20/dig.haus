@@ -282,78 +282,11 @@ router.get('/me/upvotes', requireAuth, (req, res) => {
 //
 // Grouped by album so each title appears once even if the user marked
 // multiple formats (vinyl + CD etc.); `formats` carries the set.
-// Ordered by the earliest add for a given album so the most recent
-// addition surfaces first.
-router.get('/me/collection', requireAuth, (req, res) => {
-  const me = req.user as AppUser;
-  const rows = queryAll(
-    `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name,
-            a.cover_art_url, a.cover_art_fallbacks,
-            MAX(c.created_at) AS added_at,
-            GROUP_CONCAT(DISTINCT c.format) AS formats
-     FROM collections c
-     JOIN albums a ON a.id = c.album_id
-     WHERE c.user_id = ?
-     GROUP BY c.album_id
-     ORDER BY added_at DESC`,
-    [me.id]
-  );
-  res.json({
-    items: rows.map((a: any) => ({
-      slug: a.slug || a.mbid,
-      title: a.title,
-      artist: a.artist_name,
-      coverArtUrl: a.cover_art_url,
-      coverArtFallbacks: a.cover_art_fallbacks
-        ? (() => {
-            try {
-              return JSON.parse(a.cover_art_fallbacks);
-            } catch {
-              return [];
-            }
-          })()
-        : [],
-      addedAt: a.added_at,
-      formats: a.formats ? String(a.formats).split(',').filter(Boolean) : [],
-    })),
-  });
-});
-
-// ─── GET /api/me/wantlist — albums I want to buy ──────────────────────────
-router.get('/me/wantlist', requireAuth, (req, res) => {
-  const me = req.user as AppUser;
-  const rows = queryAll(
-    `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name,
-            a.cover_art_url, a.cover_art_fallbacks,
-            MAX(w.created_at) AS added_at,
-            GROUP_CONCAT(DISTINCT w.format) AS formats
-     FROM wants w
-     JOIN albums a ON a.id = w.album_id
-     WHERE w.user_id = ?
-     GROUP BY w.album_id
-     ORDER BY added_at DESC`,
-    [me.id]
-  );
-  res.json({
-    items: rows.map((a: any) => ({
-      slug: a.slug || a.mbid,
-      title: a.title,
-      artist: a.artist_name,
-      coverArtUrl: a.cover_art_url,
-      coverArtFallbacks: a.cover_art_fallbacks
-        ? (() => {
-            try {
-              return JSON.parse(a.cover_art_fallbacks);
-            } catch {
-              return [];
-            }
-          })()
-        : [],
-      addedAt: a.added_at,
-      formats: a.formats ? String(a.formats).split(',').filter(Boolean) : [],
-    })),
-  });
-});
+// /me/collection and /me/wantlist were removed when collections and
+// wants were absorbed into crates (2026-04-28). Profile + crate UIs
+// now read from /api/mydig/crates instead — the 샀음/살거 distinction
+// is no longer first-class, so a unified crate listing replaces both
+// endpoints.
 
 // ─── DELETE /api/me — hard-delete account ─────────────────────────────────
 //
@@ -363,8 +296,9 @@ router.get('/me/wantlist', requireAuth, (req, res) => {
 //   purchase_links.user_id, album_dna.added_by_user_id → NULLed
 //     (album-level content contributed by the user)
 //
-//   wishlists, collections, wants, dig_journal_posts → deleted
-//     (these are private library items, not public contributions)
+//   wishlists, dig_journal_posts → deleted explicitly
+//   crate_boxes (+ crate_items via ON DELETE CASCADE) → deleted via
+//     the user delete cascade
 //
 // The anonymised rows surface as "탈퇴한 사용자" on the client. Also
 // removes the uploaded avatar file from disk if any.
@@ -383,8 +317,6 @@ router.delete('/me', requireAuth, (req, res) => {
     transaction(() => {
       // Private library items — not public, safe to remove.
       execute(`DELETE FROM wishlists WHERE user_id = ?`, [me.id]);
-      execute(`DELETE FROM collections WHERE user_id = ?`, [me.id]);
-      execute(`DELETE FROM wants WHERE user_id = ?`, [me.id]);
       execute(`DELETE FROM dig_journal_posts WHERE user_id = ?`, [me.id]);
       // Public album-level content contributed by the user — anonymise.
       execute(`UPDATE purchase_links SET user_id = NULL WHERE user_id = ?`, [me.id]);
@@ -460,14 +392,21 @@ router.get('/users/:id/public', (req, res) => {
   // Collection-feature counts — how many distinct albums this user
   // owns / wants (DISTINCT so someone with vinyl + CD of the same
   // title counts as one title, not two).
-  const ownedCount =
+  // Distinct albums across ALL of the user's crates — replaces the
+  // separate ownedCount / wantedCount that came from collections +
+  // wants pre-2026-04-28. The hover card now surfaces a single
+  // "총 N장 담음" stat instead of the previous 샀음 / 살거 split.
+  const crateAlbumCount =
     queryGet(
-      `SELECT COUNT(DISTINCT album_id) AS c FROM collections WHERE user_id = ?`,
+      `SELECT COUNT(DISTINCT ci.album_id) AS c
+       FROM crate_items ci
+       JOIN crate_boxes cb ON cb.id = ci.crate_id
+       WHERE cb.user_id = ?`,
       [id]
     )?.c || 0;
-  const wantedCount =
+  const crateCount =
     queryGet(
-      `SELECT COUNT(DISTINCT album_id) AS c FROM wants WHERE user_id = ?`,
+      `SELECT COUNT(*) AS c FROM crate_boxes WHERE user_id = ?`,
       [id]
     )?.c || 0;
 
@@ -526,8 +465,8 @@ router.get('/users/:id/public', (req, res) => {
       downvoteCount: down,
       upvotePct: total > 0 ? Math.round((up / total) * 100) : null,
       downvotePct: total > 0 ? Math.round((down / total) * 100) : null,
-      ownedCount,
-      wantedCount,
+      crateAlbumCount,
+      crateCount,
       followerCount,
       followingCount,
     },

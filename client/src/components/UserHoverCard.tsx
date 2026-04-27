@@ -348,19 +348,11 @@ export default function UserHoverCard({
                         {data.stats.followerCount ?? 0}
                       </span>
                     </span>
-                    {(data.stats.ownedCount ?? 0) > 0 && (
+                    {(data.stats.crateAlbumCount ?? 0) > 0 && (
                       <span>
-                        <span aria-hidden>💿</span>{' '}
+                        <span aria-hidden>📦</span>{' '}
                         <span className="text-gray-100 font-semibold">
-                          {data.stats.ownedCount}
-                        </span>
-                      </span>
-                    )}
-                    {(data.stats.wantedCount ?? 0) > 0 && (
-                      <span>
-                        <span aria-hidden>🎯</span>{' '}
-                        <span className="text-gray-200 font-semibold">
-                          {data.stats.wantedCount}
+                          {data.stats.crateAlbumCount}
                         </span>
                       </span>
                     )}

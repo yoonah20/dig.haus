@@ -4,6 +4,8 @@ import type { ArtistCreditEntry } from '../types';
 
 interface AlbumBase {
   album: {
+    /** Numeric DB pkey — used by crate endpoints. */
+    id?: number;
     mbid: string;
     slug: string | null;
     title: string;
@@ -29,10 +31,9 @@ interface AlbumBase {
     /** NULL when the album is user-submitted and admin hasn't yet
      *  triggered the review-crawl pipeline. */
     reviewsCrawledAt: string | null;
-    ownedCount?: number;
-    wantedCount?: number;
-    userOwnedFormats?: Array<'Vinyl' | 'CD' | 'Cassette'>;
-    userWantedFormats?: Array<'Vinyl' | 'CD' | 'Cassette'>;
+    /** Distinct users with this album in any of their PUBLIC
+     *  crates. Replaces the prior ownedCount + wantedCount fields. */
+    crateCount?: number;
   };
   streaming: {
     spotify: string | null;

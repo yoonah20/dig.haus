@@ -421,26 +421,13 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
-  // 샀음 (collections) + 살거 (wants). Per-format ownership — a
-  // collector can own the vinyl and want the CD of the same title,
-  // so UNIQUE spans (user_id, album_id, format) not just the pair.
-  // Fresh installs land on this shape directly; existing installs
-  // migrate via the recreate block below.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS collections (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-      format TEXT NOT NULL DEFAULT 'Vinyl'
-        CHECK(format IN ('Vinyl','CD','Cassette')),
-      press_info TEXT,
-      condition TEXT,
-      purchase_price REAL,
-      purchase_date TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(user_id, album_id, format)
-    )
-  `);
+  // 샀음 / 살거 used to live in dedicated `collections` + `wants`
+  // tables. Both were absorbed into the crate system in 2026-04-28
+  // (post-Phase 3 roadmap item 2) — the 샀음 / 살거 distinction is
+  // no longer load-bearing; existing data was copied into per-user
+  // 샀음 + 살거 crates and the legacy tables dropped (see the
+  // `migrate-collections-wants-to-crates-2026-04-28` runOnce block
+  // further down). Fresh installs never create these tables.
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS purchase_links (
@@ -484,19 +471,6 @@ export function initializeDatabase(db: Database.Database): void {
       vote TEXT NOT NULL CHECK(vote IN ('up','down')),
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(user_id, album_id)
-    )
-  `);
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS wants (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-      format TEXT NOT NULL DEFAULT 'Vinyl'
-        CHECK(format IN ('Vinyl','CD','Cassette')),
-      note TEXT,
-      created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(user_id, album_id, format)
     )
   `);
 
@@ -781,85 +755,13 @@ export function initializeDatabase(db: Database.Database): void {
      ON label_feed_items(release_date DESC)`
   );
 
-  // Format-aware collections + wants — one row per (user, album, format).
-  // v1 of the ownership feature keyed on (user, album) only and
-  // collections had no UNIQUE at all; this migration recreates both
-  // tables with UNIQUE(user_id, album_id, format) + format NOT NULL so
-  // a collector can own vinyl and want CD of the same title. Any
-  // legacy rows from the brief v1 window get format='Vinyl' by
-  // default (safe: it's the most common format and the user can
-  // re-toggle if wrong). Idempotent via schema_migrations.
-  try {
-    const row = db
-      .prepare(`SELECT name FROM schema_migrations WHERE name = ?`)
-      .get('format-aware-collections-wants-2026-04-18') as
-      | { name: string }
-      | undefined;
-    if (!row) {
-      db.exec('PRAGMA foreign_keys = OFF');
-      db.exec(`
-        CREATE TABLE collections_new (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-          format TEXT NOT NULL DEFAULT 'Vinyl'
-            CHECK(format IN ('Vinyl','CD','Cassette')),
-          press_info TEXT,
-          condition TEXT,
-          purchase_price REAL,
-          purchase_date TEXT,
-          created_at TEXT DEFAULT (datetime('now')),
-          UNIQUE(user_id, album_id, format)
-        )
-      `);
-      db.exec(`
-        INSERT INTO collections_new
-          (id, user_id, album_id, format, press_info, condition,
-           purchase_price, purchase_date, created_at)
-        SELECT id, user_id, album_id,
-               COALESCE(
-                 CASE WHEN format IN ('Vinyl','CD','Cassette') THEN format END,
-                 'Vinyl'
-               ),
-               press_info, condition, purchase_price, purchase_date, created_at
-        FROM collections
-        WHERE user_id IS NOT NULL AND album_id IS NOT NULL
-      `);
-      db.exec(`DROP TABLE collections`);
-      db.exec(`ALTER TABLE collections_new RENAME TO collections`);
-
-      db.exec(`
-        CREATE TABLE wants_new (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-          album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-          format TEXT NOT NULL DEFAULT 'Vinyl'
-            CHECK(format IN ('Vinyl','CD','Cassette')),
-          note TEXT,
-          created_at TEXT DEFAULT (datetime('now')),
-          UNIQUE(user_id, album_id, format)
-        )
-      `);
-      db.exec(`
-        INSERT INTO wants_new
-          (id, user_id, album_id, format, note, created_at)
-        SELECT id, user_id, album_id, 'Vinyl', note, created_at
-        FROM wants
-        WHERE user_id IS NOT NULL AND album_id IS NOT NULL
-      `);
-      db.exec(`DROP TABLE wants`);
-      db.exec(`ALTER TABLE wants_new RENAME TO wants`);
-      db.exec('PRAGMA foreign_keys = ON');
-
-      db.prepare(`INSERT INTO schema_migrations (name) VALUES (?)`).run(
-        'format-aware-collections-wants-2026-04-18'
-      );
-      console.log('[migration] recreated collections + wants with per-format UNIQUE');
-    }
-  } catch (err) {
-    console.error('[migration] format-aware collections/wants failed:', err);
-    try { db.exec('PRAGMA foreign_keys = ON'); } catch {}
-  }
+  // The legacy `format-aware-collections-wants-2026-04-18` migration
+  // (which recreated collections + wants with a per-format UNIQUE)
+  // lived here. It became dead code after the 2026-04-28 absorption —
+  // collections and wants are dropped before any other queries can
+  // run, so a per-format rebuild is irrelevant. Removed entirely
+  // rather than left as a no-op because the body referenced the
+  // legacy tables and would error on fresh DBs that never had them.
 
   // Drop the legacy album_requests table. User submissions have been
   // stored directly on `albums` via `requested_by_user_id` since the
@@ -1478,6 +1380,13 @@ export function initializeDatabase(db: Database.Database): void {
      ON shelf_items(slot_id, position)`
   );
 
+  // Crate — user-named container of unlimited capacity, replaces the
+  // legacy collections + wants tables (post-Phase 3 roadmap item 2).
+  // is_public defaults to 0: per the design discussion, "남들 눈치
+  // 안 보고 일단 담을 수 있는" private dumping ground is the natural
+  // first state; owner flips public on the crates they want surfaced.
+  // position kept for future drag-reorder UI but not currently
+  // surfaced — list reads ORDER BY position ASC, ties broken by id.
   db.exec(`
     CREATE TABLE IF NOT EXISTS crate_boxes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1485,30 +1394,184 @@ export function initializeDatabase(db: Database.Database): void {
       position INTEGER NOT NULL,
       title TEXT NOT NULL,
       description TEXT,
+      is_public INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       UNIQUE(user_id, position)
     )
   `);
+  migrateTable(db, 'crate_boxes', ['is_public INTEGER NOT NULL DEFAULT 0']);
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_crate_boxes_user_position
      ON crate_boxes(user_id, position)`
   );
 
+  // crate_items: one row per (crate, album). UNIQUE on (crate_id,
+  // album_id) so the "담기" toggle stays idempotent — repeat clicks
+  // can't double-stuff the same album. The legacy schema had
+  // UNIQUE(crate_id, position) plus a position column; that's
+  // unnecessary for v1 (no reorder UI yet) and made dedupe-on-add
+  // awkward, so the rebuild below drops it.
   db.exec(`
     CREATE TABLE IF NOT EXISTS crate_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       crate_id INTEGER NOT NULL REFERENCES crate_boxes(id) ON DELETE CASCADE,
       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL,
       created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(crate_id, position)
+      UNIQUE(crate_id, album_id)
     )
   `);
   db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_crate_items_crate_position
-     ON crate_items(crate_id, position)`
+    `CREATE INDEX IF NOT EXISTS idx_crate_items_crate_created
+     ON crate_items(crate_id, created_at DESC)`
   );
+
+  // Rebuild legacy crate_items (had position UNIQUE + position column)
+  // into the new shape. Idempotent via runOnce; the CREATE IF NOT
+  // EXISTS above lands fresh DBs on the new schema directly, so this
+  // block only does anything on a DB that already had the old shape.
+  runOnce(db, 'crate-items-rebuild-no-position-2026-04-28', () => {
+    const cols = db.prepare('PRAGMA table_info(crate_items)').all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'position')) return; // already new shape
+    db.exec(`
+      CREATE TABLE crate_items_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        crate_id INTEGER NOT NULL REFERENCES crate_boxes(id) ON DELETE CASCADE,
+        album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+        created_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(crate_id, album_id)
+      )
+    `);
+    // Dedupe on (crate_id, album_id) at copy time — the old UNIQUE
+    // was on position, so duplicates by album within a crate were
+    // technically allowed and may exist.
+    db.exec(`
+      INSERT INTO crate_items_new (crate_id, album_id, created_at)
+      SELECT crate_id, album_id, MIN(created_at)
+      FROM crate_items
+      GROUP BY crate_id, album_id
+    `);
+    db.exec(`DROP TABLE crate_items`);
+    db.exec(`ALTER TABLE crate_items_new RENAME TO crate_items`);
+    db.exec(
+      `CREATE INDEX IF NOT EXISTS idx_crate_items_crate_created
+       ON crate_items(crate_id, created_at DESC)`
+    );
+    console.log('[migration] crate_items rebuilt without position column');
+  });
+
+  // One-time absorption of collections + wants into per-user crates.
+  // Each user with rows in either table gets a 샀음 + 살거 crate
+  // (or skips the side that has no rows). Existing user-created
+  // crates are unaffected; the new ones tail-append to position so
+  // they don't collide with whatever's already there. After the
+  // copy, the legacy tables are dropped — going forward 샀음/살거
+  // are just two ordinary user crates with no special status, so
+  // the owner can rename, delete, or set them public freely.
+  runOnce(db, 'migrate-collections-wants-to-crates-2026-04-28', () => {
+    const collectionsExists = !!db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='collections'`)
+      .get();
+    const wantsExists = !!db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='wants'`)
+      .get();
+    if (!collectionsExists && !wantsExists) return;
+
+    // Build the union of user_ids from whichever legacy tables
+    // happen to exist. Both are always created together by current
+    // schema, but local dev DBs in the wild have ended up with only
+    // one (the format-aware migration in 2026-04 was the last code
+    // path that touched both, and an interrupted run could leave a
+    // half-migrated state). Handle each independently.
+    const userIdsSet = new Set<number>();
+    if (collectionsExists) {
+      const r = db
+        .prepare(`SELECT DISTINCT user_id FROM collections`)
+        .all() as Array<{ user_id: number }>;
+      for (const { user_id } of r) userIdsSet.add(user_id);
+    }
+    if (wantsExists) {
+      const r = db
+        .prepare(`SELECT DISTINCT user_id FROM wants`)
+        .all() as Array<{ user_id: number }>;
+      for (const { user_id } of r) userIdsSet.add(user_id);
+    }
+
+    let crateRows = 0;
+    let itemRows = 0;
+    for (const user_id of userIdsSet) {
+      const nextPosRow = db
+        .prepare(
+          'SELECT COALESCE(MAX(position), -1) + 1 AS p FROM crate_boxes WHERE user_id = ?'
+        )
+        .get(user_id) as { p: number };
+      let nextPos = nextPosRow.p;
+
+      const ensureCrate = (title: string, isPublic: number): number => {
+        const existing = db
+          .prepare(
+            'SELECT id FROM crate_boxes WHERE user_id = ? AND title = ? LIMIT 1'
+          )
+          .get(user_id, title) as { id: number } | undefined;
+        if (existing) return existing.id;
+        const result = db
+          .prepare(
+            `INSERT INTO crate_boxes (user_id, position, title, is_public)
+             VALUES (?, ?, ?, ?)`
+          )
+          .run(user_id, nextPos++, title, isPublic);
+        crateRows += 1;
+        return Number(result.lastInsertRowid);
+      };
+
+      if (collectionsExists) {
+        const ownedAlbums = db
+          .prepare(
+            `SELECT DISTINCT album_id FROM collections WHERE user_id = ?`
+          )
+          .all(user_id) as Array<{ album_id: number }>;
+        if (ownedAlbums.length > 0) {
+          // Existing 샀음 surfaces (album page count, profile pill)
+          // were public-by-default — preserve that visibility on
+          // migration so a user who had visible counts doesn't
+          // suddenly have a private crate where there was previously
+          // a public stat.
+          const ownedCrate = ensureCrate('샀음', 1);
+          const ins = db.prepare(
+            `INSERT OR IGNORE INTO crate_items (crate_id, album_id) VALUES (?, ?)`
+          );
+          for (const { album_id } of ownedAlbums) {
+            const r = ins.run(ownedCrate, album_id);
+            itemRows += r.changes;
+          }
+        }
+      }
+
+      if (wantsExists) {
+        const wantedAlbums = db
+          .prepare(
+            `SELECT DISTINCT album_id FROM wants WHERE user_id = ?`
+          )
+          .all(user_id) as Array<{ album_id: number }>;
+        if (wantedAlbums.length > 0) {
+          const wantCrate = ensureCrate('살거', 1);
+          const ins = db.prepare(
+            `INSERT OR IGNORE INTO crate_items (crate_id, album_id) VALUES (?, ?)`
+          );
+          for (const { album_id } of wantedAlbums) {
+            const r = ins.run(wantCrate, album_id);
+            itemRows += r.changes;
+          }
+        }
+      }
+    }
+
+    db.exec(`DROP TABLE IF EXISTS collections`);
+    db.exec(`DROP TABLE IF EXISTS wants`);
+    console.log(
+      `[migration] absorbed collections/wants into crates: ${userIdsSet.size} users, ${crateRows} crates, ${itemRows} items; legacy tables dropped`
+    );
+  });
 
   // One-time seed of the genre taxonomy (admin can edit/extend via
   // /admin later). Order of INSERTs drives initial UI ordering; admin

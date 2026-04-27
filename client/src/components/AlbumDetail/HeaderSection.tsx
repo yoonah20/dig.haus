@@ -9,7 +9,7 @@ import PlayChip from '../PlayChip';
 import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import VoteButtons from '../VoteButtons';
-import OwnershipButtons from './OwnershipButtons';
+import CrateButton from './CrateButton';
 import CopyTitleButton from '../CopyTitleButton';
 import ShareLinkButton from '../ShareLinkButton';
 import ArtistCredit from '../ArtistCredit';
@@ -1019,12 +1019,9 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               downvotes={album.downvotes ?? 0}
               userVote={album.userVote ?? null}
             />
-            <OwnershipButtons
-              albumId={albumId}
-              ownedFormats={album.userOwnedFormats ?? []}
-              wantedFormats={album.userWantedFormats ?? []}
-              ownedCount={album.ownedCount ?? 0}
-              wantedCount={album.wantedCount ?? 0}
+            <CrateButton
+              albumId={album.id ?? null}
+              crateCount={album.crateCount ?? 0}
             />
           </div>
 

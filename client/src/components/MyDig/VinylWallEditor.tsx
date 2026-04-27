@@ -870,8 +870,7 @@ export default function VinylWallEditor({
             <div className="flex border-b border-white/5 text-sm">
               {([
                 { key: 'upvote', label: '굿굿' },
-                { key: 'collection', label: '샀음' },
-                { key: 'wantlist', label: '살거' },
+                { key: 'crate', label: '내 크레이트' },
                 { key: 'all', label: '전체' },
               ] as const).map((t) => (
                 <button

@@ -575,8 +575,18 @@ const ALBUM_ROW_SELECT = `
             AND COALESCE(r.manual_score, r.score) IS NOT NULL
             AND r.score_max > 0) AS review_count,
          COALESCE((SELECT COUNT(*) FROM user_reviews WHERE album_id = a.id), 0) AS user_review_count,
-         COALESCE((SELECT COUNT(DISTINCT user_id) FROM collections WHERE album_id = a.id), 0) AS owned_count,
-         COALESCE((SELECT COUNT(DISTINCT user_id) FROM wants WHERE album_id = a.id), 0) AS wanted_count
+         -- crate_count: distinct users who have this album in any of
+         -- their PUBLIC crates. Replaces the prior owned_count +
+         -- wanted_count (collections + wants tables, both absorbed
+         -- into crates 2026-04-28). Public-only because private
+         -- crates are explicitly the "남들 눈치 안 보고 담는 곳" —
+         -- their counts shouldn't surface on album cards.
+         COALESCE((
+           SELECT COUNT(DISTINCT cb.user_id)
+           FROM crate_items ci
+           JOIN crate_boxes cb ON cb.id = ci.crate_id
+           WHERE ci.album_id = a.id AND cb.is_public = 1
+         ), 0) AS crate_count
   FROM albums a
 `;
 
@@ -800,8 +810,7 @@ router.get('/', async (req, res) => {
         priceTagLinks: topLinksByAlbum.get(a.id) || [],
         genres,
         reviewsCrawledAt: a.reviews_crawled_at,
-        ownedCount: a.owned_count || 0,
-        wantedCount: a.wanted_count || 0,
+        crateCount: a.crate_count || 0,
         isHot: hotAlbumIds.has(a.id),
         // Cover-sticker status set — true if at least one purchase
         // link for this album has that status (any format, any
@@ -1322,12 +1331,12 @@ router.delete('/:id', requireAuth, async (req, res) => {
          + (SELECT COUNT(*) FROM user_reviews WHERE album_id = ? AND user_id != ?)
          + (SELECT COUNT(*) FROM album_votes WHERE album_id = ? AND user_id != ?)
          + (SELECT COUNT(*) FROM purchase_links WHERE album_id = ? AND user_id != ?)
-         + (SELECT COUNT(*) FROM collections WHERE album_id = ? AND user_id != ?)
-         + (SELECT COUNT(*) FROM wants WHERE album_id = ? AND user_id != ?)
+         + (SELECT COUNT(DISTINCT cb.user_id)
+            FROM crate_items ci JOIN crate_boxes cb ON cb.id = ci.crate_id
+            WHERE ci.album_id = ? AND cb.user_id != ?)
          AS n`,
       [
         albumMbid,
-        albumPk, user.id,
         albumPk, user.id,
         albumPk, user.id,
         albumPk, user.id,
@@ -1354,8 +1363,9 @@ router.delete('/:id', requireAuth, async (req, res) => {
       execute('DELETE FROM purchase_links WHERE album_id = ?', [albumPk]);
       // Phase 3 placeholders that reference albums(id)
       execute('DELETE FROM wishlists WHERE album_id = ?', [albumPk]);
-      execute('DELETE FROM collections WHERE album_id = ?', [albumPk]);
-      execute('DELETE FROM wants WHERE album_id = ?', [albumPk]);
+      // crate_items.album_id has ON DELETE CASCADE, so deleting the
+      // album row below clears any crates that reference it. No
+      // explicit DELETE FROM crate_items needed.
       execute('DELETE FROM dig_journal_posts WHERE album_id = ?', [albumPk]);
       execute(
         'DELETE FROM album_dna WHERE from_album_id = ? OR to_album_id = ?',
@@ -1429,20 +1439,19 @@ router.get('/:id', async (req, res) => {
       }
     }
 
-    // Vote counts + current user's vote, plus per-format collection
-    // data. ownedCount/wantedCount are DISTINCT-user aggregates so a
-    // single collector owning multiple formats doesn't triple-count.
-    // userOwnedFormats / userWantedFormats carry the caller's exact
-    // per-format state for rendering the 2×3 toggle grid.
+    // Vote counts + current user's vote, plus the public crate_count
+    // (DISTINCT users with this album in any of their public crates,
+    // replaces the prior owned/wanted/per-format ownership data after
+    // collections + wants were absorbed into crates 2026-04-28). The
+    // per-user crate membership state for the 담기 chip is owned by
+    // the new /api/mydig/crates endpoints — the album response only
+    // carries the public aggregate.
     const albumRow = queryGet(`SELECT id FROM albums WHERE mbid = ?`, [mbid]);
     const albumPk = albumRow?.id;
     let upvotes = 0;
     let downvotes = 0;
     let userVote: 'up' | 'down' | null = null;
-    let ownedCount = 0;
-    let wantedCount = 0;
-    let userOwnedFormats: string[] = [];
-    let userWantedFormats: string[] = [];
+    let crateCount = 0;
     if (albumPk) {
       const counts = queryGet(
         `SELECT
@@ -1453,14 +1462,12 @@ router.get('/:id', async (req, res) => {
       );
       upvotes = counts?.up || 0;
       downvotes = counts?.down || 0;
-      ownedCount =
+      crateCount =
         (queryGet(
-          `SELECT COUNT(DISTINCT user_id) AS c FROM collections WHERE album_id = ?`,
-          [albumPk]
-        )?.c as number) || 0;
-      wantedCount =
-        (queryGet(
-          `SELECT COUNT(DISTINCT user_id) AS c FROM wants WHERE album_id = ?`,
+          `SELECT COUNT(DISTINCT cb.user_id) AS c
+           FROM crate_items ci
+           JOIN crate_boxes cb ON cb.id = ci.crate_id
+           WHERE ci.album_id = ? AND cb.is_public = 1`,
           [albumPk]
         )?.c as number) || 0;
       const currentUser = req.user;
@@ -1470,18 +1477,6 @@ router.get('/:id', async (req, res) => {
           [currentUser.id, albumPk]
         );
         userVote = uv?.vote || null;
-        userOwnedFormats = (
-          queryAll(
-            `SELECT format FROM collections WHERE user_id = ? AND album_id = ?`,
-            [currentUser.id, albumPk]
-          ) as Array<{ format: string }>
-        ).map((r) => r.format);
-        userWantedFormats = (
-          queryAll(
-            `SELECT format FROM wants WHERE user_id = ? AND album_id = ?`,
-            [currentUser.id, albumPk]
-          ) as Array<{ format: string }>
-        ).map((r) => r.format);
       }
     }
 
@@ -1500,10 +1495,7 @@ router.get('/:id', async (req, res) => {
         upvotes,
         downvotes,
         userVote,
-        ownedCount,
-        wantedCount,
-        userOwnedFormats,
-        userWantedFormats,
+        crateCount,
       },
       streaming: result.streaming,
       buy: { ...result.buy, formats: formatsWithKrw },

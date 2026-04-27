@@ -18,6 +18,7 @@ import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
 import GraffitiSnapshotList, {
   GRAFFITI_FONT_STACK,
 } from '../components/MyDig/GraffitiSnapshotList';
+import CrateSection from '../components/MyDig/CrateSection';
 import ShareButton from '../components/MyDig/ShareButton';
 import ToasterButton from '../components/MyDig/ToasterButton';
 import UserHoverCard from '../components/UserHoverCard';
@@ -410,6 +411,13 @@ export default function MyDig() {
                 </div>
               )}
             </div>
+
+            {username && (
+              <CrateSection
+                username={username}
+                isOwner={!!data.user.isOwner}
+              />
+            )}
           </>
         )}
 

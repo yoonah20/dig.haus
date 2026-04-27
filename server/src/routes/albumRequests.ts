@@ -299,13 +299,14 @@ router.get('/me/album-requests', requireAuth, (req, res) => {
               + (SELECT COUNT(*) FROM user_reviews WHERE album_id = a.id AND user_id != ?)
               + (SELECT COUNT(*) FROM album_votes WHERE album_id = a.id AND user_id != ?)
               + (SELECT COUNT(*) FROM purchase_links WHERE album_id = a.id AND user_id != ?)
-              + (SELECT COUNT(*) FROM collections WHERE album_id = a.id AND user_id != ?)
-              + (SELECT COUNT(*) FROM wants WHERE album_id = a.id AND user_id != ?)
+              + (SELECT COUNT(DISTINCT cb.user_id)
+                 FROM crate_items ci JOIN crate_boxes cb ON cb.id = ci.crate_id
+                 WHERE ci.album_id = a.id AND cb.user_id != ?)
             ) AS foreign_engagement
      FROM albums a
      WHERE a.requested_by_user_id = ?
      ORDER BY a.created_at DESC, a.id DESC`,
-    [user.id, user.id, user.id, user.id, user.id, user.id]
+    [user.id, user.id, user.id, user.id, user.id]
   );
   res.json({
     requests: rows.map((r: any) => ({

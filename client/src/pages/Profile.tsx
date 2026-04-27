@@ -16,7 +16,7 @@ import {
   useMyAlbumRequests,
   useDeletePendingAlbum,
 } from '../hooks/useAlbumRequests';
-import { useMyCollection, useMyWantlist } from '../hooks/useOwnership';
+import { useMyCrates } from '../hooks/useCrates';
 
 const REQUEST_STATUS_META: Record<
   'pending' | 'approved',
@@ -37,106 +37,6 @@ const RATING_META: Record<'up' | 'down' | 'soso', { emoji: string; label: string
   down: { emoji: '👎', label: '별루' },
   soso: { emoji: '🤷', label: '쏘쏘' },
 };
-
-// Shared grid layout for the 샀음 / 살거 sections. Mirrors the
-// existing 굿굿한 앨범들 grid (4/row mobile, 5/row desktop, square
-// cover tiles linking to the album page). Adds per-tile format
-// badges so a collector can see at a glance which copies of an album
-// they have (e.g. "🖤📼" = vinyl + cassette).
-const FORMAT_BADGE_EMOJI: Record<'Vinyl' | 'CD' | 'Cassette', string> = {
-  Vinyl: '🖤',
-  CD: '💿',
-  Cassette: '📼',
-};
-
-// Covers visible before the "더 보기" toggle expands the grid. Picked
-// so desktop (8 cols) shows two full rows and mobile (4 cols) shows
-// four — enough to feel substantial without dominating the page once
-// a collector's library grows.
-const COLLECTION_INITIAL_LIMIT = 16;
-
-function CollectionGrid({
-  title,
-  emoji,
-  loading,
-  items,
-  emptyMessage,
-  accentRing,
-}: {
-  title: string;
-  emoji: string;
-  loading: boolean;
-  items: Array<{
-    slug: string;
-    title: string;
-    artist: string;
-    coverArtUrl: string | null;
-    coverArtFallbacks?: string[];
-    formats?: Array<'Vinyl' | 'CD' | 'Cassette'>;
-  }>;
-  emptyMessage: string;
-  /** Tailwind classname for hover ring — each grid picks a different
-   *  accent so scanning back-to-back rows stays oriented. */
-  accentRing: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const canCollapse = items.length > COLLECTION_INITIAL_LIMIT;
-  const visible = expanded || !canCollapse ? items : items.slice(0, COLLECTION_INITIAL_LIMIT);
-  const hiddenCount = items.length - COLLECTION_INITIAL_LIMIT;
-
-  return (
-    <section>
-      <SectionHeader emoji={emoji} title={title} count={items.length} />
-      {loading ? (
-        <div className="text-sm text-gray-500">불러오는 중…</div>
-      ) : items.length > 0 ? (
-        <>
-          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-2">
-            {visible.map((a) => {
-              const formats = a.formats ?? [];
-              return (
-                <Link
-                  key={a.slug}
-                  to={`/album/${a.slug}`}
-                  className={`relative aspect-square rounded-md overflow-hidden bg-[#1a1a1a] hover:ring-2 transition-all ${accentRing}`}
-                  title={`${a.title} — ${a.artist}${formats.length > 0 ? ` (${formats.join(' · ')})` : ''}`}
-                >
-                  <CoverArt
-                    src={a.coverArtUrl}
-                    fallbacks={a.coverArtFallbacks}
-                    alt={a.title}
-                    className="w-full h-full object-cover"
-                  />
-                  {formats.length > 0 && (
-                    <div
-                      className="absolute bottom-1 right-1 flex items-center gap-0.5 px-1 rounded-sm bg-black/55 text-[11px] leading-none"
-                      aria-hidden
-                    >
-                      {formats.map((f) => (
-                        <span key={f}>{FORMAT_BADGE_EMOJI[f]}</span>
-                      ))}
-                    </div>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-          {canCollapse && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="mt-3 text-xs text-gray-500 hover:text-[#e8a020] cursor-pointer"
-            >
-              {expanded ? '접기' : `+${hiddenCount}개 더 보기`}
-            </button>
-          )}
-        </>
-      ) : (
-        <div className="text-sm text-gray-500">{emptyMessage}</div>
-      )}
-    </section>
-  );
-}
 
 // Shared heading — "emoji 제목 <count>" — so every section on the
 // profile page reads the same way. Keeps the right margin tight so
@@ -353,8 +253,7 @@ export default function Profile() {
   const reviews = useMyReviews();
   const myRequests = useMyAlbumRequests();
   const deleteMyAlbum = useDeletePendingAlbum();
-  const collection = useMyCollection();
-  const wantlist = useMyWantlist();
+  const myCrates = useMyCrates();
   const update = useUpdateMyProfile();
   const upload = useUploadMyAvatar();
   const reset = useResetMyAvatar();
@@ -501,8 +400,11 @@ export default function Profile() {
                 <StatPill label="50자 평" value={stats.reviewCount} />
                 <StatPill label="굿굿" value={stats.upvoteCount} accent="blue" />
                 <StatPill label="별루" value={stats.downvoteCount} accent="red" />
-                <StatPill label="샀음" value={collection.data?.items.length ?? 0} accent="brand" />
-                <StatPill label="살거" value={wantlist.data?.items.length ?? 0} accent="purple" />
+                <StatPill
+                  label="크레이트"
+                  value={myCrates.data?.crates.length ?? 0}
+                  accent="brand"
+                />
                 <StatPill label="등록" value={myRequestList.length} />
               </div>
             </div>
@@ -510,27 +412,13 @@ export default function Profile() {
         </section>
       )}
 
-      {/* Collections — 샀음 / 살거 are the page's record-crate moment.
-          굿굿한 앨범 intentionally isn't a separate grid — the total
-          is still surfaced in the hero stat pill; a long "I like this"
-          list added noise without adding signal. */}
-      <CollectionGrid
-        title="샀음"
-        emoji="💿"
-        loading={collection.isLoading}
-        items={collection.data?.items ?? []}
-        emptyMessage="아직 소장 표시한 앨범이 없습니다."
-        accentRing="hover:ring-[#e8a020]/55"
-      />
-
-      <CollectionGrid
-        title="살거"
-        emoji="🎯"
-        loading={wantlist.isLoading}
-        items={wantlist.data?.items ?? []}
-        emptyMessage="아직 위시리스트에 추가한 앨범이 없습니다."
-        accentRing="hover:ring-[#8f7cb3]/60"
-      />
+      {/* The 샀음 / 살거 grids that used to live here were replaced
+          when collections + wants were absorbed into crates
+          (post-Phase 3 roadmap item 2). Crates now live on the user's
+          mydig page — a single click on the avatar there gets to the
+          full grid + crate management surface. The crate StatPill
+          above gives the count at a glance; the dedicated grid would
+          be a duplicate of the mydig section once that lands. */}
 
       {/* ─── Activity: 50자 평 + registered albums side-by-side.
           Reviews now render as a compact scrollable panel matching

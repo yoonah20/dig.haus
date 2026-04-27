@@ -396,10 +396,12 @@ router.put('/mydig/vinyl-wall/items', requireAuth, (req, res) => {
 // Searches the full albums table (not 샀음-filtered — mydig is
 // identity expression, not inventory per CLAUDE.md). Optional tab
 // switches:
-//   - source=all         → full DB
-//   - source=collection  → albums the user marked 샀음
-//   - source=wantlist    → albums the user marked 살거
-//   - source=crate       → albums in any of the user's own crates
+//   - source=all     → full DB
+//   - source=upvote  → albums the user marked 굿굿
+//   - source=crate   → albums in any of the user's own crates
+//                      (replaces the prior 'collection' / 'wantlist'
+//                      tabs after collections + wants were absorbed
+//                      into crates 2026-04-28)
 // Query `q` is fuzzy match on title+artist. Limited to 30 to keep
 // the picker responsive.
 router.get('/mydig/candidates', requireAuth, (req, res) => {
@@ -429,29 +431,8 @@ router.get('/mydig/candidates', requireAuth, (req, res) => {
 
   try {
     let rows: any[] = [];
-    if (source === 'collection') {
-      // Distinct because a user may own multiple formats of the same
-      // album (vinyl + CD, etc.) and each is a separate collections row.
-      const where = ['c.user_id = ?'];
-      const params: any[] = [me.id];
-      if (searchFilter) {
-        where.push(searchFilter);
-        params.push(pattern, pattern);
-      }
-      rows = queryAll(
-        `${selectClause}
-         FROM albums a
-         JOIN collections c ON c.album_id = a.id
-         WHERE ${where.join(' AND ')}
-         GROUP BY a.id
-         ${limitClause}`,
-        params
-      );
-    } else if (source === 'upvote') {
-      // Albums the user marked 굿굿. Mirror of 'collection' but
-      // against album_votes with vote='up'. GROUP BY a.id is a
-      // no-op here (album_votes has UNIQUE(user_id, album_id)) but
-      // kept for consistency with the other source branches.
+    if (source === 'upvote') {
+      // Albums the user marked 굿굿.
       const where = ['v.user_id = ?', "v.vote = 'up'"];
       const params: any[] = [me.id];
       if (searchFilter) {
@@ -462,22 +443,6 @@ router.get('/mydig/candidates', requireAuth, (req, res) => {
         `${selectClause}
          FROM albums a
          JOIN album_votes v ON v.album_id = a.id
-         WHERE ${where.join(' AND ')}
-         GROUP BY a.id
-         ${limitClause}`,
-        params
-      );
-    } else if (source === 'wantlist') {
-      const where = ['w.user_id = ?'];
-      const params: any[] = [me.id];
-      if (searchFilter) {
-        where.push(searchFilter);
-        params.push(pattern, pattern);
-      }
-      rows = queryAll(
-        `${selectClause}
-         FROM albums a
-         JOIN wants w ON w.album_id = a.id
          WHERE ${where.join(' AND ')}
          GROUP BY a.id
          ${limitClause}`,

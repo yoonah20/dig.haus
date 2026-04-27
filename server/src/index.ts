@@ -37,7 +37,7 @@ import meRouter from './routes/me.js';
 import followsRouter from './routes/follows.js';
 import avatarsRouter from './routes/avatars.js';
 import albumRequestsRouter from './routes/albumRequests.js';
-import ownershipRouter from './routes/ownership.js';
+import cratesRouter from './routes/crates.js';
 import publicStatsRouter from './routes/stats.js';
 
 let server: Server;
@@ -111,7 +111,7 @@ async function start() {
   app.use('/api', meRouter);
   app.use('/api', followsRouter);
   app.use('/api', albumRequestsRouter);
-  app.use('/api', ownershipRouter);
+  app.use('/api', cratesRouter);
   app.use('/api/stats', publicStatsRouter);
   app.use('/api/avatars', avatarsRouter);
   app.use('/api/albums', albumsRouter);

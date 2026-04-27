@@ -48,10 +48,11 @@ export interface AlbumSearchResult {
    *  dims cards with null; detail page swaps a placeholder into the
    *  review section. */
   reviewsCrawledAt?: string | null;
-  /** How many users have this album in their 샀음 collection. */
-  ownedCount?: number;
-  /** How many users have this album on their 살거 wantlist. */
-  wantedCount?: number;
+  /** Distinct users who have this album in any of their PUBLIC
+   *  crates. Replaces the prior ownedCount + wantedCount split
+   *  after collections + wants were absorbed into crates
+   *  2026-04-28. Private crates don't contribute. */
+  crateCount?: number;
   /** How many 50자 평 entries exist for this album. Surfaces on the
    *  card flip-back stat row next to 굿굿/별루. */
   userReviewCount?: number;
@@ -182,6 +183,9 @@ export interface ArtistCreditEntry {
 
 export interface AlbumDetail {
   album: {
+    /** Numeric DB pkey — needed for crate item endpoints which key
+     *  on the integer FK. May be missing on legacy cached rows. */
+    id?: number;
     mbid: string;
     slug: string | null;
     title: string;
@@ -209,10 +213,9 @@ export interface AlbumDetail {
     upvotes?: number;
     downvotes?: number;
     userVote?: 'up' | 'down' | null;
-    ownedCount?: number;
-    wantedCount?: number;
-    userOwnedFormats?: OwnershipFormat[];
-    userWantedFormats?: OwnershipFormat[];
+    /** Distinct users who have this album in any of their PUBLIC
+     *  crates. Replaces the prior ownedCount + wantedCount split. */
+    crateCount?: number;
   };
   streaming: StreamingLinks;
   buy: BuyInfo;
