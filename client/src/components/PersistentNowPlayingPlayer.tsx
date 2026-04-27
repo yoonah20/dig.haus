@@ -184,14 +184,17 @@ export default function PersistentNowPlayingPlayer() {
             always-on amber chip stayed visible across every
             navigation and pulled the eye more than the playback
             warranted. The chip itself is an outlined amber button:
-            transparent fill at rest, slight amber tint on its own
-            hover so the click target reads as active. */}
+            transparent fill at rest, full amber fill with dark text
+            on its own hover — same fill-on-hover convention as the
+            album-cover ▶ chips in PlayChip.tsx so the close affordance
+            reads as part of the same family rather than a slightly-
+            tinted variant. */}
         <button
           type="button"
           onClick={clearNowPlaying}
           aria-label="재생 닫기"
           title="재생 닫기"
-          className="absolute top-0 left-full ml-1.5 z-10 w-7 h-7 rounded-full border-2 border-[#e8a020] bg-transparent hover:bg-[#e8a020]/15 text-[#e8a020] text-base leading-none flex items-center justify-center cursor-pointer opacity-0 group-hover/np:opacity-100 transition-[opacity,background-color] duration-150"
+          className="absolute top-0 left-full ml-1.5 z-10 w-7 h-7 rounded-full border-2 border-[#e8a020] bg-transparent text-[#e8a020] hover:bg-[#e8a020] hover:text-[#141008] text-base leading-none flex items-center justify-center cursor-pointer opacity-0 group-hover/np:opacity-100 transition-[opacity,background-color,color] duration-150"
         >
           ×
         </button>
