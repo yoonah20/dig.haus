@@ -47,9 +47,14 @@ function hashStr(str: string): number {
   return h >>> 0;
 }
 
-function pickPlasticTexture(seed: string): string {
+// Position-indexed texture assignment — see HomeNextHero for the
+// rationale. 10-slot wall + 10-texture pool match 1:1, so picking
+// by position guarantees each texture appears exactly once across
+// the visible wall and the mbid-hash collisions that made the wall
+// read as repetitive go away.
+function pickPlasticTexture(position: number): string {
   if (PLASTIC_TEXTURE_PATHS.length === 0) return '';
-  return PLASTIC_TEXTURE_PATHS[hashStr(seed) % PLASTIC_TEXTURE_PATHS.length]!;
+  return PLASTIC_TEXTURE_PATHS[position % PLASTIC_TEXTURE_PATHS.length]!;
 }
 
 const COLS = 2;
@@ -308,7 +313,7 @@ function MobileFeatureCell({
       lpSize={lpSize}
       lampBias={1 - position / 10}
       href={`/album/${target}`}
-      plasticOverlaySrc={pickPlasticTexture(album.mbid)}
+      plasticOverlaySrc={pickPlasticTexture(position)}
       plasticScalePct={plasticMeta?.plasticScalePct ?? 15}
       plasticOffsetXPx={plasticMeta?.plasticOffsetXPx ?? 5}
       plasticOffsetYPx={plasticMeta?.plasticOffsetYPx ?? 0}
