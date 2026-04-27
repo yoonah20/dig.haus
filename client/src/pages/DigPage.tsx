@@ -66,14 +66,7 @@ function computeAdaptivePageSize(
   const cols = COLS_AT_XL_BY_DENSITY[density];
   const rowH = ROW_H_BY_DENSITY[density];
   const available = Math.max(rowH, viewportH - GRID_RESERVED_H);
-  let rows = Math.max(2, Math.floor(available / rowH));
-  // Dense and ultra both compute right at the visible-fold edge,
-  // so the formula's last row often pushes the pagination past
-  // the fold by a hair. Comfortable has more breathing room from
-  // its larger row height and doesn't need the trim.
-  if (density === 'dense' || density === 'ultra') {
-    rows = Math.max(2, rows - 1);
-  }
+  const rows = Math.max(2, Math.floor(available / rowH));
   return cols * rows;
 }
 // Mobile infinite-scroll batch size. 10 = 5 rows of the 2-col
