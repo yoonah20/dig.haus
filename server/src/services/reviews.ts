@@ -1694,6 +1694,21 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       /(?:server|site|page)\s*is\s*(?:temporarily\s*)?unavailable/i,
       /(?:site|page|service)\s*(?:is\s*)?under\s*maintenance/i,
       /please\s*try\s*again\s*(?:later|in a)/i,
+      // Page-load failure described as prose. Fetched fine on our
+      // end (Jina + raw both succeeded enough to reach the LLM) but
+      // the LLM still wrote "페이지가 로드되지 않아 리뷰 내용을 확인할
+      // 수 없다" into the excerpt — usually because the page was an
+      // SPA shell whose body landed empty after JS-strip. The
+      // pattern matches "페이지가 로드/열리/뜨지 않" along with the
+      // English "page failed to load" / "couldn't load this page"
+      // shapes. Pair with the broader "리뷰/페이지/내용을 확인할 수
+      // 없" guard so summaries that admit they couldn't verify the
+      // review get rejected too.
+      /페이지[가은는이]?\s*(?:정상적으로\s*)?(?:로드되|열리|뜨)[^.]{0,10}않/,
+      /(?:리뷰|평론|기사|내용|페이지)\s*(?:내용)?[을를은는이가]?\s*확인[^가-힣]{0,15}(?:할\s*수\s*없|되지\s*않|불가능?)/,
+      /(?:서버|사이트)\s*(?:응답|반응)[이가]?\s*없/,
+      /(?:page|article)\s+(?:failed\s+to\s+load|did(?:n't|\s+not)\s+load|couldn't\s+(?:be\s+)?load(?:ed)?)/i,
+      /(?:unable|failed)\s+to\s+(?:load|access|retrieve|fetch)\s+(?:the\s+)?(?:page|review|content|article)/i,
       // "Metadata / tracklist page, not an actual review" style
       // meta-commentary. The LLM occasionally describes the page's
       // contents ("이 페이지는 트랙리스트, 발매 정보, … 앨범 세부 정보를

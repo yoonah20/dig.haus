@@ -929,6 +929,39 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // Purge review rows whose excerpt text is the LLM admitting it
+  // couldn't load / verify the page ("페이지가 로드되지 않아 리뷰 내용을
+  // 확인할 수 없다" and similar). Future scrapes are blocked by the
+  // rejection-pattern guard in scrapeReviewFromUrl; this is the
+  // one-shot cleanup of what slipped through before the guard
+  // landed. Both excerpt and excerpt_ko checked since the LLM
+  // sometimes echoes the error in only one of the two fields.
+  runOnce(db, 'purge-page-load-failure-excerpts-2026-04-28', () => {
+    const textPatterns = [
+      '%페이지가 로드되지 않%',
+      '%페이지가 정상적으로 로드되지 않%',
+      '%페이지가 열리지 않%',
+      '%페이지가 뜨지 않%',
+      '%리뷰 내용을 확인할 수 없%',
+      '%리뷰를 확인할 수 없%',
+      '%페이지 내용을 확인할 수 없%',
+      '%page failed to load%',
+      "%couldn't load this page%",
+      '%unable to load the page%',
+      '%failed to load the review%',
+    ];
+    let total = 0;
+    for (const p of textPatterns) {
+      const info = db
+        .prepare('DELETE FROM reviews WHERE excerpt LIKE ? OR excerpt_ko LIKE ?')
+        .run(p, p);
+      total += info.changes as number;
+    }
+    if (total > 0) {
+      console.log(`[migration] purged ${total} page-load-failure review rows`);
+    }
+  });
+
   // Move hosts out of the code-level EXCLUDED_URL_DOMAINS into the DB
   // source_blacklist. The hardcoded baseline keeps shops / SNS /
   // streaming / YouTube (platform shapes that will never carry
