@@ -144,9 +144,9 @@ function buildTree(input: ToasterInput): unknown {
         display: 'flex',
         // Top-anchor row children so the caption block starts at the
         // cover top edge rather than vertically centering against it.
-        // Matches the RYM/Charts.fm reference in docs/topster.jpg —
-        // captions read as a "list pinned to this row" rather than a
-        // floating side-block.
+        // Mirrors the RYM/Charts.fm topster convention — captions
+        // read as a "list pinned to this row" rather than a floating
+        // side-block.
         alignItems: 'flex-start',
         gap: TEXT_COL_GAP,
       },

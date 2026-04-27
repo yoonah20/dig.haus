@@ -24,6 +24,7 @@ import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
 import { useUserPublic } from '../hooks/useMe';
 import { useAuth } from '../contexts/AuthContext';
+import { resolveApiUrl } from '../utils/apiUrl';
 import { extractSpotifyAlbumId, useNowPlaying } from '../hooks/useNowPlaying';
 import PlayChip from '../components/PlayChip';
 import {
@@ -109,13 +110,18 @@ export default function MyDig() {
   // a sensible title. og:image points at the 토스터 PNG endpoint —
   // when the snapshot variant is active we route to the snapshot
   // image so Twitter / KakaoTalk previews show the actual archived
-  // wall rather than the live wall the URL doesn't refer to.
+  // wall rather than the live wall the URL doesn't refer to. The URL
+  // is resolved via resolveApiUrl so split-origin deploys (Vercel
+  // frontend, Railway API) prepend VITE_API_URL — a bare relative
+  // path or a hardcoded dig.haus would otherwise hit the SPA
+  // index.html fallback and break the social preview.
   const headDisplayName = data?.user.displayName || username || '';
-  const ogImageUrl = username
+  const ogImagePath = username
     ? activeSlug
-      ? `https://dig.haus/api/mydig/${encodeURIComponent(username)}/snapshots/${encodeURIComponent(activeSlug)}/toaster.png`
-      : `https://dig.haus/api/mydig/${encodeURIComponent(username)}/toaster.png`
+      ? `/api/mydig/${encodeURIComponent(username)}/snapshots/${encodeURIComponent(activeSlug)}/toaster.png`
+      : `/api/mydig/${encodeURIComponent(username)}/toaster.png`
     : null;
+  const ogImageUrl = resolveApiUrl(ogImagePath);
   useDocumentHead({
     title: headDisplayName ? `${headDisplayName}의 마이딕 | dig.haus` : '마이딕 | dig.haus',
     description: headDisplayName

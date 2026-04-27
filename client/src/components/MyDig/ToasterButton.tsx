@@ -11,6 +11,8 @@
 // distinct intents — no point hiding one behind a dropdown when the
 // space exists for both.
 
+import { resolveApiUrl } from '../../utils/apiUrl';
+
 export default function ToasterButton({
   username,
   snapshotSlug,
@@ -27,9 +29,14 @@ export default function ToasterButton({
   // set a theme.
   themeTitle?: string | null;
 }) {
-  const url = snapshotSlug
+  // resolveApiUrl prepends VITE_API_URL when set (split-origin deploy:
+  // frontend on Vercel www.dig.haus, API on Railway). A bare /api/...
+  // would otherwise resolve against the Vercel origin and hit the SPA
+  // index.html fallback instead of reaching the renderer.
+  const path = snapshotSlug
     ? `/api/mydig/${encodeURIComponent(username)}/snapshots/${encodeURIComponent(snapshotSlug)}/toaster.png`
     : `/api/mydig/${encodeURIComponent(username)}/toaster.png`;
+  const url = resolveApiUrl(path) ?? path;
 
   const labelPart = snapshotName || themeTitle || 'wall';
   const safeLabel = labelPart
