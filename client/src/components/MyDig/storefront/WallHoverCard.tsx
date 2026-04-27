@@ -165,19 +165,6 @@ export default function WallHoverCard({
   const hasPreview = !!spotifyAlbumId;
 
   const cardRef = useRef<HTMLAnchorElement>(null);
-  // Refs the inner scale wrapper. The Link itself never scales
-  // (its rect stays at lpSize even on hover), but the inner
-  // wrapper does — and with hoverOriginY off-centre (e.g. 75%)
-  // the visible scaled bounds are asymmetric around the Link's
-  // rect. Normalising cursor coords against the Link gave nx/ny
-  // values well outside [0,1] when the cursor wandered into the
-  // scaled-out portion of the visible content; the resulting
-  // tilt swung past the designed ±7° on one axis and barely
-  // past 0 on the other, which read as "tilt only goes one
-  // way". Using the scale wrapper's live rect (which reflects
-  // the current scaled bounds) keeps the normalisation honest
-  // so tilt stays symmetric ±7° on both axes.
-  const scaleRef = useRef<HTMLDivElement>(null);
 
   // Cursor-tracked tilt + lamp-anchored specular — written to CSS
   // custom properties on the anchor element via a plain ref (no
@@ -186,13 +173,22 @@ export default function WallHoverCard({
   // inverse travel so the shine sweeps roughly 70% × 55% across the
   // sleeve as the cursor moves; that "reflection lagging the tilt"
   // is what reads as shrink-wrap rather than flat card.
+  // We normalise against the Link's pre-scale rect (which is the
+  // full lpSize hit area for the anchor itself) and clamp the
+  // result to [0, 1]. An earlier attempt to normalise against the
+  // scale wrapper's live rect chased a moving target during the
+  // 260 ms scale transition, which made the first frames feel as
+  // if the tilt was stuck on one side; using the stable Link rect
+  // + a hard clamp gives consistent ±7° symmetric tilt the moment
+  // the cursor enters and through the entire travel.
   const handleCursorMove = (e: React.MouseEvent<HTMLElement>) => {
     const el = cardRef.current;
-    const scaleEl = scaleRef.current;
-    if (!el || !scaleEl) return;
-    const rect = scaleEl.getBoundingClientRect();
-    const nx = (e.clientX - rect.left) / rect.width;
-    const ny = (e.clientY - rect.top) / rect.height;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const rawNx = (e.clientX - rect.left) / rect.width;
+    const rawNy = (e.clientY - rect.top) / rect.height;
+    const nx = Math.min(1, Math.max(0, rawNx));
+    const ny = Math.min(1, Math.max(0, rawNy));
     const tiltY = (nx - 0.5) * 14;
     const tiltX = -(ny - 0.5) * 14;
     const specX = 50 - (nx - 0.5) * 70;
@@ -253,7 +249,6 @@ export default function WallHoverCard({
       } as React.CSSProperties}
     >
       <div
-        ref={scaleRef}
         // Single drop-shadow per state — earlier we ran a six-
         // function side-splay that read closer to the photo
         // reference, but six Gaussian blur passes per frame
