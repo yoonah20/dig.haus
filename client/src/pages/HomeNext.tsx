@@ -508,7 +508,7 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
         to={`${mydigUrl}/snap/${snap.slug}`}
         className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1 p-2 hover:[&_.snap-name]:text-[#e8a020]"
       >
-        <div className="snap-name text-[12px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
+        <div className="snap-name text-[13px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
           {snap.name}
         </div>
         <div className="grid grid-cols-3 gap-0.5">

@@ -87,12 +87,13 @@ interface Props {
   // the price sticker. Distinct from `children` (which renders
   // outside the scale wrapper, used by mydig's CommentBubble).
   coverOverlay?: ReactNode;
-  // When true (the default), the hover transform also pushes the
-  // sleeve forward in 3D via translateZ — the "popping out of the
-  // wall" emphasis. Set false to keep the scale + tilt + specular
-  // but flatten the lift; useful when the host scene already does
-  // a lot of work signalling "this is in front" (the home hero's
-  // band trim leaves no Z-depth context to pop into anyway).
+  // When true the hover transform also pushes the sleeve
+  // forward in 3D via translateZ — the "popping out of the
+  // wall" emphasis. Default is false now: the effect was
+  // visually nice but caused noticeable hover stutter on
+  // longer mydig walls (15 LPs × per-cell perspective) so we
+  // pulled it as a default. Pass `popOnHover` if a particular
+  // surface really wants the lift.
   popOnHover?: boolean;
   // Vertical anchor for the hover scale's transform-origin. Default
   // 'bottom' = grow purely upward (mydig's CommentBubble offsets
@@ -154,7 +155,7 @@ export default function WallHoverCard({
   plasticBlendMode = 'normal',
   hoverScalePct = 126,
   coverOverlay = null,
-  popOnHover = true,
+  popOnHover = false,
   hoverOriginY = 'bottom',
   playChipScale = 1,
   tapToActivate = false,
