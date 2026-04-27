@@ -299,10 +299,24 @@ router.get('/stats', (_req, res) => {
   // triggered before. The filter is dropped entirely; the buckets now
   // reflect the real backlog admin needs to work through.
 
+  // Released-on-or-before-today filter for the curation buckets.
+  // Future-release albums obviously have no reviews and no summary
+  // yet — that's not curator backlog, that's anticipation. Excluding
+  // them keeps the bucket honest. COALESCE to today for albums whose
+  // release date is unknown so they don't get filtered out for
+  // missing data; release_year-only entries fall back to year-01-01,
+  // which is fine for the in-the-past majority and only mis-includes
+  // late-year releases registered with year-only metadata. Cover
+  // backlog is unaffected — even unreleased albums need cover art.
+  const RELEASED_FILTER = `
+    COALESCE(a.release_date, a.release_year || '-01-01', DATE('now')) <= DATE('now')
+  `;
+
   const noReviews = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
      FROM albums a
      WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)
+       AND ${RELEASED_FILTER}
      ORDER BY a.created_at DESC
      LIMIT ?`,
     [INCOMPLETE_LIMIT]
@@ -311,7 +325,8 @@ router.get('/stats', (_req, res) => {
   const noSummary = queryAll(
     `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.cover_art_url, a.cover_art_fallbacks
      FROM albums a
-     WHERE a.korean_summary IS NULL OR a.korean_summary = ''
+     WHERE (a.korean_summary IS NULL OR a.korean_summary = '')
+       AND ${RELEASED_FILTER}
      ORDER BY a.created_at DESC
      LIMIT ?`,
     [INCOMPLETE_LIMIT]
@@ -327,14 +342,17 @@ router.get('/stats', (_req, res) => {
   );
 
   // Total counts (not limited) — shown next to the label so admin
-  // knows how big the backlog is.
+  // knows how big the backlog is. Same released-filter applied to
+  // noReviews/noSummary so the count matches the visible sample.
   const noReviewsCount = queryGet(
     `SELECT COUNT(*) AS n FROM albums a
-     WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)`
+     WHERE NOT EXISTS (SELECT 1 FROM reviews r WHERE r.album_mbid = a.mbid)
+       AND ${RELEASED_FILTER}`
   )?.n || 0;
   const noSummaryCount = queryGet(
     `SELECT COUNT(*) AS n FROM albums a
-     WHERE a.korean_summary IS NULL OR a.korean_summary = ''`
+     WHERE (a.korean_summary IS NULL OR a.korean_summary = '')
+       AND ${RELEASED_FILTER}`
   )?.n || 0;
   const noCoverCount = queryGet(
     `SELECT COUNT(*) AS n FROM albums a
