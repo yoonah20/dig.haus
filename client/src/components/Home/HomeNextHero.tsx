@@ -277,7 +277,11 @@ export default function HomeNextHero() {
 
           {/* Wall section header — handwritten title pulled from
               home_meta. Position tunable so we can nudge it
-              against the new backdrop's negative space. */}
+              against the new backdrop's negative space. Cream-tone
+              chalk color matches the graffiti elsewhere in the hero
+              and reads on the purple backdrop where the original
+              dark-brown ink lost contrast; the soft shadow keeps
+              the letters from feeling pasted on top of the wall. */}
           {meta?.theme && meta.theme.trim().length > 0 && (
             <div
               className="absolute select-none pointer-events-none"
@@ -287,7 +291,8 @@ export default function HomeNextHero() {
                 fontFamily: GRAFFITI_FONT_STACK,
                 transform: `rotate(${tuner.titleRotationDeg}deg)`,
                 transformOrigin: 'top left',
-                color: '#1a1208',
+                color: '#f5e6c8',
+                textShadow: '0 1px 2px rgba(0, 0, 0, 0.45)',
               }}
             >
               <h2
