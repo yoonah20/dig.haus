@@ -1271,6 +1271,54 @@ async function fetchRawHtml(
   }
 }
 
+// Fallback fetch via the Wayback Machine for sites whose live edition
+// is bot-blocked but whose archive.org snapshots are reachable
+// (metalstorm, metalcrypt, ghostcultmag, etc. — rich editorial bodies
+// behind reader walls). Two-step:
+//   1. Hit the availability API to find the closest snapshot. Cheap
+//      JSON, no auth.
+//   2. Fetch the snapshot via the `id_` modifier so Wayback returns
+//      the original archived page bytes without injecting its toolbar
+//      or rewriting links — the score detectors and Claude extraction
+//      need to see the page exactly as it was when archived.
+// The original URL stays as full_review_url; only the bytes we feed
+// into the detector + LLM pipeline come from the snapshot. End-user
+// click-through still hits the original (possibly bot-blocked) page,
+// which is the same UX as before — but we go from "no review" to "we
+// have the review text and score, click-through is the only friction".
+async function fetchWayback(
+  url: string
+): Promise<{ ok: true; html: string; timestamp: string } | { ok: false }> {
+  try {
+    const availResp = await axios.get('https://archive.org/wayback/available', {
+      params: { url },
+      timeout: 8000,
+      validateStatus: (s) => s === 200,
+    });
+    const closest = availResp.data?.archived_snapshots?.closest as
+      | { available?: boolean; url?: string; timestamp?: string }
+      | undefined;
+    if (!closest?.available || !closest.url) return { ok: false };
+    const snapshotUrl = String(closest.url);
+    // closest.url is "https://web.archive.org/web/<ts>/<original>".
+    // Inserting "id_" between the timestamp and the original URL
+    // gives us the raw mirrored page (no toolbar, no link rewrites).
+    const idUrl = snapshotUrl.replace(/\/web\/(\d+)\//, '/web/$1id_/');
+    const resp = await axios.get(idUrl, {
+      timeout: 15000,
+      maxContentLength: 4_000_000,
+      responseType: 'text',
+      validateStatus: (s) => s === 200,
+      headers: { 'User-Agent': BROWSER_UA, Accept: 'text/html,application/xhtml+xml' },
+    });
+    const html = typeof resp.data === 'string' ? resp.data : String(resp.data);
+    if (html.length < 500) return { ok: false };
+    return { ok: true, html, timestamp: String(closest.timestamp || '') };
+  } catch {
+    return { ok: false };
+  }
+}
+
 // Interview / Q&A structure detector. Runs on Jina markdown before
 // the Claude extraction call. Catches interview pages whose URL slug
 // can't be matched by EXCLUDED_URL_PATH_PATTERNS — the trigger case
@@ -1405,10 +1453,28 @@ export async function scrapeReviewFromUrl(
   // that need the original markup) and Jina Reader (for Claude's text
   // input — fewer tokens, JS-rendered content resolved, some bot walls
   // bypassed). Either can fail independently — we combine what succeeds.
-  const [rawResult, jinaRaw] = await Promise.all([
+  const [initialRawResult, jinaRaw] = await Promise.all([
     fetchRawHtml(url),
     fetchJinaReader(url),
   ]);
+
+  // Wayback fallback when raw fetch is bot-blocked. archive.org
+  // snapshots reach metalstorm / metalcrypt / ghostcultmag and similar
+  // rich-content sites that block our scraper directly. On success
+  // we substitute the snapshot bytes for the failed raw fetch and
+  // continue the pipeline normally — detectors run, source name
+  // extraction works, etc. The original URL is preserved as the
+  // canonical review citation. On failure (no snapshot, or snapshot
+  // also unreachable) we fall through to the existing bot-blocked
+  // failure path below.
+  let rawResult = initialRawResult;
+  if (!rawResult.ok && rawResult.reason === 'bot-blocked') {
+    const wb = await fetchWayback(url);
+    if (wb.ok) {
+      console.log(`[wayback] ${url} via snapshot ${wb.timestamp}`);
+      rawResult = { ok: true, html: wb.html };
+    }
+  }
 
   const html = rawResult.ok ? rawResult.html : '';
 
