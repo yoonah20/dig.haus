@@ -880,6 +880,55 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // Add two hosts that surfaced in the post-Phase 3 backlog review:
+  // bangertv.com (video reviews — body is a YouTube embed plus a
+  // one-line blurb, no editorial prose) and everyalbumever.com (a
+  // podcast — every /episodes/* page is a show note for an audio
+  // episode, with Apple/Spotify show links and a single-paragraph
+  // description). Both pages match enough surface signals (the word
+  // "review" in title and slug) that the URL-discovery pipeline keeps
+  // pulling them in; blacklisting at the source layer cuts them off
+  // before scraping. INSERT OR IGNORE so a later admin re-enable
+  // wouldn't get clobbered.
+  runOnce(db, 'seed-source-blacklist-podcast-video-2026-04-28', () => {
+    const rows: Array<[string, string]> = [
+      ['bangertv.com', 'video review (YouTube embed, no editorial body)'],
+      ['everyalbumever.com', 'podcast (episode landing page)'],
+    ];
+    const stmt = db.prepare(
+      `INSERT OR IGNORE INTO source_blacklist (host, reason) VALUES (?, ?)`
+    );
+    let inserted = 0;
+    for (const [host, reason] of rows) {
+      const r = stmt.run(host, reason);
+      if ((r.changes as number) > 0) inserted++;
+    }
+    if (inserted > 0) {
+      console.log(
+        `[migration] seeded source_blacklist with ${inserted} podcast/video host(s)`
+      );
+    }
+  });
+
+  // Purge any review rows that landed before the blacklist additions
+  // above. Same pattern as purge-blacklisted-review-urls-2026-04-21 —
+  // host filter only stops future saves, so historical rows linger
+  // until a one-shot DELETE runs.
+  runOnce(db, 'purge-blacklisted-review-urls-2026-04-28', () => {
+    const patterns = [
+      '%bangertv.com/%',
+      '%everyalbumever.com/%',
+    ];
+    let total = 0;
+    for (const p of patterns) {
+      const info = db.prepare('DELETE FROM reviews WHERE full_review_url LIKE ?').run(p);
+      total += info.changes as number;
+    }
+    if (total > 0) {
+      console.log(`[migration] purged ${total} podcast/video review rows`);
+    }
+  });
+
   // Move hosts out of the code-level EXCLUDED_URL_DOMAINS into the DB
   // source_blacklist. The hardcoded baseline keeps shops / SNS /
   // streaming / YouTube (platform shapes that will never carry
