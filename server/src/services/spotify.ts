@@ -278,15 +278,36 @@ function extractSpotifyAlbumId(input: string): string | null {
   return null;
 }
 
+// Module-level cooldown timestamp set when Spotify returns 429.
+// Every album-search call below early-returns null while
+// Date.now() < spotifyRateLimitedUntil, so a single 429 shuts down
+// the *entire* fallback chain for the duration of the Retry-After
+// window instead of burning quota on three more queries that are
+// guaranteed to 429 too. Spotify's 30-day rolling burst protection
+// can return Retry-After values measured in hours; without this
+// gate, every album register during the cooldown would hit four
+// 429s and extend the rolling-window strike count.
+let spotifyRateLimitedUntil = 0;
+
+export function isSpotifyRateLimited(): boolean {
+  return Date.now() < spotifyRateLimitedUntil;
+}
+
+export function spotifyRateLimitRemainingMs(): number {
+  return Math.max(0, spotifyRateLimitedUntil - Date.now());
+}
+
 // Single-shot album search against the Spotify /search endpoint.
 // Returns the first hit's url + cover image; null when the response
-// has no albums.items. Pulled out as a helper so searchTrack below
-// can try several query shapes in sequence without duplicating the
-// fetch + parse boilerplate.
+// has no albums.items, when we're inside an active 429 cooldown, or
+// when the request itself errors. Pulled out as a helper so
+// searchTrack below can try several query shapes in sequence
+// without duplicating the fetch + parse + 429-handling boilerplate.
 async function trySpotifyAlbumSearch(
   token: string,
   q: string
 ): Promise<{ url: string | null; imageUrl: string | null } | null> {
+  if (isSpotifyRateLimited()) return null;
   try {
     const res = await axios.get(`${SPOTIFY_API_BASE}/search`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -309,11 +330,29 @@ async function trySpotifyAlbumSearch(
       url: item.external_urls?.spotify || null,
       imageUrl,
     };
-  } catch (err) {
-    console.warn(
-      `[spotify] album search failed for q="${q}":`,
-      (err as Error).message
-    );
+  } catch (err: any) {
+    if (err.response?.status === 429) {
+      // Honour the Retry-After header — Spotify returns it in
+      // seconds. Default to 60s if missing (the spec doesn't
+      // require it, but the API in practice always sets it).
+      const retryAfterRaw = err.response.headers?.['retry-after'];
+      const retryAfterSec =
+        typeof retryAfterRaw === 'string'
+          ? Number.parseInt(retryAfterRaw, 10)
+          : 60;
+      const wait = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+        ? retryAfterSec
+        : 60;
+      spotifyRateLimitedUntil = Date.now() + wait * 1000;
+      console.warn(
+        `[spotify] 429 — cooldown ${wait}s (until ${new Date(spotifyRateLimitedUntil).toISOString()}). All Spotify search calls suspended until then.`
+      );
+    } else {
+      console.warn(
+        `[spotify] album search failed for q="${q}":`,
+        (err as Error).message
+      );
+    }
     return null;
   }
 }

@@ -13,6 +13,11 @@ import {
 import { describeOperationRoutes } from '../services/llmRouter.js';
 import { bustSourceListCaches } from '../services/reviews.js';
 import { invalidateTagBlacklistCache } from './albums.js';
+import {
+  searchTrack,
+  isSpotifyRateLimited,
+  spotifyRateLimitRemainingMs,
+} from '../services/spotify.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1326,6 +1331,73 @@ router.get('/llm-comparisons', (req, res) => {
     console.error('[llm-comparisons] list failed:', err);
     res.status(500).json({ error: 'failed to list llm comparisons' });
   }
+});
+
+// ─── POST /api/admin/spotify/backfill ─────────────────────────────────
+//
+// Walks every album row with `spotify_url IS NULL`, re-runs the
+// quoted-fields searchTrack query on each, and updates the row when
+// a hit comes back. Use case: Spotify hits a 30-day-rolling-window
+// 429 (Retry-After in hours), albums registered during the cooldown
+// land with null spotify_url, then once the cooldown expires the
+// admin runs this once to backfill the gap. The cooldown gate
+// inside searchTrack means re-running this during an active
+// cooldown is safe — it'll early-out without burning quota.
+//
+// Returns counts so the admin can see progress; `?limit=N` caps a
+// single run so a very long album list can be chunked across
+// multiple invocations rather than tying up the request thread.
+router.post('/spotify/backfill', async (req, res) => {
+  if (isSpotifyRateLimited()) {
+    return res.status(429).json({
+      error: 'Spotify가 현재 rate-limited 상태예요.',
+      remainingMs: spotifyRateLimitRemainingMs(),
+      remainingHuman: `${Math.ceil(spotifyRateLimitRemainingMs() / 1000 / 60)}분 후 다시 시도하세요`,
+    });
+  }
+  const limitRaw = Number.parseInt((req.query.limit as string) || '50', 10);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 && limitRaw <= 500
+    ? limitRaw
+    : 50;
+
+  const rows = queryAll(
+    `SELECT id, mbid, title, artist_name AS artist
+     FROM albums
+     WHERE spotify_url IS NULL
+     ORDER BY id DESC
+     LIMIT ?`,
+    [limit]
+  ) as Array<{ id: number; mbid: string; title: string; artist: string }>;
+
+  let scanned = 0;
+  let filled = 0;
+  let stoppedOnRateLimit = false;
+  for (const row of rows) {
+    if (isSpotifyRateLimited()) {
+      stoppedOnRateLimit = true;
+      break;
+    }
+    scanned++;
+    const result = await searchTrack(row.artist, row.title);
+    if (result.url) {
+      execute(
+        `UPDATE albums SET spotify_url = ? WHERE id = ?`,
+        [result.url, row.id]
+      );
+      filled++;
+    }
+    // Small inter-call delay so a multi-hundred-album scan doesn't
+    // burst into the 30s rate-limit bucket all at once. 250ms ≈ 4
+    // calls/sec, well under the per-token sustainable rate.
+    await new Promise((r) => setTimeout(r, 250));
+  }
+
+  res.json({
+    scanned,
+    filled,
+    candidatesRemaining: rows.length === limit ? 'more pages possible' : 0,
+    stoppedOnRateLimit,
+  });
 });
 
 // ─── DELETE /api/admin/llm-comparisons ────────────────────────────────
