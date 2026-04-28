@@ -5,10 +5,15 @@ import { convertToKrwSync, getRates } from '../services/exchangeRates.js';
 
 // Admin-curated 15-album home wall (5-5-5 to match mydig). Mirrors
 // the mydig vinyl-wall data shape (album_id, position) minus the
-// user_id — this is a single global wall, not per-user. Plus a
-// singleton meta row (theme + description) that renders as the
-// graffiti header above the wall. Public GET; admin-only PUT for
-// bulk replace + PATCH for meta edit.
+// user_id — this is a global wall, not per-user.
+//
+// Multi-wall carousel scaffolding: the schema now keys home_features
+// rows by wall_id and stores per-wall meta (theme + description +
+// tuner cols + ink/shadow/wall colour tokens) on home_walls. v1 of
+// this endpoint stays on the single-wall { items, meta } shape so
+// existing client callers keep working — the response is sourced
+// from home_walls(id=1) (the migrated singleton). The walls[]
+// surface for the carousel UI lands in a follow-up commit.
 
 const router = Router();
 
@@ -37,6 +42,7 @@ router.get('/home/features', async (_req, res) => {
                AND r.score_max > 0) AS review_count
      FROM home_features hf
      JOIN albums a ON a.id = hf.album_id
+     WHERE hf.wall_id = 1
      ORDER BY hf.position ASC`
   );
 
@@ -148,7 +154,7 @@ router.get('/home/features', async (_req, res) => {
             lower_lp_y AS lowerLpY,
             title_font_size AS titleFontSize,
             title_rotation_deg AS titleRotationDeg
-     FROM home_meta WHERE id = 1`
+     FROM home_walls WHERE id = 1`
   ) as {
     theme: string | null;
     description: string | null;
@@ -350,7 +356,7 @@ router.patch('/home/meta', requireAdmin, (req, res) => {
   sets.push("updated_at = datetime('now')");
   const db = getDb();
   db.prepare(
-    `UPDATE home_meta SET ${sets.join(', ')} WHERE id = 1`
+    `UPDATE home_walls SET ${sets.join(', ')} WHERE id = 1`
   ).run(...args);
   res.json({ ok: true });
 });
@@ -404,11 +410,12 @@ router.put('/home/features/items', requireAdmin, (req, res) => {
     resolved.push({ position: it.position, albumId: row.id, note: it.note });
   }
 
+  // PUT path edits wall 1 only; multi-wall admin tuner is a follow-up.
   const tx = db.transaction((items: typeof resolved) => {
-    db.prepare('DELETE FROM home_features').run();
+    db.prepare('DELETE FROM home_features WHERE wall_id = 1').run();
     const insert = db.prepare(
-      `INSERT INTO home_features (album_id, position, note)
-       VALUES (?, ?, ?)`
+      `INSERT INTO home_features (wall_id, album_id, position, note)
+       VALUES (1, ?, ?, ?)`
     );
     for (const it of items) insert.run(it.albumId, it.position, it.note);
   });

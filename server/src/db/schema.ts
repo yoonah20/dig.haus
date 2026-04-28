@@ -1084,6 +1084,10 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // home_walls migration lives near the home_walls CREATE TABLE
+  // block further down — moving it up here would put it before the
+  // table exists at boot time. See `migrate-home-meta-to-home-walls-2026-04-28`.
+
   // Grandfather every currently-registered user's email into
   // invited_emails so the OAuth gate doesn't bounce people who were
   // already logged in when the gate landed. INSERT OR IGNORE skips any
@@ -1484,100 +1488,175 @@ export function initializeDatabase(db: Database.Database): void {
   runOnce(db, 'home_features_15_slots_2026_04_25', () => {
     db.exec('DROP TABLE IF EXISTS home_features');
   });
+  // Home walls — multi-wall carousel surface for the hero on `/`. The
+  // singleton home_meta + flat home_features pair was the v0 shape;
+  // walls extend that into N curated tracks (이번 주 발굴 / 시즌 무드
+  // / etc.) each with their own backdrop + LP set + title positions
+  // + ink/shadow tokens. v1 ships with three walls matching the three
+  // backdrops already in client/public/backdrops/ (basement_purple,
+  // basement_gray, basement5).
+  //
+  // Per-wall HERO_THEME tokens (ink_color / shadow_css / wall_color)
+  // are stored on the row rather than in the heroTheme.ts singleton,
+  // because basement5 is a light surface that needs dark ink while
+  // basement_purple needs cream — one global token can't serve both.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS home_walls (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      position INTEGER NOT NULL UNIQUE,
+      backdrop_file TEXT NOT NULL,
+      theme TEXT,
+      description TEXT,
+      header_top_px INTEGER DEFAULT 102,
+      header_left_px INTEGER DEFAULT 305,
+      header_rotation_deg INTEGER DEFAULT -1,
+      plastic_scale_pct INTEGER DEFAULT 15,
+      plastic_offset_x_px INTEGER DEFAULT 5,
+      plastic_offset_y_px INTEGER DEFAULT 0,
+      plastic_blend_mode TEXT DEFAULT 'normal',
+      lp_size INTEGER DEFAULT 357,
+      lp_gap INTEGER DEFAULT 30,
+      upper_lp_x_start INTEGER DEFAULT 531,
+      lower_lp_x_start INTEGER DEFAULT 531,
+      upper_lp_y INTEGER DEFAULT 279,
+      lower_lp_y INTEGER DEFAULT 752,
+      title_font_size INTEGER DEFAULT 67,
+      title_rotation_deg INTEGER DEFAULT -1,
+      ink_color TEXT NOT NULL DEFAULT '#f5e6c8',
+      shadow_css TEXT NOT NULL DEFAULT '0 1px 2px rgba(0, 0, 0, 0.45)',
+      wall_color TEXT NOT NULL DEFAULT '#4c3c54',
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  // Seed 3 walls with the three shipped backdrops + sampled HERO_THEME
+  // tokens (sampled via the same dominant-color + luminance-flip logic
+  // server/scripts/extract-hero-theme.ts uses; see the schema-migration
+  // commit message for the raw numbers). INSERT OR IGNORE makes this
+  // idempotent — admin tweaks survive re-runs of schema init.
+  db.exec(
+    `INSERT OR IGNORE INTO home_walls (id, position, backdrop_file, theme, description, ink_color, shadow_css, wall_color)
+     VALUES
+       (1, 0, 'basement_purple.avif', 'dig.haus / 이번 달 픽', '운영자가 한 달 동안 발굴한 15장', '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#4c3c54'),
+       (2, 1, 'basement_gray.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#747474'),
+       (3, 2, 'basement5.avif', NULL, NULL, '#1a1208', '0 1px 2px rgba(255, 245, 220, 0.55)', '#ccac94')`
+  );
+  // home_features now keys per (wall_id, position) — same 15-slot
+  // shape as before but multiplied across walls. Fresh DBs get this
+  // schema directly; existing DBs migrate in the runOnce below.
   db.exec(`
     CREATE TABLE IF NOT EXISTS home_features (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      wall_id INTEGER NOT NULL REFERENCES home_walls(id) ON DELETE CASCADE,
       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
       position INTEGER NOT NULL CHECK (position >= 0 AND position < 15),
       note TEXT,
       pinned_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(position)
+      UNIQUE(wall_id, position)
     )
   `);
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_home_features_position
-     ON home_features(position)`
+     ON home_features(wall_id, position)`
   );
 
-  // Home wall meta — singleton row holding the graffiti signature
-  // theme + description that admin renders above the wall (mirrors
-  // mydig's vinyl_wall_theme / vinyl_wall_description on users, but
-  // for the dig.haus-level wall). Singleton enforced via id = 1.
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS home_meta (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      theme TEXT,
-      description TEXT,
-      updated_at TEXT DEFAULT (datetime('now'))
-    )
-  `);
-  db.exec(
-    `INSERT OR IGNORE INTO home_meta (id, theme, description)
-     VALUES (1, 'dig.haus / 이번 달 픽', '운영자가 한 달 동안 발굴한 15장')`
-  );
-  // Handwritten header position knobs — admin tunes from the wall
-  // editor so they don't need a code deploy to nudge the marker
-  // signature. INTEGER pixel values, rotation in degrees (decimal not
-  // needed at the precision a marker scrawl reads at). Defaults match
-  // the hardcoded constants from the initial header pass.
-  runOnce(db, 'home_meta_header_position_2026_04_25', () => {
-    db.exec('ALTER TABLE home_meta ADD COLUMN header_top_px INTEGER DEFAULT -120');
-    db.exec('ALTER TABLE home_meta ADD COLUMN header_left_px INTEGER DEFAULT 4');
-    db.exec('ALTER TABLE home_meta ADD COLUMN header_rotation_deg INTEGER DEFAULT -4');
-  });
-  // Plastic-wrap raster overlay tuning knobs — admin dials the
-  // overlay's size + offset on the home wall via a live slider panel.
-  // scale_pct = how much larger than the cover (15 = 15% larger);
-  // offset_x_px / offset_y_px = additional shift in px (positive x =
-  // right, positive y = down). Defaults match the hardcoded values
-  // from the experimental pass.
-  runOnce(db, 'home_meta_plastic_overlay_2026_04_25', () => {
-    db.exec('ALTER TABLE home_meta ADD COLUMN plastic_scale_pct INTEGER DEFAULT 15');
-    db.exec('ALTER TABLE home_meta ADD COLUMN plastic_offset_x_px INTEGER DEFAULT 5');
-    db.exec('ALTER TABLE home_meta ADD COLUMN plastic_offset_y_px INTEGER DEFAULT 0');
-  });
-  // mix-blend-mode for the plastic overlay. 'normal' = straight alpha
-  // (textures look opaque on top of the cover). 'screen' is the
-  // textbook choice for white-on-transparent textures; 'soft-light' /
-  // 'overlay' / 'lighten' are alternates the admin can A/B from the
-  // tuner panel.
-  runOnce(db, 'home_meta_plastic_blend_mode_2026_04_25', () => {
-    db.exec(
-      "ALTER TABLE home_meta ADD COLUMN plastic_blend_mode TEXT DEFAULT 'normal'"
-    );
-  });
+  // home_meta CREATE TABLE block + four home_meta-* runOnce blocks
+  // (header_position / plastic_overlay / plastic_blend_mode /
+  // hero_tuner) used to live here. They were the v0 source of truth
+  // for the singleton home wall. The migration runOnce below copies
+  // their data into home_walls(id=1) and drops the table; existing
+  // DBs that had applied those four runOnces already are unaffected
+  // (markers stay set in schema_migrations as historical record),
+  // and fresh DBs no longer create home_meta at all because the new
+  // home_walls table is the source of truth.
 
-  // home_meta tuner columns — migrate the home-hero LP / title
-  // tuning state from per-admin localStorage into the global DB
-  // row so a single 저장 click is visible to every visitor. The
-  // earlier tuner saved to `homeNext:heroTuner:v*` in
-  // localStorage which only updated the admin's own browser; new
-  // home-rendering reads these columns instead.
-  runOnce(db, 'home_meta_hero_tuner_2026_04_27', () => {
-    db.exec('ALTER TABLE home_meta ADD COLUMN lp_size INTEGER DEFAULT 357');
-    db.exec('ALTER TABLE home_meta ADD COLUMN lp_gap INTEGER DEFAULT 30');
-    db.exec(
-      'ALTER TABLE home_meta ADD COLUMN upper_lp_x_start INTEGER DEFAULT 531'
-    );
-    db.exec(
-      'ALTER TABLE home_meta ADD COLUMN lower_lp_x_start INTEGER DEFAULT 531'
-    );
-    db.exec('ALTER TABLE home_meta ADD COLUMN upper_lp_y INTEGER DEFAULT 279');
-    db.exec('ALTER TABLE home_meta ADD COLUMN lower_lp_y INTEGER DEFAULT 752');
-    db.exec(
-      'ALTER TABLE home_meta ADD COLUMN title_font_size INTEGER DEFAULT 67'
-    );
-    db.exec(
-      'ALTER TABLE home_meta ADD COLUMN title_rotation_deg INTEGER DEFAULT -1'
-    );
-    // Existing rows pre-date the new home-hero so header_*_px were
-    // calibrated for the deleted HomeWall layout (-120 / 4 / -4).
-    // Reset them to the values that match the new band hero so a
-    // fresh load lands the title in the right place; admins can
-    // re-tune via the in-page tuner after this.
-    db.exec(
-      'UPDATE home_meta SET header_top_px = 102, header_left_px = 305, header_rotation_deg = -1 WHERE id = 1'
-    );
+  // Move the home wall from the singleton home_meta + flat
+  // home_features pair into the multi-wall home_walls + home_features-
+  // with-wall_id shape. Idempotent — both halves of the migration
+  // gate on schema state (does home_meta exist? does home_features
+  // have a wall_id column?) so re-running is a no-op.
+  //
+  // Two halves:
+  //   1. UPDATE home_walls(id=1) with whatever values home_meta(id=1)
+  //      held (theme, description, tuner cols). Without this step,
+  //      existing DBs would lose the admin's previously-tuned LP
+  //      positions / title rotation / etc. — the seed INSERT above
+  //      uses defaults that pre-date the admin's tuning session.
+  //   2. Recreate home_features with the new wall_id + composite
+  //      UNIQUE constraint, copying old rows with wall_id = 1 (the
+  //      pre-existing home_features always implicitly belonged to the
+  //      one home_meta wall). The CREATE TABLE IF NOT EXISTS above
+  //      can't change UNIQUE constraints on an existing table, hence
+  //      the rename + recreate dance here.
+  //
+  // Drops home_meta after copying — it's no longer the source of
+  // truth and leaving it would invite future code to read stale data.
+  runOnce(db, 'migrate-home-meta-to-home-walls-2026-04-28', () => {
+    const homeMetaExists = db
+      .prepare(
+        `SELECT 1 FROM sqlite_master WHERE type='table' AND name='home_meta' LIMIT 1`
+      )
+      .get();
+    if (homeMetaExists) {
+      const meta = db
+        .prepare(`SELECT * FROM home_meta WHERE id = 1`)
+        .get() as Record<string, unknown> | undefined;
+      if (meta) {
+        const cols = [
+          'theme', 'description',
+          'header_top_px', 'header_left_px', 'header_rotation_deg',
+          'plastic_scale_pct', 'plastic_offset_x_px', 'plastic_offset_y_px',
+          'plastic_blend_mode',
+          'lp_size', 'lp_gap',
+          'upper_lp_x_start', 'lower_lp_x_start', 'upper_lp_y', 'lower_lp_y',
+          'title_font_size', 'title_rotation_deg',
+        ];
+        const present = cols.filter((c) => c in meta);
+        if (present.length > 0) {
+          const setClause = present.map((c) => `${c} = ?`).join(', ');
+          db.prepare(`UPDATE home_walls SET ${setClause} WHERE id = 1`).run(
+            ...present.map((c) => meta[c] as any)
+          );
+        }
+      }
+      db.exec('DROP TABLE home_meta');
+      console.log('[migration] copied home_meta → home_walls(id=1) and dropped home_meta');
+    }
+
+    const featCols = db
+      .prepare(`PRAGMA table_info(home_features)`)
+      .all() as Array<{ name: string }>;
+    const hasWallId = featCols.some((c) => c.name === 'wall_id');
+    if (!hasWallId && featCols.length > 0) {
+      db.exec('PRAGMA foreign_keys = OFF');
+      db.exec(`
+        CREATE TABLE home_features__new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          wall_id INTEGER NOT NULL REFERENCES home_walls(id) ON DELETE CASCADE,
+          album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+          position INTEGER NOT NULL CHECK (position >= 0 AND position < 15),
+          note TEXT,
+          pinned_at TEXT DEFAULT (datetime('now')),
+          UNIQUE(wall_id, position)
+        )
+      `);
+      db.exec(
+        `INSERT INTO home_features__new (id, wall_id, album_id, position, note, pinned_at)
+         SELECT id, 1, album_id, position, note, pinned_at FROM home_features`
+      );
+      db.exec('DROP TABLE home_features');
+      db.exec('ALTER TABLE home_features__new RENAME TO home_features');
+      db.exec(
+        `CREATE INDEX IF NOT EXISTS idx_home_features_position
+         ON home_features(wall_id, position)`
+      );
+      db.exec('PRAGMA foreign_keys = ON');
+      const moved = db
+        .prepare(`SELECT COUNT(*) AS n FROM home_features WHERE wall_id = 1`)
+        .get() as { n: number };
+      console.log(
+        `[migration] recreated home_features with wall_id; ${moved.n} rows assigned to wall 1`
+      );
+    }
   });
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
