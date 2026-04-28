@@ -278,42 +278,103 @@ function extractSpotifyAlbumId(input: string): string | null {
   return null;
 }
 
-export async function searchTrack(
-  artist: string,
-  album: string
-): Promise<{ url: string | null; imageUrl: string | null }> {
+// Single-shot album search against the Spotify /search endpoint.
+// Returns the first hit's url + cover image; null when the response
+// has no albums.items. Pulled out as a helper so searchTrack below
+// can try several query shapes in sequence without duplicating the
+// fetch + parse boilerplate.
+async function trySpotifyAlbumSearch(
+  token: string,
+  q: string
+): Promise<{ url: string | null; imageUrl: string | null } | null> {
   try {
-    const token = await getToken();
-    if (!token) return { url: null, imageUrl: null };
-
     const res = await axios.get(`${SPOTIFY_API_BASE}/search`, {
       headers: { Authorization: `Bearer ${token}` },
       httpsAgent,
-      params: {
-        q: `artist:${artist} album:${album}`,
-        type: 'album',
-        limit: '1',
-      },
+      params: { q, type: 'album', limit: '1' },
     });
-
     const albums = res.data?.albums?.items || [];
-    if (albums.length === 0) return { url: null, imageUrl: null };
-
+    if (albums.length === 0) return null;
     const item = albums[0];
-    // Prefer the largest variant (640px) so downstream resize to 600px doesn't
-    // upscale a tiny source. Spotify commonly returns 640/300/64.
+    // Prefer the 640px variant (Spotify commonly returns 640/300/64)
+    // so the downstream cover resize to 600px doesn't upscale a
+    // smaller source.
     const images = item.images || [];
-    const imageUrl = images.find((i: any) => i.width === 640)?.url
-      || images.find((i: any) => i.width === 300)?.url
-      || images[0]?.url
-      || null;
-
+    const imageUrl =
+      images.find((i: any) => i.width === 640)?.url ||
+      images.find((i: any) => i.width === 300)?.url ||
+      images[0]?.url ||
+      null;
     return {
       url: item.external_urls?.spotify || null,
       imageUrl,
     };
   } catch (err) {
-    console.warn(`[spotify] searchTrack failed for "${artist} - ${album}":`, (err as Error).message);
-    return { url: null, imageUrl: null };
+    console.warn(
+      `[spotify] album search failed for q="${q}":`,
+      (err as Error).message
+    );
+    return null;
   }
+}
+
+export async function searchTrack(
+  artist: string,
+  album: string
+): Promise<{ url: string | null; imageUrl: string | null }> {
+  const token = await getToken();
+  if (!token) return { url: null, imageUrl: null };
+
+  // Sequential query strategy — first hit wins. Each step
+  // progressively loosens the constraint so we catch the cases
+  // where MB metadata and Spotify metadata don't align exactly.
+  // The motivating example was "Hawthorne Heights — If Only You
+  // Were Lonely", which exists on Spotify but the previous
+  // unquoted `artist:Hawthorne Heights` query parsed only
+  // "Hawthorne" as the artist field and silently returned 0.
+  const queries: string[] = [];
+
+  // 1. Structured query with QUOTED multi-word values. Without the
+  //    quotes Spotify's parser consumes only the first whitespace-
+  //    separated token as the field value, then treats the rest as
+  //    free text — which is why exact-match queries on multi-word
+  //    artists / albums were failing en masse.
+  queries.push(`artist:"${artist}" album:"${album}"`);
+
+  // 2. Drop comma- or ampersand-joined collab co-credits. MB returns
+  //    "Artist A, Artist B, Artist C" / "Artist A & Artist B" for
+  //    multi-artist releases; Spotify typically lists the album
+  //    under the primary artist only, so the structured artist:
+  //    filter on the joined string returns 0.
+  const primaryArtist =
+    artist.split(/\s*[,&]\s*/)[0]?.trim() || artist;
+  if (primaryArtist && primaryArtist !== artist) {
+    queries.push(`artist:"${primaryArtist}" album:"${album}"`);
+  }
+
+  // 3. Strip parenthetical / bracket subtitle from album title.
+  //    MB tends to keep "(Deluxe Edition)" / "(Remastered 2024)" /
+  //    "[Special Version]" suffixes that Spotify drops on its
+  //    standard-edition entry.
+  const cleanAlbum = album
+    .replace(/\s*[([][^)\]]*[)\]]\s*$/, '')
+    .trim();
+  if (cleanAlbum && cleanAlbum !== album) {
+    queries.push(`artist:"${primaryArtist}" album:"${cleanAlbum}"`);
+  }
+
+  // 4. Last-ditch free-text query — Spotify's natural-language
+  //    relevance ranker can succeed where the structured filter
+  //    fails (UTF-8 normalisation differences, hyphenation
+  //    mismatches, "The X" vs "X" prefix drift, etc.). The first
+  //    result is typically the right album when both terms are
+  //    present and unique.
+  queries.push(`${primaryArtist} ${cleanAlbum || album}`);
+
+  for (const q of queries) {
+    const result = await trySpotifyAlbumSearch(token, q);
+    if (result?.url) return result;
+  }
+
+  return { url: null, imageUrl: null };
 }
