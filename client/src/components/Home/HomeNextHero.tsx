@@ -798,17 +798,32 @@ function ShelfRow({
         // has content — empty slots stay clean so the slots that
         // *do* carry a comment draw the eye naturally.
         const noteText = item?.note?.trim() || item?.adminReview?.trim() || null;
+        // Slot height is extended past the LP to reserve space for
+        // a post-it sitting on/around the rail below. The extension
+        // also makes the group-hover region include the post-it
+        // itself, so moving the cursor onto the note keeps it
+        // expanded while the visitor reads.
+        const slotHeight = lpSize + Math.round(lpSize * 0.45);
         return (
           <div
             key={position}
-            className="absolute"
+            className="absolute group/slot"
             style={{
               left: cellLeft,
               top: rowTopY,
               width: lpSize,
-              height: lpSize,
+              height: slotHeight,
             }}
           >
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: lpSize,
+                height: lpSize,
+              }}
+            >
             {item ? (
               <WallHoverCard
                 album={item.album}
@@ -841,13 +856,6 @@ function ShelfRow({
                         seed={item.album.mbid}
                       />
                     )}
-                    {noteText && (
-                      <PostItNote
-                        text={noteText}
-                        lpSize={lpSize}
-                        seed={item.album.mbid}
-                      />
-                    )}
                   </>
                 }
               />
@@ -858,6 +866,23 @@ function ShelfRow({
                 empty
                 lampBias={1 - position / 10}
               />
+            )}
+            </div>
+            {item && noteText && (
+              <div
+                className="absolute flex justify-center pointer-events-none"
+                style={{
+                  top: lpSize + Math.round(lpSize * 0.05),
+                  left: 0,
+                  width: lpSize,
+                }}
+              >
+                <PostItNote
+                  text={noteText}
+                  lpSize={lpSize}
+                  seed={item.album.mbid}
+                />
+              </div>
             )}
           </div>
         );

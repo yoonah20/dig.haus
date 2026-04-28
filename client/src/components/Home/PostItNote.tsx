@@ -1,27 +1,19 @@
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
-// Sticky note overlay on hero-wall LP covers. Renders the effective
-// comment for that slot (home_features.note ?? user_reviews.body of
-// admin), styled as a cream/yellow post-it with a single masking-tape
-// strip across the top, slight per-slot rotation hashed off the seed
-// so each note sits at a different angle.
+// Sticky note rendered below each hero-wall LP, on/around the rail
+// rather than on the cover itself. Mounted by ShelfRow / Mobile
+// FeatureCell as a sibling to the LP, so it sits in the rail region
+// without competing with the play chip + cover stickers.
 //
-// Visual stack:
-//   1. Drop-shadow under the post-it (lifts it off the cover)
-//   2. Cream paper background with subtle inner gradient (paper grain
-//      effect — not a real texture, just a vertical hue shift)
-//   3. Masking-tape strip across the top, slightly off-centre + tinted
-//      slightly more transparent than the paper
-//   4. Handwritten Korean comment via GRAFFITI_FONT_STACK
+// Default size keeps the handwriting small enough that the visitor
+// reads it intentionally, not at a glance — hovering the LP slot
+// (group/slot on the parent) expands the note to readable size.
+// transformOrigin = top center so the scale grows downward, into
+// the gap between LP rows, never over the LP cover above it.
 //
-// Sizing: percentage of the LP cover so the note scales with the
-// carousel's responsive lpSize. ~48% of LP width on desktop, ~58% on
-// mobile (smaller phones benefit from a bigger note relative to the
-// cover so the text stays readable).
-//
-// Position: bottom-right corner of the LP, with a small overflow off
-// the right edge so the note reads as "stuck on" rather than "drawn
-// inside".
+// No masking-tape strip in this revision — the operator judged it
+// distracting against the painted-wall backdrops at small size.
+// The note reads as a paper label hanging from the rail instead.
 
 function hashStr(str: string): number {
   let h = 0x811c9dc5;
@@ -44,109 +36,70 @@ export default function PostItNote({
    *  this single value. */
   lpSize: number;
   /** Stable per-slot seed (typically the album mbid) so the per-note
-   *  rotation + tape offset is deterministic across renders but
-   *  varied across slots. */
+   *  rotation is deterministic across renders but varied across
+   *  slots. */
   seed: string;
   /** Mobile slides shrink lpSize aggressively, so the percentage
-   *  cap shifts up to keep text readable. */
+   *  cap shifts up to keep text legible after the hover-scale. */
   isMobile?: boolean;
 }) {
-  const widthPct = isMobile ? 0.58 : 0.48;
+  // Default size deliberately small. Hover-scale (1.6×) brings the
+  // effective render size into a comfortable read range without the
+  // note dominating the wall when no cursor is on it.
+  const widthPct = isMobile ? 0.52 : 0.42;
   const noteWidth = Math.round(lpSize * widthPct);
-  // Font size scales with note width — 11% of width keeps Korean
-  // 50자 readable on small phones (≈14px at lpSize 144) and not
-  // overwhelming on desktop (≈16-17px at lpSize 336).
-  const fontSize = Math.max(11, Math.round(noteWidth * 0.11));
+  const fontSize = Math.max(8, Math.round(noteWidth * 0.1));
 
   const h = hashStr(seed);
-  // Rotation in [-3°, +3°] from a seed-derived 0..1 value.
-  const rot = (((h % 601) / 100) - 3).toFixed(2);
-  // Masking-tape horizontal offset: ±15% of note width. Keeps the
-  // strip off the exact centre so successive notes don't read as a
-  // template.
-  const tapeOffset = ((((h >> 8) % 31) - 15) / 100) * noteWidth;
-  const tapeWidth = Math.round(noteWidth * 0.5);
-
-  // Bottom-right anchoring with a slight overflow so the note hangs
-  // off the LP's right edge (the "stuck on" illusion). Numbers are
-  // px — small enough that the overflow stays inside the carousel
-  // slide's overflow-hidden bounds even at extreme rotations.
-  const overflowX = Math.round(lpSize * 0.08);
-  const overflowY = Math.round(lpSize * 0.04);
+  // Rotation in [-2°, +2°] from the seed. Small enough that the
+  // note still reads as a label, not a thrown sticker.
+  const rot = (((h % 401) / 100) - 2).toFixed(2);
 
   return (
     <div
       aria-hidden
-      className="absolute pointer-events-none select-none z-20"
+      className="select-none pointer-events-none transition-transform duration-300 ease-out group-hover/slot:scale-[1.6]"
       style={{
-        right: -overflowX,
-        bottom: -overflowY,
         width: noteWidth,
-        // Height auto-grows with text content. minHeight keeps very
-        // short notes (e.g. "최고") from shrinking to a single line
-        // and looking like a label rather than a note.
-        minHeight: noteWidth * 0.55,
         transform: `rotate(${rot}deg)`,
-        transformOrigin: 'bottom right',
+        // Top-centre origin so the hover-scale grows the note
+        // downward into the rail region, never up over the LP.
+        transformOrigin: 'top center',
+        // Sit above the painted rail in the backdrop but below the
+        // hovered LP if it scales down past its baseline. Tuned so
+        // a hover-scaled LP (which grows mostly downward) doesn't
+        // hide the post-it underneath.
+        zIndex: 1,
       }}
     >
-      {/* Drop-shadow layer — slight blur, offset down-right so the
-          note reads as physically resting on the cover. */}
       <div
-        className="absolute inset-0"
+        className="relative"
         style={{
           background:
             'linear-gradient(180deg, #fff5b8 0%, #f4e89a 100%)',
+          // Single subtle drop-shadow now that the masking-tape
+          // layer is gone — note reads as a flat paper resting on
+          // the rail rather than tape-pinned to it.
           boxShadow:
-            '0 2px 4px rgba(0, 0, 0, 0.25), 0 1px 1px rgba(0, 0, 0, 0.15)',
-          borderRadius: 1,
-        }}
-      />
-
-      {/* Masking-tape strip — semi-transparent so the underlying
-          cover tone shows through faintly. Slight downward shift so
-          a sliver hangs off the top of the note (real masking tape
-          doesn't sit flush). */}
-      <div
-        className="absolute"
-        style={{
-          top: -Math.round(noteWidth * 0.05),
-          left: noteWidth / 2 - tapeWidth / 2 + tapeOffset,
-          width: tapeWidth,
-          height: Math.round(noteWidth * 0.13),
-          background:
-            'linear-gradient(180deg, rgba(232, 215, 175, 0.85) 0%, rgba(208, 188, 145, 0.78) 100%)',
-          boxShadow: '0 1px 1px rgba(0, 0, 0, 0.18)',
-          // Subtle saw-tooth / fiber texture via repeating gradient
-          // — not an asset, just a stripe pattern that reads as
-          // tape fiber when small.
-          backgroundImage:
-            'repeating-linear-gradient(90deg, transparent 0px, transparent 3px, rgba(120, 95, 50, 0.08) 3px, rgba(120, 95, 50, 0.08) 4px)',
-        }}
-      />
-
-      {/* Comment text. Padding is generous on top to clear the
-          masking-tape strip; bottom padding is smaller because long
-          notes can extend below the box's auto height anyway. */}
-      <p
-        className="relative"
-        style={{
-          margin: 0,
-          paddingTop: Math.round(noteWidth * 0.18),
-          paddingBottom: Math.round(noteWidth * 0.1),
-          paddingLeft: Math.round(noteWidth * 0.08),
-          paddingRight: Math.round(noteWidth * 0.08),
-          fontFamily: GRAFFITI_FONT_STACK,
-          fontSize,
-          lineHeight: 1.25,
-          color: '#3a2818',
-          letterSpacing: '0.005em',
-          wordBreak: 'keep-all',
-          overflowWrap: 'break-word',
+            '0 2px 4px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(0, 0, 0, 0.18)',
+          padding: `${Math.round(noteWidth * 0.13)}px ${Math.round(noteWidth * 0.12)}px`,
         }}
       >
-        {text}
-      </p>
+        <p
+          style={{
+            margin: 0,
+            fontFamily: GRAFFITI_FONT_STACK,
+            fontSize,
+            lineHeight: 1.25,
+            color: '#3a2818',
+            letterSpacing: '0.005em',
+            wordBreak: 'keep-all',
+            overflowWrap: 'break-word',
+          }}
+        >
+          {text}
+        </p>
+      </div>
     </div>
   );
 }

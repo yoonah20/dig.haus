@@ -409,25 +409,71 @@ function HeroWallSlideMobile({
                   {Array.from({ length: COLS }, (_, ci) => {
                     const position = startPos + ci;
                     const item = slots[position];
+                    // Same precedence as desktop: home_features.note
+                    // overrides admin's 50자 평. Empty result skips
+                    // PostItNote entirely so uncommented slots stay
+                    // clean.
+                    const noteText =
+                      item?.note?.trim() ||
+                      item?.adminReview?.trim() ||
+                      null;
+                    // Slot height extended past the LP to reserve
+                    // space for the post-it sitting around the rail
+                    // and to make group-hover include the note
+                    // itself.
+                    const slotHeight =
+                      lpSize + Math.round(lpSize * 0.45);
                     return (
                       <div
                         key={position}
-                        style={{ width: lpSize, height: lpSize, position: 'relative' }}
+                        className="group/slot"
+                        style={{
+                          width: lpSize,
+                          height: slotHeight,
+                          position: 'relative',
+                        }}
                       >
-                        {item && !isLoading ? (
-                          <MobileFeatureCell
-                            item={item}
-                            position={position}
-                            lpSize={lpSize}
-                            plasticMeta={wall}
-                          />
-                        ) : (
-                          <WallLP
-                            size={lpSize}
-                            seed={position}
-                            empty
-                            lampBias={1 - position / (ROWS * COLS)}
-                          />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: lpSize,
+                            height: lpSize,
+                          }}
+                        >
+                          {item && !isLoading ? (
+                            <MobileFeatureCell
+                              item={item}
+                              position={position}
+                              lpSize={lpSize}
+                              plasticMeta={wall}
+                            />
+                          ) : (
+                            <WallLP
+                              size={lpSize}
+                              seed={position}
+                              empty
+                              lampBias={1 - position / (ROWS * COLS)}
+                            />
+                          )}
+                        </div>
+                        {item && noteText && (
+                          <div
+                            className="absolute flex justify-center pointer-events-none"
+                            style={{
+                              top: lpSize + Math.round(lpSize * 0.05),
+                              left: 0,
+                              width: lpSize,
+                            }}
+                          >
+                            <PostItNote
+                              text={noteText}
+                              lpSize={lpSize}
+                              seed={item.album.mbid}
+                              isMobile
+                            />
+                          </div>
                         )}
                       </div>
                     );
@@ -466,10 +512,10 @@ function MobileFeatureCell({
   const score = album.averageScore ?? null;
   const reviewCount = album.reviewCount ?? 0;
   const isPick = score != null && score >= 86 && reviewCount >= 3;
-  // Same precedence rule as desktop: home_features.note overrides
-  // admin's 50자 평. Empty result skips PostItNote entirely so
-  // uncommented slots stay clean.
-  const noteText = item.note?.trim() || item.adminReview?.trim() || null;
+  // Post-it lives on the rail (rendered as a sibling by the parent
+  // slot div) so it doesn't overlap the play chip / pick sticker
+  // / store-link sticker on the cover. coverOverlay below stays
+  // cover-only.
 
   return (
     <WallHoverCard
@@ -489,14 +535,6 @@ function MobileFeatureCell({
         <>
           {isPick && <MobilePickSticker lpSize={lpSize} seed={album.mbid} />}
           {topLink && <HomeFeatureSticker link={topLink} lpSize={lpSize} />}
-          {noteText && (
-            <PostItNote
-              text={noteText}
-              lpSize={lpSize}
-              seed={album.mbid}
-              isMobile
-            />
-          )}
         </>
       }
     />
