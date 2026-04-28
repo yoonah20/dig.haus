@@ -1529,16 +1529,18 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
   // Seed 3 walls with the three shipped backdrops + sampled HERO_THEME
-  // tokens (sampled via the same dominant-color + luminance-flip logic
-  // server/scripts/extract-hero-theme.ts uses; see the schema-migration
-  // commit message for the raw numbers). INSERT OR IGNORE makes this
-  // idempotent — admin tweaks survive re-runs of schema init.
+  // tokens (sampled via the dominant-color + luminance-flip logic
+  // server/scripts/extract-hero-theme.ts uses). INSERT OR IGNORE makes
+  // this idempotent — admin tweaks survive re-runs of schema init,
+  // and fresh DBs get walls 2/3 with the basement_black + basement_plant
+  // backdrops the operator landed on after evaluating the original
+  // basement_gray + basement5 pair as visually too similar.
   db.exec(
     `INSERT OR IGNORE INTO home_walls (id, position, backdrop_file, theme, description, ink_color, shadow_css, wall_color)
      VALUES
        (1, 0, 'basement_purple.avif', 'dig.haus / 이번 달 픽', '운영자가 한 달 동안 발굴한 15장', '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#4c3c54'),
-       (2, 1, 'basement_gray.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#747474'),
-       (3, 2, 'basement5.avif', NULL, NULL, '#1a1208', '0 1px 2px rgba(255, 245, 220, 0.55)', '#ccac94')`
+       (2, 1, 'basement_black.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#242424'),
+       (3, 2, 'basement_plant.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#2c240c')`
   );
   // home_features now keys per (wall_id, position) — same 15-slot
   // shape as before but multiplied across walls. Fresh DBs get this
@@ -1657,6 +1659,32 @@ export function initializeDatabase(db: Database.Database): void {
         `[migration] recreated home_features with wall_id; ${moved.n} rows assigned to wall 1`
       );
     }
+  });
+
+  // Walls 2 and 3 originally seeded with basement_gray + basement5 in
+  // the carousel landing — operator review judged the two visually
+  // too similar (both warm-grey-ish). The new pair is basement_black
+  // (cold dark surface) + basement_plant (dark olive). This runOnce
+  // swaps the visual identity (backdrop_file + the three theme
+  // tokens) on rows 2 and 3, but leaves theme / description / items
+  // / tuner positions alone so any admin curation done in the
+  // window between the two backdrop pairs survives. Sampled values
+  // come from server/scripts/extract-hero-theme.ts run against each
+  // file (both walls land on luminance ≈ 0.14, so cream ink with a
+  // dark drop shadow is right for both).
+  runOnce(db, 'swap-walls-2-3-to-black-and-plant-2026-04-28', () => {
+    const upd = db.prepare(
+      `UPDATE home_walls
+         SET backdrop_file = ?,
+             wall_color = ?,
+             ink_color = ?,
+             shadow_css = ?,
+             updated_at = datetime('now')
+       WHERE id = ?`
+    );
+    upd.run('basement_black.avif', '#242424', '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', 2);
+    upd.run('basement_plant.avif', '#2c240c', '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', 3);
+    console.log('[migration] swapped walls 2 + 3 to basement_black + basement_plant');
   });
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
