@@ -1,5 +1,6 @@
 import { searchAlbums } from '../services/musicbrainz.js';
 import { searchDiscogsAlbums } from '../services/discogs.js';
+import { normalizeSearchQuery } from './albumSearch.js';
 
 // Shared MusicBrainz + Discogs album search used by /api/search (admin)
 // and /api/album-requests/search (logged-in users triggering the
@@ -50,18 +51,23 @@ export interface ExternalSearchResult {
 export async function searchExternalMerged(
   query: string
 ): Promise<ExternalSearchResult[]> {
-  const queryWords = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  // Normalise once at entry so both upstreams (MB + Discogs) and the
+  // split-query / scoring paths all see the same cleaned token list.
+  // Skips the dash-separator artefact a copy-paste like "Artist -
+  // Album" otherwise drags through every layer.
+  const normalized = normalizeSearchQuery(query);
+  const queryWords = normalized.toLowerCase().split(/\s+/).filter(Boolean);
 
   // Parallel: full-query search against both sources + split queries
   // (artist + album combinations for multi-word input).
   const [mbAlbums, discogsAlbums] = await Promise.all([
-    searchAlbums(query),
-    searchDiscogsAlbums(query),
+    searchAlbums(normalized),
+    searchDiscogsAlbums(normalized),
   ]);
 
   let splitResults: typeof mbAlbums = [];
   if (queryWords.length >= 2) {
-    const splits = generateSplitQueries(query);
+    const splits = generateSplitQueries(normalized);
     const splitSearches = splits.map((s) =>
       searchAlbums(`artist:"${s.artist}" AND release:"${s.album}"`)
     );

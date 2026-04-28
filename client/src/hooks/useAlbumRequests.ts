@@ -1,6 +1,34 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 
+// Companion to the SearchBar text path: a Discogs / Bandcamp / Spotify /
+// Apple Music URL pasted into the field can be canonicalised to
+// {artist, title, mbid?} server-side. When mbid is present (Discogs
+// branch only today) the registration flow short-circuits straight
+// to /api/album-requests with that mbid, no MB picker required.
+export interface ExtractFromUrlResult {
+  artist: string;
+  title: string;
+  /** `discogs-release-{id}` when the URL was a Discogs release/master
+   *  link; absent for OG-scraped URLs where the server only has
+   *  artist+title and the client falls back to text search. */
+  mbid?: string;
+  year?: string | null;
+  coverArtUrl?: string | null;
+}
+
+export function useExtractAlbumFromUrl() {
+  return useMutation({
+    mutationFn: async (url: string) => {
+      const { data } = await axios.post<ExtractFromUrlResult>(
+        '/api/album-requests/extract-from-url',
+        { url }
+      );
+      return data;
+    },
+  });
+}
+
 // Admin dashboard row: one user-submitted album awaiting review crawl.
 // Now backed by the `albums` table directly (reviews_crawled_at IS
 // NULL), not the legacy `album_requests` table — so there's exactly

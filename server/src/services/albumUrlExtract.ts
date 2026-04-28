@@ -7,6 +7,15 @@ import {
 export interface ExtractResult {
   artist: string;
   title: string;
+  // Discogs URLs only — server has already canonicalised the release
+  // id, so the registration flow can short-circuit straight to
+  // getOrFetchAlbumBaseForSubmission with this MBID instead of asking
+  // the user to pick from a fresh MB search. OG-scraped URLs
+  // (Bandcamp / Spotify / Apple / shop pages) leave these undefined
+  // and the client falls back to the normal artist+title lookup.
+  mbid?: string;
+  year?: string | null;
+  coverArtUrl?: string | null;
 }
 
 // Discogs URLs land in the shape /release/{id}[-slug] or
@@ -26,7 +35,19 @@ async function extractFromDiscogsUrl(url: URL): Promise<ExtractResult | null> {
   }
   const detail = await getDiscogsReleaseDetail(releaseId);
   if (!detail) return null;
-  return { artist: detail.artist, title: detail.title };
+  return {
+    artist: detail.artist,
+    title: detail.title,
+    // Always emit a release-prefixed MBID — even if the user pasted a
+    // /master URL, we already resolved it to its main_release above,
+    // and getOrFetchAlbumBase routes both `discogs-master-{id}` and
+    // `discogs-release-{id}` through the same release-detail call.
+    // Pinning to release- here keeps the cache key stable across the
+    // master/release re-paste case.
+    mbid: `discogs-release-${releaseId}`,
+    year: detail.year || null,
+    coverArtUrl: detail.coverArtUrl || null,
+  };
 }
 
 function decodeHtmlEntities(s: string): string {

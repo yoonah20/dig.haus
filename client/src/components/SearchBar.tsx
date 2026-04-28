@@ -1,10 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSearch, useRequestSearch } from '../hooks/useSearch';
-import { useSubmitAlbumRequest } from '../hooks/useAlbumRequests';
+import {
+  useSubmitAlbumRequest,
+  useExtractAlbumFromUrl,
+  type ExtractFromUrlResult,
+} from '../hooks/useAlbumRequests';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurationProgress } from '../contexts/CurationProgressContext';
 import type { AlbumSearchResult } from '../types';
+
+// URL paste branch — when the input string looks like an http(s) URL we
+// route through the Discogs / OG-scrape extractor instead of running a
+// normal text search. Discogs URLs come back with a fully-formed mbid
+// the registration endpoint already understands; everything else lands
+// as artist+title and the user is told to fall back to text search.
+const URL_RE = /^https?:\/\/\S+$/i;
 
 // Unified search overlay — one surface for both "find an album that's
 // already in dig.haus" and "this album isn't here yet, register it".
@@ -33,6 +44,9 @@ export default function SearchBar({
   const [query, setQuery] = useState(initialQuery);
   const [pendingMbid, setPendingMbid] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [urlExtract, setUrlExtract] = useState<ExtractFromUrlResult | null>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [urlLoading, setUrlLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -40,11 +54,17 @@ export default function SearchBar({
   const loggedIn = !!user;
   const curation = useCurationProgress();
   const submit = useSubmitAlbumRequest();
+  const extractFromUrl = useExtractAlbumFromUrl();
 
-  const dbSearch = useSearch(query);
+  const trimmedInput = input.trim();
+  const isUrlMode = URL_RE.test(trimmedInput);
+
+  const dbSearch = useSearch(isUrlMode ? '' : query);
   // External search only fires for logged-in users (endpoint requires
-  // auth) and at 2+ chars to keep MB/Discogs calls bounded.
-  const externalSearch = useRequestSearch(query, loggedIn);
+  // auth) and at 2+ chars to keep MB/Discogs calls bounded. Skipped
+  // entirely while the input looks like a URL — that branch hits the
+  // dedicated extract endpoint instead.
+  const externalSearch = useRequestSearch(query, loggedIn && !isUrlMode);
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus();
@@ -61,6 +81,38 @@ export default function SearchBar({
     setPendingMbid(null);
     setErrorMsg(null);
   }, [query]);
+
+  // URL paste branch — debounced so editing a URL char-by-char doesn't
+  // burn extract calls (each one fires Discogs API server-side). 500ms
+  // is comfortable for paste-then-wait flows, longer than the text
+  // search debounce because URL extraction does a real upstream lookup.
+  useEffect(() => {
+    if (!isUrlMode || !loggedIn) {
+      setUrlExtract(null);
+      setUrlError(null);
+      setUrlLoading(false);
+      return;
+    }
+    setUrlError(null);
+    setUrlLoading(true);
+    const url = trimmedInput;
+    const timer = setTimeout(async () => {
+      try {
+        const result = await extractFromUrl.mutateAsync(url);
+        setUrlExtract(result);
+      } catch (err: any) {
+        const apiMessage = err?.response?.data?.error;
+        setUrlError(apiMessage || 'URL을 인식하지 못했어요.');
+        setUrlExtract(null);
+      } finally {
+        setUrlLoading(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+    // extractFromUrl is stable from useMutation; excluded to avoid a
+    // referential-equality re-fire on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trimmedInput, isUrlMode, loggedIn]);
 
   function handleDbSelect(path: string) {
     setInput('');
@@ -111,19 +163,38 @@ export default function SearchBar({
     }
   }
 
-  const dbAlbums = (dbSearch.data?.albums ?? []).slice(0, 8);
+  const dbAlbums = isUrlMode ? [] : (dbSearch.data?.albums ?? []).slice(0, 8);
   const dbMbids = new Set(dbAlbums.map((a) => a.mbid));
   // Hide externals that are already in the DB list to avoid "same
   // album twice, one with a register button".
-  const externalAlbums = (externalSearch.data?.albums ?? []).filter(
-    (a) => !dbMbids.has(a.mbid)
-  );
+  const externalAlbums = isUrlMode
+    ? []
+    : (externalSearch.data?.albums ?? []).filter((a) => !dbMbids.has(a.mbid));
 
-  const showDropdown = query.length >= 1;
-  const dbLoading = dbSearch.isFetching && query.length >= 1;
+  // Build a synthetic AlbumSearchResult for the URL-extract row so it
+  // can flow through the same ExternalRow component as text-search
+  // candidates. Only emit when the server returned an mbid (Discogs
+  // path) — without one the registration endpoint has nothing to feed
+  // into getOrFetchAlbumBaseForSubmission.
+  const urlAlbum: AlbumSearchResult | null =
+    urlExtract && urlExtract.mbid
+      ? {
+          mbid: urlExtract.mbid,
+          title: urlExtract.title,
+          artist: urlExtract.artist,
+          year: urlExtract.year ? Number.parseInt(urlExtract.year, 10) || null : null,
+          format: null,
+          label: null,
+          coverArtUrl: urlExtract.coverArtUrl ?? null,
+        }
+      : null;
+
+  const showDropdown = isUrlMode ? trimmedInput.length >= 8 : query.length >= 1;
+  const dbLoading = !isUrlMode && dbSearch.isFetching && query.length >= 1;
   const externalLoading =
-    loggedIn && externalSearch.isFetching && query.length >= 2;
-  const anyContent = dbAlbums.length > 0 || externalAlbums.length > 0;
+    !isUrlMode && loggedIn && externalSearch.isFetching && query.length >= 2;
+  const anyContent =
+    dbAlbums.length > 0 || externalAlbums.length > 0 || urlAlbum !== null;
 
   return (
     <div className="relative w-full max-w-2xl mx-auto">
@@ -152,7 +223,7 @@ export default function SearchBar({
           className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl pl-12 pr-5 py-3 text-base text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition"
         />
 
-        {(dbLoading || externalLoading) && (
+        {(dbLoading || externalLoading || urlLoading) && (
           <div className="absolute right-4 top-1/2 -translate-y-1/2">
             <div className="w-5 h-5 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
           </div>
@@ -161,6 +232,51 @@ export default function SearchBar({
 
       {showDropdown && (
         <div className="absolute z-50 mt-2 w-full bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-[70vh] overflow-y-auto">
+          {/* URL paste branch — the extracted Discogs candidate sits at
+              the top by itself, no DB / external sections beside it.
+              Loading + error states surface here too so the user
+              doesn't see a silent dropdown while extraction runs. */}
+          {isUrlMode && (
+            <section>
+              <SectionHeader label="URL에서 등록" />
+              {urlLoading && (
+                <div className="px-4 py-3 text-xs text-gray-500">
+                  URL 분석 중…
+                </div>
+              )}
+              {!urlLoading && urlError && (
+                <div className="px-4 py-3 text-xs text-red-400 leading-snug">
+                  {urlError}
+                </div>
+              )}
+              {!urlLoading && !urlError && urlExtract && !urlAlbum && (
+                <div className="px-4 py-3 text-xs text-gray-400 leading-snug">
+                  이 URL은 직접 등록을 지원하지 않아요. "{urlExtract.artist}
+                  {' '}— {urlExtract.title}"로 검색해 주세요.
+                </div>
+              )}
+              {!urlLoading && urlAlbum && (
+                <ExternalRow
+                  album={urlAlbum}
+                  isAdmin={isAdmin}
+                  pending={pendingMbid === urlAlbum.mbid}
+                  disabled={
+                    pendingMbid !== null && pendingMbid !== urlAlbum.mbid
+                  }
+                  onRegister={() => handleRegister(urlAlbum)}
+                  onRegisterCurate={() =>
+                    handleRegister(urlAlbum, { autoCurate: true })
+                  }
+                />
+              )}
+              {!urlLoading && !loggedIn && (
+                <div className="px-4 py-3 text-xs text-gray-400">
+                  로그인하면 URL로 바로 등록할 수 있어요.
+                </div>
+              )}
+            </section>
+          )}
+
           {/* DB section — albums already in dig.haus. Clicking a row
               navigates; no register action needed. */}
           {dbAlbums.length > 0 && (
@@ -208,8 +324,9 @@ export default function SearchBar({
 
           {/* Empty state — query has run, nothing came back from
               either source. Guests who could register via the external
-              flow see a login hint instead. */}
-          {!dbLoading && !externalLoading && !anyContent && (
+              flow see a login hint instead. URL mode renders its own
+              loading / error / result branches above and skips this. */}
+          {!isUrlMode && !dbLoading && !externalLoading && !anyContent && (
             <div className="px-5 py-4 text-sm text-gray-400">
               {loggedIn
                 ? '검색 결과가 없어요. 다른 키워드로 시도해보세요.'
