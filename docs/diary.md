@@ -167,7 +167,7 @@ NEW! sticker (30일 이내), HOT! sticker (top-10 upvotes, ≥3 floor)도
 PD 본업 누적된 게 있어서 그런가, 오늘 일을 마무리하면서 "내가 만든
 화면 돌리는 게 편집실에서 컷 만져보는 거랑 닮았네" 하는 생각이 들었
 다. 한 화면, 한 인터랙션, 한 마이크로 디테일을 계속 다듬는 거. PD
-로 일하면서 이 근육은 17년 갈고닦은 거라 익숙한 작업이다.
+로 일하면서 이 근육은 19년 갈고닦은 거라 익숙한 작업이다.
 
 ---
 
@@ -573,15 +573,27 @@ public하게 열려 있으면 DB 오염될 것 같다는 걱정이 점점 커졌
 Resend로. admin 패널에 가입 신청 panel 추가. invitation gate 한 commit
 에 다 박아냈다.
 
-오늘 또 한 번 LLM 옮긴 게 있다. **Korean review summary가 마지막으로
-Sonnet에서 deepseek-v4-flash로 이전**. v4-flash의 가격을 router에
-맞게 잡고 (`llm: price v4-flash correctly + route Korean review
-summary through it`) summary path까지 옮겨버렸다. 04-20에 scrape
-ops를 DeepSeek-v3로 옮긴 게 첫 swap이었고, 그 이후로 운영해보면서
-quality drop이 느껴지지 않아서 Sonnet도 결국 못 버틸 거라는 예감이
-있었다. v4-flash는 v3보다 한 번 더 좋아진 상태라 결정은 어렵지 않았
-다. cost log 보면 summary call 한 번에 $0.0001 — 거의 무료. Sonnet
-시절엔 album 하나에 $0.005~$0.01 들어가던 게 한 자릿수 줄었다.
+오늘 또 한 번 LLM 옮긴 게 있는데, 이게 좀 웃긴 발견이었다. 며칠 전부터
+DeepSeek 사용량이 도는데 비해 API 크레딧이 거의 안 떨어지는 게 이상해서
+로그를 들여다봤다. 그랬더니 호출되는 모델 이름이 내가 설정한 `deepseek`
+이 아니라 **`deepseek-v4-flash`**라는 처음 보는 이름. 클로드한테 "이거
+뭐지?" 물었더니 자기가 알아서 — 성능 좋고 더 저렴한 거니까 — 적용하고
+있었던 거. 내 router는 `deepseek` 이름표 그대로였는데 실제 콜은 v4-flash
+로 가고 있었던 것. 못 차고 있던 게 아니라 *모르는 사이에 더 나은 길로
+갈아탄* 거였다.
+
+사실관계 확인하고 router에 v4-flash를 정식 entry로 박았다 (`llm: price
+v4-flash correctly + route Korean review summary through it`). 가격
+계산이 정확히 잡히도록 하고, 마지막 hold-out이던 Korean review summary
+path도 같이 v4-flash로 옮겼다. 04-20에 scrape ops를 DeepSeek-v3로 옮긴
+게 첫 swap이었고, 그 이후로 운영해보면서 quality drop이 느껴지지 않아서
+Sonnet도 결국 못 버틸 거라는 예감이 있었다. v4-flash는 v3보다 한 번 더
+좋아진 상태라 결정은 어렵지 않았다.
+
+cost log 보면 summary call 한 번에 $0.0001 — 거의 무료. Sonnet 시절엔
+album 하나에 $0.005~$0.01 들어가던 게 한 자릿수 줄었다. 솔직히 지금은
+하루 종일 등록하고 놀아도 1달러 안 넘는다. 비용 부담이 더 이상 진지한
+변수가 아닌 단계에 들어왔다.
 
 그 다음에 큰 작업 — **multi-wall hero carousel**. home hero를 단일
 wall에서 N개 wall로 확장. day 0 plan에는 없던 거지만, 오전부터 갑자기
@@ -646,7 +658,7 @@ session (claude.ai 기획 + Claude Code 빌드) 분리도. 600 commit + 7개
 docs + 16개 memory 파일을 하나의 read-through에 압축.
 
 그 다음에 Claude한테 "내가 어떤 사람으로 보이냐"를 물었다. 본업이
-17년차 한국 예능 PD라는 걸 흘리니까 그동안의 모든 패턴 — cost
+19년차 한국 예능 PD라는 걸 흘리니까 그동안의 모든 패턴 — cost
 discipline, 결정 위생, 야간 내성, anti-algorithm 정체성, production
 design 감수성 — 이 다 그쪽에서 transfer된 거라는 게 정리됐다. "첫
 vibe coding"이 아니라 "PD가 처음 product로 만든 작품"이 정확한

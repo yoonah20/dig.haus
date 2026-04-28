@@ -226,12 +226,22 @@ cost discipline:
     later migrations safe — they're decisions, not gambles.
   - **2026-04-28** (`e7fdd9c`) — Korean review summary moved
     Sonnet → DeepSeek-v4-Flash. Last hold-out on the expensive
-    path. Real cost-log data after the swap shows ~$0.008 per
+    path. The migration started as an *accidental discovery* —
+    DeepSeek API credits weren't dropping in proportion to
+    usage, and the actual log showed a model called
+    `deepseek-v4-flash` being called instead of the configured
+    `deepseek`. The provider had silently routed to the
+    cheaper-and-better v4-flash variant. The operator priced it
+    correctly in the router, then took the opportunity to move
+    summary off Sonnet too. Real cost-log post-swap: ~$0.008 per
     album register including pronunciation + similar-album
     descriptions + summary + 9 review scrapes.
 
 Sonnet stays available in the router for ad-hoc cases but isn't
-on the default hot path anymore.
+on the default hot path anymore. End-state: a full day of
+operator activity (registering + curating albums) costs less
+than $1. Cost is no longer a meaningful variable in feature
+decisions.
 
 This rebuild also produced the **`normaliseKoreanTerms` post-
 process pass** (slowly grew from one rule to ten) that strips
@@ -543,7 +553,7 @@ that extended the window further.
 - Three-wall home hero carousel with auto-advance, swipe nav,
   per-wall admin tuning
 - Invitation-only signup gate with admin approval flow
-- Review pipeline at ~$0.008-0.01/album (~50-60× improvement from Phase 1's web_search era at $0.50/album), all LLM ops on DeepSeek-v4-Flash
+- Review pipeline at ~$0.008-0.01/album (~50-60× improvement from Phase 1's web_search era at $0.50/album), all LLM ops on DeepSeek-v4-Flash. A full day of registering + curating albums now costs less than $1.
 
 **Tooling + observability**:
 - Admin dashboard with stats, recent feeds, scrape-failures,
