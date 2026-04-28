@@ -35,11 +35,15 @@ import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 // cropping — the earlier HERO_ASPECT inner-frame trick is gone,
 // sceneH just tracks the source aspect again.
 //
-// Coordinates below live in source-image px (2976×1500); a
-// single `scale` factor (renderedWidth / 2976) projects them
-// into screen px at render time.
-const SCENE_W = 2976;
-const SCENE_H = 1500;
+// Coordinates below live in source-image px (2912×1464); a
+// single `scale` factor (renderedWidth / 2912) projects them
+// into screen px at render time. The hero_*.avif set the
+// operator generated for the carousel ships at 2912×1464; older
+// basement_*.avif files were 2976×1500, but the aspect difference
+// (1.989 vs 1.984) is small enough that the existing tuner values
+// still land approximately right after the constant change.
+const SCENE_W = 2912;
+const SCENE_H = 1464;
 
 // Below MIN_W the scene stops shrinking and the surrounding
 // container's overflow:hidden crops it. Keeps the shelves

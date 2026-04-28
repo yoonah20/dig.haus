@@ -1528,19 +1528,21 @@ export function initializeDatabase(db: Database.Database): void {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
-  // Seed 3 walls with the three shipped backdrops + sampled HERO_THEME
-  // tokens (sampled via the dominant-color + luminance-flip logic
-  // server/scripts/extract-hero-theme.ts uses). INSERT OR IGNORE makes
-  // this idempotent — admin tweaks survive re-runs of schema init,
-  // and fresh DBs get walls 2/3 with the basement_black + basement_plant
-  // backdrops the operator landed on after evaluating the original
-  // basement_gray + basement5 pair as visually too similar.
+  // Seed 3 walls with the three shipped hero_*.avif backdrops + sampled
+  // HERO_THEME tokens (the dominant-color + luminance-flip logic
+  // server/scripts/extract-hero-theme.ts uses). The hero_* set
+  // replaced the earlier basement_* generation after the operator
+  // judged the third wall (the plant variant) too murky and decided
+  // to swap the whole carousel onto a coordinated set of three
+  // afternoon / purple / basement walls at the same source
+  // dimensions (2912×1464). INSERT OR IGNORE makes this idempotent
+  // — admin tweaks survive re-runs of schema init.
   db.exec(
     `INSERT OR IGNORE INTO home_walls (id, position, backdrop_file, theme, description, ink_color, shadow_css, wall_color)
      VALUES
-       (1, 0, 'basement_purple.avif', 'dig.haus / 이번 달 픽', '운영자가 한 달 동안 발굴한 15장', '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#4c3c54'),
-       (2, 1, 'basement_black.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#242424'),
-       (3, 2, 'basement_plant.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#2c240c')`
+       (1, 0, 'hero_afternoon.avif', 'dig.haus / 이번 달 픽', '운영자가 한 달 동안 발굴한 15장', '#1a1208', '0 1px 2px rgba(255, 245, 220, 0.55)', '#cc9c74'),
+       (2, 1, 'hero_purple.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#4c3c54'),
+       (3, 2, 'hero_basement.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#242424')`
   );
   // home_features now keys per (wall_id, position) — same 15-slot
   // shape as before but multiplied across walls. Fresh DBs get this
@@ -1698,6 +1700,35 @@ export function initializeDatabase(db: Database.Database): void {
   // run time (production may have different tuned values from local
   // dev). Backdrop / theme / description / items are deliberately
   // not part of the copy — only positional / sizing tuner state.
+  // Swap the entire carousel onto the new hero_*.avif set the
+  // operator generated to replace the basement_* trio (afternoon
+  // moves to wall 1 as the first-impression light surface, purple
+  // shifts down to wall 2, basement-black takes wall 3). Only the
+  // visual identity columns (backdrop_file + the three theme
+  // tokens) are touched; theme / description / items / tuner
+  // positions are preserved so any admin curation already on those
+  // walls survives the swap. New per-wall ink/shadow/wall_color
+  // tokens come from the same dominant-color sampler the extract
+  // script uses — wall 1 (cream-tan) gets dark ink, walls 2 + 3
+  // keep cream against their darker surfaces.
+  runOnce(db, 'swap-walls-to-hero-set-2026-04-28-evening', () => {
+    const upd = db.prepare(
+      `UPDATE home_walls
+         SET backdrop_file = ?,
+             wall_color = ?,
+             ink_color = ?,
+             shadow_css = ?,
+             updated_at = datetime('now')
+       WHERE id = ?`
+    );
+    upd.run('hero_afternoon.avif', '#cc9c74', '#1a1208', '0 1px 2px rgba(255, 245, 220, 0.55)', 1);
+    upd.run('hero_purple.avif', '#4c3c54', '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', 2);
+    upd.run('hero_basement.avif', '#242424', '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', 3);
+    console.log(
+      '[migration] swapped carousel onto hero_afternoon + hero_purple + hero_basement'
+    );
+  });
+
   runOnce(db, 'unify-walls-2-3-tuner-with-wall-1-2026-04-28', () => {
     const tunerCols = [
       'lp_size',
