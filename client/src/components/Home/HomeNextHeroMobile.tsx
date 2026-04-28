@@ -7,6 +7,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 // hero) will see the same wall they last left on, which is what
 // "remember which wall I was on" should mean across viewports.
 const ACTIVE_WALL_STORAGE_KEY = 'dig.haus:home-active-wall-idx';
+
+// Auto-advance interval — same 7s as desktop. See HomeNextHero for
+// the reasoning (gallery / curation surface, slow enough to read,
+// fast enough to signal multiple walls exist).
+const AUTO_ADVANCE_MS = 7000;
 import {
   useHomeFeatures,
   type HomeFeatureItem,
@@ -183,6 +188,27 @@ export default function HomeNextHeroMobile() {
     root.scrollTo({ left: idx * root.clientWidth, behavior: 'smooth' });
   }
 
+  // Auto-advance — fires every AUTO_ADVANCE_MS while no touch is
+  // in flight and respects reduced-motion. Resets on every
+  // activeIdx change so manual swipes get their own full window.
+  const [interactionPaused, setInteractionPaused] = useState(false);
+  const reducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  useEffect(() => {
+    if (reducedMotion) return;
+    if (walls.length <= 1) return;
+    if (interactionPaused) return;
+    const id = window.setInterval(() => {
+      const next = (activeIdx + 1) % walls.length;
+      const root = carouselRef.current;
+      if (!root) return;
+      root.scrollTo({ left: next * root.clientWidth, behavior: 'smooth' });
+    }, AUTO_ADVANCE_MS);
+    return () => window.clearInterval(id);
+  }, [activeIdx, walls.length, interactionPaused, reducedMotion]);
+
   return (
     <div
       ref={containerRef}
@@ -190,6 +216,16 @@ export default function HomeNextHeroMobile() {
     >
       <div
         ref={carouselRef}
+        // Touch / focus pauses auto-advance; resumes on touchend /
+        // blur. Mobile rarely sees mouseenter/leave but they're
+        // included for the few non-touch tablets that report mouse
+        // events.
+        onMouseEnter={() => setInteractionPaused(true)}
+        onMouseLeave={() => setInteractionPaused(false)}
+        onTouchStart={() => setInteractionPaused(true)}
+        onTouchEnd={() => setInteractionPaused(false)}
+        onFocusCapture={() => setInteractionPaused(true)}
+        onBlurCapture={() => setInteractionPaused(false)}
         className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
         style={{
           scrollbarWidth: 'none',

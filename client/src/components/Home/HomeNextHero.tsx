@@ -16,6 +16,14 @@ import {
 // the active visit — coming back next week shouldn't dictate which
 // wall they see first.
 const ACTIVE_WALL_STORAGE_KEY = 'dig.haus:home-active-wall-idx';
+
+// Auto-advance interval — 7s sits in the standard gallery /
+// curation range (5-7s for marketing, 7-10s for editorial). Slower
+// would risk visitors not realising more walls exist; faster would
+// fight the anti-algorithm "give visitors time to look" stance.
+// Pauses on hover / touch / focus / admin-edit / tuner-open and
+// respects prefers-reduced-motion.
+const AUTO_ADVANCE_MS = 7000;
 import { useAuth } from '../../contexts/AuthContext';
 import { WallLP } from '../MyDig/storefront/primitives';
 import WallHoverCard from '../MyDig/storefront/WallHoverCard';
@@ -334,6 +342,36 @@ export default function HomeNextHero() {
     root.scrollTo({ left: idx * root.clientWidth, behavior: 'smooth' });
   }
 
+  // Auto-advance — fires every AUTO_ADVANCE_MS while no interaction
+  // is in flight and respects reduced-motion preferences. The
+  // timer resets whenever activeIdx changes (manual swipe, dot
+  // click, reorder), so the visitor always gets a full window to
+  // look at the wall they just navigated to.
+  const [interactionPaused, setInteractionPaused] = useState(false);
+  const reducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  useEffect(() => {
+    if (reducedMotion) return;
+    if (walls.length <= 1) return;
+    if (interactionPaused || editing || tunerOpen) return;
+    const id = window.setInterval(() => {
+      const next = (activeIdx + 1) % walls.length;
+      const root = carouselRef.current;
+      if (!root) return;
+      root.scrollTo({ left: next * root.clientWidth, behavior: 'smooth' });
+    }, AUTO_ADVANCE_MS);
+    return () => window.clearInterval(id);
+  }, [
+    activeIdx,
+    walls.length,
+    interactionPaused,
+    editing,
+    tunerOpen,
+    reducedMotion,
+  ]);
+
   // After a successful wall reorder, follow the moved wall to its
   // new slide so the admin doesn't end up looking at a different
   // wall (the one that took the moved wall's old slot). The move
@@ -380,6 +418,17 @@ export default function HomeNextHero() {
           stays trivial: scrollLeft = idx * clientWidth. */}
       <div
         ref={carouselRef}
+        // Hover / touch / focus pause the auto-advance timer — when
+        // any of these end, the timer resumes on the next render.
+        // touchend has no immediate event in React but the browser
+        // fires it after the touch lifts; combined with mouseleave
+        // covers both desktop pointer and mobile touch flows.
+        onMouseEnter={() => setInteractionPaused(true)}
+        onMouseLeave={() => setInteractionPaused(false)}
+        onTouchStart={() => setInteractionPaused(true)}
+        onTouchEnd={() => setInteractionPaused(false)}
+        onFocusCapture={() => setInteractionPaused(true)}
+        onBlurCapture={() => setInteractionPaused(false)}
         className="absolute inset-0 overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory"
         style={{
           scrollbarWidth: 'none',
