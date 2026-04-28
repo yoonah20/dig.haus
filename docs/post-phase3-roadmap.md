@@ -151,13 +151,27 @@ Pulls one random album from a random other user's wall. Zero personalization, ze
 
 If kept: scope is tiny (one-line `ORDER BY RANDOM() LIMIT 1` + a cinematic cover-pull animation reusing MyDig wall assets).
 
-### D. Curatorial daily log / 오늘의 발굴 — visible-owner thread
+### D. Curatorial daily log / 오늘의 발굴 — hero as multi-wall carousel *(reframed 2026-04-28)*
 
-Real local record shops are defined by their owner. dig.haus's admin is currently invisible — new albums flow into the home grid silently. A small daily slot on the home page ("2026-04-25 · 오늘 디그하우스가 발굴한 다섯 장") with a one-line owner comment per pick accumulates into editorial backbone. After 30 days the site visibly has a person behind it; without it, it reads as a database. Cost is admin writing time, not API/infra.
+The hero on `/` already plays this role with 10 admin-curated LPs + theme + description, but it's locked to a single wall. Promote it to a horizontal carousel of N curated walls — each wall its own theme + description + 10 LPs + backdrop, swipeable on mobile, dot pagination on desktop, cyclical wrap. "오늘의 발굴" stays the surface; what changes is that one fixed list becomes multiple parallel curatorial tracks (이번주 / 시즌 무드 / 레이블 여행 / etc.).
 
-### E. dig.haus 라이너 노트 — 1–3 sentence owner notes per album
+**v1 = 3 walls** matching the three backdrops already in `client/public/backdrops/` (basement_purple, basement_gray, basement5). wall2.webp is the mydig surface, stays out of rotation. Adding a 4th/5th wall later is a schema row + new backdrop asset. 7+ walls starts reading as "feed" and breaks the curation positioning, so 3–5 is the practical ceiling.
 
-Per-album owner note alongside the LLM Korean summary. Short and optional ("새벽 3시 음악," "재발매판은 마스터링이 아쉬움," "세 번째 트랙부터 진짜다"). Only on albums the owner cared enough to write about — most albums have no liner note, and that's fine. Survives any future LLM quality improvement because the value is the handwriting being a person's, not the prose being good. Pairs with item D as the second editorial line in the same voice.
+**Schema delta**: new `home_walls (id, position, theme, description, backdrop_file, + 15 tuner cols)` table; `home_features.wall_id` FK. Migration moves the current `home_meta` + 10 `home_features` into a `wall_id=1, position=0` row, so day-one shape is identical to today (just "first wall in the carousel of one").
+
+**Asset hook**: `extract-hero-theme.ts` re-runs per backdrop give each wall its own ink/shadow tokens automatically — title text colour stays readable across wall variants without hand-tuning.
+
+**Staging**: (1) schema + first wall in carousel container — ships invisibly because it looks identical, but the foundation is in. (2) walls 2 + 3 + admin UI to add / order / name. (3) per-wall HERO_THEME automation if running the extract script per wall gets tedious.
+
+**Why this isn't a new editorial surface**: the prior framing in this doc proposed D as a separate small daily-log slot on the home page. That was wrong — the hero is already that slot, just under-utilised by being locked to one wall. The carousel is the cheapest correct shape because it reuses the wall-rendering primitive that already works.
+
+### E. dig.haus 라이너 노트 — promote admin-authored 50자 평 *(reframed 2026-04-28)*
+
+The 50자 평 surface (UserReviewsSection on the album page) already carries owner notes — admin writes 50자 on albums they care about, same as any user. The "라이너 노트" feature is purely a display promotion: split admin-authored entries into a dedicated slot at the top of the section with masking-tape / handwriting visual + "라이너 노트" label, while the rest of the 50자 평 list renders unchanged.
+
+**Zero schema delta.** The discriminator is `users.is_admin = 1` on the review's author, which the existing join already exposes. UI work only: an `is_admin = 1` check in `UserReviewsSection` to peel admin entries off the top of the list and render them with a distinct paper-stamp / handwriting card style.
+
+**Why this isn't a new content type**: the prior framing proposed E as a separate per-album owner-note column. That was redundant — the curator's voice is already in the 50자 평 system, just lacking visual prominence, not a missing data type. Pairs with D as the same voice surfaced in two places: D on the home hero, E on individual album pages, both sourced from data the admin is already producing.
 
 ### F. Letter to a stranger — anonymous asymmetric note on an album
 
