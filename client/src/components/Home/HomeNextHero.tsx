@@ -13,7 +13,10 @@ import VinylWallEditor from '../MyDig/VinylWallEditor';
 import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
-import { HERO_BACKDROP_URL, HERO_THEME } from '../../lib/heroTheme';
+// HERO_BACKDROP_URL / HERO_THEME singletons used to drive the whole
+// hero. They're now per-wall (each home_walls row carries its own
+// backdrop_file + ink_color + shadow_css + wall_color) so the
+// imports are gone — see HeroWallSlide below.
 
 // basement_purple.avif: 2976×1500 wall-only strip (concrete-textured
 // wall with two baked-in wood shelves and a small dig.haus neon in
@@ -242,149 +245,116 @@ export default function HomeNextHero() {
   const sceneH = Math.max(0, sceneFullH - TRIM_TOP_PX - TRIM_BOTTOM_PX);
   const scale = sceneW / SCENE_W;
 
-  const lpSize = Math.max(40, Math.round(tuner.lpSize * scale));
-  const lpGap = Math.max(0, Math.round(tuner.lpGap * scale));
-
   const items = wall?.items ?? [];
   const meta = wall;
-  const slots = Array.from({ length: 10 }, (_, i) =>
-    items.find((it) => it.position === i) ?? null
-  );
+  const walls = data?.walls ?? [];
+
+  // Carousel — horizontal scroll-snap container. Each wall is one
+  // slide at 100% of the carousel width. activeIdx tracks which
+  // slide is currently centered so the dot pagination + admin chip
+  // labels can reflect it.
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  useEffect(() => {
+    const root = carouselRef.current;
+    if (!root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            const idx = Number(
+              (entry.target as HTMLElement).dataset.wallIdx ?? '0'
+            );
+            setActiveIdx(idx);
+          }
+        }
+      },
+      { root, threshold: [0.5, 0.75] }
+    );
+    root.querySelectorAll('[data-wall-idx]').forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [walls.length]);
+
+  function scrollToIdx(idx: number) {
+    const root = carouselRef.current;
+    if (!root) return;
+    root.scrollTo({ left: idx * root.clientWidth, behavior: 'smooth' });
+  }
 
   return (
     <div
       ref={containerRef}
-      className="group/hero relative w-full overflow-hidden bg-[#0a0703]"
-      // Outer container sits at sceneH (image height minus the
-      // top + bottom trim). Inner frame still holds the image at
-      // its natural aspect — shifted up by TRIM_TOP_PX so the
-      // top trim lands above the visible band and overflow-hidden
-      // chops the matching strip off the bottom.
+      className="group/hero relative w-full bg-[#0a0703]"
       style={{
         height:
           sceneH ||
           (MIN_W * SCENE_H) / SCENE_W - TRIM_TOP_PX - TRIM_BOTTOM_PX,
       }}
     >
-      {sceneW > 0 && (
+      {/* Carousel scroll container — overflow-x scroll with snap-x
+          mandatory makes mouse-wheel + touch swipe land on each
+          wall cleanly. Each child slide is w-full of the carousel
+          (= w-full of the outer container) so the scroll math
+          stays trivial: scrollLeft = idx * clientWidth. */}
+      <div
+        ref={carouselRef}
+        className="absolute inset-0 overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
+        {sceneW > 0 &&
+          walls.map((w, i) => (
+            <HeroWallSlide
+              key={w.id}
+              wall={w}
+              dataWallIdx={i}
+              isFirst={i === 0}
+              tuner={i === 0 ? tuner : metaToTuner(w)}
+              sceneW={sceneW}
+              sceneFullH={sceneFullH}
+              scale={scale}
+              isLoading={isLoading}
+            />
+          ))}
+      </div>
+
+      {/* Dot pagination — positioned along the bottom centre of the
+          hero, above the scroll hint. Hidden when there's only one
+          wall (carousel collapses to a single slide visually). */}
+      {walls.length > 1 && (
         <div
-          className="absolute left-1/2 -translate-x-1/2"
-          style={{
-            top: -TRIM_TOP_PX,
-            width: sceneW,
-            height: sceneFullH,
-          }}
+          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-2"
+          style={{ bottom: 50 }}
         >
-          <img
-            src={HERO_BACKDROP_URL}
-            alt=""
-            aria-hidden
-            className="absolute inset-0 w-full h-full pointer-events-none select-none"
-            style={{ maxWidth: 'none' }}
-          />
-
-          {/* Wall section header — handwritten title pulled from
-              home_meta. Position tunable so we can nudge it
-              against the new backdrop's negative space. Title ink
-              and shadow come from HERO_THEME so a backdrop swap
-              auto-derives a readable contrast colour (see
-              server/scripts/extract-hero-theme.ts). */}
-          {meta?.theme && meta.theme.trim().length > 0 && (
-            <div
-              className="absolute select-none pointer-events-none"
-              style={{
-                left: tuner.titleLeftX * scale,
-                top: tuner.titleTopY * scale,
-                fontFamily: GRAFFITI_FONT_STACK,
-                transform: `rotate(${tuner.titleRotationDeg}deg)`,
-                transformOrigin: 'top left',
-                color: HERO_THEME.ink,
-                textShadow: HERO_THEME.shadow,
-              }}
-            >
-              <h2
-                style={{
-                  fontSize: tuner.titleFontSize * scale,
-                  fontWeight: 700,
-                  letterSpacing: '0.01em',
-                  margin: 0,
-                  lineHeight: 1.05,
-                }}
-              >
-                {meta.theme}
-              </h2>
-              {meta.description && meta.description.trim().length > 0 && (
-                <p
-                  style={{
-                    // Description tracks 50% of the title's px size
-                    // — the original 0.43 ratio felt too thin on
-                    // the lighter basement wall, but 0.6 turned it
-                    // into a near-second headline. 0.5 splits the
-                    // difference so the sub-line reads as a
-                    // sub-line.
-                    fontSize: tuner.titleFontSize * 0.5 * scale,
-                    fontWeight: 400,
-                    marginTop: 20 * scale,
-                    marginBottom: 0,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {meta.description}
-                </p>
-              )}
-            </div>
-          )}
-
-          {!isLoading && (
-            <>
-              <ShelfRow
-                slots={slots.slice(0, 5)}
-                firstPosition={0}
-                rowTopY={tuner.upperLpY * scale}
-                rowLeftX={tuner.upperLpXStart * scale}
-                lpSize={lpSize}
-                lpGap={lpGap}
-                plasticMeta={meta}
-              />
-              <ShelfRow
-                slots={slots.slice(5, 10)}
-                firstPosition={5}
-                rowTopY={tuner.lowerLpY * scale}
-                rowLeftX={tuner.lowerLpXStart * scale}
-                lpSize={lpSize}
-                lpGap={lpGap}
-                plasticMeta={meta}
-              />
-            </>
-          )}
+          {walls.map((w, i) => (
+            <button
+              key={w.id}
+              type="button"
+              onClick={() => scrollToIdx(i)}
+              aria-label={`${i + 1}번째 wall로 이동`}
+              className={`w-2 h-2 rounded-full transition-all ${
+                i === activeIdx
+                  ? 'bg-white scale-125'
+                  : 'bg-white/40 hover:bg-white/70'
+              }`}
+            />
+          ))}
         </div>
       )}
 
-      {/* Bottom fade — softens the hard horizontal cut between
-          the painted floor and the dark page bg of the activity
-          sections that follow. Anchored to the section bottom (not
-          the scaled scene anchor) so the fade band stays at a
-          stable px height regardless of viewport size. The
-          gradient stops just past 100% of the band so the
-          transition into #0a0703 finishes cleanly inside the band
-          rather than pushing colour past it. */}
-
       {/* Admin chip pair — 편집 and 보정 anchored to the hero's top-
-          right corner. Top-right keeps the chips out of the wall LP
-          + title focal area but still inside the painted basement
-          band, so they read as a property of the hero rather than
-          floating page chrome. Fade in on hover only. Hidden while
-          the editor or tuner panel is open so the chips don't sit
-          underneath their own popups. */}
+          right corner. Pinned to wall 0 in v1; per-wall admin tuning
+          is a follow-up. Tooltip clarifies which wall the buttons act
+          on so swiping past wall 0 doesn't read as "edits go here". */}
       {isAdmin && !editing && !tunerOpen && (
-        <div
-          className="absolute top-3 right-3 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity"
-        >
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity">
           <button
             type="button"
             onClick={() => setEditing(true)}
             className="text-[11px] text-gray-200 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-colors"
-            title="dig.haus 벽 편집"
+            title="첫 번째 벽 편집"
           >
             ✏️ 편집
           </button>
@@ -392,7 +362,7 @@ export default function HomeNextHero() {
             type="button"
             onClick={() => setTunerOpen(true)}
             className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-colors flex items-center gap-1.5"
-            title="Hero 위치 보정"
+            title="첫 번째 벽 위치 보정"
           >
             ⚙ 보정
             {isDirty && (
@@ -433,12 +403,7 @@ export default function HomeNextHero() {
       {/* Scroll hint — handwritten ">>" rotated 90° so it points
           down. Sits in the lower band of the hero so the user
           picks up that the page continues past the painted
-          basement strip. Lifted off the very edge to bottom 22
-          so the chevron sits in the visible scene rather than
-          looking glued to the page chrome. Admin chip pair sits
-          in the top-right corner now (no overlap with the chevron).
-          Hidden while editing / tuner is open since the popups
-          already claim the page focus. */}
+          basement strip. */}
       {!editing && !tunerOpen && (
         <div
           aria-hidden
@@ -456,6 +421,136 @@ export default function HomeNextHero() {
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+// One slide of the hero carousel — the per-wall renderer that used
+// to be the inline body of HomeNextHero before the multi-wall lift.
+// Reads its backdrop / theme / description / ink / shadow / wall
+// colour entirely from `wall` so each track in the carousel carries
+// its own visual identity. The active wall (idx 0 in v1) gets the
+// admin's live tuner draft for an instant-feedback preview; other
+// walls render with their own stored tuner values.
+function HeroWallSlide({
+  wall,
+  dataWallIdx,
+  isFirst,
+  tuner,
+  sceneW,
+  sceneFullH,
+  scale,
+  isLoading,
+}: {
+  wall: HomeWall;
+  dataWallIdx: number;
+  isFirst: boolean;
+  tuner: TunerValues;
+  sceneW: number;
+  sceneFullH: number;
+  scale: number;
+  isLoading: boolean;
+}) {
+  const lpSize = Math.max(40, Math.round(tuner.lpSize * scale));
+  const lpGap = Math.max(0, Math.round(tuner.lpGap * scale));
+  const items = wall.items;
+  const slots = Array.from({ length: 10 }, (_, i) =>
+    items.find((it) => it.position === i) ?? null
+  );
+
+  return (
+    <div
+      data-wall-idx={dataWallIdx}
+      className="relative flex-shrink-0 w-full h-full snap-center overflow-hidden"
+    >
+      <div
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{
+          top: -TRIM_TOP_PX,
+          width: sceneW,
+          height: sceneFullH,
+        }}
+      >
+        <img
+          src={`/backdrops/${wall.backdropFile}`}
+          alt=""
+          aria-hidden
+          className="absolute inset-0 w-full h-full pointer-events-none select-none"
+          style={{ maxWidth: 'none' }}
+        />
+
+        {/* Wall section header — per-wall theme + ink/shadow tokens.
+            basement5 is a light surface so its ink_color resolves to
+            dark brown; basement_purple is dark so its ink stays cream.
+            Server-side extract-hero-theme samples each backdrop and
+            stores the matching ink/shadow on the wall row. */}
+        {wall.theme && wall.theme.trim().length > 0 && (
+          <div
+            className="absolute select-none pointer-events-none"
+            style={{
+              left: tuner.titleLeftX * scale,
+              top: tuner.titleTopY * scale,
+              fontFamily: GRAFFITI_FONT_STACK,
+              transform: `rotate(${tuner.titleRotationDeg}deg)`,
+              transformOrigin: 'top left',
+              color: wall.inkColor,
+              textShadow: wall.shadowCss,
+            }}
+          >
+            <h2
+              style={{
+                fontSize: tuner.titleFontSize * scale,
+                fontWeight: 700,
+                letterSpacing: '0.01em',
+                margin: 0,
+                lineHeight: 1.05,
+              }}
+            >
+              {wall.theme}
+            </h2>
+            {wall.description && wall.description.trim().length > 0 && (
+              <p
+                style={{
+                  fontSize: tuner.titleFontSize * 0.5 * scale,
+                  fontWeight: 400,
+                  marginTop: 20 * scale,
+                  marginBottom: 0,
+                  lineHeight: 1.2,
+                }}
+              >
+                {wall.description}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* LP rows — render even when items are empty so walls 2 + 3
+            still show the rail composition (empty WallLPs at each
+            slot). Without this the empty walls would read as just a
+            backdrop, breaking visual continuity across the carousel. */}
+        {(!isLoading || !isFirst) && (
+          <>
+            <ShelfRow
+              slots={slots.slice(0, 5)}
+              firstPosition={0}
+              rowTopY={tuner.upperLpY * scale}
+              rowLeftX={tuner.upperLpXStart * scale}
+              lpSize={lpSize}
+              lpGap={lpGap}
+              plasticMeta={wall}
+            />
+            <ShelfRow
+              slots={slots.slice(5, 10)}
+              firstPosition={5}
+              rowTopY={tuner.lowerLpY * scale}
+              rowLeftX={tuner.lowerLpXStart * scale}
+              lpSize={lpSize}
+              lpGap={lpGap}
+              plasticMeta={wall}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }

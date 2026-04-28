@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   useHomeFeatures,
   type HomeFeatureItem,
@@ -8,7 +8,6 @@ import { WallLP, WallRail } from '../MyDig/storefront/primitives';
 import WallHoverCard from '../MyDig/storefront/WallHoverCard';
 import HomeFeatureSticker from './HomeFeatureSticker';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
-import { HERO_THEME } from '../../lib/heroTheme';
 
 // Mobile hero uses a different visual strategy from the desktop
 // asset-driven hero. The painted basement strip relies on the
@@ -118,39 +117,133 @@ export default function HomeNextHeroMobile() {
     Math.round(PAD_X + (innerW - railWidth) / 2)
   );
 
-  // v1 of the multi-wall response — render the first wall only.
-  // Carousel wrapping (multiple walls swipeable horizontally) is
-  // the next commit.
-  const wall = data?.walls?.[0];
-  const items = wall?.items ?? [];
-  const meta = wall;
+  const walls = data?.walls ?? [];
+
+  // Carousel — same horizontal scroll-snap pattern as desktop. On
+  // phones the snap behaviour is "swipe to the next wall" which is
+  // exactly what a touch user expects from a hero band of multiple
+  // tracks. activeIdx drives the dot pagination below the rails.
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
+  useEffect(() => {
+    const root = carouselRef.current;
+    if (!root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting && entry.intersectionRatio > 0.5) {
+            const idx = Number(
+              (entry.target as HTMLElement).dataset.wallIdx ?? '0'
+            );
+            setActiveIdx(idx);
+          }
+        }
+      },
+      { root, threshold: [0.5, 0.75] }
+    );
+    root.querySelectorAll('[data-wall-idx]').forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [walls.length]);
+
+  function scrollToIdx(idx: number) {
+    const root = carouselRef.current;
+    if (!root) return;
+    root.scrollTo({ left: idx * root.clientWidth, behavior: 'smooth' });
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full"
+    >
+      <div
+        ref={carouselRef}
+        className="flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+        }}
+      >
+        {walls.map((w, i) => (
+          <HeroWallSlideMobile
+            key={w.id}
+            wall={w}
+            dataWallIdx={i}
+            isLoading={isLoading}
+            lpSize={lpSize}
+            railWidth={railWidth}
+            railLeftPx={railLeftPx}
+          />
+        ))}
+      </div>
+
+      {walls.length > 1 && (
+        <div
+          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-2"
+          style={{ bottom: 8 }}
+        >
+          {walls.map((w, i) => (
+            <button
+              key={w.id}
+              type="button"
+              onClick={() => scrollToIdx(i)}
+              aria-label={`${i + 1}번째 wall로 이동`}
+              className={`w-2 h-2 rounded-full transition-all ${
+                i === activeIdx
+                  ? 'bg-white scale-125'
+                  : 'bg-white/40 hover:bg-white/70'
+              }`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Per-wall mobile slide — wraps the rails / LP grid composition for
+// one wall so the parent component can stack N of them horizontally
+// in the carousel. Each slide carries its own bg colour + paper
+// overlay tone driven by `wall.wallColor`, ink + shadow driven by
+// `wall.inkColor` + `wall.shadowCss`. Sliding from basement_purple →
+// basement_gray → basement5 reads as walking along three different
+// painted walls in the same shop.
+function HeroWallSlideMobile({
+  wall,
+  dataWallIdx,
+  isLoading,
+  lpSize,
+  railWidth,
+  railLeftPx,
+}: {
+  wall: HomeWall;
+  dataWallIdx: number;
+  isLoading: boolean;
+  lpSize: number;
+  railWidth: number;
+  railLeftPx: number;
+}) {
+  const items = wall.items;
   const slots = Array.from({ length: ROWS * COLS }, (_, i) =>
     items.find((it) => it.position === i) ?? null
   );
 
   return (
     <div
-      ref={containerRef}
-      className="relative w-full overflow-hidden"
+      data-wall-idx={dataWallIdx}
+      className="relative flex-shrink-0 w-full snap-center overflow-hidden"
       style={{
-        // Solid wall colour comes first so the surface tone
-        // matches the desktop backdrop. The paper texture is
-        // re-layered as a low-opacity grain overlay below so the
-        // colour drives the look and the texture only contributes
-        // surface noise. Height auto-grows from flow content
-        // (rails carry a 10 px shadow tail beyond their visible
-        // plank height, so a fixed-pixel heroH would clip the
-        // last row's shadow).
-        backgroundColor: HERO_THEME.wall,
+        // Per-wall surface tone. Replaces the singleton
+        // HERO_THEME.wall — basement_purple's #4c3c54 stays for
+        // wall 1, while wall 2 (basement_gray) and wall 3
+        // (basement5) carry their own sampled hues.
+        backgroundColor: wall.wallColor,
       }}
     >
-      {/* Paper-grain layer — the same mobild_drop.webp that used
-          to be the whole surface, now repurposed as a grain
-          overlay over the wall colour. Soft-light blend keeps the
-          paper's mid-tones translucent and lets the wall colour
-          set luminance + hue; opacity tames the result so the
-          grain reads as wall texture rather than a separate sheet
-          of paper laid on top. */}
+      {/* Paper-grain texture overlay — repeat-y so the slide auto-
+          grows with content height. Soft-light blend lets the wall
+          colour drive luminance/hue and the texture only contributes
+          surface noise. */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
@@ -164,10 +257,8 @@ export default function HomeNextHeroMobile() {
         }}
       />
 
-      {/* Soft vignette only — the photo carries enough natural
-          tone variation that the earlier turbulence + linear
-          gradient overlays just muddied it. Bottom darken keeps
-          the activity sections handing-off cleanly. */}
+      {/* Soft vignette — bottom darken so the activity sections
+          below the hero hand off cleanly. */}
       <div
         aria-hidden
         className="absolute inset-0 pointer-events-none"
@@ -177,46 +268,20 @@ export default function HomeNextHeroMobile() {
         }}
       />
 
-      {/* Legacy noise overlay kept around (now hidden) in case
-          we want to layer texture on top of the photo later;
-          removing the SVG entirely loses the filter id reference
-          if anything else picks it up. */}
-      <svg
-        aria-hidden
-        className="hidden"
-      >
-        <defs>
-          <filter id="mobileConcreteNoise">
-            <feTurbulence type="fractalNoise" baseFrequency="1.6" numOctaves="2" seed="11" />
-            <feColorMatrix values="0 0 0 0 0.55  0 0 0 0 0.5  0 0 0 0 0.45  0 0 0 0.55 0" />
-          </filter>
-        </defs>
-        <rect width="100%" height="100%" filter="url(#mobileConcreteNoise)" />
-      </svg>
-
-      {/* Handwritten section title — anchored top-left of the
-          wall. No tilt on mobile (the desktop -3° read as
-          casual on a wide composition; on the narrower mobile
-          band the same tilt was just hard to read). Ink colour
-          + shadow come from HERO_THEME so the mobile title
-          stays readable against whichever wall tone the desktop
-          backdrop drove (cream against dark plum, dark brown
-          against light tan, etc.). */}
-      {meta?.theme && meta.theme.trim().length > 0 && (
+      {/* Handwritten section title — anchored top-left of the wall.
+          Per-wall ink + shadow so the title stays readable against
+          basement5's light surface (dark ink) and basement_purple's
+          dark surface (cream ink) without a manual swap. */}
+      {wall.theme && wall.theme.trim().length > 0 && (
         <div
           className="absolute select-none pointer-events-none"
           style={{
-            // Title left tracks the rail's actual left edge so the
-            // handwritten copy hangs off the same plank line as the
-            // shelf below. Computed dynamically (railLeftPx) because
-            // the rail's position depends on lpSize → innerW → the
-            // running viewport width.
             top: TITLE_TOP_PX,
             left: railLeftPx,
             right: PAD_X,
             fontFamily: GRAFFITI_FONT_STACK,
-            color: HERO_THEME.ink,
-            textShadow: HERO_THEME.shadow,
+            color: wall.inkColor,
+            textShadow: wall.shadowCss,
           }}
         >
           <h2
@@ -228,9 +293,9 @@ export default function HomeNextHeroMobile() {
               lineHeight: 1.05,
             }}
           >
-            {meta.theme}
+            {wall.theme}
           </h2>
-          {meta.description && meta.description.trim().length > 0 && (
+          {wall.description && wall.description.trim().length > 0 && (
             <p
               style={{
                 fontSize: 13,
@@ -240,17 +305,16 @@ export default function HomeNextHeroMobile() {
                 lineHeight: 1.2,
               }}
             >
-              {meta.description}
+              {wall.description}
             </p>
           )}
         </div>
       )}
 
-      {/* Rails + LPs — five rows stacked vertically. Each row's
-          rail is centred under the two covers; rail seed varies
-          per-row so successive rails don't share the same knot
-          pattern. */}
-      {!isLoading && lpSize > 0 && (
+      {/* Rails + LPs — render even with empty items so walls 2 + 3
+          still show the rail composition; otherwise the empty walls
+          would read as just a backdrop without visual continuity. */}
+      {lpSize > 0 && (
         <div
           className="relative"
           style={{
@@ -281,12 +345,12 @@ export default function HomeNextHeroMobile() {
                         key={position}
                         style={{ width: lpSize, height: lpSize, position: 'relative' }}
                       >
-                        {item ? (
+                        {item && !isLoading ? (
                           <MobileFeatureCell
                             item={item}
                             position={position}
                             lpSize={lpSize}
-                            plasticMeta={meta}
+                            plasticMeta={wall}
                           />
                         ) : (
                           <WallLP
@@ -303,7 +367,7 @@ export default function HomeNextHeroMobile() {
                 <div className="flex justify-center" style={{ marginTop: 0 }}>
                   <WallRail
                     width={railWidth}
-                    seed={ri * 37 + 13}
+                    seed={ri * 37 + 13 + dataWallIdx * 41}
                     height={RAIL_HEIGHT}
                   />
                 </div>
