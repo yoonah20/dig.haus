@@ -9,7 +9,6 @@ import SiteFooter from './components/SiteFooter';
 import PersistentNowPlayingPlayer from './components/PersistentNowPlayingPlayer';
 import CurationProgressPanel from './components/CurationProgressPanel';
 import ErrorBoundary from './components/ErrorBoundary';
-import { HERO_THEME } from './lib/heroTheme';
 
 const Home = lazy(() => import('./pages/HomeNext'));
 const DigPage = lazy(() => import('./pages/DigPage'));
@@ -396,15 +395,26 @@ export default function App() {
                       snapshot strip + pinned footer routinely push
                       the page well past that, the painted-wall top
                       got clipped against the parent's #0a0703
-                      fallback. Solid HERO_THEME.wall + a soft-light
+                      fallback. Solid warm-walnut + a soft-light
                       mobild_drop.webp overlay at repeat-y auto-grows
-                      with the page. */}
+                      with the page.
+
+                      Tone tuned to match the desktop wall2.webp
+                      surface: natural dominant of wall2 sampled at
+                      #dcc494 (warm beige plaster), then the desktop's
+                      `brightness(0.55) saturate(0.85)` filter math
+                      lands around #776c56 — the warm walnut tone the
+                      desktop reads as. Hardcoded here rather than
+                      pulled from HERO_THEME because that token is
+                      driven by the home hero's basement_purple
+                      backdrop and would carry the wrong (purple-grey)
+                      hue into mydig. */}
                   <div
                     aria-hidden
                     className="absolute inset-0 pointer-events-none md:hidden"
                     style={{
                       zIndex: -1,
-                      backgroundColor: HERO_THEME.wall,
+                      backgroundColor: '#776c56',
                     }}
                   />
                   <div

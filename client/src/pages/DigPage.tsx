@@ -348,7 +348,26 @@ export default function DigPage() {
           return;
         setNextBatchPending(true);
         q.fetchNextPage().finally(() => {
-          setTimeout(() => setNextBatchPending(false), 400);
+          setTimeout(() => {
+            setNextBatchPending(false);
+            // Force the IO to re-emit the sentinel's current
+            // intersection state. Without this, infinite-scroll
+            // silently stops after one batch on phone-tall
+            // viewports: a single mobile batch is ~3 rows ≈
+            // 400-450 px tall, and the rootMargin below is 400 px,
+            // so the new batch's height matches the margin almost
+            // exactly — the sentinel ends up still inside the
+            // extended viewport (isIntersecting stays TRUE) and
+            // IntersectionObserver only fires on state TRANSITIONS,
+            // never on "still true". unobserve + observe re-emits
+            // the initial state for the target, which immediately
+            // fires the callback again if the sentinel is still in
+            // view, otherwise sits idle until the user scrolls.
+            if (sentinelEl) {
+              observer.unobserve(sentinelEl);
+              observer.observe(sentinelEl);
+            }
+          }, 400);
         });
       },
       { rootMargin: '400px' }
