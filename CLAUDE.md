@@ -101,9 +101,11 @@ Bundle into the roadmap item that touches the same surface — don't fix purely 
 
 ## API cost discipline
 
-Phase 1 spent ~$0.30/album via Claude's web_search tool. That path (`searchReviews` / 🔍 리뷰 모아오기) was removed entirely in the Phase 3a review-pipeline rebuild after a single session racked up ~$5 across 10 albums: each web_search invocation pulled tens of thousands of tokens of page content back into context as input tokens, and Claude re-fetching popular sites on every album scaled badly.
+Phase 1 spent ~$0.50/album via Claude's web_search tool ($5/session for 10 albums). That path (`searchReviews` / 🔍 리뷰 모아오기) was removed entirely in the Phase 3a review-pipeline rebuild after a single session demonstrated the cost shape: each web_search invocation pulled tens of thousands of tokens of page content back into context as input tokens, and Claude re-fetching popular sites on every album scaled badly.
 
-Current per-review cost is ~$0.001 via the `scrapeReviewFromUrl` path, which routes page fetches through Jina Reader (`r.jina.ai/`) — free proxy that renders JS and converts to clean markdown, so Claude sees the article instead of the whole HTML boilerplate. URL discovery happens via Serper.dev (admin clicks 🔎 자동 검색), returns 10–20 candidates, Haiku picks the editorial ones (~$0.0003 per pick call).
+Current per-album cost is **~$0.01** for a typical 9-15 review pull (per-review unit cost ~$0.001), via the `scrapeReviewFromUrl` path. Page fetches go through Jina Reader (`r.jina.ai/`) — free proxy that renders JS and converts to clean markdown, so the LLM sees the article instead of HTML boilerplate. URL discovery happens via Serper.dev (admin clicks 🔎 자동 검색), returns 10–20 candidates, the editorial picker LLM picks the actually-editorial ones (~$0.0003 per pick call).
+
+**LLM routing**: every operation — scrape extraction, editorial pick, similar-album descriptions, pronunciation, Korean review summary — runs through **DeepSeek v4 Flash** today. The migration happened in two steps: (1) 2026-04-20 swap of cheap-call ops (scrape, pick) from Haiku → DeepSeek-v3 after blind-bench comparison showed the quality difference didn't match the price difference; (2) 2026-04-28 (`e7fdd9c`) Korean review summary moved from Sonnet → DeepSeek-v4-Flash, completing the migration. Admin can re-route any operation via the env-driven model router (`server/src/services/llmRouter.ts`); the `/admin/compare` page surfaces blind shadow-comparisons of any two models on real review prose. Sonnet stays available for ad-hoc cases but isn't on the default hot path.
 
 **Cost-sensitive rules** (do not break without discussion):
 - Anthropic SDK: `maxRetries: 2` (was 5 — amplification risk)

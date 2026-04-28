@@ -206,12 +206,32 @@ commits in one day). The new pipeline:
     block the scraper directly but archive.org has indexed.
 
 Cost per album dropped from ~$0.50/album (web_search era —
-$5/session for 10 albums) to ~$0.01/album (the new pipeline
-collecting ~15 reviews per album, with cheap detection +
-deepseek-v4-flash on the summary path). Roughly a **30-50×
-reduction** while improving signal quality. The per-review unit
-cost lands around $0.001, but per-album is the meaningful figure
-since each album gets fanned out to a dozen-plus review sources.
+$5/session for 10 albums) to **~$0.008-0.01/album** (the new
+pipeline collecting 9-15 reviews per album, with all LLM ops on
+DeepSeek-v4-Flash). Roughly a **50-60× reduction** while
+improving signal quality. The per-review unit cost lands around
+$0.001, but per-album is the meaningful figure since each album
+gets fanned out to a dozen-plus review sources.
+
+**LLM routing evolution** is its own thread inside Phase 1's
+cost discipline:
+  - **2026-04-20** — cheap-call ops (scrape extraction, editorial
+    URL picker) swapped from Haiku → DeepSeek-v3 primary, Haiku
+    fallback. Trigger: blind-bench comparison showed the quality
+    delta didn't justify the price delta on these ops.
+  - **2026-04-21** — env-driven model router landed (`llmRouter
+    .ts`) so any operation can have its primary + shadow model
+    set per-env. Plus `/admin/compare` page for ongoing blind
+    shadow-comparisons on real review prose. This is what makes
+    later migrations safe — they're decisions, not gambles.
+  - **2026-04-28** (`e7fdd9c`) — Korean review summary moved
+    Sonnet → DeepSeek-v4-Flash. Last hold-out on the expensive
+    path. Real cost-log data after the swap shows ~$0.008 per
+    album register including pronunciation + similar-album
+    descriptions + summary + 9 review scrapes.
+
+Sonnet stays available in the router for ad-hoc cases but isn't
+on the default hot path anymore.
 
 This rebuild also produced the **`normaliseKoreanTerms` post-
 process pass** (slowly grew from one rule to ten) that strips
@@ -523,7 +543,7 @@ that extended the window further.
 - Three-wall home hero carousel with auto-advance, swipe nav,
   per-wall admin tuning
 - Invitation-only signup gate with admin approval flow
-- Review pipeline at ~$0.01/album (~30-50× improvement from Phase 1's web_search era at $0.50/album)
+- Review pipeline at ~$0.008-0.01/album (~50-60× improvement from Phase 1's web_search era at $0.50/album), all LLM ops on DeepSeek-v4-Flash
 
 **Tooling + observability**:
 - Admin dashboard with stats, recent feeds, scrape-failures,

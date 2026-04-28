@@ -276,9 +276,14 @@ PRE-ORDER cover sticker는 이걸로 대체했다 (sticker는 sold out 같은
 dev: Vite + Express 둘 다 0.0.0.0에 바인드. WSL2에서 Windows 브라우저
 로 localhost 접근 안 되는 문제 잡으려고. 좀 헤맸다.
 
-DeepSeek primary + Haiku fallback on scrape extraction. shadow LLM
-router를 통해 시험해보고, 비용 낮은 모델로 갈 수 있는 부분은 갈고
-싶다. 지금까지 Claude만 쓰던 거에 옵션 추가.
+**DeepSeek-v3 primary + Haiku fallback on scrape extraction.**
+이건 수일 전부터 머릿속으로 굴리던 결정. blind-bench로 같은 review
+prose에 대해 Haiku 출력이랑 DeepSeek-v3 출력을 좌우로 띄워놓고
+비교해 봤는데, 가격 차이만큼의 quality 차이가 안 났다. Haiku per-call
+$0.001 vs DeepSeek $0.0003 — 3배 가까이 싼데 출력 거의 동등. 그러면
+swap 안 할 이유가 없다. 일단 scrape extraction만 우선 돌리고,
+summary는 Sonnet 그대로 (요약은 quality 더 까다로워서). 다음 며칠
+운영해보고 다른 op들도 옮길지 결정하자.
 
 새벽 4시. 점점 익숙해지지만 누적은 쌓인다.
 
@@ -567,6 +572,16 @@ public하게 열려 있으면 DB 오염될 것 같다는 걱정이 점점 커졌
 안 끊기게). 신규는 admin 검토 대기 큐로. fpp@dig.haus로 알림 메일은
 Resend로. admin 패널에 가입 신청 panel 추가. invitation gate 한 commit
 에 다 박아냈다.
+
+오늘 또 한 번 LLM 옮긴 게 있다. **Korean review summary가 마지막으로
+Sonnet에서 deepseek-v4-flash로 이전**. v4-flash의 가격을 router에
+맞게 잡고 (`llm: price v4-flash correctly + route Korean review
+summary through it`) summary path까지 옮겨버렸다. 04-20에 scrape
+ops를 DeepSeek-v3로 옮긴 게 첫 swap이었고, 그 이후로 운영해보면서
+quality drop이 느껴지지 않아서 Sonnet도 결국 못 버틸 거라는 예감이
+있었다. v4-flash는 v3보다 한 번 더 좋아진 상태라 결정은 어렵지 않았
+다. cost log 보면 summary call 한 번에 $0.0001 — 거의 무료. Sonnet
+시절엔 album 하나에 $0.005~$0.01 들어가던 게 한 자릿수 줄었다.
 
 그 다음에 큰 작업 — **multi-wall hero carousel**. home hero를 단일
 wall에서 N개 wall로 확장. day 0 plan에는 없던 거지만, 오전부터 갑자기
