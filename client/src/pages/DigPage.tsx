@@ -69,11 +69,11 @@ function computeAdaptivePageSize(
   const rows = Math.max(2, Math.floor(available / rowH));
   return cols * rows;
 }
-// Mobile infinite-scroll batch size. 10 = 5 rows of the 2-col
+// Mobile infinite-scroll batch size. 9 = 3 rows of the 3-col
 // mobile grid. Each batch ends with a snapshot card + 2 comment
 // cards so the stream reads as an activity-rich unified feed
 // rather than a pure cover catalog.
-const MOBILE_PAGE_SIZE = 10;
+const MOBILE_PAGE_SIZE = 9;
 
 // Desktop-only: rail toggle + density switcher + reveal animation all
 // key off whether the viewport is wide enough to benefit from them.
@@ -164,7 +164,7 @@ function useMobileAlbumList(
 // so batches the sentinel fetched eagerly don't burn their wave
 // while the user is still scrolling above them.
 const MOBILE_ROW_STAGGER_MS = 90;
-const MOBILE_COLS = 2;
+const MOBILE_COLS = 3;
 function MobileUnifiedBatch({ albums }: { albums: AlbumSearchResult[] }) {
   // rootMargin 0px: fires the moment any part of the batch crosses
   // into the viewport. A pre-fetch margin would defeat the purpose —
@@ -173,7 +173,7 @@ function MobileUnifiedBatch({ albums }: { albums: AlbumSearchResult[] }) {
   const cardClass = inView ? 'album-reveal' : 'album-reveal-off';
 
   return (
-    <div ref={ref} className="grid grid-cols-2 gap-5">
+    <div ref={ref} className="grid grid-cols-3 gap-3">
       {albums.map((album, idx) => (
         <div
           key={album.mbid}

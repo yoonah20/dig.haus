@@ -107,6 +107,16 @@ export default function HomeNextHeroMobile() {
     Math.floor(((innerW - COVER_GAP_X) / COLS) * 0.9)
   );
   const railWidth = lpSize * COLS + COVER_GAP_X + RAIL_OVERHANG_PX * 2;
+  // Left-edge of the rail in container coordinates. Rails sit centred
+  // inside the padded inner band, so this is `PAD_X + (innerW - rail)/2`
+  // and lines the title's left edge up with where the wooden plank
+  // actually starts on the page (the LP row sits RAIL_OVERHANG_PX
+  // inside that, which is why the prior fixed `PAD_X + 28` lined the
+  // title up with the leftmost cover instead of the rail).
+  const railLeftPx = Math.max(
+    0,
+    Math.round(PAD_X + (innerW - railWidth) / 2)
+  );
 
   const items = data?.items ?? [];
   const meta = data?.meta;
@@ -192,16 +202,13 @@ export default function HomeNextHeroMobile() {
         <div
           className="absolute select-none pointer-events-none"
           style={{
-            // Title sits well right of the wall padding — at
-            // PAD_X (16) it hugged the left edge of the hero
-            // band tighter than the LP rows below (which centre
-            // their 0.9-multiplier slack as edge gutters). +28
-            // brings the handwritten "딕하우스 …" copy roughly
-            // in line with where the leftmost LP cover lands
-            // after centring + the 0.9 inset, so the title and
-            // top row share a left edge.
+            // Title left tracks the rail's actual left edge so the
+            // handwritten copy hangs off the same plank line as the
+            // shelf below. Computed dynamically (railLeftPx) because
+            // the rail's position depends on lpSize → innerW → the
+            // running viewport width.
             top: TITLE_TOP_PX,
-            left: PAD_X + 28,
+            left: railLeftPx,
             right: PAD_X,
             fontFamily: GRAFFITI_FONT_STACK,
             color: HERO_THEME.ink,
