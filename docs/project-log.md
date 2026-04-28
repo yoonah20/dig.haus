@@ -23,31 +23,103 @@ Tagline: "No algorithms needed. Keep digging."
 
 ## Day 0 — pre-git origins (2026-04-14)
 
-Day 0 doesn't appear in `git log` because the work happened in a
-browser-based vibe-coding session before the repo was initialised
-locally. The same day:
+Day 0 happened in a browser-based vibe-coding session with web-
+Claude before the repo was initialised locally. None of it lives
+in `git log`, but the day's conversation transcript is the single
+most consequential decision artifact in the project: the entire
+3-phase plan that the next 15 days followed was articulated here,
+before a single line of code was written.
 
-- **dig.haus domain purchased**.
-- **First album-grid prototype** built — the visual ancestor of
-  what later became `/dig`. Cover-first layout, sort + page
-  controls, the bones of the catalog browse surface.
-- **First album detail page** drafted — the layout that became
-  `/album/:slug` after migration into the local + Railway repo
-  the next day.
+**Two false starts before the real shape emerged.**
 
-The day-1 Railway commit (`77c5240` on 2026-04-15) wasn't a from-
-scratch start — it was a *port* of this browser-side work into a
-proper Vite + Express + SQLite scaffold. That's why day 1's 55
-commits already include polished album cards, price stickers, and
-cover-art proxying: the design instincts had been exercised in
-the browser session the day before, and the local-repo move was
-about turning that prototype into a deployable, version-controlled
-shape.
+  - **First idea: "Vinyl Price Hunter"** — a price-comparison
+    web app for vinyl records. Search artist + album, get the
+    cheapest options across worldwide stores with shipping math.
+    Web-Claude pushed back hard on feasibility (ToS-blocked
+    scraping, Cloudflare walls, multi-store shipping APIs that
+    don't exist) and proposed scoping down to Discogs API +
+    Bandcamp + eBay Finding API. A full prompt was drafted, then
+    the operator paused.
+  - **Second idea: review aggregator with Korean summary** —
+    "search an album, get reviews from across the web summarised
+    in Korean". Verified concretely by test-running an Archspire
+    "Too Fast to Die" search and finding 14 review sites
+    in three days post-release. Web-Claude pivoted the technical
+    approach mid-conversation: instead of brittle per-site
+    scrapers, use Claude API + web search + per-site detectors
+    on a smaller curated set. This shape survived into the actual
+    Phase 1 build.
 
-No artefacts survive from this day other than the visual
-direction it set. Worth recording explicitly so the git log's
-sudden density on day 1 doesn't read as miraculous — it was
-preceded by a day of unsourced exploration.
+**The real pivot happened when the operator revealed they were a
+15,000-vinyl collector.** Web-Claude reframed: this isn't a
+review tool, it's the operator's own digging workflow turned into
+a web app. The flow articulated in the conversation:
+
+  > "sputnikmusic이나 rateyourmusic에서 어떤 앨범을 발견 →
+  > 리뷰를 읽고 vinyl 구매처와 가격 확인 → 들어보고 괜찮으면
+  > 아티스트의 다른 앨범이나 비슷한 아티스트 검색 → vinyl
+  > 구매처가 여러 곳이면 수동으로 팔로우"
+
+This becomes the architectural spine of every page on the live
+site fifteen days later: album page = reviews + listen + buy +
+similar + label + saved purchase links, all on one screen.
+
+**The 3-phase plan committed on day 0** (and almost exactly what
+shipped):
+
+  1. **Information hub** — album search, reviews + Korean summary,
+     listen links (Spotify / Apple Music / YouTube / Bandcamp),
+     buy links (Discogs / Bandcamp), label info, similar albums.
+     Single user, no accounts.
+  2. **Personal layer** — accounts + wishlist + collection +
+     saved purchase links + "찾고 있어요" wantlist.
+  3. **Community** — digging journal (Twitter-style), upvote/
+     replace AI recommendations with curator picks, album DNA
+     mindmap, social feed.
+
+Phases 1 + 2 + 3 in the actual git history map onto these almost
+1:1. The operator stuck to a plan made before code existed.
+
+**Naming pass also done day 0.** Walked through Deepcuts (rejected
+— "비주류 뉘앙스 강함, 우리는 메인스트림도 다룸"), Diglog,
+Dighaus, Crateful, Spinhaus, Digcave, before landing on
+**Diggershaus**. The codebase + repo + Railway service all
+ended up named `diggershaus` (you can see it in `server/data/
+diggershaus.db`); the public-facing domain became **dig.haus**
+when that registration came through.
+
+**Tech stack chosen day 0**, all of it survived:
+
+  - React + TypeScript + Vite, Tailwind CSS
+  - Node.js + Express, better-sqlite3, axios, TanStack Query
+  - WSL2 + VS Code on Windows 11 for the dev environment
+  - Cloudflare Registrar for the domain
+  - Vercel + Railway as the deploy targets (the actual deploy
+    settled on Railway-only, but the principle of "free tier +
+    GitHub-push deploys" came from day 0)
+
+**What got built in the browser session itself**:
+
+  - First album-grid prototype — visual ancestor of `/dig`. Cover-
+    first layout, sort + page controls, the bones of the catalog
+    browse surface that the day-1 port (`77c5240`) instantiated
+    in the proper Vite + Express scaffold.
+  - First album detail page draft — became `/album/:slug` after
+    the local-repo move.
+
+**Why the day-1 git log looks so dense**: day 1 was a *port +
+expansion*, not a from-scratch start. The album card layout, the
+record-shop framing, the price-sticker visual language, the cover
+proxy pattern — all decided in the browser session the day
+before. Day 1 was about turning the prototype into a deployable,
+version-controlled shape and adding the next visible features on
+top.
+
+**The original Day 0 conversation** lives at the operator's
+Claude.ai share link (private, login-gated), which is the
+canonical record of the technical decisions made before any code
+existed. The codebase is the implementation; that conversation is
+the spec.
 
 ---
 
