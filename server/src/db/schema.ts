@@ -1686,6 +1686,50 @@ export function initializeDatabase(db: Database.Database): void {
     upd.run('basement_plant.avif', '#2c240c', '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', 3);
     console.log('[migration] swapped walls 2 + 3 to basement_black + basement_plant');
   });
+
+  // Walls 2 and 3 inherited the schema defaults for the LP / title
+  // tuner cols (lpSize 357, upperLpY 279, lowerLpY 752, etc.) while
+  // wall 1 carried the operator's tuned values (lpSize 336, upper
+  // 345, lower 811, plasticScalePct 2, etc.). Once admin started
+  // populating walls 2 + 3 with LPs, the records sat in the wrong
+  // positions against the new backdrops because the tuner was off.
+  // One-shot copy of wall 1's tuner state onto walls 2 + 3 — uses a
+  // dynamic SELECT so the migration tracks whatever wall 1 holds at
+  // run time (production may have different tuned values from local
+  // dev). Backdrop / theme / description / items are deliberately
+  // not part of the copy — only positional / sizing tuner state.
+  runOnce(db, 'unify-walls-2-3-tuner-with-wall-1-2026-04-28', () => {
+    const tunerCols = [
+      'lp_size',
+      'lp_gap',
+      'upper_lp_x_start',
+      'lower_lp_x_start',
+      'upper_lp_y',
+      'lower_lp_y',
+      'header_top_px',
+      'header_left_px',
+      'header_rotation_deg',
+      'title_font_size',
+      'title_rotation_deg',
+      'plastic_scale_pct',
+      'plastic_offset_x_px',
+      'plastic_offset_y_px',
+      'plastic_blend_mode',
+    ];
+    const setClause = tunerCols
+      .map((c) => `${c} = (SELECT ${c} FROM home_walls WHERE id = 1)`)
+      .join(', ');
+    const result = db
+      .prepare(
+        `UPDATE home_walls
+            SET ${setClause}, updated_at = datetime('now')
+          WHERE id IN (2, 3)`
+      )
+      .run();
+    console.log(
+      `[migration] unified tuner values from wall 1 onto walls 2+3 (${result.changes} rows)`
+    );
+  });
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
      ON user_follows(followee_id, created_at DESC)`
