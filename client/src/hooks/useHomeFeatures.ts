@@ -111,11 +111,14 @@ export interface HomeMetaPatch {
   titleRotationDeg?: number;
 }
 
-export function useUpdateHomeMeta() {
+export function useUpdateHomeMeta(wallId: number = 1) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (meta: HomeMetaPatch) => {
-      const { data } = await axios.patch('/api/home/meta', meta);
+      const { data } = await axios.patch(
+        `/api/home/meta?wallId=${wallId}`,
+        meta
+      );
       return data;
     },
     onSuccess: () => {
@@ -130,11 +133,14 @@ export interface HomeFeatureItemPut {
   note?: string | null;
 }
 
-export function useReplaceHomeFeatures() {
+export function useReplaceHomeFeatures(wallId: number = 1) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (items: HomeFeatureItemPut[]) => {
-      const { data } = await axios.put('/api/home/features/items', { items });
+      const { data } = await axios.put(
+        `/api/home/features/items?wallId=${wallId}`,
+        { items }
+      );
       return data;
     },
     onSuccess: () => {

@@ -165,30 +165,36 @@ export default function HomeNextHero() {
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
 
-  // v1 of the multi-wall response: render the first wall only. Carousel
-  // wrapping (multiple walls swipeable horizontally) is the next
-  // commit; this checkpoint just rewires from the deprecated
-  // { items, meta } shape to walls[0] so the schema migration can
-  // ship without the home page going blank.
-  const wall = data?.walls?.[0];
+  const walls = data?.walls ?? [];
 
-  // Tuner values now live in home_walls(id=1) on the server so a 저장
-  // click publishes globally. `committed` is derived from `wall` each
-  // render; `draft` is the local working copy sliders write to. When
-  // the meta query refreshes (after a save), the effect resyncs draft
-  // from committed so isDirty collapses to false. 되돌리기 =
-  // setDraft(committed).
-  const committed = metaToTuner(wall);
+  // activeIdx tracks the currently-centred carousel slide; its
+  // IntersectionObserver setup lives further down. Tuner + editor
+  // both target the active wall so the admin's "어디 편집하지" mental
+  // model matches "swipe to a wall, edit it" instead of "every wall
+  // edits land on wall 1".
+  const [activeIdx, setActiveIdx] = useState(0);
+  const activeWall = walls[activeIdx] ?? walls[0];
+
+  // Tuner state binds to the active wall. `committed` is the server
+  // truth for whichever wall the admin is currently looking at;
+  // `draft` is the local working copy sliders write to. Switching
+  // walls (= activeIdx changes) flips committed to the new wall's
+  // values, and the effect below resyncs draft so the tuner panel
+  // shows the new wall's positions instantly.
+  const committed = metaToTuner(activeWall);
   const [draft, setDraft] = useState<TunerValues>(committed);
   const [tunerOpen, setTunerOpen] = useState(false);
   const [editing, setEditing] = useState(false);
 
   // Keep draft in sync with committed (server) whenever it
   // changes. Compares JSON form to avoid clobbering an in-flight
-  // edit when the query revalidates with the same content.
-  const committedKey = JSON.stringify(committed);
+  // edit when the query revalidates with the same content. Also
+  // includes activeWall.id so swiping to a different wall resets
+  // the draft from that wall's committed values rather than
+  // carrying the last wall's edits over.
+  const committedKey = `${activeWall?.id ?? 0}:${JSON.stringify(committed)}`;
   useEffect(() => {
-    setDraft(metaToTuner(wall));
+    setDraft(metaToTuner(activeWall));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [committedKey]);
 
@@ -206,7 +212,7 @@ export default function HomeNextHero() {
     draft.titleFontSize !== committed.titleFontSize ||
     draft.titleRotationDeg !== committed.titleRotationDeg;
 
-  const updateMeta = useUpdateHomeMeta();
+  const updateMeta = useUpdateHomeMeta(activeWall?.id ?? 1);
 
   function handleSaveTuner() {
     updateMeta.mutate(tunerToPatch(draft));
@@ -245,16 +251,14 @@ export default function HomeNextHero() {
   const sceneH = Math.max(0, sceneFullH - TRIM_TOP_PX - TRIM_BOTTOM_PX);
   const scale = sceneW / SCENE_W;
 
-  const items = wall?.items ?? [];
-  const meta = wall;
-  const walls = data?.walls ?? [];
+  const items = activeWall?.items ?? [];
+  const meta = activeWall;
 
   // Carousel — horizontal scroll-snap container. Each wall is one
-  // slide at 100% of the carousel width. activeIdx tracks which
-  // slide is currently centered so the dot pagination + admin chip
-  // labels can reflect it.
+  // slide at 100% of the carousel width. The IntersectionObserver
+  // below feeds setActiveIdx so the admin chips + dot pagination
+  // know which wall the user is currently looking at.
   const carouselRef = useRef<HTMLDivElement>(null);
-  const [activeIdx, setActiveIdx] = useState(0);
   useEffect(() => {
     const root = carouselRef.current;
     if (!root) return;
@@ -310,8 +314,8 @@ export default function HomeNextHero() {
               key={w.id}
               wall={w}
               dataWallIdx={i}
-              isFirst={i === 0}
-              tuner={i === 0 ? tuner : metaToTuner(w)}
+              isFirst={i === activeIdx}
+              tuner={i === activeIdx ? tuner : metaToTuner(w)}
               sceneW={sceneW}
               sceneFullH={sceneFullH}
               scale={scale}
@@ -345,16 +349,18 @@ export default function HomeNextHero() {
       )}
 
       {/* Admin chip pair — 편집 and 보정 anchored to the hero's top-
-          right corner. Pinned to wall 0 in v1; per-wall admin tuning
-          is a follow-up. Tooltip clarifies which wall the buttons act
-          on so swiping past wall 0 doesn't read as "edits go here". */}
+          right corner. Both chips target the currently-centred wall
+          so swiping the carousel changes which wall the next click
+          edits. Tooltip echoes the active position (1번째 / 2번째 /
+          3번째) so the admin can confirm which wall is about to be
+          touched before clicking. */}
       {isAdmin && !editing && !tunerOpen && (
         <div className="absolute top-3 right-3 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity">
           <button
             type="button"
             onClick={() => setEditing(true)}
             className="text-[11px] text-gray-200 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-colors"
-            title="첫 번째 벽 편집"
+            title={`${activeIdx + 1}번째 벽 편집`}
           >
             ✏️ 편집
           </button>
@@ -362,7 +368,7 @@ export default function HomeNextHero() {
             type="button"
             onClick={() => setTunerOpen(true)}
             className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-colors flex items-center gap-1.5"
-            title="첫 번째 벽 위치 보정"
+            title={`${activeIdx + 1}번째 벽 위치 보정`}
           >
             ⚙ 보정
             {isDirty && (
@@ -375,9 +381,9 @@ export default function HomeNextHero() {
         </div>
       )}
 
-      {isAdmin && editing && (
+      {isAdmin && editing && activeWall && (
         <VinylWallEditor
-          target={{ kind: 'home-features' }}
+          target={{ kind: 'home-features', wallId: activeWall.id }}
           initialWall={homeItemsToWallItems(items)}
           initialTheme={meta?.theme ?? null}
           initialDescription={meta?.description ?? null}

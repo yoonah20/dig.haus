@@ -203,7 +203,28 @@ const ALLOWED_BLEND_MODES = new Set([
   'plus-lighter',
 ]);
 
+// Resolve the wall id this admin request operates on. ?wallId=N picks
+// a specific wall, defaulting to wall 1 (the original singleton) when
+// omitted. Validates that the row actually exists so a typo'd id
+// doesn't silently UPDATE / INSERT against nothing.
+function resolveWallId(req: { query: { wallId?: unknown } }): number | null {
+  const raw = req.query.wallId;
+  const n = typeof raw === 'string' ? Number.parseInt(raw, 10) : 1;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
 router.patch('/home/meta', requireAdmin, (req, res) => {
+  const wallId = resolveWallId(req);
+  if (wallId == null) {
+    return res.status(400).json({ error: 'wallId는 양의 정수여야 해요.' });
+  }
+  const exists = getDb()
+    .prepare('SELECT 1 FROM home_walls WHERE id = ?')
+    .get(wallId);
+  if (!exists) {
+    return res.status(404).json({ error: `wall id=${wallId} 없음.` });
+  }
   const body = (req.body ?? {}) as {
     theme?: unknown;
     description?: unknown;
@@ -341,12 +362,22 @@ router.patch('/home/meta', requireAdmin, (req, res) => {
   sets.push("updated_at = datetime('now')");
   const db = getDb();
   db.prepare(
-    `UPDATE home_walls SET ${sets.join(', ')} WHERE id = 1`
-  ).run(...args);
+    `UPDATE home_walls SET ${sets.join(', ')} WHERE id = ?`
+  ).run(...args, wallId);
   res.json({ ok: true });
 });
 
 router.put('/home/features/items', requireAdmin, (req, res) => {
+  const wallId = resolveWallId(req);
+  if (wallId == null) {
+    return res.status(400).json({ error: 'wallId는 양의 정수여야 해요.' });
+  }
+  const exists = getDb()
+    .prepare('SELECT 1 FROM home_walls WHERE id = ?')
+    .get(wallId);
+  if (!exists) {
+    return res.status(404).json({ error: `wall id=${wallId} 없음.` });
+  }
   const body = (req.body ?? {}) as { items?: unknown };
   if (!Array.isArray(body.items)) {
     return res.status(400).json({ error: 'items array 필요' });
@@ -395,14 +426,13 @@ router.put('/home/features/items', requireAdmin, (req, res) => {
     resolved.push({ position: it.position, albumId: row.id, note: it.note });
   }
 
-  // PUT path edits wall 1 only; multi-wall admin tuner is a follow-up.
   const tx = db.transaction((items: typeof resolved) => {
-    db.prepare('DELETE FROM home_features WHERE wall_id = 1').run();
+    db.prepare('DELETE FROM home_features WHERE wall_id = ?').run(wallId);
     const insert = db.prepare(
       `INSERT INTO home_features (wall_id, album_id, position, note)
-       VALUES (1, ?, ?, ?)`
+       VALUES (?, ?, ?, ?)`
     );
-    for (const it of items) insert.run(it.albumId, it.position, it.note);
+    for (const it of items) insert.run(wallId, it.albumId, it.position, it.note);
   });
 
   try {

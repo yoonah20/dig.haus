@@ -83,7 +83,7 @@ interface CandidatePanelData {
 export type EditTarget =
   | { kind: 'wall' }
   | { kind: 'snapshot'; id: number; slug: string }
-  | { kind: 'home-features' }
+  | { kind: 'home-features'; wallId: number }
   | { kind: 'fresh-snapshot' };
 
 interface Props {
@@ -288,7 +288,10 @@ export default function VinylWallEditor({
     target.kind === 'snapshot' ? target.id : null,
     target.kind === 'snapshot' ? target.slug : null
   );
-  const homeFeaturesSave = useReplaceHomeFeatures();
+  const homeFeaturesWallId = isHomeFeaturesTarget
+    ? (target as { kind: 'home-features'; wallId: number }).wallId
+    : 1;
+  const homeFeaturesSave = useReplaceHomeFeatures(homeFeaturesWallId);
   const save = isHomeFeaturesTarget
     ? homeFeaturesSave
     : isSnapshotTarget
@@ -296,7 +299,7 @@ export default function VinylWallEditor({
       : wallSave;
   const themeUpdate = useUpdateVinylWallTheme(username);
   const snapshotMetaUpdate = useUpdateVinylWallSnapshot(username);
-  const homeMetaUpdate = useUpdateHomeMeta();
+  const homeMetaUpdate = useUpdateHomeMeta(homeFeaturesWallId);
 
   // Title + description + (snapshot-only) public flag. Shared by
   // both targets so the owner edits name + description + albums in

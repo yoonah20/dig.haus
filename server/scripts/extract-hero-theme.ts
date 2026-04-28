@@ -1,32 +1,45 @@
-// Sample the dominant wall colour from the desktop hero backdrop and
-// rewrite client/src/lib/heroTheme.ts so the mobile hero (which can't
-// load the AVIF directly) and the desktop hero share one set of
-// surface + ink tokens.
+// Sample the dominant wall colour from a backdrop image and apply it
+// to a home_walls row.
 //
 // Why this exists:
-//   The desktop hero uses a baked-in wall photo; the mobile hero uses
-//   a tiled paper texture + a flat fill colour. Whenever the desktop
-//   backdrop swapped (gray basement → purple basement, etc.) the
-//   mobile fill and the title ink colour drifted out of sync, and
-//   "dark brown ink on dark purple wall" went unreadable. This script
-//   is the single point that re-derives both.
+//   Each home_walls row stores its own ink_color / shadow_css /
+//   wall_color tokens so the hero carousel renders each track with
+//   contrast that's correct for that backdrop's surface tone (cream
+//   ink against dark plum, dark brown ink against warm beige, etc.).
+//   Deriving those tokens by hand means eyeballing hex codes, which
+//   is the kind of thing a script does better.
 //
 // Usage:
-//   npm --prefix server run extract-hero-theme
+//   npm --prefix server run extract-hero-theme -- <backdrop-file> [wall-id]
 //
-// Reads HERO_BACKDROP_FILE from client/src/lib/heroTheme.ts, samples
-// the AVIF in client/public/backdrops/, and rewrites the AUTO-
-// GENERATED block in heroTheme.ts.
+//   Examples:
+//     npm --prefix server run extract-hero-theme -- basement_dawn.avif
+//       → samples the file in client/public/backdrops/ and prints
+//         the sampled wall hex + derived ink + shadow + a SQL hint.
+//         No DB write — useful for previewing before committing.
+//
+//     npm --prefix server run extract-hero-theme -- basement_dawn.avif 2
+//       → samples + runs UPDATE home_walls SET backdrop_file = ...,
+//         ink_color = ..., shadow_css = ..., wall_color = ...
+//         WHERE id = 2.  The wall slot in the carousel immediately
+//         picks up the new backdrop on next page load.
+//
+// The script reads the live SQLite DB at the standard server data
+// path so the change shows up the moment the dev server reloads.
 
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import Database from 'better-sqlite3';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..');
-const HERO_THEME_PATH = resolve(REPO_ROOT, 'client/src/lib/heroTheme.ts');
 const BACKDROPS_DIR = resolve(REPO_ROOT, 'client/public/backdrops');
+// Standard server data path. Override via DB_PATH env if running
+// against a different DB (e.g. a sanitised local copy).
+const DB_PATH =
+  process.env.DB_PATH || resolve(REPO_ROOT, 'server/data/diggershaus.db');
 
 // 5 bits per channel = 32 buckets per channel = 32^3 = 32k buckets
 // total. Coarse enough that lighting noise across the wall collapses
@@ -39,14 +52,6 @@ interface ExtractedTheme {
   wall: string;
   ink: string;
   shadow: string;
-}
-
-function parseBackdropFile(source: string): string {
-  const m = source.match(/HERO_BACKDROP_FILE\s*=\s*'([^']+)'/);
-  if (!m) {
-    throw new Error('could not parse HERO_BACKDROP_FILE from heroTheme.ts');
-  }
-  return m[1];
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
@@ -78,9 +83,6 @@ async function extractDominant(buffer: Buffer): Promise<{ r: number; g: number; 
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
-    // Quantize into the bucket key. Reading the same bucket back as
-    // the bucket centre means the final colour is a stable midpoint,
-    // not a single arbitrary pixel value.
     const qr = (r >> (8 - QUANTIZE_BITS)) & ((1 << QUANTIZE_BITS) - 1);
     const qg = (g >> (8 - QUANTIZE_BITS)) & ((1 << QUANTIZE_BITS) - 1);
     const qb = (b >> (8 - QUANTIZE_BITS)) & ((1 << QUANTIZE_BITS) - 1);
@@ -124,48 +126,100 @@ function deriveTheme(wall: { r: number; g: number; b: number }): ExtractedTheme 
   return { wall: wallHex, ink, shadow };
 }
 
-function rewriteThemeFile(source: string, backdropFile: string, theme: ExtractedTheme): string {
-  const start = source.indexOf('// === AUTO-GENERATED');
-  const endMarker = '// === END AUTO-GENERATED ===';
-  const end = source.indexOf(endMarker);
-  if (start === -1 || end === -1) {
-    throw new Error('could not locate AUTO-GENERATED block in heroTheme.ts');
-  }
-  const block =
-    `// === AUTO-GENERATED — do not hand-edit, run extract-hero-theme ===
-// Last source: ${backdropFile}
-export const HERO_THEME = {
-  // Dominant wall colour sampled from the backdrop. Used as the
-  // mobile hero's background tone so the mobile band reads as the
-  // same room as desktop.
-  wall: '${theme.wall}',
-  // Title ink colour — auto-flipped to stay readable against the
-  // wall (light wall → dark ink, dark wall → cream ink).
-  ink: '${theme.ink}',
-  // Title text-shadow — direction inverts with ink so the halo
-  // anchors letters to the surface instead of bleaching them.
-  shadow: '${theme.shadow}',
-} as const;
-`;
-  return source.slice(0, start) + block + source.slice(end);
+function printUsage() {
+  console.error(
+    'Usage: npm --prefix server run extract-hero-theme -- <backdrop-file> [wall-id]'
+  );
+  console.error('');
+  console.error('  <backdrop-file>  filename inside client/public/backdrops/');
+  console.error('  [wall-id]        optional — when given, runs an UPDATE on');
+  console.error('                   home_walls(id=wall-id). Without it, prints');
+  console.error('                   a SQL hint instead.');
 }
 
 async function main() {
-  const themeSource = await readFile(HERO_THEME_PATH, 'utf8');
-  const backdropFile = parseBackdropFile(themeSource);
-  const backdropPath = resolve(BACKDROPS_DIR, backdropFile);
+  const [backdropFile, wallIdArg] = process.argv.slice(2);
+  if (!backdropFile) {
+    printUsage();
+    process.exit(1);
+  }
 
+  const backdropPath = resolve(BACKDROPS_DIR, backdropFile);
   console.log(`[hero-theme] sampling ${backdropFile}`);
-  const buffer = await readFile(backdropPath);
+
+  let buffer: Buffer;
+  try {
+    buffer = await readFile(backdropPath);
+  } catch (err) {
+    console.error(
+      `[hero-theme] could not read ${backdropPath}: ${(err as Error).message}`
+    );
+    process.exit(1);
+  }
+
   const wall = await extractDominant(buffer);
   const theme = deriveTheme(wall);
+  const lum = luminance(wall.r, wall.g, wall.b);
   console.log(
-    `[hero-theme] wall=${theme.wall} (lum=${luminance(wall.r, wall.g, wall.b).toFixed(2)}) ink=${theme.ink}`
+    `[hero-theme] wall=${theme.wall} (lum=${lum.toFixed(2)}) ink=${theme.ink}`
   );
+  console.log(`[hero-theme] shadow=${theme.shadow}`);
 
-  const next = rewriteThemeFile(themeSource, backdropFile, theme);
-  await writeFile(HERO_THEME_PATH, next, 'utf8');
-  console.log(`[hero-theme] wrote ${HERO_THEME_PATH}`);
+  if (!wallIdArg) {
+    // Dry-run path — print a SQL snippet the user can paste, no DB write.
+    console.log('');
+    console.log('SQL to apply (replace <wall-id> with the target row):');
+    console.log(
+      `  UPDATE home_walls SET backdrop_file = '${backdropFile}', wall_color = '${theme.wall}', ink_color = '${theme.ink}', shadow_css = '${theme.shadow}' WHERE id = <wall-id>;`
+    );
+    console.log('');
+    console.log(
+      'Or rerun with a wall id to apply the update directly:'
+    );
+    console.log(
+      `  npm --prefix server run extract-hero-theme -- ${backdropFile} <wall-id>`
+    );
+    return;
+  }
+
+  const wallId = Number.parseInt(wallIdArg, 10);
+  if (!Number.isFinite(wallId) || wallId <= 0) {
+    console.error(`[hero-theme] invalid wall id: ${wallIdArg}`);
+    process.exit(1);
+  }
+
+  const db = new Database(DB_PATH);
+  try {
+    const exists = db
+      .prepare('SELECT 1 FROM home_walls WHERE id = ?')
+      .get(wallId);
+    if (!exists) {
+      console.error(
+        `[hero-theme] no home_walls row with id=${wallId}. Available ids:`
+      );
+      const rows = db
+        .prepare('SELECT id, position, backdrop_file FROM home_walls ORDER BY position')
+        .all() as Array<{ id: number; position: number; backdrop_file: string }>;
+      for (const r of rows) {
+        console.error(`  - id=${r.id} (position ${r.position}, backdrop=${r.backdrop_file})`);
+      }
+      process.exit(1);
+    }
+    db.prepare(
+      `UPDATE home_walls
+         SET backdrop_file = ?,
+             wall_color = ?,
+             ink_color = ?,
+             shadow_css = ?,
+             updated_at = datetime('now')
+       WHERE id = ?`
+    ).run(backdropFile, theme.wall, theme.ink, theme.shadow, wallId);
+    console.log(
+      `[hero-theme] updated home_walls(id=${wallId}) → backdrop_file=${backdropFile}, wall=${theme.wall}, ink=${theme.ink}`
+    );
+  } finally {
+    db.close();
+  }
 }
 
 main().catch((err) => {
