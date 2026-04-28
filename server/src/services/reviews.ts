@@ -375,6 +375,15 @@ export const EXCLUDED_URL_PATH_PATTERNS: RegExp[] = [
   // here's the streaming link" post rather than evaluative prose.
   /\b(?:album|ep|single|video)[-_]?out[-_]now\b/i,
   /\bout[-_]now[-_]via\b/i,
+  // /news/ section paths. Outlets group press-release reposts,
+  // tour announcements, lineup changes, and label news under a
+  // /news/ subdirectory; even when an album is mentioned in a
+  // headline there, the post itself is factual rather than
+  // evaluative. Matches /news/ (and /news at end of path), plus
+  // /news-foo (news listing slug) and /category/news/ style index
+  // pages — `\b` boundaries skip false positives like /newsletter,
+  // /newsboys (band name), /newscastle (place name).
+  /\bnews\b/i,
 ];
 
 // Normalize a URL for duplicate-detection only — what we STORE is still
