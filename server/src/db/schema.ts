@@ -1689,6 +1689,38 @@ export function initializeDatabase(db: Database.Database): void {
     console.log('[migration] swapped walls 2 + 3 to basement_black + basement_plant');
   });
 
+  // Backfill 에모 → 이모 in already-stored Korean text. The
+  // normaliseKoreanTerms post-process in claude.ts handles new
+  // outputs going forward, but rows generated before that rule
+  // shipped still carry the literal phonetic transliteration. The
+  // Korean vinyl / hardcore-adjacent listening community uses
+  // "이모" exclusively for the genre.
+  //
+  // Two columns store Claude's Korean prose: albums.korean_summary
+  // (per-album summary) and reviews.excerpt_ko (per-review
+  // excerpt). The excerpt_edits audit table also has old_/new_
+  // excerpt_ko but those are historical records of edits — leaving
+  // them untouched preserves the audit trail's integrity.
+  runOnce(db, 'normalise-emo-to-imo-2026-04-29', () => {
+    const a = db
+      .prepare(
+        `UPDATE albums
+            SET korean_summary = REPLACE(korean_summary, '에모', '이모')
+          WHERE korean_summary LIKE '%에모%'`
+      )
+      .run();
+    const r = db
+      .prepare(
+        `UPDATE reviews
+            SET excerpt_ko = REPLACE(excerpt_ko, '에모', '이모')
+          WHERE excerpt_ko LIKE '%에모%'`
+      )
+      .run();
+    console.log(
+      `[migration] 에모 → 이모: ${a.changes} album summaries, ${r.changes} review excerpts`
+    );
+  });
+
   // Walls 2 and 3 inherited the schema defaults for the LP / title
   // tuner cols (lpSize 357, upperLpY 279, lowerLpY 752, etc.) while
   // wall 1 carried the operator's tuned values (lpSize 336, upper
