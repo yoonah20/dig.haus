@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import {
   useHomeFeatures,
   type HomeFeatureItem,
-  type HomeMeta,
+  type HomeWall,
 } from '../../hooks/useHomeFeatures';
 import { WallLP, WallRail } from '../MyDig/storefront/primitives';
 import WallHoverCard from '../MyDig/storefront/WallHoverCard';
@@ -118,8 +118,12 @@ export default function HomeNextHeroMobile() {
     Math.round(PAD_X + (innerW - railWidth) / 2)
   );
 
-  const items = data?.items ?? [];
-  const meta = data?.meta;
+  // v1 of the multi-wall response — render the first wall only.
+  // Carousel wrapping (multiple walls swipeable horizontally) is
+  // the next commit.
+  const wall = data?.walls?.[0];
+  const items = wall?.items ?? [];
+  const meta = wall;
   const slots = Array.from({ length: ROWS * COLS }, (_, i) =>
     items.find((it) => it.position === i) ?? null
   );
@@ -321,7 +325,7 @@ function MobileFeatureCell({
   item: HomeFeatureItem;
   position: number;
   lpSize: number;
-  plasticMeta: HomeMeta | undefined;
+  plasticMeta: HomeWall | undefined;
 }) {
   const album = item.album;
   const target = album.slug || album.mbid;

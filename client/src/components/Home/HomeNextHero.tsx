@@ -3,7 +3,7 @@ import {
   useHomeFeatures,
   useUpdateHomeMeta,
   type HomeFeatureItem,
-  type HomeMeta,
+  type HomeWall,
   type HomeMetaPatch,
 } from '../../hooks/useHomeFeatures';
 import { useAuth } from '../../contexts/AuthContext';
@@ -89,7 +89,7 @@ const DEFAULT_TUNER: TunerValues = {
 // header_*_px columns (legacy from the deleted HomeWall) since
 // they're already wired into the meta PATCH endpoint; tuner
 // names stay title* so the UI labels read naturally.
-function metaToTuner(meta: HomeMeta | undefined): TunerValues {
+function metaToTuner(meta: HomeWall | undefined): TunerValues {
   if (!meta) return DEFAULT_TUNER;
   return {
     lpSize: meta.lpSize,
@@ -162,13 +162,20 @@ export default function HomeNextHero() {
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
 
-  // Tuner values now live in home_meta on the server so a 저장
-  // click publishes globally. `committed` is derived from
-  // data?.meta each render; `draft` is the local working copy
-  // sliders write to. When the meta query refreshes (after a
-  // save), the effect resyncs draft from committed so isDirty
-  // collapses to false. 되돌리기 = setDraft(committed).
-  const committed = metaToTuner(data?.meta);
+  // v1 of the multi-wall response: render the first wall only. Carousel
+  // wrapping (multiple walls swipeable horizontally) is the next
+  // commit; this checkpoint just rewires from the deprecated
+  // { items, meta } shape to walls[0] so the schema migration can
+  // ship without the home page going blank.
+  const wall = data?.walls?.[0];
+
+  // Tuner values now live in home_walls(id=1) on the server so a 저장
+  // click publishes globally. `committed` is derived from `wall` each
+  // render; `draft` is the local working copy sliders write to. When
+  // the meta query refreshes (after a save), the effect resyncs draft
+  // from committed so isDirty collapses to false. 되돌리기 =
+  // setDraft(committed).
+  const committed = metaToTuner(wall);
   const [draft, setDraft] = useState<TunerValues>(committed);
   const [tunerOpen, setTunerOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -178,7 +185,7 @@ export default function HomeNextHero() {
   // edit when the query revalidates with the same content.
   const committedKey = JSON.stringify(committed);
   useEffect(() => {
-    setDraft(metaToTuner(data?.meta));
+    setDraft(metaToTuner(wall));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [committedKey]);
 
@@ -238,8 +245,8 @@ export default function HomeNextHero() {
   const lpSize = Math.max(40, Math.round(tuner.lpSize * scale));
   const lpGap = Math.max(0, Math.round(tuner.lpGap * scale));
 
-  const items = data?.items ?? [];
-  const meta = data?.meta;
+  const items = wall?.items ?? [];
+  const meta = wall;
   const slots = Array.from({ length: 10 }, (_, i) =>
     items.find((it) => it.position === i) ?? null
   );
@@ -531,7 +538,7 @@ function ShelfRow({
   rowLeftX: number;
   lpSize: number;
   lpGap: number;
-  plasticMeta: HomeMeta | undefined;
+  plasticMeta: HomeWall | undefined;
 }) {
   return (
     <>

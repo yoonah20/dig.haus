@@ -36,27 +36,37 @@ export interface HomeFeatureItem {
   album: HomeFeatureAlbum;
 }
 
-export interface HomeMeta {
+// One slide in the carousel — its own backdrop + ink palette + 15
+// LP slots. Server returns walls in `position ASC` order; the client
+// renders them as parallel curatorial tracks (이번 주 발굴 / 시즌 무드
+// / etc.) the visitor swipes between. Per-wall HERO_THEME tokens
+// (inkColor / shadowCss / wallColor) replace the previous singleton
+// from heroTheme.ts so basement5 (light surface) gets dark ink while
+// basement_purple (dark surface) keeps cream.
+export interface HomeWall {
+  id: number;
+  position: number;
+  backdropFile: string;
   theme: string | null;
   description: string | null;
-  // Handwritten header position knobs — px offsets from the wall
-  // section's top-left, rotation in degrees. Server fills defaults
-  // when the columns are null, so these are always numbers in the
-  // payload even though the underlying SQL columns are nullable.
+  inkColor: string;
+  shadowCss: string;
+  wallColor: string;
+  // Handwritten header position knobs — px offsets from the wall's
+  // top-left, rotation in degrees. Server fills defaults when the
+  // columns are null, so these are always numbers in the payload.
   headerTopPx: number;
   headerLeftPx: number;
   headerRotationDeg: number;
   // Plastic-wrap raster overlay tuning — scale_pct = how much larger
-  // than the cover (15 = 15% larger), offsets in px (positive x =
-  // right, positive y = down). blend_mode controls how the texture
-  // composites onto the cover (screen/overlay/soft-light etc).
+  // than the cover (15 = 15% larger), offsets in px. blend_mode
+  // controls how the texture composites onto the cover.
   plasticScalePct: number;
   plasticOffsetXPx: number;
   plasticOffsetYPx: number;
   plasticBlendMode: string;
-  // Hero LP / title tuner — moved off per-admin localStorage so
-  // saving from the in-page tuner publishes globally. All values
-  // live in source-image px (the 2976×1500 backdrop coord space).
+  // Hero LP / title tuner — values in source-image px (the 2976×1500
+  // backdrop coord space).
   lpSize: number;
   lpGap: number;
   upperLpXStart: number;
@@ -65,10 +75,11 @@ export interface HomeMeta {
   lowerLpY: number;
   titleFontSize: number;
   titleRotationDeg: number;
+  items: HomeFeatureItem[];
 }
 
 export function useHomeFeatures() {
-  return useQuery<{ items: HomeFeatureItem[]; meta: HomeMeta }>({
+  return useQuery<{ walls: HomeWall[] }>({
     queryKey: ['home-features'],
     queryFn: async () => {
       const { data } = await axios.get('/api/home/features');

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getDb, queryAll, queryGet } from '../db/index.js';
+import { getDb, queryAll } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { convertToKrwSync, getRates } from '../services/exchangeRates.js';
 
@@ -7,22 +7,46 @@ import { convertToKrwSync, getRates } from '../services/exchangeRates.js';
 // the mydig vinyl-wall data shape (album_id, position) minus the
 // user_id — this is a global wall, not per-user.
 //
-// Multi-wall carousel scaffolding: the schema now keys home_features
-// rows by wall_id and stores per-wall meta (theme + description +
-// tuner cols + ink/shadow/wall colour tokens) on home_walls. v1 of
-// this endpoint stays on the single-wall { items, meta } shape so
-// existing client callers keep working — the response is sourced
-// from home_walls(id=1) (the migrated singleton). The walls[]
-// surface for the carousel UI lands in a follow-up commit.
+// Multi-wall carousel: schema keys home_features rows by wall_id and
+// stores per-wall meta (theme + description + tuner cols + ink /
+// shadow / wall_color tokens) on home_walls. The endpoint returns
+// the full walls array so the client carousel can render each track
+// with its own backdrop + ink palette.
 
 const router = Router();
 
 router.get('/home/features', async (_req, res) => {
-  // albums column is `artist_name`, not `artist` — alias to keep the
-  // client payload field stable. album_id is selected so we can
-  // batch-fetch purchase_links for the price sticker layer.
+  // Pull every wall row + every feature row in two batched queries,
+  // then group features by wall_id in memory. Cheaper than per-wall
+  // round trips and lets the album / purchase-link enrichment below
+  // run once across all featured albums regardless of how many walls
+  // they're spread over.
+  const wallRows = queryAll(
+    `SELECT id, position, backdrop_file AS backdropFile,
+            theme, description,
+            ink_color AS inkColor,
+            shadow_css AS shadowCss,
+            wall_color AS wallColor,
+            header_top_px AS headerTopPx,
+            header_left_px AS headerLeftPx,
+            header_rotation_deg AS headerRotationDeg,
+            plastic_scale_pct AS plasticScalePct,
+            plastic_offset_x_px AS plasticOffsetXPx,
+            plastic_offset_y_px AS plasticOffsetYPx,
+            plastic_blend_mode AS plasticBlendMode,
+            lp_size AS lpSize,
+            lp_gap AS lpGap,
+            upper_lp_x_start AS upperLpXStart,
+            lower_lp_x_start AS lowerLpXStart,
+            upper_lp_y AS upperLpY,
+            lower_lp_y AS lowerLpY,
+            title_font_size AS titleFontSize,
+            title_rotation_deg AS titleRotationDeg
+     FROM home_walls ORDER BY position ASC`
+  ) as Array<any>;
+
   const rows = queryAll(
-    `SELECT hf.position, hf.note,
+    `SELECT hf.wall_id AS wallId, hf.position, hf.note,
             a.id AS albumId,
             a.mbid, a.slug, a.title,
             a.artist_name AS artist,
@@ -42,8 +66,7 @@ router.get('/home/features', async (_req, res) => {
                AND r.score_max > 0) AS review_count
      FROM home_features hf
      JOIN albums a ON a.id = hf.album_id
-     WHERE hf.wall_id = 1
-     ORDER BY hf.position ASC`
+     ORDER BY hf.wall_id, hf.position ASC`
   );
 
   // Batch-fetch purchase_links for the listed album IDs and pick the
@@ -106,9 +129,12 @@ router.get('/home/features', async (_req, res) => {
     }
   }
 
-  const items = rows.map((row: any) => {
+  // Group features by wall_id. Each wall ends up with its own items[]
+  // array (possibly empty for walls that haven't been curated yet).
+  const itemsByWallId = new Map<number, any[]>();
+  for (const row of rows as any[]) {
     const top = topByAlbumId.get(row.albumId);
-    return {
+    const item = {
       position: row.position,
       note: row.note,
       album: {
@@ -123,85 +149,44 @@ router.get('/home/features', async (_req, res) => {
         coverDominantColor: row.coverDominantColor ?? null,
         spotifyUrl: row.spotifyUrl ?? null,
         releaseDate: row.releaseDate ?? null,
-        // averageScore + reviewCount mirror /api/albums shape so the
-        // home wall can apply the same MIN_SCORED_FOR_AVG gate before
-        // surfacing the dig.haus PICK sticker on standout records.
         averageScore: row.avg_score != null ? Math.round(row.avg_score) : null,
         reviewCount: row.review_count || 0,
-        // priceTagLinks always returns an array (possibly empty) so
-        // the client can do a uniform `[0]` lookup; the wall sticker
-        // only uses the top entry but the array shape stays
-        // consistent with /api/albums for any future caller.
         priceTagLinks: top ? [top] : [],
       },
     };
-  });
+    const bucket = itemsByWallId.get(row.wallId);
+    if (bucket) bucket.push(item);
+    else itemsByWallId.set(row.wallId, [item]);
+  }
 
-  const metaRow = queryGet(
-    `SELECT theme, description,
-            header_top_px AS headerTopPx,
-            header_left_px AS headerLeftPx,
-            header_rotation_deg AS headerRotationDeg,
-            plastic_scale_pct AS plasticScalePct,
-            plastic_offset_x_px AS plasticOffsetXPx,
-            plastic_offset_y_px AS plasticOffsetYPx,
-            plastic_blend_mode AS plasticBlendMode,
-            lp_size AS lpSize,
-            lp_gap AS lpGap,
-            upper_lp_x_start AS upperLpXStart,
-            lower_lp_x_start AS lowerLpXStart,
-            upper_lp_y AS upperLpY,
-            lower_lp_y AS lowerLpY,
-            title_font_size AS titleFontSize,
-            title_rotation_deg AS titleRotationDeg
-     FROM home_walls WHERE id = 1`
-  ) as {
-    theme: string | null;
-    description: string | null;
-    headerTopPx: number | null;
-    headerLeftPx: number | null;
-    headerRotationDeg: number | null;
-    plasticScalePct: number | null;
-    plasticOffsetXPx: number | null;
-    plasticOffsetYPx: number | null;
-    plasticBlendMode: string | null;
-    lpSize: number | null;
-    lpGap: number | null;
-    upperLpXStart: number | null;
-    lowerLpXStart: number | null;
-    upperLpY: number | null;
-    lowerLpY: number | null;
-    titleFontSize: number | null;
-    titleRotationDeg: number | null;
-  } | null;
+  const walls = wallRows.map((w: any) => ({
+    id: w.id,
+    position: w.position,
+    backdropFile: w.backdropFile,
+    theme: w.theme ?? null,
+    description: w.description ?? null,
+    inkColor: w.inkColor,
+    shadowCss: w.shadowCss,
+    wallColor: w.wallColor,
+    headerTopPx: w.headerTopPx ?? 102,
+    headerLeftPx: w.headerLeftPx ?? 305,
+    headerRotationDeg: w.headerRotationDeg ?? -1,
+    plasticScalePct: w.plasticScalePct ?? 15,
+    plasticOffsetXPx: w.plasticOffsetXPx ?? 5,
+    plasticOffsetYPx: w.plasticOffsetYPx ?? 0,
+    plasticBlendMode: w.plasticBlendMode ?? 'normal',
+    lpSize: w.lpSize ?? 357,
+    lpGap: w.lpGap ?? 30,
+    upperLpXStart: w.upperLpXStart ?? 531,
+    lowerLpXStart: w.lowerLpXStart ?? 531,
+    upperLpY: w.upperLpY ?? 279,
+    lowerLpY: w.lowerLpY ?? 752,
+    titleFontSize: w.titleFontSize ?? 67,
+    titleRotationDeg: w.titleRotationDeg ?? -1,
+    items: itemsByWallId.get(w.id) ?? [],
+  }));
 
-  res.json({
-    items,
-    meta: {
-      theme: metaRow?.theme ?? null,
-      description: metaRow?.description ?? null,
-      // Defaults match the originally-hardcoded constants from the
-      // first header pass — return them when the column is null so
-      // the client doesn't have to know the fallback values.
-      headerTopPx: metaRow?.headerTopPx ?? -120,
-      headerLeftPx: metaRow?.headerLeftPx ?? 4,
-      headerRotationDeg: metaRow?.headerRotationDeg ?? -4,
-      plasticScalePct: metaRow?.plasticScalePct ?? 15,
-      plasticOffsetXPx: metaRow?.plasticOffsetXPx ?? 5,
-      plasticOffsetYPx: metaRow?.plasticOffsetYPx ?? 0,
-      plasticBlendMode: metaRow?.plasticBlendMode ?? 'normal',
-      // Hero LP / title tuner — defaults mirror the calibrated
-      // values the admin landed on in the localStorage era.
-      lpSize: metaRow?.lpSize ?? 357,
-      lpGap: metaRow?.lpGap ?? 30,
-      upperLpXStart: metaRow?.upperLpXStart ?? 531,
-      lowerLpXStart: metaRow?.lowerLpXStart ?? 531,
-      upperLpY: metaRow?.upperLpY ?? 279,
-      lowerLpY: metaRow?.lowerLpY ?? 752,
-      titleFontSize: metaRow?.titleFontSize ?? 67,
-      titleRotationDeg: metaRow?.titleRotationDeg ?? -1,
-    },
-  });
+  res.json({ walls });
 });
 
 // Allowed mix-blend-mode values for the plastic overlay. Trimmed to
