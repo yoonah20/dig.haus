@@ -30,6 +30,7 @@ import WallHoverCard from '../MyDig/storefront/WallHoverCard';
 import VinylWallEditor from '../MyDig/VinylWallEditor';
 import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
+import PostItNote from './PostItNote';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 // HERO_BACKDROP_URL / HERO_THEME singletons used to drive the whole
 // hero. They're now per-wall (each home_walls row carries its own
@@ -791,6 +792,12 @@ function ShelfRow({
         const score = item?.album.averageScore ?? null;
         const reviewCount = item?.album.reviewCount ?? 0;
         const isPick = score != null && score >= 86 && reviewCount >= 3;
+        // Post-it note: home_features.note overrides admin's 50자 평
+        // (the per-slot hero context wins over the album-page note
+        // when both exist). Only render when at least one of them
+        // has content — empty slots stay clean so the slots that
+        // *do* carry a comment draw the eye naturally.
+        const noteText = item?.note?.trim() || item?.adminReview?.trim() || null;
         return (
           <div
             key={position}
@@ -830,6 +837,13 @@ function ShelfRow({
                     {topLink && (
                       <HomeFeatureSticker
                         link={topLink}
+                        lpSize={lpSize}
+                        seed={item.album.mbid}
+                      />
+                    )}
+                    {noteText && (
+                      <PostItNote
+                        text={noteText}
                         lpSize={lpSize}
                         seed={item.album.mbid}
                       />

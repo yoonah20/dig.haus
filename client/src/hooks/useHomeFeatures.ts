@@ -32,7 +32,16 @@ export interface HomeFeatureAlbum {
 
 export interface HomeFeatureItem {
   position: number;
+  /** Per-slot note set explicitly by admin on `home_features.note`.
+   *  Takes precedence over `adminReview` when both exist — the
+   *  hero-context override path. */
   note: string | null;
+  /** Admin's 50자 평 (`user_reviews.body` where author.is_admin = 1)
+   *  for this album, if any. Used as the fallback post-it text when
+   *  `note` is empty so the operator's voice on the album page
+   *  automatically extends to the hero wall without a second
+   *  authoring step. */
+  adminReview: string | null;
   album: HomeFeatureAlbum;
 }
 

@@ -63,7 +63,19 @@ router.get('/home/features', async (_req, res) => {
             (SELECT COUNT(*) FROM reviews r
              WHERE r.album_mbid = a.mbid
                AND COALESCE(r.manual_score, r.score) IS NOT NULL
-               AND r.score_max > 0) AS review_count
+               AND r.score_max > 0) AS review_count,
+            -- Admin's 50자 평 on this album, if any. Surfaced as a
+            -- post-it on the hero wall when home_features.note is
+            -- empty (the per-slot note takes precedence when set).
+            -- LIMIT 1 because UNIQUE(album_id, user_id) means at
+            -- most one row per (album, admin); the JOIN to users
+            -- gates on is_admin so non-admin entries are skipped.
+            (SELECT ur.body
+             FROM user_reviews ur
+             JOIN users u ON u.id = ur.user_id
+             WHERE ur.album_id = a.id AND u.is_admin = 1
+             ORDER BY ur.updated_at DESC
+             LIMIT 1) AS admin_review
      FROM home_features hf
      JOIN albums a ON a.id = hf.album_id
      ORDER BY hf.wall_id, hf.position ASC`
@@ -137,6 +149,7 @@ router.get('/home/features', async (_req, res) => {
     const item = {
       position: row.position,
       note: row.note,
+      adminReview: row.admin_review ?? null,
       album: {
         mbid: row.mbid,
         slug: row.slug,
