@@ -1333,6 +1333,27 @@ router.get('/llm-comparisons', (req, res) => {
   }
 });
 
+// ─── GET /api/admin/spotify/status ────────────────────────────────────
+//
+// Read-only check on the in-memory cooldown gate. Doesn't call
+// Spotify — just reports whether the gate is active and, if so,
+// when it expires. Set whenever a previous searchTrack call hit a
+// 429; if the server restarts mid-cooldown this resets to "free"
+// and the next real call will re-trigger the gate with a fresh
+// Retry-After value.
+router.get('/spotify/status', (_req, res) => {
+  const remainingMs = spotifyRateLimitRemainingMs();
+  const rateLimited = isSpotifyRateLimited();
+  res.json({
+    rateLimited,
+    remainingMs: rateLimited ? remainingMs : 0,
+    remainingMinutes: rateLimited ? Math.ceil(remainingMs / 1000 / 60) : 0,
+    cooldownEndsAt: rateLimited
+      ? new Date(Date.now() + remainingMs).toISOString()
+      : null,
+  });
+});
+
 // ─── POST /api/admin/spotify/backfill ─────────────────────────────────
 //
 // Walks every album row with `spotify_url IS NULL`, re-runs the
