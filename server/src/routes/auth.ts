@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import passport from 'passport';
-import type { AppUser } from '../auth/passport.js';
+import { PendingApprovalError, type AppUser } from '../auth/passport.js';
 
 const router = Router();
 
@@ -21,9 +21,25 @@ router.get('/google/callback', (req, res, next) => {
   if (!googleConfigured()) {
     return res.redirect(`${CLIENT_URL}/?auth=not_configured`);
   }
-  passport.authenticate('google', {
-    failureRedirect: `${CLIENT_URL}/?auth=failed`,
-    successRedirect: `${CLIENT_URL}/?auth=ok`,
+  // Custom callback (rather than passport.authenticate's
+  // success/failureRedirect shortcuts) so we can distinguish a real
+  // OAuth failure from an un-invited email getting bounced into the
+  // pending queue. PendingApprovalError surfaces from
+  // upsertGoogleUser → done(err) here, and we redirect to
+  // /?auth=pending so the client shows the awaiting-approval banner.
+  passport.authenticate('google', (err: any, user: AppUser | false) => {
+    if (err instanceof PendingApprovalError) {
+      return res.redirect(`${CLIENT_URL}/?auth=pending`);
+    }
+    if (err || !user) {
+      return res.redirect(`${CLIENT_URL}/?auth=failed`);
+    }
+    req.logIn(user, (loginErr) => {
+      if (loginErr) {
+        return res.redirect(`${CLIENT_URL}/?auth=failed`);
+      }
+      return res.redirect(`${CLIENT_URL}/?auth=ok`);
+    });
   })(req, res, next);
 });
 

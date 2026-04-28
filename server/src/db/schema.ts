@@ -411,6 +411,43 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
+  // Invitation gate. Email present here = allowed to complete a Google
+  // OAuth signup. Existing users get grandfathered into this list via
+  // the `seed-invited-emails-from-users-2026-04-28` runOnce migration
+  // below, so the gate ships transparently for anyone who was already
+  // logged in. New visitors land in `pending_signups` instead and an
+  // admin promotes them by inserting their email here (either via the
+  // /api/admin/invitations endpoint or directly via SQL).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS invited_emails (
+      email TEXT PRIMARY KEY,
+      invited_at TEXT DEFAULT (datetime('now')),
+      invited_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      note TEXT
+    )
+  `);
+
+  // Pending signup queue — every Google OAuth attempt by an
+  // un-invited email lands here. Stores the verified Google profile
+  // (name + avatar) so admin sees who's asking before deciding to
+  // promote into invited_emails. attempt_count + last_attempt_at let
+  // the admin tell a curious one-time visitor from someone who's
+  // actually waiting on approval. Once admin approves (= adds the
+  // email to invited_emails) the row stays here as a record but the
+  // user's next OAuth attempt completes the signup.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS pending_signups (
+      email TEXT PRIMARY KEY,
+      google_id TEXT,
+      name TEXT,
+      avatar_url TEXT,
+      first_attempt_at TEXT DEFAULT (datetime('now')),
+      last_attempt_at TEXT DEFAULT (datetime('now')),
+      attempt_count INTEGER DEFAULT 1,
+      notified_at TEXT
+    )
+  `);
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS wishlists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1045,6 +1082,26 @@ export function initializeDatabase(db: Database.Database): void {
       if (err.message?.includes('no such column')) return;
       throw err;
     }
+  });
+
+  // Grandfather every currently-registered user's email into
+  // invited_emails so the OAuth gate doesn't bounce people who were
+  // already logged in when the gate landed. INSERT OR IGNORE skips any
+  // email that's somehow already in the invite list (hand-seeded,
+  // re-run, etc.). invited_by is left NULL because the grandfather
+  // origin is the migration itself, not a particular admin.
+  runOnce(db, 'seed-invited-emails-from-users-2026-04-28', () => {
+    const result = db
+      .prepare(
+        `INSERT OR IGNORE INTO invited_emails (email, note)
+         SELECT email, 'grandfathered from users at gate rollout'
+         FROM users
+         WHERE email IS NOT NULL AND email != ''`
+      )
+      .run();
+    console.log(
+      `[migration] grandfathered ${result.changes} existing users into invited_emails`
+    );
   });
 
   // Move hosts out of the code-level EXCLUDED_URL_DOMAINS into the DB

@@ -1341,4 +1341,143 @@ router.delete('/llm-comparisons', (_req, res) => {
   }
 });
 
+// ─── Invitation gate management ───────────────────────────────────────
+//
+// Three endpoints back the /admin "가입 신청" panel. Pending signups
+// are listed by descending last_attempt_at so the most-recent ask is
+// at the top; once admin approves a row (= insert into invited_emails),
+// the row stays in pending_signups as a record but the user's next
+// Google login completes. Revoking an invite drops the email from
+// invited_emails — won't kick anyone already logged in (the gate only
+// runs at signup), but blocks future repeat-signup attempts.
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function normalizeEmail(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed || !EMAIL_RE.test(trimmed)) return null;
+  return trimmed;
+}
+
+// GET /api/admin/signups — combined view of pending requests + the
+// current invited list. Two arrays in one payload so the admin panel
+// renders both without juggling two queries.
+router.get('/signups', (_req, res) => {
+  try {
+    const pending = queryAll(
+      `SELECT p.email, p.name, p.avatar_url, p.first_attempt_at,
+              p.last_attempt_at, p.attempt_count, p.notified_at,
+              CASE WHEN i.email IS NOT NULL THEN 1 ELSE 0 END AS invited
+         FROM pending_signups p
+         LEFT JOIN invited_emails i ON LOWER(i.email) = LOWER(p.email)
+        ORDER BY p.last_attempt_at DESC, p.email ASC`
+    );
+    const invited = queryAll(
+      `SELECT i.email, i.invited_at, i.note,
+              u.id AS user_id, u.name AS user_name, u.avatar_url AS user_avatar
+         FROM invited_emails i
+         LEFT JOIN users u ON LOWER(u.email) = LOWER(i.email)
+        ORDER BY i.invited_at DESC, i.email ASC`
+    );
+    res.json({
+      pending: pending.map((r: any) => ({
+        email: r.email,
+        name: r.name,
+        avatarUrl: r.avatar_url,
+        firstAttemptAt: r.first_attempt_at,
+        lastAttemptAt: r.last_attempt_at,
+        attemptCount: r.attempt_count,
+        notifiedAt: r.notified_at,
+        invited: !!r.invited,
+      })),
+      invited: invited.map((r: any) => ({
+        email: r.email,
+        invitedAt: r.invited_at,
+        note: r.note,
+        user: r.user_id
+          ? { id: r.user_id, name: r.user_name, avatarUrl: r.user_avatar }
+          : null,
+      })),
+    });
+  } catch (err) {
+    console.error('[admin/signups] list failed:', err);
+    res.status(500).json({ error: '가입 신청 목록을 가져오지 못했어요.' });
+  }
+});
+
+// POST /api/admin/signups/invite — add an email to invited_emails.
+// Idempotent on email. Optional note for context ("DJ on Mastodon",
+// "label rep", etc.). The user's next Google login then completes
+// the signup; if the email is already in pending_signups, it gets
+// flagged as invited but isn't auto-promoted to users — Google must
+// re-authenticate so we have a fresh google_id.
+router.post('/signups/invite', (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  if (!email) {
+    return res.status(400).json({ error: '올바른 이메일이 필요해요.' });
+  }
+  const note =
+    typeof req.body?.note === 'string' && req.body.note.trim().length > 0
+      ? req.body.note.trim().slice(0, 280)
+      : null;
+  const inviter = (req.user as any)?.id ?? null;
+  try {
+    execute(
+      `INSERT INTO invited_emails (email, invited_by, note)
+       VALUES (?, ?, ?)
+       ON CONFLICT(email) DO UPDATE SET
+         invited_by = COALESCE(invited_by, excluded.invited_by),
+         note = COALESCE(excluded.note, note)`,
+      [email, inviter, note]
+    );
+    res.json({ ok: true, email });
+  } catch (err) {
+    console.error('[admin/signups/invite] failed:', err);
+    res.status(500).json({ error: '초대 처리에 실패했어요.' });
+  }
+});
+
+// DELETE /api/admin/signups/invite/:email — revoke an invite. Doesn't
+// affect anyone already in users (the gate only runs at signup) but
+// blocks future re-signup. Useful when an invited email never finished
+// the OAuth dance and admin wants to clean up.
+router.delete('/signups/invite/:email', (req, res) => {
+  const email = normalizeEmail(req.params.email);
+  if (!email) {
+    return res.status(400).json({ error: '올바른 이메일이 필요해요.' });
+  }
+  try {
+    const result = execute(
+      `DELETE FROM invited_emails WHERE LOWER(email) = LOWER(?)`,
+      [email]
+    );
+    res.json({ ok: true, removed: result.changes });
+  } catch (err) {
+    console.error('[admin/signups/invite] revoke failed:', err);
+    res.status(500).json({ error: '초대 취소에 실패했어요.' });
+  }
+});
+
+// DELETE /api/admin/signups/pending/:email — discard a pending request
+// without inviting. Drops the row from pending_signups; the email can
+// still try again later (a new row will be created). For declining a
+// signup attempt that doesn't fit the curation profile.
+router.delete('/signups/pending/:email', (req, res) => {
+  const email = normalizeEmail(req.params.email);
+  if (!email) {
+    return res.status(400).json({ error: '올바른 이메일이 필요해요.' });
+  }
+  try {
+    const result = execute(
+      `DELETE FROM pending_signups WHERE LOWER(email) = LOWER(?)`,
+      [email]
+    );
+    res.json({ ok: true, removed: result.changes });
+  } catch (err) {
+    console.error('[admin/signups/pending] discard failed:', err);
+    res.status(500).json({ error: '신청 삭제에 실패했어요.' });
+  }
+});
+
 export default router;

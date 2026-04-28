@@ -1016,6 +1016,15 @@ export default function Admin() {
             </div>
           </section>
 
+          {/* Signup gate — pending Google-OAuth attempts by un-invited
+              emails land here. Sits below the moderation queues
+              because it's a low-volume surface (admin acts on each
+              request once); the headerAction toggle reveals the full
+              invited-emails list when needed for revoke / audit. */}
+          <section className="mt-4">
+            <SignupGatePanel />
+          </section>
+
         </>
       )}
 
@@ -2339,6 +2348,255 @@ function CurationRunsPanel() {
             );
           })}
         </div>
+      )}
+    </Panel>
+  );
+}
+
+// ─── Signup gate ──────────────────────────────────────────────
+// invited_emails + pending_signups admin surface. Pending requests
+// land here when an un-invited Google email tries to log in (server
+// side: PendingApprovalError → /?auth=pending → user sees the modal).
+// Admin's two main actions are "초대" (promote → invited_emails) and
+// "거절" (drop the pending row); a manual invite form lets the admin
+// allowlist an email before the person ever tries.
+interface PendingSignup {
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  firstAttemptAt: string;
+  lastAttemptAt: string;
+  attemptCount: number;
+  notifiedAt: string | null;
+  invited: boolean;
+}
+interface InvitedEmail {
+  email: string;
+  invitedAt: string;
+  note: string | null;
+  user: { id: number; name: string | null; avatarUrl: string | null } | null;
+}
+
+function SignupGatePanel() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useQuery<{
+    pending: PendingSignup[];
+    invited: InvitedEmail[];
+  }>({
+    queryKey: ['admin-signups'],
+    queryFn: async () => {
+      const resp = await axios.get('/api/admin/signups');
+      return resp.data;
+    },
+    staleTime: 30_000,
+  });
+
+  const invite = useMutation({
+    mutationFn: async (vars: { email: string; note?: string }) => {
+      await axios.post('/api/admin/signups/invite', vars);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-signups'] }),
+  });
+
+  const revoke = useMutation({
+    mutationFn: async (email: string) => {
+      await axios.delete(
+        `/api/admin/signups/invite/${encodeURIComponent(email)}`
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-signups'] }),
+  });
+
+  const discard = useMutation({
+    mutationFn: async (email: string) => {
+      await axios.delete(
+        `/api/admin/signups/pending/${encodeURIComponent(email)}`
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-signups'] }),
+  });
+
+  const [inviteInput, setInviteInput] = useState('');
+  const [showInvited, setShowInvited] = useState(false);
+
+  const pending = data?.pending ?? [];
+  const invited = data?.invited ?? [];
+  const pendingActive = pending.filter((p) => !p.invited);
+
+  function handleInviteSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const email = inviteInput.trim().toLowerCase();
+    if (!email) return;
+    invite.mutate(
+      { email },
+      {
+        onSuccess: () => setInviteInput(''),
+      }
+    );
+  }
+
+  return (
+    <Panel
+      title="가입 신청"
+      icon="✉️"
+      count={pendingActive.length}
+      headerAction={
+        <button
+          type="button"
+          onClick={() => setShowInvited((v) => !v)}
+          className="text-xs text-gray-400 hover:text-[#e8a020] transition-colors"
+        >
+          {showInvited ? '신청만 보기' : `초대 목록 (${invited.length})`}
+        </button>
+      }
+    >
+      <div className="p-4 border-b border-white/5">
+        <form onSubmit={handleInviteSubmit} className="flex items-center gap-2">
+          <input
+            type="email"
+            inputMode="email"
+            placeholder="email@example.com"
+            value={inviteInput}
+            onChange={(e) => setInviteInput(e.target.value)}
+            className="flex-1 bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600"
+          />
+          <button
+            type="submit"
+            disabled={invite.isPending || !inviteInput.trim()}
+            className="px-3 py-2 rounded-md bg-[#e8a020] text-[#141008] text-xs font-bold hover:bg-[#f5b030] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          >
+            초대
+          </button>
+        </form>
+        {invite.isError && (
+          <div className="mt-2 text-[11px] text-red-400">
+            {(invite.error as any)?.response?.data?.error ??
+              '초대 처리에 실패했어요.'}
+          </div>
+        )}
+      </div>
+
+      {isLoading && <EmptyRow>불러오는 중…</EmptyRow>}
+      {isError && <EmptyRow>가입 신청 목록을 가져오지 못했어요.</EmptyRow>}
+
+      {!isLoading && !isError && !showInvited && (
+        <>
+          {pendingActive.length === 0 ? (
+            <EmptyRow>대기 중인 신청이 없어요.</EmptyRow>
+          ) : (
+            pendingActive.map((p) => (
+              <div
+                key={p.email}
+                className="p-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-[#252525] flex-shrink-0">
+                  {p.avatarUrl && (
+                    <img
+                      src={p.avatarUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-gray-200 truncate">
+                    {p.name || p.email}
+                  </div>
+                  <div className="text-[11px] text-gray-500 truncate">
+                    {p.email}
+                    {p.attemptCount > 1 && (
+                      <span className="text-gray-600">
+                        {' '}
+                        · {p.attemptCount}회 시도
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => invite.mutate({ email: p.email })}
+                    disabled={invite.isPending}
+                    title="초대 (가입 허용)"
+                    className="px-2.5 py-1 rounded-md bg-[#e8a020]/15 border border-[#e8a020]/40 text-[#e8a020] text-xs font-semibold hover:bg-[#e8a020] hover:text-[#141008] transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    초대
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `${p.email}의 가입 신청을 거절하고 목록에서 제거할까요?`
+                        )
+                      )
+                        discard.mutate(p.email);
+                    }}
+                    disabled={discard.isPending}
+                    title="거절 (목록에서 제거)"
+                    className="px-2 py-1 rounded-md text-gray-500 text-xs hover:text-red-400 transition-colors cursor-pointer disabled:opacity-40"
+                  >
+                    거절
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </>
+      )}
+
+      {!isLoading && !isError && showInvited && (
+        <>
+          {invited.length === 0 ? (
+            <EmptyRow>초대된 이메일이 없어요.</EmptyRow>
+          ) : (
+            invited.map((i) => (
+              <div
+                key={i.email}
+                className="p-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-[#252525] flex-shrink-0">
+                  {i.user?.avatarUrl && (
+                    <img
+                      src={i.user.avatarUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-gray-200 truncate">
+                    {i.user?.name || i.email}
+                  </div>
+                  <div className="text-[11px] text-gray-500 truncate">
+                    {i.email}
+                    {!i.user && (
+                      <span className="text-gray-600"> · 미가입</span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `${i.email}의 초대를 취소할까요? (이미 가입한 사용자에게는 영향 없어요)`
+                      )
+                    )
+                      revoke.mutate(i.email);
+                  }}
+                  disabled={revoke.isPending}
+                  title="초대 취소"
+                  className="px-2 py-1 rounded-md text-gray-500 text-xs hover:text-red-400 transition-colors cursor-pointer disabled:opacity-40 shrink-0"
+                >
+                  취소
+                </button>
+              </div>
+            ))
+          )}
+        </>
       )}
     </Panel>
   );

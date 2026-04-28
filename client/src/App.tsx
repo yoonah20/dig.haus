@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SearchOverlayProvider } from './contexts/SearchOverlayContext';
@@ -127,11 +127,11 @@ function DustMotes() {
 }
 
 // Noise params we never want lingering in the address bar:
-//   - auth=ok / auth=failed / auth=not_configured — OAuth callback
-//     lands here; the redirect happens, AuthContext fetches /auth/me,
-//     and the param has served its purpose. Leaving it visible made
-//     every subsequent URL change read as "?auth=ok&sort=…" which
-//     the user flagged as ugly.
+//   - auth=ok / auth=failed / auth=not_configured / auth=pending —
+//     OAuth callback lands here; the redirect happens, AuthContext
+//     fetches /auth/me, and the param has served its purpose. Leaving
+//     it visible made every subsequent URL change read as
+//     "?auth=ok&sort=…" which the user flagged as ugly.
 //   - sort / page / seed — used to be React-Router state; migrated
 //     to HomeStateContext so the bar stays at '/'. If someone shares
 //     an old bookmarked link with these, strip them on load.
@@ -141,10 +141,27 @@ function DustMotes() {
 // and then clears it.
 const URL_NOISE = ['auth', 'sort', 'page', 'seed'];
 
-function useStripUrlNoise() {
+type AuthOutcome = 'ok' | 'failed' | 'pending' | 'not_configured';
+
+// Capture the auth=… outcome on mount before stripping, so the App
+// can act on it (currently: show the awaiting-approval modal when
+// outcome=pending). Other outcomes still strip silently — success and
+// failure flows are already telegraphed elsewhere in the UI (logged-in
+// state for success, generic OAuth retry for failure).
+function useAuthOutcomeAndStripNoise(): AuthOutcome | null {
+  const [outcome, setOutcome] = useState<AuthOutcome | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
+    const auth = params.get('auth');
+    if (
+      auth === 'ok' ||
+      auth === 'failed' ||
+      auth === 'pending' ||
+      auth === 'not_configured'
+    ) {
+      setOutcome(auth);
+    }
     let changed = false;
     for (const key of URL_NOISE) {
       if (params.has(key)) {
@@ -162,10 +179,42 @@ function useStripUrlNoise() {
       window.location.pathname + (query ? `?${query}` : '') + window.location.hash
     );
   }, []);
+  return outcome;
+}
+
+// Modal shown after a Google login attempt by an un-invited email.
+// Phrasing avoids naming the operator address — the server-side
+// notification is opaque from the user's perspective; they just need
+// to know the request landed and approval will follow. "확인" dismisses
+// without retrying anything.
+function PendingApprovalModal({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+      <div className="w-full max-w-sm rounded-2xl bg-[#1a1a1a] border border-white/10 shadow-2xl p-6 text-center">
+        <h2 className="text-lg font-semibold text-white mb-2">
+          조금만 기다려 주세요
+        </h2>
+        <p className="text-sm text-gray-300 leading-relaxed">
+          dig.haus는 초대받은 분만 입장하실 수 있어요.
+          <br />
+          가입 신청이 운영자에게 전달됐고, 검토 후 입장하실 수 있도록
+          알려드릴게요.
+        </p>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="mt-5 inline-flex items-center justify-center rounded-md bg-[#e8a020] hover:bg-[#f5b030] text-[#141008] font-bold px-5 py-2 text-sm cursor-pointer transition-colors"
+        >
+          확인
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
-  useStripUrlNoise();
+  const authOutcome = useAuthOutcomeAndStripNoise();
+  const [pendingDismissed, setPendingDismissed] = useState(false);
   const location = useLocation();
 
   // Reset scroll on route change. Without this, navigating from
@@ -411,6 +460,11 @@ export default function App() {
                   changes. */}
               <PersistentNowPlayingPlayer />
               <CurationProgressPanel />
+              {authOutcome === 'pending' && !pendingDismissed && (
+                <PendingApprovalModal
+                  onDismiss={() => setPendingDismissed(true)}
+                />
+              )}
             </div>
           </CurationProgressProvider>
         </HomeStateProvider>

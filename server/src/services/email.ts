@@ -42,3 +42,36 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
     return false;
   }
 }
+
+// Notify the site owner that an un-invited Google user has hit the
+// signup gate and is waiting for approval. Recipient defaults to
+// fpp@dig.haus; override via ADMIN_NOTIFY_TO env if the operator
+// inbox moves. Body is plain text — Resend handles HTML wrapping for
+// us if we ever want it, but text is enough to act on.
+export async function sendPendingSignupNotice(params: {
+  email: string;
+  name: string;
+  avatarUrl: string;
+}): Promise<boolean> {
+  const to = process.env.ADMIN_NOTIFY_TO || 'fpp@dig.haus';
+  const adminBase = process.env.CLIENT_URL || 'http://localhost:3000';
+  const lines = [
+    `새 가입 신청이 접수됐어요.`,
+    ``,
+    `이름: ${params.name || '(없음)'}`,
+    `이메일: ${params.email}`,
+    params.avatarUrl ? `아바타: ${params.avatarUrl}` : null,
+    ``,
+    `승인하려면 ${adminBase}/admin 에서 "가입 신청" 패널을 확인하거나,`,
+    `다음 명령으로 invited_emails 테이블에 직접 추가할 수 있어요:`,
+    `  INSERT INTO invited_emails (email, note) VALUES ('${params.email}', 'manual approval');`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return sendEmail({
+    to,
+    subject: `[dig.haus] 가입 신청 — ${params.email}`,
+    text: lines,
+  });
+}
