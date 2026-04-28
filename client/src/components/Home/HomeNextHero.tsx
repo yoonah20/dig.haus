@@ -2,10 +2,20 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   useHomeFeatures,
   useUpdateHomeMeta,
+  useMoveHomeWall,
   type HomeFeatureItem,
   type HomeWall,
   type HomeMetaPatch,
 } from '../../hooks/useHomeFeatures';
+
+// SessionStorage key for the carousel's last-visible wall index. A
+// fresh tab starts at idx 0; navigating away from `/` and back
+// restores whichever slide the user was on, so a click into an
+// album page doesn't flip them back to wall 1 on return. Scoped
+// to the session because the persistence is only meaningful within
+// the active visit — coming back next week shouldn't dictate which
+// wall they see first.
+const ACTIVE_WALL_STORAGE_KEY = 'dig.haus:home-active-wall-idx';
 import { useAuth } from '../../contexts/AuthContext';
 import { WallLP } from '../MyDig/storefront/primitives';
 import WallHoverCard from '../MyDig/storefront/WallHoverCard';
@@ -213,6 +223,7 @@ export default function HomeNextHero() {
     draft.titleRotationDeg !== committed.titleRotationDeg;
 
   const updateMeta = useUpdateHomeMeta(activeWall?.id ?? 1);
+  const moveWall = useMoveHomeWall();
 
   function handleSaveTuner() {
     updateMeta.mutate(tunerToPatch(draft));
@@ -259,6 +270,29 @@ export default function HomeNextHero() {
   // below feeds setActiveIdx so the admin chips + dot pagination
   // know which wall the user is currently looking at.
   const carouselRef = useRef<HTMLDivElement>(null);
+  // Restore the last-visible wall on mount so navigating to an
+  // album page and back doesn't snap the user to wall 1. useLayout
+  // Effect runs before paint so the scrollTo lands before the IO
+  // observer fires + before the user sees a flash of wall 1. Gated
+  // on walls.length + sceneW so the restore only runs once data has
+  // arrived and the carousel has real width to scroll inside.
+  useLayoutEffect(() => {
+    const root = carouselRef.current;
+    if (!root || walls.length === 0 || sceneW <= 0) return;
+    if (typeof window === 'undefined') return;
+    const raw = window.sessionStorage.getItem(ACTIVE_WALL_STORAGE_KEY);
+    if (!raw) return;
+    const idx = Number.parseInt(raw, 10);
+    if (!Number.isFinite(idx) || idx <= 0 || idx >= walls.length) return;
+    root.scrollTo({ left: idx * root.clientWidth, behavior: 'instant' });
+    setActiveIdx(idx);
+    // Run only once per fresh mount-with-data — re-running on every
+    // walls.length / sceneW change would fight the user's manual
+    // swipes (each swipe writes to storage, then the restore would
+    // pull them back). The empty deps + outer guards keep it
+    // single-shot per page mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walls.length > 0, sceneW > 0]);
   useEffect(() => {
     const root = carouselRef.current;
     if (!root) return;
@@ -278,12 +312,52 @@ export default function HomeNextHero() {
     root.querySelectorAll('[data-wall-idx]').forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, [walls.length]);
+  // Persist the active wall on every change so the next mount can
+  // restore it. SessionStorage (not local) so it scopes to this
+  // browser session — opening the site again next week starts at
+  // wall 1 again, which is the right default.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(
+      ACTIVE_WALL_STORAGE_KEY,
+      String(activeIdx)
+    );
+  }, [activeIdx]);
 
   function scrollToIdx(idx: number) {
     const root = carouselRef.current;
     if (!root) return;
     root.scrollTo({ left: idx * root.clientWidth, behavior: 'smooth' });
   }
+
+  // After a successful wall reorder, follow the moved wall to its
+  // new slide so the admin doesn't end up looking at a different
+  // wall (the one that took the moved wall's old slot). The move
+  // mutation invalidates the query, which triggers a refetch with
+  // walls re-sorted by the new position; this ref lets us scroll
+  // *after* that re-render has actually happened.
+  const followWallIdRef = useRef<number | null>(null);
+  function handleMoveWall(dir: 'left' | 'right') {
+    if (!activeWall) return;
+    const wallId = activeWall.id;
+    followWallIdRef.current = wallId;
+    moveWall.mutate({ id: wallId, dir });
+  }
+  useEffect(() => {
+    const target = followWallIdRef.current;
+    if (target == null) return;
+    const newIdx = walls.findIndex((w) => w.id === target);
+    if (newIdx < 0) return;
+    followWallIdRef.current = null;
+    const root = carouselRef.current;
+    if (!root) return;
+    root.scrollTo({ left: newIdx * root.clientWidth, behavior: 'instant' });
+    setActiveIdx(newIdx);
+    // Keying on the joined id-order so the effect fires on every
+    // post-move refetch (where the array reorders) but stays quiet
+    // when only individual wall fields change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walls.map((w) => w.id).join(',')]);
 
   return (
     <div
@@ -378,6 +452,32 @@ export default function HomeNextHero() {
               />
             )}
           </button>
+          {walls.length > 1 && activeWall && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleMoveWall('left')}
+                disabled={activeIdx === 0 || moveWall.isPending}
+                title="이 벽을 왼쪽으로"
+                aria-label="이 벽을 왼쪽으로"
+                className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full w-7 h-7 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMoveWall('right')}
+                disabled={
+                  activeIdx === walls.length - 1 || moveWall.isPending
+                }
+                title="이 벽을 오른쪽으로"
+                aria-label="이 벽을 오른쪽으로"
+                className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full w-7 h-7 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                →
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -406,27 +506,11 @@ export default function HomeNextHero() {
         />
       )}
 
-      {/* Scroll hint — handwritten ">>" rotated 90° so it points
-          down. Sits in the lower band of the hero so the user
-          picks up that the page continues past the painted
-          basement strip. */}
-      {!editing && !tunerOpen && (
-        <div
-          aria-hidden
-          className="absolute left-1/2 -translate-x-1/2 pointer-events-none select-none scroll-hint z-20"
-          style={{
-            bottom: 22,
-            fontFamily: GRAFFITI_FONT_STACK,
-            fontSize: 20,
-            color: 'rgba(245, 230, 200, 0.7)',
-            lineHeight: 1,
-          }}
-        >
-          <span style={{ display: 'inline-block', transform: 'rotate(90deg)' }}>
-            {'>>'}
-          </span>
-        </div>
-      )}
+      {/* The ">>" scroll-hint chevron used to live here. Removed once
+          the carousel landed: the page now has two navigation axes
+          (sideways for walls, down for activity), the chevron points
+          one way, and the dot pagination above already telegraphs
+          interactivity. Dots stay; chevron goes. */}
     </div>
   );
 }

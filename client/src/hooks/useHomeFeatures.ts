@@ -133,6 +133,24 @@ export interface HomeFeatureItemPut {
   note?: string | null;
 }
 
+// Admin-only: swap one wall's position with its immediate left/right
+// neighbour. The carousel is sorted by `position ASC`, so a successful
+// swap re-orders which slide the visitor sees first / second / third.
+export function useMoveHomeWall() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, dir }: { id: number; dir: 'left' | 'right' }) => {
+      const { data } = await axios.post(
+        `/api/home/walls/${id}/move?dir=${dir}`
+      );
+      return data as { ok: boolean; moved: boolean; newPosition?: number };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['home-features'] });
+    },
+  });
+}
+
 export function useReplaceHomeFeatures(wallId: number = 1) {
   const queryClient = useQueryClient();
   return useMutation({

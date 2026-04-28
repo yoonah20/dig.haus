@@ -367,6 +367,52 @@ router.patch('/home/meta', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// Swap a wall's position with its left or right neighbour. Atomic
+// via better-sqlite3's `transaction` helper so a UNIQUE-position
+// collision can't surface a half-applied swap; the temp -1 step is
+// what lets two walls trade positions without violating the
+// composite UNIQUE constraint mid-update.
+router.post('/home/walls/:id/move', requireAdmin, (req, res) => {
+  const idRaw = req.params.id;
+  const id = Number.parseInt(typeof idRaw === 'string' ? idRaw : '', 10);
+  const dir = req.query.dir;
+  if (!Number.isFinite(id) || (dir !== 'left' && dir !== 'right')) {
+    return res
+      .status(400)
+      .json({ error: 'id 정수 + dir=left|right 가 필요해요.' });
+  }
+  const db = getDb();
+  const wall = db
+    .prepare('SELECT id, position FROM home_walls WHERE id = ?')
+    .get(id) as { id: number; position: number } | undefined;
+  if (!wall) {
+    return res.status(404).json({ error: `wall id=${id} 없음.` });
+  }
+  const targetPos = dir === 'left' ? wall.position - 1 : wall.position + 1;
+  const neighbor = db
+    .prepare('SELECT id, position FROM home_walls WHERE position = ?')
+    .get(targetPos) as { id: number; position: number } | undefined;
+  if (!neighbor) {
+    // At the boundary — nothing to swap with. Treat as a no-op so
+    // a click on the disabled-but-still-reachable arrow doesn't
+    // 4xx; the client should also gate the button on activeIdx.
+    return res.json({ ok: true, moved: false });
+  }
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE home_walls SET position = -1 WHERE id = ?').run(wall.id);
+    db.prepare('UPDATE home_walls SET position = ? WHERE id = ?').run(
+      wall.position,
+      neighbor.id
+    );
+    db.prepare('UPDATE home_walls SET position = ? WHERE id = ?').run(
+      neighbor.position,
+      wall.id
+    );
+  });
+  tx();
+  res.json({ ok: true, moved: true, newPosition: neighbor.position });
+});
+
 router.put('/home/features/items', requireAdmin, (req, res) => {
   const wallId = resolveWallId(req);
   if (wallId == null) {

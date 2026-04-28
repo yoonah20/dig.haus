@@ -1,4 +1,12 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+
+// Same sessionStorage key the desktop hero uses — the two heroes
+// can't both render simultaneously (breakpoint-gated), so they
+// share one persisted slot. A user who opens dig.haus on a phone
+// (mobile hero) and later resizes to a desktop layout (desktop
+// hero) will see the same wall they last left on, which is what
+// "remember which wall I was on" should mean across viewports.
+const ACTIVE_WALL_STORAGE_KEY = 'dig.haus:home-active-wall-idx';
 import {
   useHomeFeatures,
   type HomeFeatureItem,
@@ -125,6 +133,22 @@ export default function HomeNextHeroMobile() {
   // tracks. activeIdx drives the dot pagination below the rails.
   const carouselRef = useRef<HTMLDivElement>(null);
   const [activeIdx, setActiveIdx] = useState(0);
+  // Restore last-visible wall on mount — see desktop hero for the
+  // "navigate-away-and-back" rationale. useLayoutEffect so the
+  // scrollTo lands before paint, gated on walls + a positive lpSize
+  // (the mobile equivalent of "carousel has real width to scroll").
+  useLayoutEffect(() => {
+    const root = carouselRef.current;
+    if (!root || walls.length === 0 || lpSize <= 0) return;
+    if (typeof window === 'undefined') return;
+    const raw = window.sessionStorage.getItem(ACTIVE_WALL_STORAGE_KEY);
+    if (!raw) return;
+    const idx = Number.parseInt(raw, 10);
+    if (!Number.isFinite(idx) || idx <= 0 || idx >= walls.length) return;
+    root.scrollTo({ left: idx * root.clientWidth, behavior: 'instant' });
+    setActiveIdx(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walls.length > 0, lpSize > 0]);
   useEffect(() => {
     const root = carouselRef.current;
     if (!root) return;
@@ -144,6 +168,14 @@ export default function HomeNextHeroMobile() {
     root.querySelectorAll('[data-wall-idx]').forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, [walls.length]);
+  // Persist active wall on every change so the next mount can restore.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(
+      ACTIVE_WALL_STORAGE_KEY,
+      String(activeIdx)
+    );
+  }, [activeIdx]);
 
   function scrollToIdx(idx: number) {
     const root = carouselRef.current;
