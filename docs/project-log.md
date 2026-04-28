@@ -1,11 +1,11 @@
-# dig.haus — 15-day project log
+# dig.haus — 16-day project log
 
-A narrative chronicle of the first fifteen days of dig.haus, from
-the day-1 Railway commit to the carousel + Spotify + Korean-term
-fixes shipped on day 15. Compressed from 600 commits, seven phase
-documents, and Claude's session memory into one read-through. Each
-section names the dates it covers and bookmarks a few specific
-commits worth digging into.
+A narrative chronicle of dig.haus from day 0 — domain purchase +
+the first browser-based prototype on 2026-04-14 — through the
+day-15 Korean-term backfill on 2026-04-29. Compressed from ~600
+commits, seven phase documents, and Claude's session memory into
+one read-through. Each section names the dates it covers and
+bookmarks a few specific commits worth digging into.
 
 This is a **single-developer log**. "We" doesn't appear; the
 operator is the curator, the engineer, the designer, and the
@@ -18,6 +18,36 @@ store, not an algorithmic music feed**. Vinyl collectors + Korean-
 language listeners of international / niche music. Anti-algorithm
 positioning enforced explicitly when features tempt away from it.
 Tagline: "No algorithms needed. Keep digging."
+
+---
+
+## Day 0 — pre-git origins (2026-04-14)
+
+Day 0 doesn't appear in `git log` because the work happened in a
+browser-based vibe-coding session before the repo was initialised
+locally. The same day:
+
+- **dig.haus domain purchased**.
+- **First album-grid prototype** built — the visual ancestor of
+  what later became `/dig`. Cover-first layout, sort + page
+  controls, the bones of the catalog browse surface.
+- **First album detail page** drafted — the layout that became
+  `/album/:slug` after migration into the local + Railway repo
+  the next day.
+
+The day-1 Railway commit (`77c5240` on 2026-04-15) wasn't a from-
+scratch start — it was a *port* of this browser-side work into a
+proper Vite + Express + SQLite scaffold. That's why day 1's 55
+commits already include polished album cards, price stickers, and
+cover-art proxying: the design instincts had been exercised in
+the browser session the day before, and the local-repo move was
+about turning that prototype into a deployable, version-controlled
+shape.
+
+No artefacts survive from this day other than the visual
+direction it set. Worth recording explicitly so the git log's
+sudden density on day 1 doesn't read as miraculous — it was
+preceded by a day of unsourced exploration.
 
 ---
 
@@ -40,7 +70,9 @@ Tagline: "No algorithms needed. Keep digging."
 What's notable here is that nothing in this day was thrown away
 later. The album card design, the price-sticker style, the cover-
 proxy pattern — all still load-bearing fifteen days later. The
-operator's design instincts arrived already calibrated.
+operator's design instincts had been exercised in day 0's
+browser-based prototype, so day 1's port-into-repo arrived with
+the visual language pre-decided.
 
   Bookmark: `77c5240` (initial commit), `02138ed` (server/data/
   runtime split), `c42cba2` (cover proxy).
