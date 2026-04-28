@@ -163,6 +163,18 @@ Per-album owner note alongside the LLM Korean summary. Short and optional ("새�
 
 Small paper note (masking-tape attached) on an album page. A random 1–2 of any existing notes show to subsequent visitors of that album page. Quota-limited so it doesn't flood. Anonymous, one-way (no read receipts, no replies), only writable on albums the author 굿굿'd. Distinct from item 2's wall post-its: those are "visitor → my wall" addressed to the wall owner; these are "visitor → an album" addressed to the next visitor. Same handwriting/paper visual asset family — implementing one materially reduces the cost of the other.
 
+### G. /dig as a browse-by-lens surface — artist / label / genre slices *(added 2026-04-28)*
+
+/dig is currently a flat sort/density grid; for a curation-first site that's an under-used surface. Promote it into a multi-lens digging board: tabs or chips for **artist / label / genre / tag** (later: year, country, format) that group the same catalog along different axes. The current flat grid stays as the "전체" lens / default — lenses are additive, not a replacement.
+
+**Artist lens is the curation hook, not a taxonomy dump.** Auto-generating a page for every MusicBrainz artist was rejected in Phase 1 (CLAUDE.md / memory: artist detail pages out of scope). The lens here is the *opposite shape*: a small admin-curated `curated_artists` table for multi-project people who span many releases — Erik Mårtensson (Eclipse / W.E.T. / Nordic Union / ...), prolific producers, label founders who play across acts. The list itself is editorial; clicking a curated entry shows every album they touched across the catalog.
+
+**Label and genre lenses are pure aggregation** — both already in schema (`labels` table + `albums.label_id`; genres as tags). No new tables, just grouped views.
+
+**Schema delta** (when this lands): `curated_artists (id, name, ko_name?, blurb?, ...)` + `album_curated_artists (album_id, curated_artist_id, role?)` many-to-many. Label and genre lenses need zero schema work.
+
+**Sequencing**: independent chain — doesn't depend on items 0–4 or A–F, can land any time. Reinforces item B (label pages as destinations) if/when both ship — the label lens on /dig becomes the natural entry point into individual label pages, and item B's per-label intro is what the lens row clicks through to. Item G alone is just the lens grid; item G + item B together is "browse-by-label as a real shop section." The two are good together but neither requires the other.
+
 ---
 
 ## Anti-features — explicitly out of scope
