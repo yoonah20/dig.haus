@@ -205,8 +205,13 @@ commits in one day). The new pipeline:
   - **Wayback Machine fallback** (added 04-28) — for sites that
     block the scraper directly but archive.org has indexed.
 
-Per-review cost dropped from $0.50/album to $0.001/album —
-**500x reduction** while improving signal quality.
+Cost per album dropped from ~$0.50/album (web_search era —
+$5/session for 10 albums) to ~$0.01/album (the new pipeline
+collecting ~15 reviews per album, with cheap detection +
+deepseek-v4-flash on the summary path). Roughly a **30-50×
+reduction** while improving signal quality. The per-review unit
+cost lands around $0.001, but per-album is the meaningful figure
+since each album gets fanned out to a dozen-plus review sources.
 
 This rebuild also produced the **`normaliseKoreanTerms` post-
 process pass** (slowly grew from one rule to ten) that strips
@@ -518,7 +523,7 @@ that extended the window further.
 - Three-wall home hero carousel with auto-advance, swipe nav,
   per-wall admin tuning
 - Invitation-only signup gate with admin approval flow
-- Review pipeline at $0.001/album (500x improvement from Phase 1)
+- Review pipeline at ~$0.01/album (~30-50× improvement from Phase 1's web_search era at $0.50/album)
 
 **Tooling + observability**:
 - Admin dashboard with stats, recent feeds, scrape-failures,

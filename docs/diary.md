@@ -173,7 +173,14 @@ PD 본업 누적된 게 있어서 그런가, 오늘 일을 마무리하면서 "�
 
 ## 4월 18일 (토) — Day 4
 
-토요일이라 페이스 좀 늦췄다. 16 commit. 그래도 손이 가긴 갔다.
+오늘 **레코드 스토어 데이.** 매장 돌아다니면서 vinyl 사느라 종일 밖에
+있었다. dig.haus 만들고 있는 와중에 정작 본인이 RSD 가는 게 좀
+웃겼다 — 결국 이 사이트가 *내가 매장 다녀와서 검색해보는 그 흐름*을
+재현하는 거니까. 새로 뽑아온 음반들 dig.haus에서 검색해보면서 들어
+오는 데 한참 걸렸다.
+
+밤늦게 자리 앉아서 16 commit 정도 박았다. 페이스가 늦은 게 아니라
+시간이 부족했던 거.
 
 review section pending slot — admin이 아직 크롤 안 한 album에 들어
 가면 "곧 채워질 거예요" placeholder가 뜨게. 빈 화면보다 친절. summary
@@ -220,12 +227,14 @@ custom-covers) 한 tarball로. local로 끌어와서 sanitize한 다음 디버�
 2. **리뷰 파이프라인 대대적 변경.** 어제까지 Claude의 web_search로
    리뷰 긁어왔는데, 이게 한 호출에 수만 토큰 input으로 끌어들이고
    인기 사이트는 매번 다시 긁어 비용이 미친 듯이 빠진다. 한 세션에
-   $5 나온 거 보고 결단. **web_search path 완전 제거.** 대신 Serper.
-   dev (구글 검색 결과 JSON, $0.0003/call) + Jina Reader (HTML →
-   markdown, 무료) + Haiku로 editorial URL 필터. 사이트별 점수
-   detector도 같이 짰다 — schema.org rating, star widget, filename
-   image, 숫자 등등. 이렇게 분리하니까 한 앨범당 비용이 $0.001
-   수준으로 떨어진다. **500배.**
+   10개 album에 $5 나온 거 보고 결단 — album 하나에 약 $0.50.
+   **web_search path 완전 제거.** 대신 Serper.dev (구글 검색 결과
+   JSON, $0.0003/call) + Jina Reader (HTML → markdown, 무료) +
+   Haiku로 editorial URL 필터. 사이트별 점수 detector도 같이 짰다 —
+   schema.org rating, star widget, filename image, 숫자 등등. 이렇게
+   분리하니까 album 하나에 리뷰 15개 정도 수집해도 **$0.01 수준.
+   30~50배 절감.** 새 파이프라인 첫 시험 돌리고 비용 확인했을 때
+   숫자가 너무 작아서 한참 다시 봤다.
 
 scrape-failure log도 만들었다. 어떤 호스트에서 scrape이 실패하는지
 admin 페이지에서 보고 blacklist 처리할 수 있게. 수동 retry도 가능하게
