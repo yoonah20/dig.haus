@@ -23,12 +23,21 @@ Tagline: "No algorithms needed. Keep digging."
 
 ## Day 0 — pre-git origins (2026-04-14)
 
-Day 0 happened in a browser-based vibe-coding session with web-
-Claude before the repo was initialised locally. None of it lives
-in `git log`, but the day's conversation transcript is the single
-most consequential decision artifact in the project: the entire
-3-phase plan that the next 15 days followed was articulated here,
-before a single line of code was written.
+Day 0 happened across two separate browser sessions before the
+repo was initialised locally. None of it lives in `git log`, but
+the conversation transcripts and Claude Code output are the
+single most consequential decision artifacts in the project: the
+entire 3-phase plan that the next 15 days followed was
+articulated, validated, and instantiated here, before a single
+line of code reached version control.
+
+**Two browser sessions, in sequence:**
+
+  1. **claude.ai planning conversation** — strategy, scope
+     negotiation, and prompt drafting. No code generated.
+  2. **Claude Code (web version) build session** — the Phase 1
+     prompt drafted in session 1 was run here, producing the first
+     working codebase (album grid + album detail page).
 
 **Two false starts before the real shape emerged.**
 
@@ -98,28 +107,37 @@ when that registration came through.
     settled on Railway-only, but the principle of "free tier +
     GitHub-push deploys" came from day 0)
 
-**What got built in the browser session itself**:
+**What got built in the Claude Code session** (run after the
+planning conversation, still day 0):
 
   - First album-grid prototype — visual ancestor of `/dig`. Cover-
     first layout, sort + page controls, the bones of the catalog
-    browse surface that the day-1 port (`77c5240`) instantiated
-    in the proper Vite + Express scaffold.
-  - First album detail page draft — became `/album/:slug` after
-    the local-repo move.
+    browse surface.
+  - First album detail page — the layout that became `/album/:slug`
+    after the local-repo move.
+  - The full Vite + Express + better-sqlite3 scaffold.
 
-**Why the day-1 git log looks so dense**: day 1 was a *port +
-expansion*, not a from-scratch start. The album card layout, the
-record-shop framing, the price-sticker visual language, the cover
-proxy pattern — all decided in the browser session the day
-before. Day 1 was about turning the prototype into a deployable,
-version-controlled shape and adding the next visible features on
-top.
+These artefacts existed in the Claude Code web environment but
+not yet in git — the move to local + first git push happened the
+next morning (2026-04-15), which is why the git log starts dense.
 
-**The original Day 0 conversation** lives at the operator's
-Claude.ai share link (private, login-gated), which is the
-canonical record of the technical decisions made before any code
-existed. The codebase is the implementation; that conversation is
-the spec.
+**Why the day-1 git log looks so dense**: day 1 wasn't a from-
+scratch start — it was the *first commit + Railway deploy* of
+code that already existed in the Claude Code web session. The
+album card layout, the record-shop framing, the price-sticker
+visual language, the cover proxy pattern — all already running
+locally before `git init` was typed.
+
+**The two original artefacts** that drove everything:
+  - **claude.ai conversation** — private share link, the spec
+    that the codebase implements.
+  - **Claude Code (web version) session output** — the initial
+    codebase before it became commit `77c5240`.
+
+The codebase from day 1 onward is the implementation. The day 0
+conversation is the spec. Both lineages converge in the first
+git push, but the decision lineage that matters started in the
+browser session a day before any version control existed.
 
 ---
 
