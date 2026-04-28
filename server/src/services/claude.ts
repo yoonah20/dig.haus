@@ -254,6 +254,14 @@ const KO_TERM_REPLACEMENTS: Array<[RegExp, string]> = [
     /(메탈|하드코어|펑크|록|그라인드코어|재즈|일렉트로닉|앰비언트|슈게이즈|인디|하드록|코어|웨이브|둠|블랙|스래시|데스|프로그|포스트|힙합|포크)\s*(?:장면|현장)/g,
     '$1 씬',
   ],
+  // emo genre — Claude often transliterates as "에모" (the literal
+  // phonetic match), but the Korean vinyl / hardcore-adjacent
+  // community uses "이모" exclusively. Replace blanket because the
+  // characters "에모" only appear in compound loanwords (에모지 →
+  // 이모지, 에모셔널 → 이모셔널) where the alternate spelling is
+  // also valid and arguably more idiomatic, so the collateral
+  // damage is acceptable.
+  [/에모/g, '이모'],
 ];
 
 export function normaliseKoreanTerms(text: string | null | undefined): string {
