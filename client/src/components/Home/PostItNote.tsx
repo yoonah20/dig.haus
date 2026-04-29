@@ -87,14 +87,16 @@ export default function PostItNote({
   // px (lpSize 320+), so the same ratio would oversize the text.
   const widthPct = isMobile ? 0.336 : 0.256;
   const noteWidth = Math.round(lpSize * widthPct);
-  // Desktop runs at ~90% of the mobile font ratio (0.060 vs 0.067)
-  // and a lower floor (6 vs 7) — desktop notes are wider in absolute
-  // px and the same ratio reads as oversized hand text. The -2
-  // subtraction stays so the rounded value lands at the desired
-  // "small but legible after 2.8× hover" range.
+  // Desktop runs a tighter ratio than mobile (0.059 vs 0.067) and a
+  // lower floor — desktop notes are wider in absolute px so the same
+  // ratio would read as oversized hand text. The -2 subtraction stays
+  // so the rounded value lands in the "small but legible after 2.8×
+  // hover" range, then the whole desktop expression gets a 0.9 trim
+  // because the prior desktop sizing still felt a touch heavy on the
+  // wall at default rest state.
   const fontSize = isMobile
     ? Math.max(7, Math.round(noteWidth * 0.067))
-    : Math.max(5.5, Math.round(noteWidth * 0.059) - 2);
+    : Math.max(5, Math.round((noteWidth * 0.059 - 2) * 0.9));
 
   const h = hashStr(seed);
   // Rotation in [-4.5°, +4.5°] from the seed. v5 ran the range up to
