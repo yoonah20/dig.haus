@@ -1,4 +1,4 @@
-import { useRef, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import CoverArt from '../../CoverArt';
 import PlayChip from '../../PlayChip';
@@ -240,7 +240,16 @@ export default function WallHoverCard({
   // stalling near the centre.
   const TILT_MAX = 12;
   const SPEC_TRAVEL = 50;
-  const handleCursorMove = (e: React.MouseEvent<HTMLElement>) => {
+  // Pointer-driven tilt + spec — shared by mouse (desktop) and
+  // touch (mobile tap-active drag). The Link element itself is not
+  // transformed; its inner scale wrapper is. So getBoundingClientRect
+  // here returns the LAYOUT box at the unscaled cell position, and
+  // we project the visual centre forward by the scale + translate
+  // applied by the hover transform. hoverTranslateX is in CSS-pixel
+  // screen space (transform string is `translateX(...) scale(...)`,
+  // so the translate applies post-scale and shifts the visual rect
+  // by exactly that many on-screen pixels).
+  const updateTiltFromPointer = (clientX: number, clientY: number) => {
     const el = cardRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
@@ -248,12 +257,12 @@ export default function WallHoverCard({
     const originYFrac = parseOriginYFrac(hoverOriginY);
     const halfVW = (rect.width * scale) / 2;
     const halfVH = (rect.height * scale) / 2;
-    const visualCenterX = rect.left + rect.width / 2;
+    const visualCenterX = rect.left + rect.width / 2 + hoverTranslateX;
     const originAbsY = rect.top + rect.height * originYFrac;
     const visualTop = originAbsY - scale * (originAbsY - rect.top);
     const visualCenterY = visualTop + halfVH;
-    const dx = (e.clientX - visualCenterX) / halfVW;
-    const dy = (e.clientY - visualCenterY) / halfVH;
+    const dx = (clientX - visualCenterX) / halfVW;
+    const dy = (clientY - visualCenterY) / halfVH;
     const tiltY = dx * TILT_MAX;
     const tiltX = dy * TILT_MAX;
     const specX = 50 + dx * SPEC_TRAVEL;
@@ -262,6 +271,9 @@ export default function WallHoverCard({
     el.style.setProperty('--tilt-y', `${tiltY}deg`);
     el.style.setProperty('--spec-x', `${specX}%`);
     el.style.setProperty('--spec-y', `${specY}%`);
+  };
+  const handleCursorMove = (e: React.MouseEvent<HTMLElement>) => {
+    updateTiltFromPointer(e.clientX, e.clientY);
   };
   const handleCursorEnter = () => {
     liftHeroSlot(cardRef.current);
@@ -295,6 +307,36 @@ export default function WallHoverCard({
     enabled: tapToActivate,
   });
 
+  // Touch-driven tilt for the mobile hero. While the card is
+  // tap-active the user can drag a finger across the lifted sleeve
+  // to tilt + roll the spec highlight, mirroring the desktop
+  // cursor-parallax. Gated on tap.isActive so a first tap (which
+  // fires touchstart → touchmove → touchend before isActive
+  // flips true) doesn't tilt a still-flat sleeve. We don't
+  // preventDefault here — useTapActivate's touchmove still needs
+  // to track scroll-cancel against the same event.
+  const handleTouchMove = (e: React.TouchEvent<HTMLAnchorElement>) => {
+    tap.handlers.onTouchMove(e);
+    if (!tap.isActive) return;
+    const t = e.touches[0];
+    if (!t) return;
+    updateTiltFromPointer(t.clientX, t.clientY);
+  };
+
+  // Reset tilt + spec CSS vars whenever the card transitions out of
+  // tap-active. Without this the last touch position would freeze
+  // into the cover's resting state and the next tap would visibly
+  // pop a tilted sleeve before the user had a chance to drag.
+  useEffect(() => {
+    if (tap.isActive) return;
+    const el = cardRef.current;
+    if (!el) return;
+    el.style.setProperty('--tilt-x', '0deg');
+    el.style.setProperty('--tilt-y', '0deg');
+    el.style.setProperty('--spec-x', '50%');
+    el.style.setProperty('--spec-y', '50%');
+  }, [tap.isActive]);
+
   return (
     <Link
       ref={cardRef}
@@ -304,7 +346,7 @@ export default function WallHoverCard({
       onMouseEnter={handleCursorEnter}
       onMouseLeave={handleCursorLeave}
       onTouchStart={tap.handlers.onTouchStart}
-      onTouchMove={tap.handlers.onTouchMove}
+      onTouchMove={handleTouchMove}
       onTouchCancel={tap.handlers.onTouchCancel}
       onTouchEnd={(e) => tap.handlers.onTouchEnd(e, () => navigate(href))}
       onClick={tap.handlers.onClick}
