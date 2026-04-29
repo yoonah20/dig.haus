@@ -1,5 +1,6 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
+import { useTapActivate } from '../../hooks/useTapActivate';
 
 // Sticky note rendered below each hero-wall LP, on/around the rail
 // rather than on the cover itself. Mounted by ShelfRow / Mobile
@@ -131,22 +132,45 @@ export default function PostItNote({
   // referencing it inside the inline transform composes cleanly:
   // rotate, translateX, and scale all combine, all anchored at
   // top-center via the inline `transformOrigin`. Both class
-  // strings have to appear literally for Tailwind JIT to emit them.
-  const hoverScaleCls = isMobile
-    ? 'hover:[--postit-scale:2.2]'
-    : 'hover:[--postit-scale:2.8]';
+  // strings (hover + data-[tap-active]) have to appear literally
+  // for Tailwind JIT to emit them, so the mobile / desktop scale
+  // variants are spelled out as full strings rather than templated.
+  const scaleCls = isMobile
+    ? 'hover:[--postit-scale:2.2] data-[tap-active=true]:[--postit-scale:2.2]'
+    : 'hover:[--postit-scale:2.8] data-[tap-active=true]:[--postit-scale:2.8]';
+
+  // Tap-to-activate on touch devices — first tap expands the
+  // post-it (matches the LP cover behaviour, which already routes
+  // through useTapActivate), second tap navigates to the album.
+  // On desktop the hook short-circuits via its hover-none guard so
+  // hover-to-scale + click-to-navigate stays unchanged.
+  const navigate = useNavigate();
+  const tap = useTapActivate({
+    cardId: `postit-${seed}`,
+    outsideSelector: '.dig-postit',
+    enabled: isMobile,
+  });
 
   return (
     <Link
       to={href}
       aria-label={`${text.slice(0, 24)} 앨범으로 이동`}
+      onTouchStart={tap.handlers.onTouchStart}
+      onTouchMove={tap.handlers.onTouchMove}
+      onTouchCancel={tap.handlers.onTouchCancel}
+      onTouchEnd={(e) => tap.handlers.onTouchEnd(e, () => navigate(href))}
+      onClick={tap.handlers.onClick}
+      data-tap-active={tap.isActive ? 'true' : undefined}
       // `dig-postit` is the hook the parent slot uses to bump its
-      // own z-index when a post-it inside it is hovered (via
-      // has-[.dig-postit:hover]:z-N), so the scaled-up note layers
-      // above neighbouring slots' LPs instead of getting buried.
-      // Default --postit-scale lives in the inline style below; the
-      // hover class rewrites the variable.
-      className={`dig-postit relative block select-none z-0 hover:z-30 transition-transform duration-300 ease-out ${hoverScaleCls}`}
+      // own z-index when the post-it is hovered or tap-active (via
+      // has-[.dig-postit:hover] / has-[.dig-postit[data-tap-active]]),
+      // so the scaled-up note layers above neighbouring slots' LPs
+      // and above the carousel dot pagination (z-30) instead of
+      // getting buried. z-40 on the post-it itself beats the dot
+      // nav even before the slot/row hop kicks in. Default
+      // --postit-scale lives in the inline style below; the hover
+      // and data-[tap-active] classes rewrite the variable.
+      className={`dig-postit relative block select-none z-0 hover:z-40 data-[tap-active=true]:z-40 transition-transform duration-300 ease-out ${scaleCls}`}
       style={{
         width: noteWidth,
         // CSS variable composition with a 1 fallback in var() so the

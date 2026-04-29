@@ -7,6 +7,29 @@ import { normalizeSearchQuery } from './albumSearch.js';
 // request flow). Both callers get the same merged / deduped / sorted
 // result shape; only the route-level gating differs.
 
+// Pull a 4-digit release year out of the query when the user typed
+// one — supports the "artist + year → newest album" intent (e.g.
+// "bring me the horizon 2026" should surface 2026 releases ahead of
+// the artist's deep catalogue). The token is stripped from the
+// remaining text so the upstream services and the textual relevance
+// scoring don't try to match "2026" inside album titles. Range
+// 1900-2099 keeps it from accidentally eating numeric tokens that
+// appear in album titles ("Cars" → "1999" was the canonical example
+// of why a 4-digit-anywhere regex would over-match).
+function extractYearToken(query: string): {
+  year: string | null;
+  remaining: string;
+} {
+  const match = query.match(/(?:^|\s)((?:19|20)\d{2})(?=\s|$)/);
+  if (!match) return { year: null, remaining: query };
+  const year = match[1];
+  const remaining = query
+    .replace(match[0], ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return { year, remaining };
+}
+
 function generateSplitQueries(query: string): Array<{ artist: string; album: string }> {
   const words = query.trim().split(/\s+/);
   if (words.length < 2) return [];
@@ -21,8 +44,9 @@ function generateSplitQueries(query: string): Array<{ artist: string; album: str
 }
 
 function relevanceScore(
-  result: { artist: string; title: string },
-  queryWords: string[]
+  result: { artist: string; title: string; year?: string | null },
+  queryWords: string[],
+  yearFilter: string | null
 ): number {
   const artist = result.artist.toLowerCase();
   const title = result.title.toLowerCase();
@@ -35,6 +59,16 @@ function relevanceScore(
   const queryStr = queryWords.join(' ');
   if (artist.includes(queryStr)) score += 3;
   if (title.includes(queryStr)) score += 2;
+  // Year-match boost — when the user explicitly asked for releases
+  // from a specific year, results carrying that year jump above
+  // textual ties so the requested release lands at the top even
+  // when the deep catalogue dominates the upstream relevance order.
+  // +5 is large enough to outrank the artist+title exact-substring
+  // bonuses (3 + 2) so a year-matching candidate from a partial
+  // text match still beats a non-year-matching exact text match.
+  if (yearFilter && result.year && result.year.startsWith(yearFilter)) {
+    score += 5;
+  }
   return score;
 }
 
@@ -55,22 +89,37 @@ export async function searchExternalMerged(
   // split-query / scoring paths all see the same cleaned token list.
   // Skips the dash-separator artefact a copy-paste like "Artist -
   // Album" otherwise drags through every layer.
-  const normalized = normalizeSearchQuery(query);
-  const queryWords = normalized.toLowerCase().split(/\s+/).filter(Boolean);
+  const normalizedRaw = normalizeSearchQuery(query);
+  const { year: yearFilter, remaining: textOnly } =
+    extractYearToken(normalizedRaw);
+  // If the year was the *only* token, fall back to the raw text so
+  // the upstreams don't get an empty query.
+  const textForUpstream = textOnly || normalizedRaw;
+  const queryWords = textForUpstream.toLowerCase().split(/\s+/).filter(Boolean);
+
+  // MB Lucene supports `date:YYYY` for filtering by release date —
+  // append it to the query when the user gave us a year so the
+  // upstream returns 2026 releases instead of buring them under the
+  // artist's earlier catalogue. The textual portion still drives
+  // most of the matching; the date clause just trims the result set.
+  const mbQuery = yearFilter
+    ? `${textForUpstream} AND date:${yearFilter}`
+    : textForUpstream;
 
   // Parallel: full-query search against both sources + split queries
   // (artist + album combinations for multi-word input).
   const [mbAlbums, discogsAlbums] = await Promise.all([
-    searchAlbums(normalized),
-    searchDiscogsAlbums(normalized),
+    searchAlbums(mbQuery),
+    searchDiscogsAlbums(textForUpstream, yearFilter),
   ]);
 
   let splitResults: typeof mbAlbums = [];
   if (queryWords.length >= 2) {
-    const splits = generateSplitQueries(normalized);
-    const splitSearches = splits.map((s) =>
-      searchAlbums(`artist:"${s.artist}" AND release:"${s.album}"`)
-    );
+    const splits = generateSplitQueries(textForUpstream);
+    const splitSearches = splits.map((s) => {
+      const base = `artist:"${s.artist}" AND release:"${s.album}"`;
+      return searchAlbums(yearFilter ? `${base} AND date:${yearFilter}` : base);
+    });
     const splitOutcomes = await Promise.allSettled(splitSearches);
     for (const outcome of splitOutcomes) {
       if (outcome.status === 'fulfilled') {
@@ -123,13 +172,13 @@ export async function searchExternalMerged(
   const minRelevance =
     queryWords.length <= 3 ? queryWords.length : queryWords.length - 1;
   const filtered = merged.filter(
-    (a) => relevanceScore(a, queryWords) >= minRelevance
+    (a) => relevanceScore(a, queryWords, yearFilter) >= minRelevance
   );
 
   // Sort: relevance first, then year descending.
   filtered.sort((a, b) => {
-    const ra = relevanceScore(a, queryWords);
-    const rb = relevanceScore(b, queryWords);
+    const ra = relevanceScore(a, queryWords, yearFilter);
+    const rb = relevanceScore(b, queryWords, yearFilter);
     if (ra !== rb) return rb - ra;
     const ya = parseInt(a.year || '', 10) || 0;
     const yb = parseInt(b.year || '', 10) || 0;

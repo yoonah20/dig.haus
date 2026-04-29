@@ -172,7 +172,8 @@ export const getDiscogsArtistReleases = memoAsync(
 );
 
 export async function searchDiscogsAlbums(
-  query: string
+  query: string,
+  year?: string | null
 ): Promise<
   Array<{
     title: string;
@@ -192,6 +193,12 @@ export async function searchDiscogsAlbums(
         q: query,
         type: 'master',
         per_page: '20',
+        // Optional year filter — when the caller's input contained a
+        // 4-digit year token (e.g. "bring me the horizon 2026"), the
+        // upstream search restricts to masters released that year so
+        // brand-new releases surface ahead of the artist's deep back
+        // catalogue. Discogs accepts this as a top-level search param.
+        ...(year ? { year } : {}),
       },
     });
 

@@ -504,7 +504,7 @@ function HeroWallSlideMobile({
                 // scaled post-it. `relative z-0` gives every row a
                 // baseline stacking context so the hovered row's
                 // z-50 actually wins against neighbours.
-                className="relative z-0 has-[.dig-postit:hover]:z-50"
+                className="relative z-0 has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60]"
                 style={{
                   marginBottom: ri < ROWS - 1 ? ROW_GAP_Y : 0,
                 }}
@@ -574,7 +574,7 @@ function HeroWallSlideMobile({
                         // note isn't occluded by the next column's
                         // LP cover (which has its own z-10 inside
                         // WallHoverCard).
-                        className="group/slot has-[.dig-postit:hover]:z-50"
+                        className="group/slot has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60]"
                         style={{
                           width: lpSize,
                           height: slotHeight,
