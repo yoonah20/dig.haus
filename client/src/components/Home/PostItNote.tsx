@@ -1,6 +1,8 @@
+import { useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 import { useTapActivate } from '../../hooks/useTapActivate';
+import { liftHeroSlot, releaseHeroSlot } from '../../utils/heroSlotLift';
 
 // Sticky note rendered below each hero-wall LP, on/around the rail
 // rather than on the cover itself. Mounted by ShelfRow / Mobile
@@ -153,10 +155,14 @@ export default function PostItNote({
     enabled: isMobile,
   });
 
+  const noteRef = useRef<HTMLAnchorElement>(null);
   return (
     <Link
+      ref={noteRef}
       to={href}
       aria-label={`${text.slice(0, 24)} 앨범으로 이동`}
+      onMouseEnter={() => liftHeroSlot(noteRef.current)}
+      onMouseLeave={() => releaseHeroSlot(noteRef.current)}
       onTouchStart={tap.handlers.onTouchStart}
       onTouchMove={tap.handlers.onTouchMove}
       onTouchCancel={tap.handlers.onTouchCancel}

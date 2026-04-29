@@ -5,6 +5,7 @@ import PlayChip from '../../PlayChip';
 import { WallLP } from './primitives';
 import { extractSpotifyAlbumId } from '../../../hooks/useNowPlaying';
 import { useTapActivate } from '../../../hooks/useTapActivate';
+import { liftHeroSlot, releaseHeroSlot } from '../../../utils/heroSlotLift';
 
 // Desktop wall-cell hover treatment shared by mydig + the home wall.
 //
@@ -151,21 +152,6 @@ export function upgradeWallCoverFallbacks(
   return urls.map((u) => upgradeWallCoverUrl(u) ?? u);
 }
 
-// Translate a transform-origin Y token ('top' / 'center' / 'bottom'
-// / '0%' / '50%' / '100%' / arbitrary percentage) into a 0-1 fraction
-// of the element's height. Used by the cursor-tilt math to project
-// the link's hit rect through the same origin the scale wrapper
-// uses, so the visual sleeve rect can be reconstructed without
-// querying the wrapper's live (transitioning) rect.
-function parseOriginYFrac(raw: string): number {
-  if (raw === 'top') return 0;
-  if (raw === 'center') return 0.5;
-  if (raw === 'bottom') return 1;
-  const m = raw.match(/^(-?\d+(?:\.\d+)?)\s*%$/);
-  if (m) return Math.min(1, Math.max(0, Number(m[1]!) / 100));
-  return 1;
-}
-
 export default function WallHoverCard({
   album,
   position,
@@ -193,55 +179,36 @@ export default function WallHoverCard({
 
   const cardRef = useRef<HTMLAnchorElement>(null);
 
-  // Cursor-tracked tilt + lamp-anchored specular — written to CSS
-  // custom properties on the anchor element via a plain ref (no
-  // React state per-pixel; mousemove fires every frame and setState
-  // would thrash).
+  // Cursor-tracked tilt + lamp-anchored specular — pokemon-cards-css
+  // style. Center-based offset against the link's layout rect, no
+  // clamp, so a cursor outside the rect (which happens when hover
+  // grows the visual sleeve past the lpSize × lpSize anchor) keeps
+  // producing a proportional tilt instead of saturating at one bound
+  // and reading as a one-direction tilt. mouseleave resets the
+  // values, so the unbounded-near-edge behaviour can't escape the
+  // hover lifetime.
   //
-  // Normalisation: the Link element is the stable lpSize × lpSize
-  // hit area, but on hover the inner scale wrapper grows to
-  // lpSize × hoverScalePct / 100 with its origin anchored at
-  // (center, hoverOriginY). For hoverOriginY values past 'bottom'
-  // (e.g. the home wall's '75%') the resulting visual rect extends
-  // both above and below the Link's layout rect — so the Link rect
-  // only spans the lower portion of what the user *sees* as the
-  // sleeve. That mismatch is what made vertical mouse movement
-  // feel like a one-direction tilt: the cursor can't enter the top
-  // half of the visual sleeve because that half lives outside the
-  // Link's hit area.
-  //
-  // Fix: project the Link rect through the same scale + origin to
-  // get the visual rect, then normalise the cursor against it. We
-  // use the *final* scale instead of the live transition value —
-  // measuring the wrapper's live rect during the 260 ms transition
-  // chases a moving target and made early frames feel stuck on one
-  // side (the prior implementation's footnote). Assuming the final
-  // scale gives a tiny mismatch in the first ~150 ms but stays
-  // symmetric across the full travel, which reads as right.
+  // Per-pixel writes go through CSS custom properties on the anchor
+  // (no React state per frame; mousemove fires every paint).
   const handleCursorMove = (e: React.MouseEvent<HTMLElement>) => {
     const el = cardRef.current;
     if (!el) return;
-    const linkRect = el.getBoundingClientRect();
-    const scale = hoverScalePct / 100;
-    const originYFrac = parseOriginYFrac(hoverOriginY);
-    const visualW = linkRect.width * scale;
-    const visualH = linkRect.height * scale;
-    const visualLeft =
-      linkRect.left + linkRect.width / 2 - visualW / 2;
-    const originAbsY = linkRect.top + linkRect.height * originYFrac;
-    const visualTop = originAbsY - visualH * originYFrac;
-    const rawNx = (e.clientX - visualLeft) / visualW;
-    const rawNy = (e.clientY - visualTop) / visualH;
-    const nx = Math.min(1, Math.max(0, rawNx));
-    const ny = Math.min(1, Math.max(0, rawNy));
-    const tiltY = (nx - 0.5) * 14;
-    const tiltX = -(ny - 0.5) * 14;
-    const specX = 50 - (nx - 0.5) * 70;
-    const specY = 38 - (ny - 0.5) * 55;
+    const rect = el.getBoundingClientRect();
+    const halfW = rect.width / 2;
+    const halfH = rect.height / 2;
+    const dx = (e.clientX - (rect.left + halfW)) / halfW;
+    const dy = (e.clientY - (rect.top + halfH)) / halfH;
+    const tiltY = dx * 7;
+    const tiltX = -dy * 7;
+    const specX = 50 - dx * 35;
+    const specY = 38 - dy * 27;
     el.style.setProperty('--tilt-x', `${tiltX}deg`);
     el.style.setProperty('--tilt-y', `${tiltY}deg`);
     el.style.setProperty('--spec-x', `${specX}%`);
     el.style.setProperty('--spec-y', `${specY}%`);
+  };
+  const handleCursorEnter = () => {
+    liftHeroSlot(cardRef.current);
   };
   const handleCursorLeave = () => {
     const el = cardRef.current;
@@ -250,6 +217,7 @@ export default function WallHoverCard({
     el.style.setProperty('--tilt-y', '0deg');
     el.style.setProperty('--spec-x', '50%');
     el.style.setProperty('--spec-y', '38%');
+    releaseHeroSlot(el);
   };
 
   const wallCoverUrl = upgradeWallCoverUrl(album.coverArtUrl);
@@ -272,6 +240,7 @@ export default function WallHoverCard({
       to={href}
       className="wall-hover-outer group relative block hover:z-20 data-[tap-active=true]:z-20"
       onMouseMove={handleCursorMove}
+      onMouseEnter={handleCursorEnter}
       onMouseLeave={handleCursorLeave}
       onTouchStart={tap.handlers.onTouchStart}
       onTouchMove={tap.handlers.onTouchMove}
