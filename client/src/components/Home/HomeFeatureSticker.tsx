@@ -11,6 +11,15 @@ import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 // Asset is 500×142 (aspect ~3.52:1) so the rendered sticker is
 // noticeably wider + shorter than the prior 1.82:1 box; the layout
 // percentages below are tuned against that geometry.
+// Date renders in a tight mono stack rather than the handwritten
+// graffiti family that the price uses — at 6-7 px the cursive
+// glyphs collapse into illegible scribble, while a clean mono
+// reads as a printed date stamp on top of the tag, which fits
+// the "shop owner annotated this with a sharpie, but the date
+// was already inkjet-printed" mental model.
+const DATE_FONT_STACK =
+  "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
+
 const TAG_BG = '/textures/tag.webp';
 const TAG_ASPECT = 500 / 142;
 
@@ -88,14 +97,18 @@ export default function HomeFeatureSticker({
   const width = Math.round(lpSize * 0.378);
   const height = Math.round(width / TAG_ASPECT);
   // Date sits in the narrow white slot to the right of the
-  // baked-in NEW SEALED stamp. Font ratio bumped 0.30 → 0.46 so
-  // the 6-digit YYMMDD fills the slot edge-to-edge instead of
-  // floating in a small box up top.
-  const dateFontSize = Math.max(8, Math.round(height * 0.46));
-  // Price font ratio 0.42 → 0.62 with edge-to-edge box so the
-  // handwritten digits dominate the mint half rather than
-  // floating in a small centred box.
-  const priceFontSize = Math.max(11, Math.round(height * 0.62));
+  // baked-in NEW SEALED stamp — that slot is only ~25% wide
+  // and ~50% tall in source coords, so 6 chars at the larger
+  // ratios (0.30, 0.46) of prior iterations overflowed past
+  // the right edge of the tag. 0.22 lands "260424" inside the
+  // slot at the rendered widths the home grid hits.
+  const dateFontSize = Math.max(6, Math.round(height * 0.22));
+  // Price font sized to fit cleanly inside the mint bottom half
+  // (which is also ~50% of tag height). At ratio 0.62 the prior
+  // pass overflowed upward past the divider line; 0.42 leaves
+  // the digits comfortably within the mint area while still
+  // reading as the dominant visual element in the bottom half.
+  const priceFontSize = Math.max(10, Math.round(height * 0.42));
   // Hand-applied tilt clamped to ±1°.
   const rot = seed ? (hashStr(seed) % 201) / 100 - 1 : 0;
   const dateText = formatReleaseDate(releaseDate ?? null);
@@ -121,44 +134,43 @@ export default function HomeFeatureSticker({
       }}
     >
       {/* Date overlay — narrow white slot to the right of the
-          baked-in NEW SEALED stamp (the stamp ends ~73% in; right
-          edge of the asset is at 100%). Box bottom stays well
-          above the horizontal divider line baked into the tag at
-          ~50% so the handwritten glyphs (which can extend below
-          the visible-text bound due to descender metrics) don't
-          collide with the divider — the prior placement straddled
-          it and the divider read as a strikethrough on the date.
-          Justify-end so digits sit flush against the right edge. */}
+          baked-in NEW SEALED stamp. Bottom stays above the
+          horizontal divider at ~50% so the digits don't collide
+          with it. Justify-end so the date sits flush against the
+          right edge of the tag. */}
       {dateText && (
         <div
           className="absolute flex items-center justify-end leading-none"
           style={{
-            top: '4%',
+            top: '6%',
             bottom: '52%',
-            left: '73%',
-            right: '2%',
-            fontFamily: GRAFFITI_FONT_STACK,
+            left: '74%',
+            right: '3%',
+            fontFamily: DATE_FONT_STACK,
+            fontWeight: 600,
             fontSize: dateFontSize,
             color: '#1a1a1a',
-            letterSpacing: '-0.02em',
+            letterSpacing: '-0.04em',
           }}
         >
           {dateText}
         </div>
       )}
-      {/* Price overlay — mint-green bottom half, edge-to-edge with
-          a 2px breathing line at the very bottom. Items-end so the
-          handwritten digits sit at the bottom of the box (visually
-          near the sticker base) instead of floating mid-area; the
-          font's natural top whitespace acts as the breathing room
-          between the divider line and the digits. */}
+      {/* Price overlay — mint-green bottom half, centred. Bottom
+          padding 4 px (was 2) so the handwritten digits sit
+          slightly raised off the sticker base instead of touching
+          it. items-center because the price font is now sized to
+          fit cleanly inside the mint half — bottom-aligning a
+          tightly-fit font would visually push the descender below
+          the visible bound; centring it lands the cap-line and
+          baseline symmetrically inside the mint area. */}
       <div
-        className="absolute flex items-end justify-center leading-none"
+        className="absolute flex items-center justify-center leading-none"
         style={{
           left: 0,
           right: 0,
           top: '52%',
-          bottom: 2,
+          bottom: 4,
           fontFamily: GRAFFITI_FONT_STACK,
           fontSize: priceFontSize,
           color: '#1a3a18',
