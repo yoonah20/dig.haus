@@ -729,7 +729,14 @@ function HeroWallSlide({
   return (
     <div
       {...(dataWallIdx !== undefined ? { 'data-wall-idx': dataWallIdx } : {})}
-      className="relative flex-shrink-0 w-full h-full snap-center overflow-hidden"
+      // `z-0` baseline + `has-[.dig-postit:hover]:z-[60]` lift the
+      // entire slide above the carousel's z-30 dot pagination + admin
+      // chips when any post-it inside is hovered. The inner
+      // -translate-x-1/2 frame creates its own stacking context, so
+      // the post-it's own z-40 stays trapped inside the frame; lifting
+      // here at the slide level is what propagates above the carousel
+      // siblings in the hero's stacking context.
+      className="relative flex-shrink-0 w-full h-full snap-center overflow-hidden z-0 has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60]"
     >
       <div
         className="absolute left-1/2 -translate-x-1/2"
@@ -931,7 +938,15 @@ function ShelfRow({
         return (
           <div
             key={position}
-            className="absolute group/slot"
+            // `relative z-0` baseline so the slot owns its stacking
+            // context; `has-[.dig-postit:hover]:z-[60]` lifts that
+            // context above the carousel siblings (dot pagination
+            // z-30, admin chips z-30) when the post-it inside is
+            // hovered or tap-activated. Without the baseline the
+            // post-it's own z-40 stays trapped inside the inner
+            // frame's transform-induced stacking context and the
+            // nav/dot row paints over the scaled-up note.
+            className="absolute group/slot z-0 has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60]"
             style={{
               left: cellLeft,
               top: rowTopY,
