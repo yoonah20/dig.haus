@@ -956,16 +956,18 @@ function ShelfRow({
         return (
           <div
             key={position}
-            // No z-baseline — the slot stays z-auto at rest so its
-            // children (post-it z-40, cover wall-hover-outer z-20)
-            // participate directly in the hero stacking context
-            // (now that the inner frame's transform is gone) and
-            // beat the dot pagination z-30 without any extra lift.
-            // The has-[] rules still lift the whole slot to z-[60]
-            // when interactive content is engaged, so a hover-scaled
-            // LP / scaled-up post-it clears the next sibling slot's
-            // cover instead of getting buried by DOM order.
-            className="absolute group/slot has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60] has-[.wall-hover-outer:hover]:z-[60] has-[.wall-hover-outer[data-tap-active=true]]:z-[60]"
+            // `dig-hero-slot` lives in index.css and bundles the
+            // z-index lift logic for this slot — z-up immediately on
+            // hover, z-down delayed by 300ms after hover ends so the
+            // scale-down transform finishes before the slot returns
+            // to z-auto and gets buried by its neighbour. Same set
+            // of triggers (post-it / cover, hover / tap-active) the
+            // inline has-[…] rules covered before, just folded into
+            // CSS so the asymmetric `transition-delay` could pair
+            // with each state. Slot stays z-auto at rest so its
+            // children participate directly in the hero stacking
+            // context against the dot pagination's z-30.
+            className="absolute group/slot dig-hero-slot"
             style={{
               left: cellLeft,
               top: rowTopY,
@@ -1006,6 +1008,7 @@ function ShelfRow({
                       lpSize={lpSize}
                       albumTitle={item.album.titleKo || item.album.title}
                       albumArtist={item.album.artistKo || item.album.artist}
+                      releaseDate={item.album.releaseDate}
                       seed={item.album.mbid}
                     />
                   ) : null

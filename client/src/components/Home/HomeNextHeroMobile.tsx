@@ -581,16 +581,14 @@ function HeroWallSlideMobile({
                     return (
                       <div
                         key={position}
-                        // Slot z-up triggers:
-                        //   - `.dig-postit:hover` / data-tap-active:
-                        //     scaled note clears the next column's LP
-                        //     cover (which has its own z-10 inside
-                        //     WallHoverCard).
-                        //   - `.wall-hover-outer:hover` / tap-active:
-                        //     LP hover-scale itself clears the next
-                        //     column's cover instead of getting
-                        //     buried by sibling DOM order.
-                        className="group/slot has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60] has-[.wall-hover-outer:hover]:z-[60] has-[.wall-hover-outer[data-tap-active=true]]:z-[60]"
+                        // `dig-hero-slot` (index.css) wraps the same
+                        // four trigger states the desktop slot uses
+                        // — post-it / cover, hover / tap-active —
+                        // with asymmetric z-index transition timing
+                        // so the discrete z-down jump fires only
+                        // after the inner scale-down transform has
+                        // finished, not the moment hover ends.
+                        className="group/slot dig-hero-slot"
                         style={{
                           width: lpSize,
                           height: slotHeight,
@@ -699,6 +697,7 @@ function MobileFeatureCell({
             lpSize={lpSize}
             albumTitle={album.titleKo || album.title}
             albumArtist={album.artistKo || album.artist}
+            releaseDate={album.releaseDate}
             seed={album.mbid}
           />
         ) : null

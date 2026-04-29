@@ -1,16 +1,35 @@
 import type { PriceTagLink } from '../../types';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
-// Pre-designed price tag — tag2.webp lays out three slots:
+// Pre-designed price tag — four colour variants share the same
+// 500×142 layout (aspect ~3.52:1):
 //   - top-left:  baked-in dig.haus + NEW wordmark
 //   - top-right: empty white slot to the right of "NEW", price lands here
-//   - bottom:    full-width mint band, artist + album title stacked here
-// Asset is 500×142 (aspect ~3.52:1). Source-px coordinates below project
-// into rendered px via the layout percentages. The earlier release-date
-// stamp slot is gone — the date no longer renders on the tag at all.
-
-const TAG_BG = '/textures/tag2.webp';
+//   - bottom:    full-width colour band, artist · album title overlay here
+// tag1 (cyan) is the default. tag2 (mint) flags pre-release records — a
+// future release_date marks "you can't buy this yet" and the colour
+// shift telegraphs that across the whole home grid without needing
+// a separate sticker layer. tag3 (pink) + tag4 (khaki) ship now but
+// aren't routed yet; the operator will assign them later.
+const TAG_BG_DEFAULT = '/textures/tag1.webp';
+const TAG_BG_PRE_RELEASE = '/textures/tag2.webp';
 const TAG_ASPECT = 500 / 142;
+
+// Pre-release gate — true when release_date is strictly after today.
+// Lexicographic compare works because ISO dates and bare-year strings
+// both sort chronologically as text. Returns false on null / unknown
+// shapes so anything we can't classify falls into the default tag.
+function isPreRelease(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    return raw.slice(0, 10) > today;
+  }
+  if (/^\d{4}$/.test(raw)) {
+    return raw > today.slice(0, 4);
+  }
+  return false;
+}
 
 const CURRENCY_SYMBOL: Record<string, string> = {
   USD: '$',
@@ -39,6 +58,10 @@ interface Props {
   // arbitrarily long values won't overflow into neighbouring covers.
   albumTitle: string;
   albumArtist: string;
+  // ISO release date (YYYY-MM-DD or YYYY). When this falls in the
+  // future the sticker swaps to the pre-release tag colour; when
+  // missing or in the past, the default tag is used.
+  releaseDate?: string | null;
   // Optional deterministic-rotation seed. Hashes into a -1°..+1°
   // tilt so neighbouring stickers don't sit at the same angle.
   // Range tightened from ±2° to ±1° because the wider tag asset
@@ -64,9 +87,11 @@ export default function HomeFeatureSticker({
   lpSize,
   albumTitle,
   albumArtist,
+  releaseDate,
   seed,
 }: Props) {
   const isSoldout = link.status === 'soldout';
+  const tagBg = isPreRelease(releaseDate) ? TAG_BG_PRE_RELEASE : TAG_BG_DEFAULT;
   // Width ratio: 0.42 (was 0.378 → +11%). The tag now carries
   // artist + album text on the mint band, so it earns a bit more
   // of the cover's width to keep that text legible at small lpSize.
@@ -110,7 +135,7 @@ export default function HomeFeatureSticker({
         right: 0,
         width,
         height,
-        backgroundImage: `url('${TAG_BG}')`,
+        backgroundImage: `url('${tagBg}')`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
         transform: rot ? `rotate(${rot.toFixed(2)}deg)` : undefined,

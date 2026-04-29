@@ -486,6 +486,29 @@ select:focus-visible {
    on each particle so motion never feels synchronised across the
    swarm. Uses translate3d to opt into compositor-layer rendering
    and avoid layout thrash. */
+/* Hero slot z-index lift, with asymmetric timing.
+ * The slot wraps a hover-scaling cover + post-it; on hover both
+ * scale up via transform (260-300ms transition). z-index can't
+ * tween, but `transition: z-index 0s linear <delay>` controls
+ * *when* the discrete jump happens. We want:
+ *   - hover start: z-up immediately, so the scaling cover/post-it
+ *     paints above its neighbour from frame 1.
+ *   - hover end:   keep z up until the scale-down finishes,
+ *     otherwise the discrete z-down fires while the cover is still
+ *     ~1.5x size and the next slot's LP paints over it mid-shrink.
+ * Apply the lift to all four "interactive" states the slot
+ * recognises (post-it / cover, hover / tap-active). */
+.dig-hero-slot {
+  transition: z-index 0s linear 300ms;
+}
+.dig-hero-slot:has(.dig-postit:hover),
+.dig-hero-slot:has(.dig-postit[data-tap-active='true']),
+.dig-hero-slot:has(.wall-hover-outer:hover),
+.dig-hero-slot:has(.wall-hover-outer[data-tap-active='true']) {
+  z-index: 60;
+  transition: z-index 0s linear 0s;
+}
+
 @keyframes dustDrift {
   0% {
     transform: translate3d(0, 0, 0);

@@ -151,6 +151,21 @@ export function upgradeWallCoverFallbacks(
   return urls.map((u) => upgradeWallCoverUrl(u) ?? u);
 }
 
+// Translate a transform-origin Y token ('top' / 'center' / 'bottom'
+// / '0%' / '50%' / '100%' / arbitrary percentage) into a 0-1 fraction
+// of the element's height. Used by the cursor-tilt math to project
+// the link's hit rect through the same origin the scale wrapper
+// uses, so the visual sleeve rect can be reconstructed without
+// querying the wrapper's live (transitioning) rect.
+function parseOriginYFrac(raw: string): number {
+  if (raw === 'top') return 0;
+  if (raw === 'center') return 0.5;
+  if (raw === 'bottom') return 1;
+  const m = raw.match(/^(-?\d+(?:\.\d+)?)\s*%$/);
+  if (m) return Math.min(1, Math.max(0, Number(m[1]!) / 100));
+  return 1;
+}
+
 export default function WallHoverCard({
   album,
   position,
@@ -181,24 +196,42 @@ export default function WallHoverCard({
   // Cursor-tracked tilt + lamp-anchored specular — written to CSS
   // custom properties on the anchor element via a plain ref (no
   // React state per-pixel; mousemove fires every frame and setState
-  // would thrash). Anchored at scene-upper-left at rest with wide
-  // inverse travel so the shine sweeps roughly 70% × 55% across the
-  // sleeve as the cursor moves; that "reflection lagging the tilt"
-  // is what reads as shrink-wrap rather than flat card.
-  // We normalise against the Link's pre-scale rect (which is the
-  // full lpSize hit area for the anchor itself) and clamp the
-  // result to [0, 1]. An earlier attempt to normalise against the
-  // scale wrapper's live rect chased a moving target during the
-  // 260 ms scale transition, which made the first frames feel as
-  // if the tilt was stuck on one side; using the stable Link rect
-  // + a hard clamp gives consistent ±7° symmetric tilt the moment
-  // the cursor enters and through the entire travel.
+  // would thrash).
+  //
+  // Normalisation: the Link element is the stable lpSize × lpSize
+  // hit area, but on hover the inner scale wrapper grows to
+  // lpSize × hoverScalePct / 100 with its origin anchored at
+  // (center, hoverOriginY). For hoverOriginY values past 'bottom'
+  // (e.g. the home wall's '75%') the resulting visual rect extends
+  // both above and below the Link's layout rect — so the Link rect
+  // only spans the lower portion of what the user *sees* as the
+  // sleeve. That mismatch is what made vertical mouse movement
+  // feel like a one-direction tilt: the cursor can't enter the top
+  // half of the visual sleeve because that half lives outside the
+  // Link's hit area.
+  //
+  // Fix: project the Link rect through the same scale + origin to
+  // get the visual rect, then normalise the cursor against it. We
+  // use the *final* scale instead of the live transition value —
+  // measuring the wrapper's live rect during the 260 ms transition
+  // chases a moving target and made early frames feel stuck on one
+  // side (the prior implementation's footnote). Assuming the final
+  // scale gives a tiny mismatch in the first ~150 ms but stays
+  // symmetric across the full travel, which reads as right.
   const handleCursorMove = (e: React.MouseEvent<HTMLElement>) => {
     const el = cardRef.current;
     if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const rawNx = (e.clientX - rect.left) / rect.width;
-    const rawNy = (e.clientY - rect.top) / rect.height;
+    const linkRect = el.getBoundingClientRect();
+    const scale = hoverScalePct / 100;
+    const originYFrac = parseOriginYFrac(hoverOriginY);
+    const visualW = linkRect.width * scale;
+    const visualH = linkRect.height * scale;
+    const visualLeft =
+      linkRect.left + linkRect.width / 2 - visualW / 2;
+    const originAbsY = linkRect.top + linkRect.height * originYFrac;
+    const visualTop = originAbsY - visualH * originYFrac;
+    const rawNx = (e.clientX - visualLeft) / visualW;
+    const rawNy = (e.clientY - visualTop) / visualH;
     const nx = Math.min(1, Math.max(0, rawNx));
     const ny = Math.min(1, Math.max(0, rawNy));
     const tiltY = (nx - 0.5) * 14;
