@@ -1008,7 +1008,6 @@ function ShelfRow({
                       lpSize={lpSize}
                       albumTitle={item.album.titleKo || item.album.title}
                       albumArtist={item.album.artistKo || item.album.artist}
-                      releaseDate={item.album.releaseDate}
                       seed={item.album.mbid}
                     />
                   ) : null

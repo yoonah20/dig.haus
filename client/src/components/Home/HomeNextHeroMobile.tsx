@@ -697,7 +697,6 @@ function MobileFeatureCell({
             lpSize={lpSize}
             albumTitle={album.titleKo || album.title}
             albumArtist={album.artistKo || album.artist}
-            releaseDate={album.releaseDate}
             seed={album.mbid}
           />
         ) : null
