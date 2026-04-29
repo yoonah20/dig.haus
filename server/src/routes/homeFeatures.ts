@@ -376,11 +376,60 @@ router.patch('/home/meta', requireAdmin, (req, res) => {
   if (sets.length === 0) {
     return res.json({ ok: true });
   }
-  sets.push("updated_at = datetime('now')");
+  // Split the staged updates into two scopes:
+  //   - wall-scoped: theme + description (each wall keeps its own
+  //     editorial copy — wall 1 might be "이달의 새 메탈", wall 2 a
+  //     mood, etc.)
+  //   - shared:     every tuner / position knob, including header
+  //     placement + plastic-wrap params. Operator decision (2026-04-29)
+  //     to maintain a single shared visual profile across walls,
+  //     since all backdrop assets share the same absolute LP
+  //     positions. Editing any wall's tuner now applies to every
+  //     wall in one shot.
+  const SHARED_TUNER_COLS = new Set([
+    'header_top_px',
+    'header_left_px',
+    'header_rotation_deg',
+    'plastic_scale_pct',
+    'plastic_offset_x_px',
+    'plastic_offset_y_px',
+    'plastic_blend_mode',
+    'lp_size',
+    'lp_gap',
+    'upper_lp_x_start',
+    'lower_lp_x_start',
+    'upper_lp_y',
+    'lower_lp_y',
+    'title_font_size',
+    'title_rotation_deg',
+  ]);
+  const wallSets: string[] = [];
+  const wallArgs: any[] = [];
+  const sharedSets: string[] = [];
+  const sharedArgs: any[] = [];
+  for (let i = 0; i < sets.length; i++) {
+    const colName = sets[i]!.split(' = ')[0]!;
+    if (SHARED_TUNER_COLS.has(colName)) {
+      sharedSets.push(sets[i]!);
+      sharedArgs.push(args[i]);
+    } else {
+      wallSets.push(sets[i]!);
+      wallArgs.push(args[i]);
+    }
+  }
   const db = getDb();
-  db.prepare(
-    `UPDATE home_walls SET ${sets.join(', ')} WHERE id = ?`
-  ).run(...args, wallId);
+  if (wallSets.length > 0) {
+    wallSets.push("updated_at = datetime('now')");
+    db.prepare(
+      `UPDATE home_walls SET ${wallSets.join(', ')} WHERE id = ?`
+    ).run(...wallArgs, wallId);
+  }
+  if (sharedSets.length > 0) {
+    sharedSets.push("updated_at = datetime('now')");
+    db.prepare(
+      `UPDATE home_walls SET ${sharedSets.join(', ')}`
+    ).run(...sharedArgs);
+  }
   res.json({ ok: true });
 });
 

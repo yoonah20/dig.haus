@@ -1793,6 +1793,45 @@ export function initializeDatabase(db: Database.Database): void {
       `[migration] unified tuner values from wall 1 onto walls 2+3 (${result.changes} rows)`
     );
   });
+
+  // Re-sync — the 2026-04-28 unification ran once but admin retuned
+  // walls 2+3 individually afterwards. Operator confirmed they want
+  // a single shared tuner profile keyed off wall 1 again, since the
+  // backdrop assets across all three walls now share the same
+  // absolute LP positions. Same column set, fresh runOnce key so
+  // the previous one-shot doesn't block this pass.
+  runOnce(db, 'unify-walls-2-3-tuner-with-wall-1-2026-04-29', () => {
+    const tunerCols = [
+      'lp_size',
+      'lp_gap',
+      'upper_lp_x_start',
+      'lower_lp_x_start',
+      'upper_lp_y',
+      'lower_lp_y',
+      'header_top_px',
+      'header_left_px',
+      'header_rotation_deg',
+      'title_font_size',
+      'title_rotation_deg',
+      'plastic_scale_pct',
+      'plastic_offset_x_px',
+      'plastic_offset_y_px',
+      'plastic_blend_mode',
+    ];
+    const setClause = tunerCols
+      .map((c) => `${c} = (SELECT ${c} FROM home_walls WHERE id = 1)`)
+      .join(', ');
+    const result = db
+      .prepare(
+        `UPDATE home_walls
+            SET ${setClause}, updated_at = datetime('now')
+          WHERE id IN (2, 3)`
+      )
+      .run();
+    console.log(
+      `[migration] re-unified tuner values from wall 1 onto walls 2+3 (${result.changes} rows)`
+    );
+  });
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
      ON user_follows(followee_id, created_at DESC)`

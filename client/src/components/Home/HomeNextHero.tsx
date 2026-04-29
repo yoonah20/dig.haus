@@ -569,13 +569,7 @@ export default function HomeNextHero() {
           OS preference). */}
       {walls.length > 1 && (
         <div
-          // group-has lift: when a post-it is hovered/tap-active
-          // anywhere in the hero, the slide jumps to z-[60] (see
-          // HeroWallSlide root) so its backdrop image starts painting
-          // above this z-30 dot row, hiding the dots. Lifting the
-          // dots to z-[70] in the same condition keeps them visible.
-          // Same group is used for the admin chips below.
-          className="absolute left-1/2 -translate-x-1/2 z-30 group-has-[.dig-postit:hover]/hero:z-[70] group-has-[.dig-postit[data-tap-active=true]]/hero:z-[70] flex items-center gap-3"
+          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-3"
           style={{ bottom: 50 }}
         >
           <div className="flex items-center gap-2">
@@ -616,7 +610,7 @@ export default function HomeNextHero() {
           3번째) so the admin can confirm which wall is about to be
           touched before clicking. */}
       {isAdmin && !editing && !tunerOpen && (
-        <div className="absolute top-3 right-3 z-30 group-has-[.dig-postit:hover]/hero:z-[70] group-has-[.dig-postit[data-tap-active=true]]/hero:z-[70] flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity">
           <button
             type="button"
             onClick={() => setEditing(true)}
@@ -742,18 +736,29 @@ function HeroWallSlide({
   return (
     <div
       {...(dataWallIdx !== undefined ? { 'data-wall-idx': dataWallIdx } : {})}
-      // `z-0` baseline + `has-[.dig-postit:hover]:z-[60]` lift the
-      // entire slide above the carousel's z-30 dot pagination + admin
-      // chips when any post-it inside is hovered. The inner
-      // -translate-x-1/2 frame creates its own stacking context, so
-      // the post-it's own z-40 stays trapped inside the frame; lifting
-      // here at the slide level is what propagates above the carousel
-      // siblings in the hero's stacking context.
-      className="relative flex-shrink-0 w-full h-full snap-center overflow-hidden z-0 has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60]"
+      // No z-bump on the slide — earlier passes lifted the whole
+      // slide to z-[60] on post-it hover so the post-it cleared the
+      // carousel's z-30 dot pagination, but lifting the slide also
+      // brought its backdrop image above the dots and required a
+      // matching z-up on the dots, which then re-buried the
+      // post-it. The real fix is below: the inner frame drops its
+      // -translate-x-1/2 transform (which had been creating a
+      // stacking context that trapped the post-it's z-40), so the
+      // post-it's z propagates directly into the hero stacking
+      // context where it naturally beats the z-30 dots without
+      // anything else having to move.
+      className="relative flex-shrink-0 w-full h-full snap-center overflow-hidden"
     >
       <div
-        className="absolute left-1/2 -translate-x-1/2"
+        // Centred via `left: 50%` + a negative `marginLeft` instead
+        // of `left-1/2 -translate-x-1/2`. Same visual result, no
+        // transform — and no transform means no stacking context, so
+        // descendant z-indexes (slot z-[60] on hover, post-it z-40
+        // inside it) participate directly in the hero's stacking
+        // context against the dot pagination's z-30.
+        className="absolute left-1/2"
         style={{
+          marginLeft: -sceneW / 2,
           top: -TRIM_TOP_PX,
           width: sceneW,
           height: sceneFullH,
@@ -951,18 +956,16 @@ function ShelfRow({
         return (
           <div
             key={position}
-            // `relative z-0` baseline so the slot owns its stacking
-            // context; the `has-[…]` rules lift it above sibling
-            // slots when interactive content inside is engaged:
-            //   - `.dig-postit:hover` / data-tap-active: post-it
-            //     scales above the next slot's LP, the carousel dots,
-            //     and the admin chips.
-            //   - `.wall-hover-outer:hover` / data-tap-active: the LP
-            //     itself hover-scales (162%) and would otherwise be
-            //     buried by the next slot's cover (sibling slots
-            //     share the same z-0 baseline, so DOM-order paint
-            //     wins without the lift).
-            className="absolute group/slot z-0 has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60] has-[.wall-hover-outer:hover]:z-[60] has-[.wall-hover-outer[data-tap-active=true]]:z-[60]"
+            // No z-baseline — the slot stays z-auto at rest so its
+            // children (post-it z-40, cover wall-hover-outer z-20)
+            // participate directly in the hero stacking context
+            // (now that the inner frame's transform is gone) and
+            // beat the dot pagination z-30 without any extra lift.
+            // The has-[] rules still lift the whole slot to z-[60]
+            // when interactive content is engaged, so a hover-scaled
+            // LP / scaled-up post-it clears the next sibling slot's
+            // cover instead of getting buried by DOM order.
+            className="absolute group/slot has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60] has-[.wall-hover-outer:hover]:z-[60] has-[.wall-hover-outer[data-tap-active=true]]:z-[60]"
             style={{
               left: cellLeft,
               top: rowTopY,
