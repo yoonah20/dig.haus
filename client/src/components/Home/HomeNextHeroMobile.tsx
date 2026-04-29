@@ -285,6 +285,8 @@ export default function HomeNextHeroMobile() {
               <HeroWallSlideMobile
                 key={`clone-last-${walls[walls.length - 1].id}`}
                 wall={walls[walls.length - 1]}
+                dataWallIdx={walls.length - 1}
+                isClone
                 isLoading={isLoading}
                 lpSize={lpSize}
                 railWidth={railWidth}
@@ -306,6 +308,8 @@ export default function HomeNextHeroMobile() {
               <HeroWallSlideMobile
                 key={`clone-first-${walls[0].id}`}
                 wall={walls[0]}
+                dataWallIdx={0}
+                isClone
                 isLoading={isLoading}
                 lpSize={lpSize}
                 railWidth={railWidth}
@@ -364,16 +368,24 @@ export default function HomeNextHeroMobile() {
 function HeroWallSlideMobile({
   wall,
   dataWallIdx,
+  isClone = false,
   isLoading,
   lpSize,
   railWidth,
   railLeftPx,
 }: {
   wall: HomeWall;
-  /** Real wall index for the IO observer. Omitted on clone slides
-   *  rendered by the looping carousel so the observer ignores them
-   *  and activeIdx only ever reflects a real wall. */
-  dataWallIdx?: number;
+  /** Real wall index. Used both for the data attribute the IO
+   *  observer reads, and as a seed input for the per-wall rail
+   *  texture variation. Clone slides still receive the index of
+   *  the wall they're cloning so the rail visual matches; the
+   *  data attribute is suppressed via isClone instead. */
+  dataWallIdx: number;
+  /** True for the leading/trailing clone slides rendered by the
+   *  looping carousel. Suppresses the data-wall-idx attribute so
+   *  the IO observer skips the clone but lets the seed math run
+   *  with the real index it's cloning. */
+  isClone?: boolean;
   isLoading: boolean;
   lpSize: number;
   railWidth: number;
@@ -386,7 +398,7 @@ function HeroWallSlideMobile({
 
   return (
     <div
-      {...(dataWallIdx !== undefined ? { 'data-wall-idx': dataWallIdx } : {})}
+      {...(isClone ? {} : { 'data-wall-idx': dataWallIdx })}
       className="relative flex-shrink-0 w-full snap-center overflow-hidden"
       style={{
         // Per-wall surface tone. Replaces the singleton
