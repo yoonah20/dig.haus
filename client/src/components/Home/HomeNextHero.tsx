@@ -977,6 +977,7 @@ function ShelfRow({
                       <HomeFeatureSticker
                         link={topLink}
                         lpSize={lpSize}
+                        releaseDate={item.album.releaseDate}
                         seed={item.album.mbid}
                       />
                     )}

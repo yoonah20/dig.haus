@@ -679,7 +679,14 @@ function MobileFeatureCell({
       coverOverlay={
         <>
           {isPick && <MobilePickSticker lpSize={lpSize} seed={album.mbid} />}
-          {topLink && <HomeFeatureSticker link={topLink} lpSize={lpSize} />}
+          {topLink && (
+            <HomeFeatureSticker
+              link={topLink}
+              lpSize={lpSize}
+              releaseDate={album.releaseDate}
+              seed={album.mbid}
+            />
+          )}
         </>
       }
     />
