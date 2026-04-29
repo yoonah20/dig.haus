@@ -282,23 +282,38 @@ export default function HomeNextHero() {
   // slide at 100% of the carousel width. The IntersectionObserver
   // below feeds setActiveIdx so the admin chips + dot pagination
   // know which wall the user is currently looking at.
+  //
+  // Looping carousel: when there are 2+ walls, we render
+  // [lastClone, ...walls, firstClone] so swiping past either end
+  // visually continues into the next wall. The boundary handler
+  // (useEffect below) snaps scrollLeft back to the matching real
+  // slide instantly once the snap settles, which the user perceives
+  // as a seamless wrap. Clones don't carry data-wall-idx so the IO
+  // observer ignores them — activeIdx only updates from real slides.
   const carouselRef = useRef<HTMLDivElement>(null);
-  // Restore the last-visible wall on mount so navigating to an
-  // album page and back doesn't snap the user to wall 1. useLayout
-  // Effect runs before paint so the scrollTo lands before the IO
-  // observer fires + before the user sees a flash of wall 1. Gated
-  // on walls.length + sceneW so the restore only runs once data has
-  // arrived and the carousel has real width to scroll inside.
+  const isLooping = walls.length > 1;
+  // Initial scroll position on mount — when looping is active, the
+  // first real slide lives at DOM index 1 (DOM index 0 is the clone
+  // of the last wall), so we always have to scroll past the leading
+  // clone before paint. SessionStorage restore folds in here too:
+  // the stored real index gets +1 in DOM space when looping. Gated
+  // on walls.length + sceneW so this runs once data has arrived and
+  // the carousel has real width to scroll inside.
   useLayoutEffect(() => {
     const root = carouselRef.current;
     if (!root || walls.length === 0 || sceneW <= 0) return;
     if (typeof window === 'undefined') return;
+    let realIdx = 0;
     const raw = window.sessionStorage.getItem(ACTIVE_WALL_STORAGE_KEY);
-    if (!raw) return;
-    const idx = Number.parseInt(raw, 10);
-    if (!Number.isFinite(idx) || idx <= 0 || idx >= walls.length) return;
-    root.scrollTo({ left: idx * root.clientWidth, behavior: 'instant' });
-    setActiveIdx(idx);
+    if (raw) {
+      const parsed = Number.parseInt(raw, 10);
+      if (Number.isFinite(parsed) && parsed > 0 && parsed < walls.length) {
+        realIdx = parsed;
+      }
+    }
+    const domIdx = isLooping ? realIdx + 1 : realIdx;
+    root.scrollTo({ left: domIdx * root.clientWidth, behavior: 'instant' });
+    setActiveIdx(realIdx);
     // Run only once per fresh mount-with-data — re-running on every
     // walls.length / sceneW change would fight the user's manual
     // swipes (each swipe writes to storage, then the restore would
@@ -306,6 +321,41 @@ export default function HomeNextHero() {
     // single-shot per page mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walls.length > 0, sceneW > 0]);
+  // Boundary handler — when the user (or auto-advance) lands on a
+  // clone slide (DOM idx 0 or N+1), snap instantly to the matching
+  // real slide. Debounced ~120ms so the native snap-mandatory
+  // settle completes before we measure scrollLeft; firing during
+  // an in-flight smooth scroll would interrupt the animation and
+  // make the wrap visually jagged. The instant scrollTo re-emits
+  // a scroll event which re-arms the timer, but the second pass
+  // sees a non-boundary position and noops.
+  useEffect(() => {
+    const root = carouselRef.current;
+    if (!root || !isLooping) return;
+    const N = walls.length;
+    let timer: number | null = null;
+    function check() {
+      if (!root) return;
+      const w = root.clientWidth;
+      if (w <= 0) return;
+      const left = root.scrollLeft;
+      const eps = 4;
+      if (left < eps) {
+        root.scrollTo({ left: N * w, behavior: 'instant' });
+      } else if (left > (N + 1) * w - eps) {
+        root.scrollTo({ left: w, behavior: 'instant' });
+      }
+    }
+    function onScroll() {
+      if (timer != null) window.clearTimeout(timer);
+      timer = window.setTimeout(check, 120);
+    }
+    root.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      root.removeEventListener('scroll', onScroll);
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [isLooping, walls.length]);
   useEffect(() => {
     const root = carouselRef.current;
     if (!root) return;
@@ -340,7 +390,8 @@ export default function HomeNextHero() {
   function scrollToIdx(idx: number) {
     const root = carouselRef.current;
     if (!root) return;
-    root.scrollTo({ left: idx * root.clientWidth, behavior: 'smooth' });
+    const domIdx = isLooping ? idx + 1 : idx;
+    root.scrollTo({ left: domIdx * root.clientWidth, behavior: 'smooth' });
   }
 
   // Auto-advance — fires every AUTO_ADVANCE_MS while no interaction
@@ -363,10 +414,17 @@ export default function HomeNextHero() {
     if (walls.length <= 1) return;
     if (interactionPaused || editing || tunerOpen || userPaused) return;
     const id = window.setInterval(() => {
-      const next = (activeIdx + 1) % walls.length;
       const root = carouselRef.current;
       if (!root) return;
-      root.scrollTo({ left: next * root.clientWidth, behavior: 'smooth' });
+      // Always advance one DOM slot to the right so the wrap from
+      // last → first plays as a continuous slide into the firstClone
+      // (the boundary handler then jumps instantly to real wall 0).
+      // Using `(activeIdx + 1) % walls.length` directly would scroll
+      // backward across N slides at the seam, which is what we're
+      // trying to avoid in the first place.
+      const currentDom = isLooping ? activeIdx + 1 : activeIdx;
+      const nextDom = isLooping ? currentDom + 1 : (currentDom + 1) % walls.length;
+      root.scrollTo({ left: nextDom * root.clientWidth, behavior: 'smooth' });
     }, AUTO_ADVANCE_MS);
     return () => window.clearInterval(id);
   }, [
@@ -400,7 +458,8 @@ export default function HomeNextHero() {
     followWallIdRef.current = null;
     const root = carouselRef.current;
     if (!root) return;
-    root.scrollTo({ left: newIdx * root.clientWidth, behavior: 'instant' });
+    const domIdx = isLooping ? newIdx + 1 : newIdx;
+    root.scrollTo({ left: domIdx * root.clientWidth, behavior: 'instant' });
     setActiveIdx(newIdx);
     // Keying on the joined id-order so the effect fires on every
     // post-move refetch (where the array reorders) but stays quiet
@@ -442,20 +501,55 @@ export default function HomeNextHero() {
           msOverflowStyle: 'none',
         }}
       >
-        {sceneW > 0 &&
-          walls.map((w, i) => (
-            <HeroWallSlide
-              key={w.id}
-              wall={w}
-              dataWallIdx={i}
-              isFirst={i === activeIdx}
-              tuner={i === activeIdx ? tuner : metaToTuner(w)}
-              sceneW={sceneW}
-              sceneFullH={sceneFullH}
-              scale={scale}
-              isLoading={isLoading}
-            />
-          ))}
+        {sceneW > 0 && walls.length > 0 && (
+          <>
+            {/* Leading clone of the last wall — only rendered when
+                looping is active. Sits at DOM index 0 so swiping left
+                from real wall 0 visually slides into wall N-1's
+                content; the boundary handler then instant-snaps to
+                the real last slide. No data-wall-idx so the IO
+                observer ignores it. */}
+            {isLooping && (
+              <HeroWallSlide
+                key={`clone-last-${walls[walls.length - 1].id}`}
+                wall={walls[walls.length - 1]}
+                isFirst={false}
+                tuner={metaToTuner(walls[walls.length - 1])}
+                sceneW={sceneW}
+                sceneFullH={sceneFullH}
+                scale={scale}
+                isLoading={isLoading}
+              />
+            )}
+            {walls.map((w, i) => (
+              <HeroWallSlide
+                key={w.id}
+                wall={w}
+                dataWallIdx={i}
+                isFirst={i === activeIdx}
+                tuner={i === activeIdx ? tuner : metaToTuner(w)}
+                sceneW={sceneW}
+                sceneFullH={sceneFullH}
+                scale={scale}
+                isLoading={isLoading}
+              />
+            ))}
+            {/* Trailing clone of the first wall — mirrors the leading
+                clone for swipe-right past the last wall. */}
+            {isLooping && (
+              <HeroWallSlide
+                key={`clone-first-${walls[0].id}`}
+                wall={walls[0]}
+                isFirst={false}
+                tuner={metaToTuner(walls[0])}
+                sceneW={sceneW}
+                sceneFullH={sceneFullH}
+                scale={scale}
+                isLoading={isLoading}
+              />
+            )}
+          </>
+        )}
       </div>
 
       {/* Dot pagination — positioned along the bottom centre of the
@@ -613,7 +707,11 @@ function HeroWallSlide({
   isLoading,
 }: {
   wall: HomeWall;
-  dataWallIdx: number;
+  /** Real wall index for IntersectionObserver to feed setActiveIdx.
+   *  Omitted on clone slides (leading/trailing duplicates rendered
+   *  by the looping carousel) so the observer ignores them and
+   *  activeIdx only ever reflects a real wall. */
+  dataWallIdx?: number;
   isFirst: boolean;
   tuner: TunerValues;
   sceneW: number;
@@ -630,7 +728,7 @@ function HeroWallSlide({
 
   return (
     <div
-      data-wall-idx={dataWallIdx}
+      {...(dataWallIdx !== undefined ? { 'data-wall-idx': dataWallIdx } : {})}
       className="relative flex-shrink-0 w-full h-full snap-center overflow-hidden"
     >
       <div

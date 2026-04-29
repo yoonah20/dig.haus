@@ -137,24 +137,62 @@ export default function HomeNextHeroMobile() {
   // phones the snap behaviour is "swipe to the next wall" which is
   // exactly what a touch user expects from a hero band of multiple
   // tracks. activeIdx drives the dot pagination below the rails.
+  // Looping mirror of the desktop pattern — see HomeNextHero for
+  // the [lastClone, ...walls, firstClone] rationale.
   const carouselRef = useRef<HTMLDivElement>(null);
   const [activeIdx, setActiveIdx] = useState(0);
-  // Restore last-visible wall on mount — see desktop hero for the
-  // "navigate-away-and-back" rationale. useLayoutEffect so the
-  // scrollTo lands before paint, gated on walls + a positive lpSize
-  // (the mobile equivalent of "carousel has real width to scroll").
+  const isLooping = walls.length > 1;
+  // Restore last-visible wall on mount — and always seek past the
+  // leading clone when looping is active, otherwise the carousel
+  // would land on the clone of the last wall on first paint.
   useLayoutEffect(() => {
     const root = carouselRef.current;
     if (!root || walls.length === 0 || lpSize <= 0) return;
     if (typeof window === 'undefined') return;
+    let realIdx = 0;
     const raw = window.sessionStorage.getItem(ACTIVE_WALL_STORAGE_KEY);
-    if (!raw) return;
-    const idx = Number.parseInt(raw, 10);
-    if (!Number.isFinite(idx) || idx <= 0 || idx >= walls.length) return;
-    root.scrollTo({ left: idx * root.clientWidth, behavior: 'instant' });
-    setActiveIdx(idx);
+    if (raw) {
+      const parsed = Number.parseInt(raw, 10);
+      if (Number.isFinite(parsed) && parsed > 0 && parsed < walls.length) {
+        realIdx = parsed;
+      }
+    }
+    const domIdx = isLooping ? realIdx + 1 : realIdx;
+    root.scrollTo({ left: domIdx * root.clientWidth, behavior: 'instant' });
+    setActiveIdx(realIdx);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walls.length > 0, lpSize > 0]);
+  // Boundary handler — snap from clone slides back to their real
+  // counterparts after the native snap settles. Mirrors the desktop
+  // implementation; the mobile carousel uses the same DOM layout
+  // and same scroll-snap mechanics, so the math is identical.
+  useEffect(() => {
+    const root = carouselRef.current;
+    if (!root || !isLooping) return;
+    const N = walls.length;
+    let timer: number | null = null;
+    function check() {
+      if (!root) return;
+      const w = root.clientWidth;
+      if (w <= 0) return;
+      const left = root.scrollLeft;
+      const eps = 4;
+      if (left < eps) {
+        root.scrollTo({ left: N * w, behavior: 'instant' });
+      } else if (left > (N + 1) * w - eps) {
+        root.scrollTo({ left: w, behavior: 'instant' });
+      }
+    }
+    function onScroll() {
+      if (timer != null) window.clearTimeout(timer);
+      timer = window.setTimeout(check, 120);
+    }
+    root.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      root.removeEventListener('scroll', onScroll);
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [isLooping, walls.length]);
   useEffect(() => {
     const root = carouselRef.current;
     if (!root) return;
@@ -186,7 +224,8 @@ export default function HomeNextHeroMobile() {
   function scrollToIdx(idx: number) {
     const root = carouselRef.current;
     if (!root) return;
-    root.scrollTo({ left: idx * root.clientWidth, behavior: 'smooth' });
+    const domIdx = isLooping ? idx + 1 : idx;
+    root.scrollTo({ left: domIdx * root.clientWidth, behavior: 'smooth' });
   }
 
   // Auto-advance — fires every AUTO_ADVANCE_MS while no touch is
@@ -206,10 +245,11 @@ export default function HomeNextHeroMobile() {
     if (walls.length <= 1) return;
     if (interactionPaused || userPaused) return;
     const id = window.setInterval(() => {
-      const next = (activeIdx + 1) % walls.length;
       const root = carouselRef.current;
       if (!root) return;
-      root.scrollTo({ left: next * root.clientWidth, behavior: 'smooth' });
+      const currentDom = isLooping ? activeIdx + 1 : activeIdx;
+      const nextDom = isLooping ? currentDom + 1 : (currentDom + 1) % walls.length;
+      root.scrollTo({ left: nextDom * root.clientWidth, behavior: 'smooth' });
     }, AUTO_ADVANCE_MS);
     return () => window.clearInterval(id);
   }, [activeIdx, walls.length, interactionPaused, userPaused, reducedMotion]);
@@ -237,17 +277,43 @@ export default function HomeNextHeroMobile() {
           msOverflowStyle: 'none',
         }}
       >
-        {walls.map((w, i) => (
-          <HeroWallSlideMobile
-            key={w.id}
-            wall={w}
-            dataWallIdx={i}
-            isLoading={isLoading}
-            lpSize={lpSize}
-            railWidth={railWidth}
-            railLeftPx={railLeftPx}
-          />
-        ))}
+        {walls.length > 0 && (
+          <>
+            {/* Leading clone of the last wall — see HomeNextHero
+                desktop comment for the looping rationale. */}
+            {isLooping && (
+              <HeroWallSlideMobile
+                key={`clone-last-${walls[walls.length - 1].id}`}
+                wall={walls[walls.length - 1]}
+                isLoading={isLoading}
+                lpSize={lpSize}
+                railWidth={railWidth}
+                railLeftPx={railLeftPx}
+              />
+            )}
+            {walls.map((w, i) => (
+              <HeroWallSlideMobile
+                key={w.id}
+                wall={w}
+                dataWallIdx={i}
+                isLoading={isLoading}
+                lpSize={lpSize}
+                railWidth={railWidth}
+                railLeftPx={railLeftPx}
+              />
+            ))}
+            {isLooping && (
+              <HeroWallSlideMobile
+                key={`clone-first-${walls[0].id}`}
+                wall={walls[0]}
+                isLoading={isLoading}
+                lpSize={lpSize}
+                railWidth={railWidth}
+                railLeftPx={railLeftPx}
+              />
+            )}
+          </>
+        )}
       </div>
 
       {walls.length > 1 && (
@@ -304,7 +370,10 @@ function HeroWallSlideMobile({
   railLeftPx,
 }: {
   wall: HomeWall;
-  dataWallIdx: number;
+  /** Real wall index for the IO observer. Omitted on clone slides
+   *  rendered by the looping carousel so the observer ignores them
+   *  and activeIdx only ever reflects a real wall. */
+  dataWallIdx?: number;
   isLoading: boolean;
   lpSize: number;
   railWidth: number;
@@ -317,7 +386,7 @@ function HeroWallSlideMobile({
 
   return (
     <div
-      data-wall-idx={dataWallIdx}
+      {...(dataWallIdx !== undefined ? { 'data-wall-idx': dataWallIdx } : {})}
       className="relative flex-shrink-0 w-full snap-center overflow-hidden"
       style={{
         // Per-wall surface tone. Replaces the singleton
