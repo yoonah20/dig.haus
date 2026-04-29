@@ -94,7 +94,7 @@ export default function PostItNote({
   // "small but legible after 2.8× hover" range.
   const fontSize = isMobile
     ? Math.max(7, Math.round(noteWidth * 0.067))
-    : Math.max(5, Math.round(noteWidth * 0.056) - 2);
+    : Math.max(5.5, Math.round(noteWidth * 0.059) - 2);
 
   const h = hashStr(seed);
   // Rotation in [-4.5°, +4.5°] from the seed. v5 ran the range up to
