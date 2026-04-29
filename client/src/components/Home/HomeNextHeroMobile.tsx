@@ -11,7 +11,7 @@ const ACTIVE_WALL_STORAGE_KEY = 'dig.haus:home-active-wall-idx';
 // Auto-advance interval — same 7s as desktop. See HomeNextHero for
 // the reasoning (gallery / curation surface, slow enough to read,
 // fast enough to signal multiple walls exist).
-const AUTO_ADVANCE_MS = 7000;
+const AUTO_ADVANCE_MS = 7500;
 import {
   useHomeFeatures,
   type HomeFeatureItem,
@@ -86,7 +86,7 @@ const PAD_TOP = 108;
 const PAD_BOTTOM = 24;
 const TITLE_TOP_PX = 32;
 const COVER_GAP_X = 14;
-const ROW_GAP_Y = 22;
+const ROW_GAP_Y = 6;
 // Rail is a hair thicker (was 14) and slightly longer past the
 // LPs (was 12 each side) so it reads as a real plank, not a
 // thin shelf strip.
@@ -193,6 +193,10 @@ export default function HomeNextHeroMobile() {
   // in flight and respects reduced-motion. Resets on every
   // activeIdx change so manual swipes get their own full window.
   const [interactionPaused, setInteractionPaused] = useState(false);
+  // Manual pause via the ⏸/▶ chip — sticks across renders. Touch-
+  // driven interactionPaused auto-releases on touchend, so a
+  // separate flag is needed for "I want it stopped, period".
+  const [userPaused, setUserPaused] = useState(false);
   const reducedMotion =
     typeof window !== 'undefined' &&
     typeof window.matchMedia === 'function' &&
@@ -200,7 +204,7 @@ export default function HomeNextHeroMobile() {
   useEffect(() => {
     if (reducedMotion) return;
     if (walls.length <= 1) return;
-    if (interactionPaused) return;
+    if (interactionPaused || userPaused) return;
     const id = window.setInterval(() => {
       const next = (activeIdx + 1) % walls.length;
       const root = carouselRef.current;
@@ -208,7 +212,7 @@ export default function HomeNextHeroMobile() {
       root.scrollTo({ left: next * root.clientWidth, behavior: 'smooth' });
     }, AUTO_ADVANCE_MS);
     return () => window.clearInterval(id);
-  }, [activeIdx, walls.length, interactionPaused, reducedMotion]);
+  }, [activeIdx, walls.length, interactionPaused, userPaused, reducedMotion]);
 
   return (
     <div
@@ -248,22 +252,36 @@ export default function HomeNextHeroMobile() {
 
       {walls.length > 1 && (
         <div
-          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-2"
+          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-3"
           style={{ bottom: 8 }}
         >
-          {walls.map((w, i) => (
+          <div className="flex items-center gap-2">
+            {walls.map((w, i) => (
+              <button
+                key={w.id}
+                type="button"
+                onClick={() => scrollToIdx(i)}
+                aria-label={`${i + 1}번째 wall로 이동`}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  i === activeIdx
+                    ? 'bg-white scale-125'
+                    : 'bg-white/40 hover:bg-white/70'
+                }`}
+              />
+            ))}
+          </div>
+          {!reducedMotion && (
             <button
-              key={w.id}
               type="button"
-              onClick={() => scrollToIdx(i)}
-              aria-label={`${i + 1}번째 wall로 이동`}
-              className={`w-2 h-2 rounded-full transition-all ${
-                i === activeIdx
-                  ? 'bg-white scale-125'
-                  : 'bg-white/40 hover:bg-white/70'
-              }`}
-            />
-          ))}
+              onClick={() => setUserPaused((v) => !v)}
+              aria-label={
+                userPaused ? '자동 전환 재개' : '자동 전환 일시정지'
+              }
+              className="w-5 h-5 flex items-center justify-center text-[10px] leading-none text-white/70 hover:text-white bg-black/40 hover:bg-black/60 rounded-full transition-colors"
+            >
+              {userPaused ? '▶' : '❚❚'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -396,7 +414,42 @@ function HeroWallSlideMobile({
           {Array.from({ length: ROWS }, (_, ri) => {
             const startPos = ri * COLS;
             return (
-              <div key={ri} style={{ marginBottom: ri < ROWS - 1 ? ROW_GAP_Y : 0 }}>
+              <div
+                key={ri}
+                // Row needs its own z-bump on post-it hover too —
+                // slot-level z only beats neighbours inside the same
+                // row's grid; without lifting the row, the next row's
+                // content (later in DOM) still paints over the
+                // scaled post-it. `relative z-0` gives every row a
+                // baseline stacking context so the hovered row's
+                // z-50 actually wins against neighbours.
+                className="relative z-0 has-[.dig-postit:hover]:z-50"
+                style={{
+                  marginBottom: ri < ROWS - 1 ? ROW_GAP_Y : 0,
+                }}
+              >
+                {/* Rail rendered as an absolute layer at LP-bottom
+                    height so post-its (which extend past the LP into
+                    the slot's bottom extension) cross the rail line
+                    visually — same composition as desktop, where the
+                    backdrop image bakes the rail directly under the
+                    LPs. Drawn first in DOM so the post-it overflow
+                    paints over it. */}
+                <div
+                  className="absolute pointer-events-none flex justify-center"
+                  style={{
+                    top: lpSize,
+                    left: 0,
+                    right: 0,
+                    zIndex: 0,
+                  }}
+                >
+                  <WallRail
+                    width={railWidth}
+                    seed={ri * 37 + 13 + dataWallIdx * 41}
+                    height={RAIL_HEIGHT}
+                  />
+                </div>
                 <div
                   style={{
                     display: 'grid',
@@ -404,6 +457,8 @@ function HeroWallSlideMobile({
                     gap: COVER_GAP_X,
                     justifyContent: 'center',
                     alignItems: 'end',
+                    position: 'relative',
+                    zIndex: 1,
                   }}
                 >
                   {Array.from({ length: COLS }, (_, ci) => {
@@ -417,16 +472,28 @@ function HeroWallSlideMobile({
                       item?.note?.trim() ||
                       item?.adminReview?.trim() ||
                       null;
-                    // Slot height extended past the LP to reserve
-                    // space for the post-it sitting around the rail
-                    // and to make group-hover include the note
-                    // itself.
+                    // Slot reserves just enough vertical space to
+                    // contain the post-it body (33.6% × lpSize) plus
+                    // a couple of px so the tape's negative top
+                    // doesn't get clipped. Earlier 45% left a thick
+                    // empty band between the post-it and the next
+                    // row of LPs; tightening to 38% pulls the next
+                    // row up so the post-it bottom lands close to
+                    // the next album cover, the way it does on
+                    // desktop where the rail/cover spacing is baked
+                    // into the backdrop.
                     const slotHeight =
-                      lpSize + Math.round(lpSize * 0.45);
+                      lpSize + Math.round(lpSize * 0.38);
                     return (
                       <div
                         key={position}
-                        className="group/slot"
+                        // `has-[.dig-postit:hover]:z-50` lifts the
+                        // whole slot above its neighbours when the
+                        // post-it inside is hovered, so the scaled
+                        // note isn't occluded by the next column's
+                        // LP cover (which has its own z-10 inside
+                        // WallHoverCard).
+                        className="group/slot has-[.dig-postit:hover]:z-50"
                         style={{
                           width: lpSize,
                           height: slotHeight,
@@ -460,9 +527,12 @@ function HeroWallSlideMobile({
                         </div>
                         {item && noteText && (
                           <div
-                            className="absolute flex justify-center pointer-events-none"
+                            className="absolute flex justify-center"
                             style={{
-                              top: lpSize + Math.round(lpSize * 0.05),
+                              // Sits at the LP/rail boundary —
+                              // tape crosses the rail line, paper
+                              // body fully below LP.
+                              top: lpSize + 2,
                               left: 0,
                               width: lpSize,
                             }}
@@ -471,6 +541,7 @@ function HeroWallSlideMobile({
                               text={noteText}
                               lpSize={lpSize}
                               seed={item.album.mbid}
+                              href={`/album/${item.album.slug || item.album.mbid}`}
                               isMobile
                             />
                           </div>
@@ -478,13 +549,6 @@ function HeroWallSlideMobile({
                       </div>
                     );
                   })}
-                </div>
-                <div className="flex justify-center" style={{ marginTop: 0 }}>
-                  <WallRail
-                    width={railWidth}
-                    seed={ri * 37 + 13 + dataWallIdx * 41}
-                    height={RAIL_HEIGHT}
-                  />
                 </div>
               </div>
             );
@@ -557,7 +621,7 @@ function MobilePickSticker({
   const rot = (hashStr(seed) % 401) / 100 - 2;
   return (
     <img
-      src="/textures/dighauspick.webp"
+      src="/textures/pick.webp"
       alt=""
       aria-hidden
       className="absolute z-10 pointer-events-none select-none"

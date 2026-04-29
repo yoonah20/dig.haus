@@ -23,7 +23,7 @@ const ACTIVE_WALL_STORAGE_KEY = 'dig.haus:home-active-wall-idx';
 // fight the anti-algorithm "give visitors time to look" stance.
 // Pauses on hover / touch / focus / admin-edit / tuner-open and
 // respects prefers-reduced-motion.
-const AUTO_ADVANCE_MS = 7000;
+const AUTO_ADVANCE_MS = 7500;
 import { useAuth } from '../../contexts/AuthContext';
 import { WallLP } from '../MyDig/storefront/primitives';
 import WallHoverCard from '../MyDig/storefront/WallHoverCard';
@@ -349,6 +349,11 @@ export default function HomeNextHero() {
   // click, reorder), so the visitor always gets a full window to
   // look at the wall they just navigated to.
   const [interactionPaused, setInteractionPaused] = useState(false);
+  // Manual pause via the ⏸/▶ chip — sticks across renders so the
+  // visitor's choice survives wall changes / mouse movement / etc.
+  // Independent from the hover/touch interactionPaused which auto-
+  // releases the moment the visitor moves away.
+  const [userPaused, setUserPaused] = useState(false);
   const reducedMotion =
     typeof window !== 'undefined' &&
     typeof window.matchMedia === 'function' &&
@@ -356,7 +361,7 @@ export default function HomeNextHero() {
   useEffect(() => {
     if (reducedMotion) return;
     if (walls.length <= 1) return;
-    if (interactionPaused || editing || tunerOpen) return;
+    if (interactionPaused || editing || tunerOpen || userPaused) return;
     const id = window.setInterval(() => {
       const next = (activeIdx + 1) % walls.length;
       const root = carouselRef.current;
@@ -370,6 +375,7 @@ export default function HomeNextHero() {
     interactionPaused,
     editing,
     tunerOpen,
+    userPaused,
     reducedMotion,
   ]);
 
@@ -454,25 +460,45 @@ export default function HomeNextHero() {
 
       {/* Dot pagination — positioned along the bottom centre of the
           hero, above the scroll hint. Hidden when there's only one
-          wall (carousel collapses to a single slide visually). */}
+          wall (carousel collapses to a single slide visually). The
+          ⏸/▶ chip sits to the right of the dots so visitors can stop
+          the auto-advance to read the post-it on a particular wall.
+          Hidden when prefers-reduced-motion is on (carousel is then
+          inert by default — surfacing a play control would fight the
+          OS preference). */}
       {walls.length > 1 && (
         <div
-          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-2"
+          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-3"
           style={{ bottom: 50 }}
         >
-          {walls.map((w, i) => (
+          <div className="flex items-center gap-2">
+            {walls.map((w, i) => (
+              <button
+                key={w.id}
+                type="button"
+                onClick={() => scrollToIdx(i)}
+                aria-label={`${i + 1}번째 wall로 이동`}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  i === activeIdx
+                    ? 'bg-white scale-125'
+                    : 'bg-white/40 hover:bg-white/70'
+                }`}
+              />
+            ))}
+          </div>
+          {!reducedMotion && (
             <button
-              key={w.id}
               type="button"
-              onClick={() => scrollToIdx(i)}
-              aria-label={`${i + 1}번째 wall로 이동`}
-              className={`w-2 h-2 rounded-full transition-all ${
-                i === activeIdx
-                  ? 'bg-white scale-125'
-                  : 'bg-white/40 hover:bg-white/70'
-              }`}
-            />
-          ))}
+              onClick={() => setUserPaused((v) => !v)}
+              aria-label={
+                userPaused ? '자동 전환 재개' : '자동 전환 일시정지'
+              }
+              title={userPaused ? '자동 전환 재개' : '자동 전환 일시정지'}
+              className="w-5 h-5 flex items-center justify-center text-[10px] leading-none text-white/70 hover:text-white bg-black/40 hover:bg-black/60 rounded-full transition-colors"
+            >
+              {userPaused ? '▶' : '❚❚'}
+            </button>
+          )}
         </div>
       )}
 
@@ -743,7 +769,7 @@ function DighausPickSticker({
   const rot = (hashStr(seed) % 401) / 100 - 2;
   return (
     <img
-      src="/textures/dighauspick.webp"
+      src="/textures/pick.webp"
       alt=""
       aria-hidden
       className="absolute z-10 pointer-events-none select-none"
@@ -836,7 +862,7 @@ function ShelfRow({
                 plasticOffsetXPx={plasticMeta?.plasticOffsetXPx ?? 5}
                 plasticOffsetYPx={plasticMeta?.plasticOffsetYPx ?? 0}
                 plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
-                hoverScalePct={180}
+                hoverScalePct={162}
                 hoverOriginY="75%"
                 playChipScale={0.75}
                 playChipInsetPct={4}
@@ -870,9 +896,16 @@ function ShelfRow({
             </div>
             {item && noteText && (
               <div
-                className="absolute flex justify-center pointer-events-none"
+                className="absolute flex justify-center"
                 style={{
-                  top: lpSize + Math.round(lpSize * 0.05),
+                  // Sits just below the LP/rail boundary — tape edge
+                  // crosses the rail line, paper body fully below
+                  // the LP so the cover never gets occluded. The
+                  // +6 desktop offset drops the whole note (tape +
+                  // body) past the painted rail highlight in the
+                  // backdrop so the tape reads as stuck to the
+                  // wall, not to the rail's metal lip.
+                  top: lpSize + 6,
                   left: 0,
                   width: lpSize,
                 }}
@@ -881,6 +914,7 @@ function ShelfRow({
                   text={noteText}
                   lpSize={lpSize}
                   seed={item.album.mbid}
+                  href={`/album/${item.album.slug || item.album.mbid}`}
                 />
               </div>
             )}

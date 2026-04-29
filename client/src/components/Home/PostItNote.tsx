@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
 // Sticky note rendered below each hero-wall LP, on/around the rail
@@ -17,11 +18,30 @@ import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 // per-slot pick via mbid hash so successive notes don't share the
 // same tape pattern.
 const TAPE_TEXTURES = [
-  '/textures/masking07.png',
-  '/textures/masking17.png',
-  '/textures/masking34.png',
-  '/textures/masking94.png',
-  '/textures/masking96.png',
+  '/textures/masking07.webp',
+  '/textures/masking17.webp',
+  '/textures/masking34.webp',
+  '/textures/masking94.webp',
+  '/textures/masking96.webp',
+];
+
+// Five-colour Post-It palette sampled from the standard 3M neon pad
+// (canary, hot pink, cyan, lime, orange). Each entry is a 3-stop
+// gradient — top edge lifted toward white to suggest paper grain,
+// mid stop is the dominant tone, bottom slightly deeper for shadow.
+// Pick is deterministic per slot via mbid hash so the wall reads as
+// a varied stack rather than a single colour wash.
+const PAPER_PALETTE = [
+  // canary yellow
+  'linear-gradient(180deg, #ffe54a 0%, #fcdc2c 38%, #f5cc18 100%)',
+  // hot pink
+  'linear-gradient(180deg, #ff8ac9 0%, #ff5fb5 38%, #ee3f9b 100%)',
+  // cyan
+  'linear-gradient(180deg, #95e8f2 0%, #5dd5e6 38%, #2cb8cc 100%)',
+  // lime green
+  'linear-gradient(180deg, #d8f262 0%, #bce63a 38%, #98cc1c 100%)',
+  // orange
+  'linear-gradient(180deg, #ffb178 0%, #ff8a3d 38%, #ec6e1e 100%)',
 ];
 
 function hashStr(str: string): number {
@@ -37,6 +57,7 @@ export default function PostItNote({
   text,
   lpSize,
   seed,
+  href,
   isMobile = false,
 }: {
   text: string;
@@ -48,22 +69,46 @@ export default function PostItNote({
    *  rotation + tape pick stays deterministic across renders but
    *  varied across slots. */
   seed: string;
+  /** Album route — clicking the note jumps to the same target as
+   *  the LP cover above it, so the post-it doubles as a second
+   *  affordance for the slot. */
+  href: string;
   /** Mobile slides shrink lpSize aggressively, so the percentage
    *  cap shifts up to keep text legible after the hover-scale. */
   isMobile?: boolean;
 }) {
-  // Default size deliberately small. Hover-scale (1.6×) brings the
-  // effective render size into a comfortable read range without the
-  // note dominating the wall when no cursor is on it.
-  const widthPct = isMobile ? 0.52 : 0.42;
+  // Note width scales with lpSize so the post-it keeps a sensible
+  // proportion to the LP it hangs below — the hero itself rescales
+  // on every viewport change, and a fixed-px note would look giant
+  // on small phones and tiny on widescreens. Font ratio is tuned
+  // for ~9 Korean syllables per line (incl. whitespace) at the
+  // chosen horizontal padding. Desktop runs 2 px below the mobile
+  // ratio because the desktop note ends up much wider in absolute
+  // px (lpSize 320+), so the same ratio would oversize the text.
+  const widthPct = isMobile ? 0.336 : 0.256;
   const noteWidth = Math.round(lpSize * widthPct);
-  const fontSize = Math.max(8, Math.round(noteWidth * 0.1));
+  // Desktop runs at ~90% of the mobile font ratio (0.060 vs 0.067)
+  // and a lower floor (6 vs 7) — desktop notes are wider in absolute
+  // px and the same ratio reads as oversized hand text. The -2
+  // subtraction stays so the rounded value lands at the desired
+  // "small but legible after 2.8× hover" range.
+  const fontSize = isMobile
+    ? Math.max(7, Math.round(noteWidth * 0.067))
+    : Math.max(6, Math.round(noteWidth * 0.062) - 2);
 
   const h = hashStr(seed);
-  // Rotation in [-2°, +2°] from the seed. Small enough that the
-  // note still reads as a label, not a thrown sticker.
-  const rot = (((h % 401) / 100) - 2).toFixed(2);
-  // Pick one of the five masking-tape textures by mbid hash.
+  // Rotation in [-4.5°, +4.5°] from the seed. v5 ran the range up to
+  // ±9° which read as "thrown sticker" rather than "stuck on slightly
+  // crooked"; halving it keeps the hand-applied feel without tipping
+  // over into chaotic.
+  const rot = (((h % 901) / 100) - 4.5).toFixed(2);
+  // Per-slot horizontal nudge along the rail in [-22%, +22%] of LP
+  // width so notes don't all sit dead-centre under their cover. The
+  // slot width is the LP, not the note, so we scale by lpSize here.
+  const railOffset = Math.round((((h >>> 12) % 45) - 22) / 100 * lpSize);
+  // Pick paper colour and masking-tape texture from independent hash
+  // bytes so colour and tape vary independently across slots.
+  const paperBg = PAPER_PALETTE[(h >>> 4) % PAPER_PALETTE.length];
   const tapeSrc = TAPE_TEXTURES[(h >>> 8) % TAPE_TEXTURES.length];
   const tapeWidth = Math.round(noteWidth * 0.55);
   // Tape PNGs are ~100×36 average; preserve aspect ratio when scaling.
@@ -71,39 +116,76 @@ export default function PostItNote({
   // Per-slot horizontal nudge in [-12%, +12%] of note width so the
   // tape doesn't sit dead-centre on every note.
   const tapeOffset = ((((h >>> 16) % 25) - 12) / 100) * noteWidth;
-  // Per-slot tape rotation in [-4°, +4°] independent of the note's
+  // Per-slot tape rotation in [-6°, +6°] independent of the note's
   // own rotation — real masking tape is rarely applied perfectly
   // parallel to the paper edge.
-  const tapeRot = (((h >>> 24) % 81) / 10 - 4).toFixed(1);
+  const tapeRot = (((h >>> 24) % 121) / 10 - 6).toFixed(1);
+
+  // Hover scale via a CSS variable so the rotate + translateX in
+  // the inline transform survives the hover state — Tailwind's
+  // `hover:scale-[X]` rewrites the whole `transform` property and
+  // wipes our rotation, which made the note snap upright when
+  // hovered. Setting `--postit-scale` via the hover class and
+  // referencing it inside the inline transform composes cleanly:
+  // rotate, translateX, and scale all combine, all anchored at
+  // top-center via the inline `transformOrigin`. Both class
+  // strings have to appear literally for Tailwind JIT to emit them.
+  const hoverScaleCls = isMobile
+    ? 'hover:[--postit-scale:2.2]'
+    : 'hover:[--postit-scale:2.8]';
 
   return (
-    <div
-      aria-hidden
-      className="select-none pointer-events-none transition-transform duration-300 ease-out group-hover/slot:scale-[1.6]"
+    <Link
+      to={href}
+      aria-label={`${text.slice(0, 24)} 앨범으로 이동`}
+      // `dig-postit` is the hook the parent slot uses to bump its
+      // own z-index when a post-it inside it is hovered (via
+      // has-[.dig-postit:hover]:z-N), so the scaled-up note layers
+      // above neighbouring slots' LPs instead of getting buried.
+      // Default --postit-scale lives in the inline style below; the
+      // hover class rewrites the variable.
+      className={`dig-postit relative block select-none z-0 hover:z-30 transition-transform duration-300 ease-out ${hoverScaleCls}`}
       style={{
         width: noteWidth,
-        transform: `rotate(${rot}deg)`,
-        // Top-centre origin so the hover-scale grows the note
-        // downward into the rail region, never up over the LP.
+        // CSS variable composition with a 1 fallback in var() so the
+        // hover class can rewrite the variable without fighting an
+        // inline style. Inline `--postit-scale: 1` was the bug —
+        // inline custom-property declarations beat the :hover class
+        // selector, so the variable stayed at 1 even on hover and
+        // the note never grew. Without the inline declaration the
+        // variable is undefined at rest, the fallback 1 applies,
+        // and the hover class swaps in 2.2 / 2.8 cleanly.
+        transform: `translateX(${railOffset}px) rotate(${rot}deg) scale(var(--postit-scale, 1))`,
         transformOrigin: 'top center',
-        zIndex: 1,
         // Slight downward push so the tape (which sits *above* the
         // top edge with negative top) has room to render without
         // getting clipped by the slot's wrapper.
         marginTop: Math.round(tapeHeight * 0.4),
       }}
     >
-      {/* Paper body — canary-yellow Post-It. Top edge is lifted a
-          touch toward white to suggest a bend / paper grain; the
-          dominant tone matches the reference photo (#fcdc2c family). */}
+      {/* Paper body — square Post-It. Square aspect is the
+          recognisable cue; height locked to width regardless of how
+          short the text is. Padding scales with note size. */}
       <div
         className="relative"
         style={{
-          background:
-            'linear-gradient(180deg, #ffe54a 0%, #fcdc2c 38%, #f5cc18 100%)',
+          background: paperBg,
           boxShadow:
             '0 2px 4px rgba(0, 0, 0, 0.32), 0 1px 1px rgba(0, 0, 0, 0.2)',
-          padding: `${Math.round(noteWidth * 0.13)}px ${Math.round(noteWidth * 0.12)}px`,
+          // Desktop runs a slightly looser top gap (top 6% + 2px)
+          // so the smaller desktop font breathes under the tape;
+          // the absolute +2px nudge keeps it visible at the small
+          // desktop noteWidth where the percentage alone resolves
+          // to only 4-5px. Mobile keeps a flat 10% top, 6% left
+          // for optical balance against the jaso-break right gap.
+          padding: `${
+            isMobile
+              ? Math.round(noteWidth * 0.10)
+              : Math.round(noteWidth * 0.06) + 2
+          }px ${Math.round(noteWidth * 0.04)}px ${Math.round(noteWidth * 0.06)}px ${Math.round(noteWidth * (isMobile ? 0.06 : 0.04))}px`,
+          height: noteWidth,
+          boxSizing: 'border-box',
+          overflow: 'hidden',
         }}
       >
         <p
@@ -114,8 +196,11 @@ export default function PostItNote({
             lineHeight: 1.25,
             color: '#1a1208',
             letterSpacing: '0.005em',
-            wordBreak: 'keep-all',
-            overflowWrap: 'break-word',
+            // Korean syllable-block break — splitting mid-word reads
+            // fine in Hangul (자소 단위) and lets the small square
+            // hold longer 50자평 without overflow ellipsis.
+            wordBreak: 'break-all',
+            overflowWrap: 'anywhere',
           }}
         >
           {text}
@@ -133,7 +218,12 @@ export default function PostItNote({
         aria-hidden
         className="absolute pointer-events-none select-none"
         style={{
-          top: -Math.round(tapeHeight * 0.55),
+          // ~60% of the tape sits above the paper edge so the bottom
+          // 40% has visible contact with the paper. Text crossing
+          // under the tape reads as natural (real Post-Its often
+          // have writing under the tape), so we don't need to clear
+          // the tape's footprint from the first line.
+          top: -Math.round(tapeHeight * 0.60),
           left: noteWidth / 2 - tapeWidth / 2 + tapeOffset,
           width: tapeWidth,
           height: tapeHeight,
@@ -144,6 +234,6 @@ export default function PostItNote({
           maxWidth: 'none',
         }}
       />
-    </div>
+    </Link>
   );
 }

@@ -562,7 +562,7 @@ export default function AlbumCard({
             )}
             {isPick && (
               <img
-                src="/textures/dighauspick.webp"
+                src="/textures/pick.webp"
                 alt=""
                 aria-hidden
                 className="absolute pointer-events-none select-none"
