@@ -116,14 +116,12 @@ export default function HomeFeatureSticker({
   return (
     <div
       aria-hidden
-      // No explicit z-index — the sticker now rides under the
-      // shrink-wrap raster, so DOM-order stacking has to win
-      // (priceTagOverlay renders before the plastic in WallHoverCard).
-      // The prior z-10 was a holdover from when the sticker lived in
-      // coverOverlay and needed to clear the shine layers above the
-      // wrap; with the layer split it actively breaks the wrap-on-top
-      // effect by lifting the sticker above the z-auto plastic.
-      className="absolute pointer-events-none"
+      // z-10 sits the sticker above the shine + rim layers inside
+      // the cover overlay slot so the price digits stay legible —
+      // we tried wrapping it under the plastic for a "stuck on,
+      // then sealed over" look, but the wrap textured the digits
+      // enough to hurt readability. Reverted to over-wrap.
+      className="absolute z-10 pointer-events-none"
       style={{
         // Hugged tight to the top-right corner — 1px breathing line
         // off the top, flush against the right edge so the tag sits
