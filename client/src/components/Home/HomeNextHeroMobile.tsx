@@ -299,6 +299,7 @@ export default function HomeNextHeroMobile() {
                 lpSize={lpSize}
                 railWidth={railWidth}
                 railLeftPx={railLeftPx}
+                containerW={containerW}
               />
             )}
             {walls.map((w, i) => (
@@ -310,6 +311,7 @@ export default function HomeNextHeroMobile() {
                 lpSize={lpSize}
                 railWidth={railWidth}
                 railLeftPx={railLeftPx}
+                containerW={containerW}
               />
             ))}
             {isLooping && (
@@ -322,6 +324,7 @@ export default function HomeNextHeroMobile() {
                 lpSize={lpSize}
                 railWidth={railWidth}
                 railLeftPx={railLeftPx}
+                containerW={containerW}
               />
             )}
           </>
@@ -386,6 +389,7 @@ function HeroWallSlideMobile({
   lpSize,
   railWidth,
   railLeftPx,
+  containerW,
 }: {
   wall: HomeWall;
   /** Real wall index. Used both for the data attribute the IO
@@ -403,6 +407,7 @@ function HeroWallSlideMobile({
   lpSize: number;
   railWidth: number;
   railLeftPx: number;
+  containerW: number;
 }) {
   const items = wall.items;
   const slots = Array.from({ length: ROWS * COLS }, (_, i) =>
@@ -610,6 +615,7 @@ function HeroWallSlideMobile({
                               position={position}
                               lpSize={lpSize}
                               plasticMeta={wall}
+                              containerW={containerW}
                             />
                           ) : (
                             <WallLP
@@ -659,11 +665,13 @@ function MobileFeatureCell({
   position,
   lpSize,
   plasticMeta,
+  containerW,
 }: {
   item: HomeFeatureItem;
   position: number;
   lpSize: number;
   plasticMeta: HomeWall | undefined;
+  containerW: number;
 }) {
   const album = item.album;
   const target = album.slug || album.mbid;
@@ -675,6 +683,27 @@ function MobileFeatureCell({
   // slot div) so it doesn't overlap the play chip / pick sticker
   // / store-link sticker on the cover. coverOverlay below stays
   // cover-only.
+
+  // Tap-active cover should fill the slide horizontally rather than
+  // sitting at column-anchored 130% (which barely reads bigger than
+  // the rest of the wall on a 390px phone). Scale is the ratio
+  // needed to take lpSize → ~94% of containerW; translateX
+  // recenters the column-anchored cover on the slide so left/right
+  // cells both land in the middle. Values clamp at 220% / known
+  // sane bounds to guard against degenerate containerW (still 0
+  // before the ResizeObserver fires).
+  const col = position % COLS;
+  const targetCoverPx = containerW > 0 ? containerW * 0.94 : lpSize;
+  const hoverScalePct =
+    lpSize > 0
+      ? Math.max(140, Math.min(280, Math.round((targetCoverPx / lpSize) * 100)))
+      : 140;
+  // Column 0 sits left of slide center, column 1 sits right of it.
+  // By symmetry of `justifyContent: center` on the row grid the
+  // cell-center → slide-center distance is exactly half the gap +
+  // half the cover width, with sign flipping per column.
+  const recenterX = lpSize / 2 + COVER_GAP_X / 2;
+  const hoverTranslateX = col === 0 ? recenterX : -recenterX;
 
   return (
     <WallHoverCard
@@ -688,7 +717,8 @@ function MobileFeatureCell({
       plasticOffsetXPx={plasticMeta?.plasticOffsetXPx ?? 5}
       plasticOffsetYPx={plasticMeta?.plasticOffsetYPx ?? 0}
       plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
-      hoverScalePct={130}
+      hoverScalePct={hoverScalePct}
+      hoverTranslateX={hoverTranslateX}
       tapToActivate
       priceTagOverlay={
         topLink ? (

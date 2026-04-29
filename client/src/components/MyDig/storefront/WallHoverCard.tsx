@@ -131,6 +131,15 @@ interface Props {
   // hero passes a smaller value so the chip pushes closer to
   // the corner and away from the cover area.
   playChipInsetPct?: number;
+  // Optional CSS-pixel X translation applied alongside the hover
+  // scale, in screen coordinates (i.e., NOT scaled by the hover
+  // factor — translateX is written before scale() in the transform
+  // string so 84px here means 84 visual pixels post-scale).
+  // Used by the mobile hero so a tapped left/right column cover
+  // can recenter on the slide rather than ballooning out of its
+  // own column. Default 0 leaves the desktop wall + mydig
+  // behaviour unchanged.
+  hoverTranslateX?: number;
 }
 
 // CAA covers come back at 250px. The home + mydig walls render up to
@@ -189,6 +198,7 @@ export default function WallHoverCard({
   playChipScale = 1,
   tapToActivate = false,
   playChipInsetPct,
+  hoverTranslateX = 0,
 }: Props) {
   const spotifyAlbumId = extractSpotifyAlbumId(album.spotifyUrl ?? null);
   const hasPreview = !!spotifyAlbumId;
@@ -311,6 +321,11 @@ export default function WallHoverCard({
         // tailwind value below. Caller-driven so home wall can run a
         // bigger hover than mydig without forking the component.
         ['--wall-hover-scale' as any]: String(hoverScalePct / 100),
+        // Companion translate applied alongside the scale — used by
+        // the mobile hero to recenter a column-anchored cover on
+        // the slide. Default 0px keeps existing surfaces (desktop
+        // wall, mydig) unchanged.
+        ['--wall-hover-tx' as any]: `${hoverTranslateX}px`,
       } as React.CSSProperties}
     >
       <div
@@ -334,8 +349,8 @@ export default function WallHoverCard({
         // six-blur drop-shadow load.
         className={`absolute inset-0 z-10 transition-[transform,filter,clip-path] duration-[260ms] ease-out [filter:drop-shadow(0_4px_6px_rgba(0,0,0,0.30))] [clip-path:inset(0_-18px_0_-18px)] group-hover:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] group-hover:[clip-path:inset(-60px_-60px_-60px_-60px)] group-data-[tap-active=true]:[filter:drop-shadow(0_16px_20px_rgba(0,0,0,0.45))] group-data-[tap-active=true]:[clip-path:inset(-60px_-60px_-60px_-60px)] ${
           popOnHover
-            ? 'group-hover:[transform:scale(var(--wall-hover-scale))_translateZ(60px)] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))_translateZ(60px)]'
-            : 'group-hover:[transform:scale(var(--wall-hover-scale))] group-data-[tap-active=true]:[transform:scale(var(--wall-hover-scale))]'
+            ? 'group-hover:[transform:translateX(var(--wall-hover-tx,0px))_scale(var(--wall-hover-scale))_translateZ(60px)] group-data-[tap-active=true]:[transform:translateX(var(--wall-hover-tx,0px))_scale(var(--wall-hover-scale))_translateZ(60px)]'
+            : 'group-hover:[transform:translateX(var(--wall-hover-tx,0px))_scale(var(--wall-hover-scale))] group-data-[tap-active=true]:[transform:translateX(var(--wall-hover-tx,0px))_scale(var(--wall-hover-scale))]'
         }`}
         style={{
           transformOrigin: `center ${hoverOriginY}`,
