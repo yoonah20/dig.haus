@@ -6,12 +6,14 @@ import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 //   - top-left:  baked-in dig.haus + NEW wordmark
 //   - top-right: empty white slot to the right of "NEW", price lands here
 //   - bottom:    full-width colour band, artist · album title overlay here
-// tag1 (cyan) is the default. tag2 (mint) flags pre-release records — a
-// future release_date marks "you can't buy this yet" and the colour
-// shift telegraphs that across the whole home grid without needing
-// a separate sticker layer. tag3 (pink) + tag4 (khaki) ship now but
-// aren't routed yet; the operator will assign them later.
-const TAG_BG_DEFAULT = '/textures/tag1.webp';
+// tag4 (khaki) is the default — its mustard / amber tint sits naturally
+// inside dig.haus's amber-leaning palette without competing with cover
+// art. tag2 (mint) flags pre-release records — a future release_date
+// marks "you can't buy this yet" and the cooler colour shift reads as
+// "not in stock" against the warmer default across the whole home grid.
+// tag1 (cyan) + tag3 (pink) ship now but aren't routed yet; operator
+// will assign them later.
+const TAG_BG_DEFAULT = '/textures/tag4.webp';
 const TAG_BG_PRE_RELEASE = '/textures/tag2.webp';
 const TAG_ASPECT = 500 / 142;
 
