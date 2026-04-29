@@ -104,11 +104,11 @@ export default function HomeFeatureSticker({
   // slot at the rendered widths the home grid hits.
   const dateFontSize = Math.max(6, Math.round(height * 0.22));
   // Price font sized to fit cleanly inside the mint bottom half
-  // (which is also ~50% of tag height). At ratio 0.62 the prior
-  // pass overflowed upward past the divider line; 0.42 leaves
-  // the digits comfortably within the mint area while still
-  // reading as the dominant visual element in the bottom half.
-  const priceFontSize = Math.max(10, Math.round(height * 0.42));
+  // (also ~50% of tag height). Ratio walked 0.62 (overflowed up
+  // past the divider) → 0.42 (read as undersized vs the cover) →
+  // 0.48 lands the digits at a step bigger than 0.42 while still
+  // clearing the divider when centred inside the mint area.
+  const priceFontSize = Math.max(11, Math.round(height * 0.48));
   // Hand-applied tilt clamped to ±1°.
   const rot = seed ? (hashStr(seed) % 201) / 100 - 1 : 0;
   const dateText = formatReleaseDate(releaseDate ?? null);
@@ -142,8 +142,8 @@ export default function HomeFeatureSticker({
         <div
           className="absolute flex items-center justify-end leading-none"
           style={{
-            top: '6%',
-            bottom: '52%',
+            top: '4%',
+            bottom: '58%',
             left: '74%',
             right: '3%',
             fontFamily: DATE_FONT_STACK,
