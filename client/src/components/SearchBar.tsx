@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSearch, useRequestSearch } from '../hooks/useSearch';
 import {
   useSubmitAlbumRequest,
+  useSubmitManualAlbum,
   useExtractAlbumFromUrl,
   type ExtractFromUrlResult,
 } from '../hooks/useAlbumRequests';
@@ -54,7 +55,13 @@ export default function SearchBar({
   const loggedIn = !!user;
   const curation = useCurationProgress();
   const submit = useSubmitAlbumRequest();
+  const submitManual = useSubmitManualAlbum();
   const extractFromUrl = useExtractAlbumFromUrl();
+  // Manual-entry section state. Lives here (not in a child) so the
+  // form survives a typing-driven dbSearch / externalSearch refetch
+  // — those return new query keys and would unmount a child that
+  // re-keyed off the input.
+  const [manualOpen, setManualOpen] = useState(false);
 
   const trimmedInput = input.trim();
   const isUrlMode = URL_RE.test(trimmedInput);
@@ -334,6 +341,49 @@ export default function SearchBar({
             </div>
           )}
 
+          {/* Manual entry — visible whenever the dropdown is open in
+              text-search mode for a logged-in user. Sits at the bottom
+              so it never competes with the matched results above; the
+              entry point is intentionally low-key (small text + chevron)
+              because manual entry is the escape hatch, not the primary
+              path. Expanding swaps the prompt for an inline form. */}
+          {!isUrlMode && loggedIn && (
+            <section className="border-t border-white/5 bg-[#161616]">
+              {!manualOpen ? (
+                <button
+                  type="button"
+                  onClick={() => setManualOpen(true)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-xs text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors"
+                >
+                  <span>찾는 앨범이 없나요? 직접 등록</span>
+                  <span className="text-gray-500">＋</span>
+                </button>
+              ) : (
+                <ManualAlbumForm
+                  initialQuery={trimmedInput}
+                  pending={submitManual.isPending}
+                  onCancel={() => setManualOpen(false)}
+                  onSubmit={async (payload) => {
+                    try {
+                      const result = await submitManual.mutateAsync(payload);
+                      onSelect?.();
+                      setInput('');
+                      setQuery('');
+                      setManualOpen(false);
+                      navigate(`/album/${result.slug}`);
+                    } catch (err: any) {
+                      const apiMessage = err?.response?.data?.error;
+                      setErrorMsg(
+                        apiMessage ||
+                          '등록에 실패했어요. 잠시 뒤 다시 시도해주세요.'
+                      );
+                    }
+                  }}
+                />
+              )}
+            </section>
+          )}
+
           {errorMsg && (
             <div className="px-5 py-3 text-xs text-red-400 border-t border-white/5 bg-[#1f0f0f]">
               {errorMsg}
@@ -461,4 +511,156 @@ function Thumb({ album }: { album: AlbumSearchResult }) {
       ) : null}
     </div>
   );
+}
+
+// Inline form for hand-entering an album when MB + Discogs both came
+// up empty. Stays compact: artist + title required, year + format +
+// label + cover URL optional. Pre-fills artist from the search query
+// when the input looks like "artist year" or "artist - title" so the
+// user isn't retyping their query.
+function ManualAlbumForm({
+  initialQuery,
+  pending,
+  onSubmit,
+  onCancel,
+}: {
+  initialQuery: string;
+  pending: boolean;
+  onSubmit: (payload: {
+    artist: string;
+    title: string;
+    year?: string | null;
+    format?: string | null;
+    label?: string | null;
+    coverArtUrl?: string | null;
+  }) => void;
+  onCancel: () => void;
+}) {
+  const seed = parseManualSeed(initialQuery);
+  const [artist, setArtist] = useState(seed.artist);
+  const [title, setTitle] = useState(seed.title);
+  const [year, setYear] = useState(seed.year);
+  const [format, setFormat] = useState<'Vinyl' | 'CD' | 'Cassette' | ''>('');
+  const [label, setLabel] = useState('');
+  const [coverArtUrl, setCoverArtUrl] = useState('');
+
+  const canSubmit =
+    artist.trim().length > 0 && title.trim().length > 0 && !pending;
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!canSubmit) return;
+        onSubmit({
+          artist: artist.trim(),
+          title: title.trim(),
+          year: year.trim() || null,
+          format: format || null,
+          label: label.trim() || null,
+          coverArtUrl: coverArtUrl.trim() || null,
+        });
+      }}
+      className="px-4 py-3 space-y-2"
+    >
+      <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">
+        직접 등록
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="text"
+          value={artist}
+          onChange={(e) => setArtist(e.target.value)}
+          placeholder="아티스트 *"
+          className="bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          autoFocus
+        />
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="앨범 제목 *"
+          className="bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+        />
+        <input
+          type="text"
+          value={year}
+          onChange={(e) => setYear(e.target.value)}
+          placeholder="발매 연도 (YYYY)"
+          maxLength={4}
+          inputMode="numeric"
+          className="bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+        />
+        <select
+          value={format}
+          onChange={(e) => setFormat(e.target.value as typeof format)}
+          className="bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 focus:border-[#e8a020] focus:outline-none"
+        >
+          <option value="">포맷 선택</option>
+          <option value="Vinyl">Vinyl</option>
+          <option value="CD">CD</option>
+          <option value="Cassette">Cassette</option>
+        </select>
+        <input
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="레이블 (선택)"
+          className="col-span-2 bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+        />
+        <input
+          type="url"
+          value={coverArtUrl}
+          onChange={(e) => setCoverArtUrl(e.target.value)}
+          placeholder="커버 이미지 URL (선택, https://…)"
+          className="col-span-2 bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+        />
+      </div>
+      <p className="text-[10px] text-gray-500 leading-snug">
+        커버는 등록 후 앨범 페이지에서 직접 업로드할 수도 있어요.
+      </p>
+      <div className="flex justify-end gap-2 pt-1">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-200 transition-colors"
+        >
+          취소
+        </button>
+        <button
+          type="submit"
+          disabled={!canSubmit}
+          className="px-3 py-1.5 text-xs font-semibold rounded bg-[#e8a020] text-black hover:bg-[#f0b040] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {pending ? '등록 중…' : '등록하기'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+// Heuristic seed for the manual form when the user lands here from a
+// search query. Recognises two common shapes:
+//   "artist - title"  → split on the dash
+//   "artist YYYY"     → strip the year, keep the rest as artist
+// Anything else falls into artist alone so the user just edits one
+// field instead of starting from scratch.
+function parseManualSeed(raw: string): {
+  artist: string;
+  title: string;
+  year: string;
+} {
+  const trimmed = raw.trim();
+  if (!trimmed) return { artist: '', title: '', year: '' };
+  const dash = trimmed.split(/\s+-\s+/);
+  if (dash.length >= 2) {
+    return { artist: dash[0], title: dash.slice(1).join(' - '), year: '' };
+  }
+  const yearMatch = trimmed.match(/(?:^|\s)((?:19|20)\d{2})(?=\s|$)/);
+  if (yearMatch) {
+    const year = yearMatch[1];
+    const remaining = trimmed.replace(yearMatch[0], ' ').replace(/\s+/g, ' ').trim();
+    return { artist: remaining, title: '', year };
+  }
+  return { artist: trimmed, title: '', year: '' };
 }

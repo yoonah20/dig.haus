@@ -113,6 +113,40 @@ export function useSubmitAlbumRequest() {
   });
 }
 
+// Manual album entry — when MB + Discogs both come up empty for a
+// search, the user can hand-enter the metadata and the server creates
+// an album row with a synthetic `manual-{uuid}` mbid prefix. The
+// returned slug is what the caller should navigate to.
+export interface ManualAlbumPayload {
+  artist: string;
+  title: string;
+  year?: string | null;
+  format?: string | null;
+  label?: string | null;
+  coverArtUrl?: string | null;
+}
+
+export function useSubmitManualAlbum() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: ManualAlbumPayload) => {
+      const { data } = await axios.post<{ ok: true; mbid: string; slug: string }>(
+        '/api/album-requests/manual',
+        payload
+      );
+      return data;
+    },
+    onSuccess: () => {
+      // Same invalidations as the MB-sourced submit — manual rows
+      // appear in the same admin pending queue + home grid.
+      qc.invalidateQueries({ queryKey: ['me-album-requests'] });
+      qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
+      qc.invalidateQueries({ queryKey: ['album-list'] });
+      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+    },
+  });
+}
+
 // Admin action — deletes the user-submitted album entirely. Cascade
 // FKs wipe purchase_links, user_reviews, votes, reports, etc. Used
 // from the "리뷰 수집 대기" panel as the "삭제" button next to

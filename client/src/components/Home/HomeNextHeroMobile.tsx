@@ -677,17 +677,17 @@ function MobileFeatureCell({
       hoverScalePct={130}
       tapToActivate
       coverOverlay={
-        <>
-          {isPick && <MobilePickSticker lpSize={lpSize} seed={album.mbid} />}
-          {topLink && (
-            <HomeFeatureSticker
-              link={topLink}
-              lpSize={lpSize}
-              releaseDate={album.releaseDate}
-              seed={album.mbid}
-            />
-          )}
-        </>
+        isPick ? <MobilePickSticker lpSize={lpSize} seed={album.mbid} /> : null
+      }
+      priceTagOverlay={
+        topLink ? (
+          <HomeFeatureSticker
+            link={topLink}
+            lpSize={lpSize}
+            releaseDate={album.releaseDate}
+            seed={album.mbid}
+          />
+        ) : null
       }
     />
   );

@@ -83,10 +83,19 @@ interface Props {
   // no bubble so it can dial higher freely.
   hoverScalePct?: number;
   // Optional slot rendered INSIDE the tilt wrapper so it scales,
-  // tilts, and translates with the cover. Used by the home wall for
-  // the price sticker. Distinct from `children` (which renders
-  // outside the scale wrapper, used by mydig's CommentBubble).
+  // tilts, and translates with the cover. Sits *above* the
+  // shrink-wrap raster + shine layers so the contents (PICK
+  // sticker, etc.) read clearly without the plastic film texturing
+  // them. Distinct from `children` (which renders outside the
+  // scale wrapper, used by mydig's CommentBubble).
   coverOverlay?: ReactNode;
+  // Sibling slot that renders *under* the shrink-wrap overlay so
+  // the wrap's wrinkle + shine subtly textures the contents — used
+  // by the home hero's price tag, which the user expects to read
+  // as "stuck on the sleeve, then wrapped over" rather than
+  // "stuck on top of the wrap". Same coordinate space as
+  // coverOverlay; the only difference is paint order.
+  priceTagOverlay?: ReactNode;
   // When true the hover transform also pushes the sleeve
   // forward in 3D via translateZ — the "popping out of the
   // wall" emphasis. Default is false now: the effect was
@@ -155,6 +164,7 @@ export default function WallHoverCard({
   plasticBlendMode = 'normal',
   hoverScalePct = 126,
   coverOverlay = null,
+  priceTagOverlay = null,
   popOnHover = false,
   hoverOriginY = 'bottom',
   playChipScale = 1,
@@ -301,6 +311,12 @@ export default function WallHoverCard({
               className="w-full h-full object-cover"
             />
           </WallLP>
+
+          {/* Under-plastic overlay (price tag). Painted before the
+              shrink-wrap layer so the wrap's wrinkles + shine pass
+              over the tag, selling the "sticker on the sleeve, wrap
+              over both" mental model. */}
+          {priceTagOverlay}
 
           {/* Shrink-wrap raster overlay — extended ~7px past every
               edge of the cover so the plastic visibly wraps around

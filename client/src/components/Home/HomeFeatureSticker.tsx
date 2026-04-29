@@ -118,12 +118,13 @@ export default function HomeFeatureSticker({
       aria-hidden
       className="absolute z-10 pointer-events-none"
       style={{
-        // Hugged closer to the corner (was 4px, now 1px) — visitor
-        // feedback was that the prior 4px gap made the tag look
-        // detached from the sleeve edge. 1px keeps a thin breathing
-        // line so it's not visually fused with the cover frame.
+        // Hugged tight to the top-right corner — 1px breathing line
+        // off the top, flush against the right edge so the tag sits
+        // under the shrink-wrap right where a real shop sticker
+        // would land. Prior right:1 left a visible vertical gap at
+        // the cover's right edge that read as "tag floating".
         top: 1,
-        right: 1,
+        right: 0,
         width,
         height,
         backgroundImage: `url('${TAG_BG}')`,

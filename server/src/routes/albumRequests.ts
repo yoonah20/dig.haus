@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import { randomUUID } from 'crypto';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
-import { getCachedAlbum } from '../utils/cache.js';
+import { getCachedAlbum, cacheAlbum, updateAlbumFields } from '../utils/cache.js';
 import { searchExternalMerged } from '../utils/externalSearch.js';
 import { extractAlbumFromUrl } from '../services/albumUrlExtract.js';
+import { generateSlug } from '../utils/slug.js';
 import type { AppUser } from '../auth/passport.js';
 
 // Max albums a non-admin can submit in one calendar day. Caps spam
@@ -188,6 +190,117 @@ router.get('/album-requests/search', requireAuth, searchLimiter, async (req, res
     res.json({ albums: [] });
   }
 });
+
+// ─── POST /api/album-requests/manual ──────────────────────────────────
+//
+// Hand-entered album registration — for when MusicBrainz and Discogs
+// both come up empty (small-label tape releases, regional pressings,
+// pre-release titles MB hasn't indexed yet, etc.). Skips the entire
+// external-fetch pipeline and inserts directly into `albums` with a
+// synthetic mbid prefix `manual-{uuid}` so downstream code that
+// depends on the column being unique stays happy and the row's
+// origin is obvious from the id alone.
+//
+// reviews_crawled_at stays NULL so the row joins the same admin
+// "리뷰 수집 대기" queue as MB-sourced submissions; the rest of the
+// site (votes, 50자 평, collections, purchase links, mydig wall)
+// works against a manual album the same as any other row because
+// every join key is `mbid` and we generate a real one.
+//
+// Cover art: optional URL only at MVP. The dig.haus custom-cover
+// upload pipeline already exists for replacing covers post-create,
+// so users who want to upload a file can register first (no cover)
+// then swap it from the album page.
+router.post(
+  '/album-requests/manual',
+  requireAuth,
+  createDailyLimiter,
+  createBurstLimiter,
+  async (req, res) => {
+    const user = req.user as AppUser;
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    const title = normalizeString(body.title, TITLE_MAX);
+    const artist = normalizeString(body.artist, ARTIST_MAX);
+    if (!title || !artist) {
+      return res.status(400).json({ error: 'artist, title는 필수입니다.' });
+    }
+
+    // Year: optional, 4-digit 1900-2099 only. Anything else falls
+    // through to NULL — better to leave it empty than to record a
+    // bogus year that the home grid would order wrong.
+    const yearRaw = normalizeString(body.year, 4);
+    const year =
+      yearRaw && /^(19|20)\d{2}$/.test(yearRaw) ? yearRaw : null;
+
+    const format = normalizeString(body.format, 64);
+    const label = normalizeString(body.label, 200);
+    const coverArtUrl = normalizeString(body.coverArtUrl, 600);
+    if (coverArtUrl && !/^https?:\/\//i.test(coverArtUrl)) {
+      return res.status(400).json({
+        error: '커버 이미지 URL은 http(s)://로 시작해야 해요.',
+      });
+    }
+
+    // Daily cap mirrors the regular submission path so the manual
+    // route can't be used as a quota-bypass channel.
+    if (!user.is_admin) {
+      const submittedToday = queryGet(
+        `SELECT COUNT(*) AS n FROM albums
+         WHERE requested_by_user_id = ?
+           AND DATE(created_at) = DATE('now')`,
+        [user.id]
+      ) as { n: number };
+      if (submittedToday.n >= USER_DAILY_ALBUM_CAP) {
+        return res.status(429).json({
+          error: `하루 ${USER_DAILY_ALBUM_CAP}개까지 등록할 수 있어요. 내일 다시 시도해주세요.`,
+        });
+      }
+    }
+
+    // Synthetic mbid — UUID is overkill for collision-safety against
+    // the daily volume we see, but the manual- prefix is the actual
+    // signal here (it tells downstream "this row was hand-entered, no
+    // MB metadata to fall back on"). Using crypto.randomUUID keeps
+    // the id opaque + URL-safe.
+    const mbid = `manual-${randomUUID()}`;
+    const slug = generateSlug(artist, title, year, mbid);
+
+    try {
+      cacheAlbum({
+        mbid,
+        slug,
+        title,
+        artist_name: artist,
+        // artist_credit array form — mirrors what the MB path passes
+        // so consumers reading artist_credit_json don't have to
+        // special-case the manual route.
+        artist_credit: [{ name: artist, mbid: null }],
+        release_year: year ? parseInt(year, 10) : null,
+        // Synthesise a Jan-1 date so the home grid's "released within
+        // 30 days" NEW sticker rule has *something* to compare; users
+        // who care about exact release day can't get it from manual
+        // entries today (the form doesn't expose month/day).
+        release_date: year ? `${year}-01-01` : null,
+        format,
+        label_name: label,
+        cover_art_url: coverArtUrl,
+      });
+
+      // requested_by_user_id is not part of cacheAlbum's column list;
+      // stamp it via updateAlbumFields just like the MB-sourced flow
+      // does after getOrFetchAlbumBaseForSubmission.
+      updateAlbumFields(mbid, { requested_by_user_id: user.id });
+
+      res.json({ ok: true, mbid, slug });
+    } catch (err) {
+      console.error('[album-requests/manual] failed:', err);
+      res
+        .status(500)
+        .json({ error: '앨범 등록에 실패했어요. 잠시 뒤 다시 시도해주세요.' });
+    }
+  }
+);
 
 // ─── POST /api/album-requests/extract-from-url ────────────────────────
 //

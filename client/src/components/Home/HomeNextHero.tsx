@@ -966,22 +966,22 @@ function ShelfRow({
                 playChipInsetPct={4}
                 tapToActivate
                 coverOverlay={
-                  <>
-                    {isPick && (
-                      <DighausPickSticker
-                        lpSize={lpSize}
-                        seed={item.album.mbid}
-                      />
-                    )}
-                    {topLink && (
-                      <HomeFeatureSticker
-                        link={topLink}
-                        lpSize={lpSize}
-                        releaseDate={item.album.releaseDate}
-                        seed={item.album.mbid}
-                      />
-                    )}
-                  </>
+                  isPick ? (
+                    <DighausPickSticker
+                      lpSize={lpSize}
+                      seed={item.album.mbid}
+                    />
+                  ) : null
+                }
+                priceTagOverlay={
+                  topLink ? (
+                    <HomeFeatureSticker
+                      link={topLink}
+                      lpSize={lpSize}
+                      releaseDate={item.album.releaseDate}
+                      seed={item.album.mbid}
+                    />
+                  ) : null
                 }
               />
             ) : (

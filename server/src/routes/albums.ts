@@ -212,7 +212,13 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     // restored from MusicBrainz on the next page load. mb.date already
     // prefers release-group first-release-date, so this fills in the
     // original year for older cached rows that pre-date that change.
-    if (!cached.release_date && !cached.release_year && cached.mbid && !cached.mbid.startsWith('discogs-')) {
+    if (
+      !cached.release_date &&
+      !cached.release_year &&
+      cached.mbid &&
+      !cached.mbid.startsWith('discogs-') &&
+      !cached.mbid.startsWith('manual-')
+    ) {
       getRelease(cached.mbid).then((mb) => {
         if (mb?.date) updateAlbumFields(mbid, { release_date: mb.date });
       }).catch((err) => {
@@ -229,7 +235,8 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     if (
       !cached.artist_credit_json &&
       cached.mbid &&
-      !cached.mbid.startsWith('discogs-')
+      !cached.mbid.startsWith('discogs-') &&
+      !cached.mbid.startsWith('manual-')
     ) {
       getRelease(cached.mbid).then((mb) => {
         if (!mb?.artistCredit || mb.artistCredit.length === 0) return;
@@ -1561,7 +1568,12 @@ router.get('/:id', async (req, res) => {
   const resolved = resolveAlbumId(param);
 
   // Slug not in DB and not a valid mbid/discogs-id → 404
-  if (!resolved && !param.match(/^[0-9a-f]{8}-/) && !param.startsWith('discogs-')) {
+  if (
+    !resolved &&
+    !param.match(/^[0-9a-f]{8}-/) &&
+    !param.startsWith('discogs-') &&
+    !param.startsWith('manual-')
+  ) {
     return res.status(404).json({ error: 'Album not found' });
   }
 
