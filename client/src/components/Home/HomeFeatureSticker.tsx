@@ -31,14 +31,16 @@ function formatPrice(price: number | null, currency: string): string {
   return `${sym}${price.toFixed(2)}`;
 }
 
-// "2025-04-24" → "25-04-24". Year-only ("2025") collapses to "25"
-// so we still render something legible without faking month/day.
+// "2025-04-24" → "250424". Year-only ("2025") collapses to "25" so
+// we still render something legible without faking month/day.
 // Anything that doesn't match either shape returns null and the
-// date overlay just doesn't render.
+// date overlay just doesn't render. Compact 6-digit form fits the
+// narrow white strip between the dig.haus wordmark and the
+// NEW SEALED stamp better than the prior dashed YY-MM-DD.
 function formatReleaseDate(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const full = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (full) return `${full[1].slice(2)}-${full[2]}-${full[3]}`;
+  if (full) return `${full[1].slice(2)}${full[2]}${full[3]}`;
   const yearOnly = raw.match(/^(\d{4})$/);
   if (yearOnly) return yearOnly[1].slice(2);
   return null;
@@ -53,10 +55,12 @@ interface Props {
   // baked-in NEW SEALED stamp in the white strip up top. Falls back
   // to a missing-date layout (empty top strip) when null.
   releaseDate?: string | null;
-  // Optional deterministic-rotation seed. Hashes into a -2°..+2°
-  // tilt so neighbouring stickers don't sit at the same angle —
-  // reads as hand-applied rather than CSS-perfect. The same seed
-  // always picks the same angle so re-renders don't reshuffle.
+  // Optional deterministic-rotation seed. Hashes into a -1°..+1°
+  // tilt so neighbouring stickers don't sit at the same angle.
+  // Range tightened from ±2° to ±1° because the wider tag asset
+  // makes a given angle read as more dramatic on the long edge —
+  // ±2° on a 3.5:1 strip starts looking like the tag is falling
+  // off the cover instead of "stuck on slightly crooked".
   seed?: string;
 }
 
@@ -78,20 +82,23 @@ export default function HomeFeatureSticker({
   seed,
 }: Props) {
   const isSoldout = link.status === 'soldout';
-  // Width ratio bumped from 0.17 (the old square-ish sticker) to
-  // 0.42 because the tag is 3.5× wider than tall — same visual
-  // height-budget would render at a height where the two text rows
-  // collapse into illegible. 0.42 lands the rendered tag at roughly
-  // 2.7× the old footprint, which still leaves the cover readable.
-  const width = Math.round(lpSize * 0.42);
+  // Width ratio: 0.378 (was 0.42 → −10%). The new tag still reads
+  // as the dominant top-corner accent at this size while leaving
+  // a touch more cover real estate clear.
+  const width = Math.round(lpSize * 0.378);
   const height = Math.round(width / TAG_ASPECT);
-  // Top "white strip" (date area) and bottom "mint area" (price) are
-  // each ~50% of the tag height in the source asset. Date sits
-  // smaller because it's secondary; price gets the heavier weight.
-  const dateFontSize = Math.max(7, Math.round(height * 0.28));
-  const priceFontSize = Math.max(9, Math.round(height * 0.42));
-  // Hand-applied tilt: hash → 0..400 → 0.00..4.00 → -2.00..+2.00.
-  const rot = seed ? (hashStr(seed) % 401) / 100 - 2 : 0;
+  // Date area is the white strip up top (~50% of tag height in the
+  // source asset, but the dig.haus wordmark and NEW SEALED stamp
+  // already eat most of it horizontally — date only owns the
+  // narrow gap between them, hence the small font ratio).
+  const dateFontSize = Math.max(7, Math.round(height * 0.30));
+  // Price font bumped 0.42 → 0.62 — the user-readable digits should
+  // dominate the mint half, matching how a shop owner would scrawl
+  // the price across the whole bottom of a printed tag rather than
+  // leaving generous breathing room around it.
+  const priceFontSize = Math.max(11, Math.round(height * 0.62));
+  // Hand-applied tilt clamped to ±1°.
+  const rot = seed ? (hashStr(seed) % 201) / 100 - 1 : 0;
   const dateText = formatReleaseDate(releaseDate ?? null);
 
   return (
@@ -99,14 +106,12 @@ export default function HomeFeatureSticker({
       aria-hidden
       className="absolute z-10 pointer-events-none"
       style={{
-        // Nudged a few px off the top-right corner so the tag
-        // breathes against the sleeve edge instead of looking
-        // glued to the corner pixel. Bottom-right still reserved
-        // for the ▶ play chip. Drop shadow omitted: the plastic-
-        // wrap overlay sits a few px past the sleeve edge so the
-        // sticker reads as adhered to the wrap.
-        top: 4,
-        right: 4,
+        // Hugged closer to the corner (was 4px, now 1px) — visitor
+        // feedback was that the prior 4px gap made the tag look
+        // detached from the sleeve edge. 1px keeps a thin breathing
+        // line so it's not visually fused with the cover frame.
+        top: 1,
+        right: 1,
         width,
         height,
         backgroundImage: `url('${TAG_BG}')`,
@@ -116,19 +121,22 @@ export default function HomeFeatureSticker({
         transformOrigin: 'top right',
       }}
     >
-      {/* Date overlay — white strip between dig.haus wordmark
+      {/* Date overlay — white strip between the dig.haus wordmark
           (baked-in, left ~30%) and the NEW SEALED stamp (baked-in,
-          right ~35%). Right-aligned so the digits sit flush against
-          the stamp edge regardless of whether the date renders as
-          "25-04-24" or just "25". */}
+          right ~38%). Flex-centred vertically so the handwritten
+          glyph baseline lands in the middle of the upper white half
+          regardless of the font's intrinsic ascender/descender
+          metrics. Right-aligned so the digits sit flush against
+          the stamp edge whether the date renders as "260424" or
+          just "25". */}
       {dateText && (
-        <span
-          className="absolute leading-none"
+        <div
+          className="absolute flex items-center justify-end leading-none"
           style={{
-            top: '14%',
+            top: 0,
+            height: '50%',
             left: '32%',
             right: '38%',
-            textAlign: 'right',
             fontFamily: GRAFFITI_FONT_STACK,
             fontSize: dateFontSize,
             color: '#1a1a1a',
@@ -136,19 +144,20 @@ export default function HomeFeatureSticker({
           }}
         >
           {dateText}
-        </span>
+        </div>
       )}
-      {/* Price overlay — mint-green bottom area, centred. The hand-
-          written font reads as a price scrawled by the shop owner
-          on top of the printed tag, instead of the prior
-          mono-printed look. */}
-      <span
-        className="absolute leading-none flex items-center justify-center"
+      {/* Price overlay — mint-green bottom half, edge-to-edge with
+          minimal vertical padding so the handwritten digits fill
+          the available space rather than floating in a small box.
+          Top edge clears the horizontal divider line baked into
+          the tag; bottom hugs the sticker base. */}
+      <div
+        className="absolute flex items-center justify-center leading-none"
         style={{
           left: 0,
           right: 0,
-          bottom: '8%',
-          height: '40%',
+          top: '52%',
+          bottom: 0,
           fontFamily: GRAFFITI_FONT_STACK,
           fontSize: priceFontSize,
           color: '#1a3a18',
@@ -158,7 +167,7 @@ export default function HomeFeatureSticker({
         }}
       >
         {formatPrice(link.price, link.currency)}
-      </span>
+      </div>
     </div>
   );
 }
