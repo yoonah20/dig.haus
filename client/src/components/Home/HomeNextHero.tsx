@@ -178,6 +178,13 @@ function hashStr(str: string): number {
 // only way two slots can share a texture is if N drops below 10.
 function pickPlasticTexture(position: number): string {
   if (PLASTIC_TEXTURE_PATHS.length === 0) return '';
+  // Slot 0's default texture (swrap01) was reading as too aggressive
+  // — the upper-left slot draws the eye first and the wrinkle pattern
+  // dominated whatever cover sat under it. Borrow slot 7's softer
+  // wrap (swrap17) for slot 0; the duplication is acceptable because
+  // the two slots sit on different rows + opposite halves of the
+  // wall, so the eye doesn't read them as a repeat.
+  if (position === 0) return PLASTIC_TEXTURE_PATHS[7]!;
   return PLASTIC_TEXTURE_PATHS[position % PLASTIC_TEXTURE_PATHS.length]!;
 }
 
@@ -562,7 +569,13 @@ export default function HomeNextHero() {
           OS preference). */}
       {walls.length > 1 && (
         <div
-          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-3"
+          // group-has lift: when a post-it is hovered/tap-active
+          // anywhere in the hero, the slide jumps to z-[60] (see
+          // HeroWallSlide root) so its backdrop image starts painting
+          // above this z-30 dot row, hiding the dots. Lifting the
+          // dots to z-[70] in the same condition keeps them visible.
+          // Same group is used for the admin chips below.
+          className="absolute left-1/2 -translate-x-1/2 z-30 group-has-[.dig-postit:hover]/hero:z-[70] group-has-[.dig-postit[data-tap-active=true]]/hero:z-[70] flex items-center gap-3"
           style={{ bottom: 50 }}
         >
           <div className="flex items-center gap-2">
@@ -603,7 +616,7 @@ export default function HomeNextHero() {
           3번째) so the admin can confirm which wall is about to be
           touched before clicking. */}
       {isAdmin && !editing && !tunerOpen && (
-        <div className="absolute top-3 right-3 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className="absolute top-3 right-3 z-30 group-has-[.dig-postit:hover]/hero:z-[70] group-has-[.dig-postit[data-tap-active=true]]/hero:z-[70] flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity">
           <button
             type="button"
             onClick={() => setEditing(true)}
@@ -939,14 +952,17 @@ function ShelfRow({
           <div
             key={position}
             // `relative z-0` baseline so the slot owns its stacking
-            // context; `has-[.dig-postit:hover]:z-[60]` lifts that
-            // context above the carousel siblings (dot pagination
-            // z-30, admin chips z-30) when the post-it inside is
-            // hovered or tap-activated. Without the baseline the
-            // post-it's own z-40 stays trapped inside the inner
-            // frame's transform-induced stacking context and the
-            // nav/dot row paints over the scaled-up note.
-            className="absolute group/slot z-0 has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60]"
+            // context; the `has-[…]` rules lift it above sibling
+            // slots when interactive content inside is engaged:
+            //   - `.dig-postit:hover` / data-tap-active: post-it
+            //     scales above the next slot's LP, the carousel dots,
+            //     and the admin chips.
+            //   - `.wall-hover-outer:hover` / data-tap-active: the LP
+            //     itself hover-scales (162%) and would otherwise be
+            //     buried by the next slot's cover (sibling slots
+            //     share the same z-0 baseline, so DOM-order paint
+            //     wins without the lift).
+            className="absolute group/slot z-0 has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60] has-[.wall-hover-outer:hover]:z-[60] has-[.wall-hover-outer[data-tap-active=true]]:z-[60]"
             style={{
               left: cellLeft,
               top: rowTopY,
@@ -980,23 +996,24 @@ function ShelfRow({
                 playChipScale={0.75}
                 playChipInsetPct={4}
                 tapToActivate
+                priceTagOverlay={
+                  topLink ? (
+                    <HomeFeatureSticker
+                      link={topLink}
+                      lpSize={lpSize}
+                      albumTitle={item.album.titleKo || item.album.title}
+                      albumArtist={item.album.artistKo || item.album.artist}
+                      seed={item.album.mbid}
+                    />
+                  ) : null
+                }
                 coverOverlay={
-                  <>
-                    {isPick && (
-                      <DighausPickSticker
-                        lpSize={lpSize}
-                        seed={item.album.mbid}
-                      />
-                    )}
-                    {topLink && (
-                      <HomeFeatureSticker
-                        link={topLink}
-                        lpSize={lpSize}
-                        releaseDate={item.album.releaseDate}
-                        seed={item.album.mbid}
-                      />
-                    )}
-                  </>
+                  isPick ? (
+                    <DighausPickSticker
+                      lpSize={lpSize}
+                      seed={item.album.mbid}
+                    />
+                  ) : null
                 }
               />
             ) : (

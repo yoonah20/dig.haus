@@ -50,6 +50,8 @@ router.get('/home/features', async (_req, res) => {
             a.id AS albumId,
             a.mbid, a.slug, a.title,
             a.artist_name AS artist,
+            a.artist_ko AS artistKo,
+            a.title_ko AS titleKo,
             a.cover_art_url AS coverArtUrl,
             a.cover_art_fallbacks AS coverArtFallbacks,
             a.cover_dominant_color AS coverDominantColor,
@@ -155,6 +157,8 @@ router.get('/home/features', async (_req, res) => {
         slug: row.slug,
         title: row.title,
         artist: row.artist,
+        artistKo: row.artistKo ?? null,
+        titleKo: row.titleKo ?? null,
         coverArtUrl: row.coverArtUrl,
         coverArtFallbacks: row.coverArtFallbacks
           ? JSON.parse(row.coverArtFallbacks)

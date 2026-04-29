@@ -1,26 +1,15 @@
 import type { PriceTagLink } from '../../types';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 
-// Pre-designed price tag — the previous yellow / green sticker pair
-// (currency-coded) collapsed into a single horizontal tag asset that
-// already carries the dig.haus wordmark + "NEW SEALED" stamp baked
-// in. Currency-colour distinction is gone with the visual change;
-// price digits land in the mint area at the bottom, release date
-// lands in the white strip next to the NEW SEALED stamp.
-//
-// Asset is 500×142 (aspect ~3.52:1) so the rendered sticker is
-// noticeably wider + shorter than the prior 1.82:1 box; the layout
-// percentages below are tuned against that geometry.
-// Date renders in a tight mono stack rather than the handwritten
-// graffiti family that the price uses — at 6-7 px the cursive
-// glyphs collapse into illegible scribble, while a clean mono
-// reads as a printed date stamp on top of the tag, which fits
-// the "shop owner annotated this with a sharpie, but the date
-// was already inkjet-printed" mental model.
-const DATE_FONT_STACK =
-  "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
+// Pre-designed price tag — tag2.webp lays out three slots:
+//   - top-left:  baked-in dig.haus + NEW wordmark
+//   - top-right: empty white slot to the right of "NEW", price lands here
+//   - bottom:    full-width mint band, artist + album title stacked here
+// Asset is 500×142 (aspect ~3.52:1). Source-px coordinates below project
+// into rendered px via the layout percentages. The earlier release-date
+// stamp slot is gone — the date no longer renders on the tag at all.
 
-const TAG_BG = '/textures/tag.webp';
+const TAG_BG = '/textures/tag2.webp';
 const TAG_ASPECT = 500 / 142;
 
 const CURRENCY_SYMBOL: Record<string, string> = {
@@ -40,30 +29,16 @@ function formatPrice(price: number | null, currency: string): string {
   return `${sym}${price.toFixed(2)}`;
 }
 
-// "2025-04-24" → "250424". Year-only ("2025") collapses to "25" so
-// we still render something legible without faking month/day.
-// Anything that doesn't match either shape returns null and the
-// date overlay just doesn't render. Compact 6-digit form fits the
-// narrow white strip between the dig.haus wordmark and the
-// NEW SEALED stamp better than the prior dashed YY-MM-DD.
-function formatReleaseDate(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const full = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (full) return `${full[1].slice(2)}${full[2]}${full[3]}`;
-  const yearOnly = raw.match(/^(\d{4})$/);
-  if (yearOnly) return yearOnly[1].slice(2);
-  return null;
-}
-
 interface Props {
   link: PriceTagLink;
   // Wall LP size in px; sticker width derives from this so it scales
   // with the cover.
   lpSize: number;
-  // ISO release date (YYYY-MM-DD or YYYY). Renders next to the
-  // baked-in NEW SEALED stamp in the white strip up top. Falls back
-  // to a missing-date layout (empty top strip) when null.
-  releaseDate?: string | null;
+  // Album metadata stacked on the tag's mint band — artist on top,
+  // album title underneath. Both are single-line ellipsis-clipped so
+  // arbitrarily long values won't overflow into neighbouring covers.
+  albumTitle: string;
+  albumArtist: string;
   // Optional deterministic-rotation seed. Hashes into a -1°..+1°
   // tilt so neighbouring stickers don't sit at the same angle.
   // Range tightened from ±2° to ±1° because the wider tag asset
@@ -87,48 +62,51 @@ function hashStr(str: string): number {
 export default function HomeFeatureSticker({
   link,
   lpSize,
-  releaseDate,
+  albumTitle,
+  albumArtist,
   seed,
 }: Props) {
   const isSoldout = link.status === 'soldout';
-  // Width ratio: 0.378 (was 0.42 → −10%). The new tag still reads
-  // as the dominant top-corner accent at this size while leaving
-  // a touch more cover real estate clear.
-  const width = Math.round(lpSize * 0.378);
+  // Width ratio: 0.42 (was 0.378 → +11%). The tag now carries
+  // artist + album text on the mint band, so it earns a bit more
+  // of the cover's width to keep that text legible at small lpSize.
+  const width = Math.round(lpSize * 0.42);
   const height = Math.round(width / TAG_ASPECT);
-  // Date sits in the narrow white slot to the right of the
-  // baked-in NEW SEALED stamp — that slot is only ~25% wide
-  // and ~50% tall in source coords, so 6 chars at the larger
-  // ratios (0.30, 0.46) of prior iterations overflowed past
-  // the right edge of the tag. 0.22 lands "260424" inside the
-  // slot at the rendered widths the home grid hits.
-  const dateFontSize = Math.max(6, Math.round(height * 0.22));
-  // Price font sized to fit cleanly inside the mint bottom half
-  // (also ~50% of tag height). Ratio walked 0.62 (overflowed up
-  // past the divider) → 0.42 (read as undersized vs the cover) →
-  // 0.48 lands the digits at a step bigger than 0.42 while still
-  // clearing the divider when centred inside the mint area.
-  const priceFontSize = Math.max(11, Math.round(height * 0.48));
+  // Price font sized to fill the top-right slot top-to-bottom — the
+  // slot itself is ~50% of tag height (sits above the horizontal
+  // divider baked into the asset). 0.42 lands the digits flush
+  // against the slot's vertical bounds without nudging the
+  // baked-in NEW glyph or crossing the divider.
+  const priceFontSize = Math.max(9, Math.round(height * 0.42));
+  // Artist + album collapsed into a single "artist·album" line on
+  // the mint band. Ratio 0.34 (walked 0.40 → 0.36 → 0.34) — Hangul
+  // glyphs read denser than the Latin originals, and the
+  // transliteration payload is dominated by the longer side
+  // (titleKo) which keeps pushing past the slot's right edge. 0.34
+  // lands ~16 chars before ellipsis without compromising
+  // legibility at the rendered home-grid sizes.
+  const titleFontSize = Math.max(7, Math.round(height * 0.34));
   // Hand-applied tilt clamped to ±1°.
   const rot = seed ? (hashStr(seed) % 201) / 100 - 1 : 0;
-  const dateText = formatReleaseDate(releaseDate ?? null);
 
   return (
     <div
       aria-hidden
-      // z-10 sits the sticker above the shine + rim layers inside
-      // the cover overlay slot so the price digits stay legible —
-      // we tried wrapping it under the plastic for a "stuck on,
-      // then sealed over" look, but the wrap textured the digits
-      // enough to hurt readability. Reverted to over-wrap.
-      className="absolute z-10 pointer-events-none"
+      // No z-index: the sticker now lives in WallHoverCard's
+      // priceTagOverlay slot, which renders before the shrink-wrap
+      // raster + shine layers in DOM order. With z-auto on both,
+      // paint order wins and the wrap visibly textures the tag —
+      // "stuck to the sleeve, sealed under the plastic". The
+      // earlier z-10 was lifting the tag back above the wrap,
+      // defeating the slot split.
+      className="absolute pointer-events-none"
       style={{
-        // Hugged tight to the top-right corner — 1px breathing line
-        // off the top, flush against the right edge so the tag sits
-        // under the shrink-wrap right where a real shop sticker
-        // would land. Prior right:1 left a visible vertical gap at
-        // the cover's right edge that read as "tag floating".
-        top: 1,
+        // top: 3 (halved from 6 after visual review) pulls the tag
+        // back up toward the sleeve's upper edge. right: 0 keeps
+        // the tag inside the sleeve — the negative-right experiment
+        // pushed it past the shrink-wrap edge, which broke the
+        // "sealed under the plastic" composition.
+        top: 3,
         right: 0,
         width,
         height,
@@ -139,53 +117,73 @@ export default function HomeFeatureSticker({
         transformOrigin: 'top right',
       }}
     >
-      {/* Date overlay — narrow white slot to the right of the
-          baked-in NEW SEALED stamp. Bottom stays above the
-          horizontal divider at ~50% so the digits don't collide
-          with it. Justify-end so the date sits flush against the
-          right edge of the tag. */}
-      {dateText && (
-        <div
-          className="absolute flex items-center justify-end leading-none"
-          style={{
-            top: '4%',
-            bottom: '58%',
-            left: '74%',
-            right: '3%',
-            fontFamily: DATE_FONT_STACK,
-            fontWeight: 600,
-            fontSize: dateFontSize,
-            color: '#1a1a1a',
-            letterSpacing: '-0.04em',
-          }}
-        >
-          {dateText}
-        </div>
-      )}
-      {/* Price overlay — mint-green bottom half, centred. Bottom
-          padding 4 px (was 2) so the handwritten digits sit
-          slightly raised off the sticker base instead of touching
-          it. items-center because the price font is now sized to
-          fit cleanly inside the mint half — bottom-aligning a
-          tightly-fit font would visually push the descender below
-          the visible bound; centring it lands the cap-line and
-          baseline symmetrically inside the mint area. */}
+      {/* Price overlay — empty white slot to the right of the
+          baked-in NEW glyph. Top + bottom hug the divider edges
+          (2% / 52%) so the digits visually fill the slot floor-to-
+          ceiling; left: 65% lands the start position just past
+          the NEW glyph's right edge in the source image. Right-
+          aligned so the digits sit flush against the tag's right
+          edge regardless of length. */}
       <div
-        className="absolute flex items-center justify-center leading-none"
+        className="absolute flex items-center justify-end leading-none"
         style={{
-          left: 0,
-          right: 0,
-          top: '52%',
-          bottom: 4,
+          top: '2%',
+          bottom: '52%',
+          left: '65%',
+          right: '3%',
           fontFamily: GRAFFITI_FONT_STACK,
           fontSize: priceFontSize,
-          color: '#1a3a18',
-          letterSpacing: '-0.01em',
+          color: '#1a1a1a',
+          letterSpacing: '-0.02em',
           textDecoration: isSoldout ? 'line-through' : 'none',
           textDecorationThickness: isSoldout ? 1.5 : undefined,
         }}
       >
         {formatPrice(link.price, link.currency)}
+      </div>
+      {/* Artist·album band — mint bottom half (top 54%, bottom 4)
+          carries a single "artist·album" line. Middle-dot separator
+          with no surrounding spaces — the tilde was hard to spot at
+          the rendered size, but a bare middle-dot lands cleanly
+          between the two strings without padding bloat. Long values
+          clip with text-overflow: ellipsis so anything past the
+          tag's right edge resolves to "...". Inner span owns the
+          ellipsis rules; outer flex handles vertical centring (flex
+          on the ellipsis element itself doesn't always honour the
+          clip). */}
+      <div
+        className="absolute flex items-center"
+        style={{
+          left: '2%',
+          right: '4%',
+          top: '54%',
+          bottom: 4,
+        }}
+      >
+        <span
+          style={{
+            width: '100%',
+            textAlign: 'left',
+            fontFamily: GRAFFITI_FONT_STACK,
+            fontSize: titleFontSize,
+            fontWeight: 400,
+            color: '#1a3a18',
+            // -0.04em (walked -0.01em → -0.03em → -0.04em) tightens
+            // Hangul intercharacter spacing close to the safe limit.
+            // Hangul tolerates negative tracking better than Latin
+            // because most glyphs end on a baseline-rooted jamo with
+            // built-in side bearing; -0.05em is where adjacent
+            // characters start to collide visually, so this stops a
+            // hair above that.
+            letterSpacing: '-0.04em',
+            lineHeight: 1.05,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {`${albumArtist}·${albumTitle}`}
+        </span>
       </div>
     </div>
   );

@@ -68,6 +68,10 @@ function hashStr(str: string): number {
 // read as repetitive go away.
 function pickPlasticTexture(position: number): string {
   if (PLASTIC_TEXTURE_PATHS.length === 0) return '';
+  // Mirror the desktop tweak — slot 0 borrows slot 7's softer wrap
+  // (swrap17) so the upper-left slot doesn't dominate. See the
+  // matching note in HomeNextHero.tsx.
+  if (position === 0) return PLASTIC_TEXTURE_PATHS[7]!;
   return PLASTIC_TEXTURE_PATHS[position % PLASTIC_TEXTURE_PATHS.length]!;
 }
 
@@ -257,7 +261,11 @@ export default function HomeNextHeroMobile() {
   return (
     <div
       ref={containerRef}
-      className="relative w-full"
+      // group/hero so the dot pagination can lift its z-index when
+      // a post-it inside any slot is hovered/tap-active. Without
+      // the lift the slide's z-[60] (set by the same has-condition
+      // on the row + slot wrappers) buries this row's dots.
+      className="group/hero relative w-full"
     >
       <div
         ref={carouselRef}
@@ -322,7 +330,12 @@ export default function HomeNextHeroMobile() {
 
       {walls.length > 1 && (
         <div
-          className="absolute left-1/2 -translate-x-1/2 z-30 flex items-center gap-3"
+          // Same group-has lift pattern as desktop: when any
+          // post-it inside the hero is hovered or tap-active, the
+          // row + slot wrappers push the slide stacking context up,
+          // and this row also lifts to stay above the slide
+          // backdrop instead of getting buried.
+          className="absolute left-1/2 -translate-x-1/2 z-30 group-has-[.dig-postit:hover]/hero:z-[70] group-has-[.dig-postit[data-tap-active=true]]/hero:z-[70] flex items-center gap-3"
           style={{ bottom: 8 }}
         >
           <div className="flex items-center gap-2">
@@ -568,13 +581,16 @@ function HeroWallSlideMobile({
                     return (
                       <div
                         key={position}
-                        // `has-[.dig-postit:hover]:z-50` lifts the
-                        // whole slot above its neighbours when the
-                        // post-it inside is hovered, so the scaled
-                        // note isn't occluded by the next column's
-                        // LP cover (which has its own z-10 inside
-                        // WallHoverCard).
-                        className="group/slot has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60]"
+                        // Slot z-up triggers:
+                        //   - `.dig-postit:hover` / data-tap-active:
+                        //     scaled note clears the next column's LP
+                        //     cover (which has its own z-10 inside
+                        //     WallHoverCard).
+                        //   - `.wall-hover-outer:hover` / tap-active:
+                        //     LP hover-scale itself clears the next
+                        //     column's cover instead of getting
+                        //     buried by sibling DOM order.
+                        className="group/slot has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60] has-[.wall-hover-outer:hover]:z-[60] has-[.wall-hover-outer[data-tap-active=true]]:z-[60]"
                         style={{
                           width: lpSize,
                           height: slotHeight,
@@ -676,18 +692,19 @@ function MobileFeatureCell({
       plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
       hoverScalePct={130}
       tapToActivate
+      priceTagOverlay={
+        topLink ? (
+          <HomeFeatureSticker
+            link={topLink}
+            lpSize={lpSize}
+            albumTitle={album.titleKo || album.title}
+            albumArtist={album.artistKo || album.artist}
+            seed={album.mbid}
+          />
+        ) : null
+      }
       coverOverlay={
-        <>
-          {isPick && <MobilePickSticker lpSize={lpSize} seed={album.mbid} />}
-          {topLink && (
-            <HomeFeatureSticker
-              link={topLink}
-              lpSize={lpSize}
-              releaseDate={album.releaseDate}
-              seed={album.mbid}
-            />
-          )}
-        </>
+        isPick ? <MobilePickSticker lpSize={lpSize} seed={album.mbid} /> : null
       }
     />
   );

@@ -89,6 +89,15 @@ interface Props {
   // film texturing them. Distinct from `children` (which renders
   // outside the scale wrapper, used by mydig's CommentBubble).
   coverOverlay?: ReactNode;
+  // Same as coverOverlay but rendered BELOW the shrink-wrap raster
+  // (and the shine layers built on top of it) — anything in this
+  // slot reads as "stuck to the sleeve, then sealed under the
+  // plastic". The price tag uses this so the wrap visibly textures
+  // the sticker. Tried this once before, reverted in 42ea82e when
+  // the wrap shredded the price digits, but the new tag2.webp puts
+  // the digits in a tight slot where the wrap reads as gloss
+  // rather than illegibility.
+  priceTagOverlay?: ReactNode;
   // When true the hover transform also pushes the sleeve
   // forward in 3D via translateZ — the "popping out of the
   // wall" emphasis. Default is false now: the effect was
@@ -157,6 +166,7 @@ export default function WallHoverCard({
   plasticBlendMode = 'normal',
   hoverScalePct = 126,
   coverOverlay = null,
+  priceTagOverlay = null,
   popOnHover = false,
   hoverOriginY = 'bottom',
   playChipScale = 1,
@@ -303,6 +313,12 @@ export default function WallHoverCard({
               className="w-full h-full object-cover"
             />
           </WallLP>
+
+          {/* Price-tag slot — rendered before the plastic raster so
+              DOM-order stacking lets the wrap (and the shine layers
+              built on top of it) paint over the tag. "Stuck to the
+              sleeve, then sealed in" composition. */}
+          {priceTagOverlay}
 
           {/* Shrink-wrap raster overlay — extended ~7px past every
               edge of the cover so the plastic visibly wraps around
