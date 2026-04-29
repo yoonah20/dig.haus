@@ -996,8 +996,8 @@ function ShelfRow({
                 plasticOffsetXPx={plasticMeta?.plasticOffsetXPx ?? 5}
                 plasticOffsetYPx={plasticMeta?.plasticOffsetYPx ?? 0}
                 plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
-                hoverScalePct={162}
-                hoverOriginY="75%"
+                hoverScalePct={177}
+                hoverOriginY="bottom"
                 playChipScale={0.75}
                 playChipInsetPct={4}
                 tapToActivate

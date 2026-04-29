@@ -152,6 +152,22 @@ export function upgradeWallCoverFallbacks(
   return urls.map((u) => upgradeWallCoverUrl(u) ?? u);
 }
 
+// Translate a transform-origin Y token ('top' / 'center' / 'bottom'
+// / '0%' / '50%' / '100%' / arbitrary percentage) into a 0-1 fraction
+// of the element's height. Used by the cursor-tilt math to project
+// the link's stable layout rect through the same origin the scale
+// wrapper uses, so cursor normalisation hits the visual sleeve's
+// real centre instead of the layout box's centre (which the home
+// wall's 75% origin pulls noticeably off).
+function parseOriginYFrac(raw: string): number {
+  if (raw === 'top') return 0;
+  if (raw === 'center') return 0.5;
+  if (raw === 'bottom') return 1;
+  const m = raw.match(/^(-?\d+(?:\.\d+)?)\s*%$/);
+  if (m) return Math.min(1, Math.max(0, Number(m[1]!) / 100));
+  return 1;
+}
+
 export default function WallHoverCard({
   album,
   position,
@@ -179,14 +195,27 @@ export default function WallHoverCard({
 
   const cardRef = useRef<HTMLAnchorElement>(null);
 
-  // Cursor-tracked tilt + lamp-anchored specular — pokemon-cards-css
-  // style. Center-based offset against the link's layout rect, no
-  // clamp, so a cursor outside the rect (which happens when hover
-  // grows the visual sleeve past the lpSize × lpSize anchor) keeps
-  // producing a proportional tilt instead of saturating at one bound
-  // and reading as a one-direction tilt. mouseleave resets the
-  // values, so the unbounded-near-edge behaviour can't escape the
-  // hover lifetime.
+  // Cursor-tracked tilt + lamp-anchored specular.
+  //
+  // The Link's layout rect is lpSize × lpSize and doesn't move with
+  // hover-scale, but the inner scale wrapper grows to scale × lpSize
+  // anchored at (center, hoverOriginY). For the home wall's 75%
+  // origin the resulting visual rect's centre sits ~15% of lpSize
+  // *above* the layout centre — so normalising the cursor against
+  // the layout centre (which an earlier pokemon-cards-style pass did)
+  // makes the visual centre read as `dy ≈ -0.19`, the visual upper
+  // half overshoots into `dy < -1`, and the visual lower half barely
+  // reaches `dy = 0.19`. That's why moving the cursor down still
+  // showed an upward tilt — the reference centre was wrong.
+  //
+  // Fix: project the layout rect through hoverScalePct + hoverOriginY
+  // to reconstruct the visual centre + visual half-extents, then
+  // normalise the cursor against *those*. No clamp — cursor outside
+  // the visual rect fires mouseleave, so dy stays in [-1, +1] in
+  // practice, with a tiny overshoot allowed near the edges so the
+  // tilt eases past the bound rather than locking. Uses the *final*
+  // scale rather than measuring the wrapper's live (transitioning)
+  // rect; the wrapper-rect chase made early frames feel stuck.
   //
   // Per-pixel writes go through CSS custom properties on the anchor
   // (no React state per frame; mousemove fires every paint).
@@ -194,10 +223,16 @@ export default function WallHoverCard({
     const el = cardRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const halfW = rect.width / 2;
-    const halfH = rect.height / 2;
-    const dx = (e.clientX - (rect.left + halfW)) / halfW;
-    const dy = (e.clientY - (rect.top + halfH)) / halfH;
+    const scale = hoverScalePct / 100;
+    const originYFrac = parseOriginYFrac(hoverOriginY);
+    const halfVW = (rect.width * scale) / 2;
+    const halfVH = (rect.height * scale) / 2;
+    const visualCenterX = rect.left + rect.width / 2;
+    const originAbsY = rect.top + rect.height * originYFrac;
+    const visualTop = originAbsY - scale * (originAbsY - rect.top);
+    const visualCenterY = visualTop + halfVH;
+    const dx = (e.clientX - visualCenterX) / halfVW;
+    const dy = (e.clientY - visualCenterY) / halfVH;
     const tiltY = dx * 7;
     const tiltX = -dy * 7;
     const specX = 50 - dx * 35;
