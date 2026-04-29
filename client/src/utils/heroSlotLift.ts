@@ -18,7 +18,18 @@
 // a shared React ref or context.
 
 const TIMER_ATTR = 'data-z-timer';
-const LIFT_Z = '60';
+
+// Monotonic counter that gives every new lift a strictly higher
+// z-index than the previous one. Without this, when the cursor
+// sweeps sideways from slot A to slot B, both slots end up holding
+// the same lift-z (B got it on enter, A still holds it inside its
+// 300ms release window) — DOM order then decides which paints on
+// top, which means the *old* (scale-down) slot wins whenever the
+// cursor moves right-to-left. Bumping a shared counter guarantees
+// the freshly-lifted (scale-up) slot is always on top regardless
+// of DOM order. Counter is unbounded but in practice tops out at
+// "hovers per session" which is firmly within Number safety.
+let nextLiftZ = 60;
 
 export function liftHeroSlot(el: HTMLElement | null) {
   const slot = el?.closest('.dig-hero-slot') as HTMLElement | null;
@@ -28,7 +39,8 @@ export function liftHeroSlot(el: HTMLElement | null) {
     window.clearTimeout(Number(tid));
     slot.removeAttribute(TIMER_ATTR);
   }
-  slot.style.zIndex = LIFT_Z;
+  nextLiftZ += 1;
+  slot.style.zIndex = String(nextLiftZ);
 }
 
 export function releaseHeroSlot(

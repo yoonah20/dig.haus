@@ -195,30 +195,41 @@ export default function WallHoverCard({
 
   const cardRef = useRef<HTMLAnchorElement>(null);
 
-  // Cursor-tracked tilt + lamp-anchored specular.
+  // Cursor-tracked tilt + specular — pokemon-cards-css pattern,
+  // rebuilt from scratch after multiple wrong-base iterations.
   //
-  // The Link's layout rect is lpSize × lpSize and doesn't move with
-  // hover-scale, but the inner scale wrapper grows to scale × lpSize
-  // anchored at (center, hoverOriginY). For the home wall's 75%
-  // origin the resulting visual rect's centre sits ~15% of lpSize
-  // *above* the layout centre — so normalising the cursor against
-  // the layout centre (which an earlier pokemon-cards-style pass did)
-  // makes the visual centre read as `dy ≈ -0.19`, the visual upper
-  // half overshoots into `dy < -1`, and the visual lower half barely
-  // reaches `dy = 0.19`. That's why moving the cursor down still
-  // showed an upward tilt — the reference centre was wrong.
+  // Two conventions, both PARALLAX (cursor and visual response move
+  // *together*, not opposite):
+  //   - Tilt: cursor near an edge tilts that edge toward the viewer.
+  //     Cursor right of centre → right edge forward → rotateY(+).
+  //     Cursor below centre → bottom edge forward → rotateX(+).
+  //   - Specular: highlight tracks the cursor. Earlier passes had
+  //     spec offset opposite to the cursor on an explicit "reverse
+  //     direction" request, but the operator's later review traced
+  //     the "something feels off" feeling back to that anti-parallax
+  //     spec. Both signals share the parallax convention now so the
+  //     cover reads as a glossy sleeve under a single light source
+  //     anchored to the cursor.
   //
-  // Fix: project the layout rect through hoverScalePct + hoverOriginY
-  // to reconstruct the visual centre + visual half-extents, then
-  // normalise the cursor against *those*. No clamp — cursor outside
-  // the visual rect fires mouseleave, so dy stays in [-1, +1] in
-  // practice, with a tiny overshoot allowed near the edges so the
-  // tilt eases past the bound rather than locking. Uses the *final*
-  // scale rather than measuring the wrapper's live (transitioning)
-  // rect; the wrapper-rect chase made early frames feel stuck.
+  // Reference is the *visual* rect centre, not the layout rect
+  // centre — hover-scale + origin shifts the visual centre off the
+  // layout centre (origin "bottom" pulls it up ~38% of lpSize on
+  // the home wall), and normalising against the wrong centre is
+  // exactly what made `dy=0` land on a tilted-looking sleeve in
+  // earlier passes.
   //
-  // Per-pixel writes go through CSS custom properties on the anchor
-  // (no React state per frame; mousemove fires every paint).
+  // No clamp: cursor outside the visual rect fires mouseleave, so
+  // dx/dy stay roughly in [-1, +1] with a tiny graceful overshoot
+  // near the edges.
+  //
+  // ±12° tilt reads as a gentle shrink-wrap glance — wider than
+  // the prior ±7° (which was hard to perceive against the busy
+  // covers) but a long way short of the ±30° diagnostic window
+  // that confirmed the parallax direction. Spec travel stays at
+  // ±50% so the highlight reaches the cover edges instead of
+  // stalling near the centre.
+  const TILT_MAX = 12;
+  const SPEC_TRAVEL = 50;
   const handleCursorMove = (e: React.MouseEvent<HTMLElement>) => {
     const el = cardRef.current;
     if (!el) return;
@@ -233,10 +244,10 @@ export default function WallHoverCard({
     const visualCenterY = visualTop + halfVH;
     const dx = (e.clientX - visualCenterX) / halfVW;
     const dy = (e.clientY - visualCenterY) / halfVH;
-    const tiltY = dx * 7;
-    const tiltX = -dy * 7;
-    const specX = 50 - dx * 35;
-    const specY = 38 - dy * 27;
+    const tiltY = dx * TILT_MAX;
+    const tiltX = dy * TILT_MAX;
+    const specX = 50 + dx * SPEC_TRAVEL;
+    const specY = 50 + dy * SPEC_TRAVEL;
     el.style.setProperty('--tilt-x', `${tiltX}deg`);
     el.style.setProperty('--tilt-y', `${tiltY}deg`);
     el.style.setProperty('--spec-x', `${specX}%`);
@@ -250,8 +261,13 @@ export default function WallHoverCard({
     if (!el) return;
     el.style.setProperty('--tilt-x', '0deg');
     el.style.setProperty('--tilt-y', '0deg');
+    // Spec resets to centre instead of the prior 50% / 38%
+    // (which assumed the lamp lived in the upper-left and the
+    // highlight should bias upward at rest). The new parallax-
+    // tracked spec doesn't anchor to a fixed lamp position, so
+    // the rest state is just centred.
     el.style.setProperty('--spec-x', '50%');
-    el.style.setProperty('--spec-y', '38%');
+    el.style.setProperty('--spec-y', '50%');
     releaseHeroSlot(el);
   };
 
@@ -413,7 +429,7 @@ export default function WallHoverCard({
             className="absolute inset-0 pointer-events-none opacity-30 group-hover:opacity-90 transition-opacity duration-[220ms]"
             style={{
               background:
-                'radial-gradient(circle at var(--spec-x,30%) var(--spec-y,25%), rgba(255,250,235,0.85) 4%, rgba(255,250,235,0.45) 16%, rgba(255,250,235,0.15) 32%, transparent 52%)',
+                'radial-gradient(circle at var(--spec-x,50%) var(--spec-y,50%), rgba(255,250,235,0.85) 4%, rgba(255,250,235,0.45) 16%, rgba(255,250,235,0.15) 32%, transparent 52%)',
               mixBlendMode: 'overlay',
             }}
           />
