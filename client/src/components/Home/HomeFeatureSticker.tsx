@@ -87,15 +87,14 @@ export default function HomeFeatureSticker({
   // a touch more cover real estate clear.
   const width = Math.round(lpSize * 0.378);
   const height = Math.round(width / TAG_ASPECT);
-  // Date area is the white strip up top (~50% of tag height in the
-  // source asset, but the dig.haus wordmark and NEW SEALED stamp
-  // already eat most of it horizontally — date only owns the
-  // narrow gap between them, hence the small font ratio).
-  const dateFontSize = Math.max(7, Math.round(height * 0.30));
-  // Price font bumped 0.42 → 0.62 — the user-readable digits should
-  // dominate the mint half, matching how a shop owner would scrawl
-  // the price across the whole bottom of a printed tag rather than
-  // leaving generous breathing room around it.
+  // Date sits in the narrow white slot to the right of the
+  // baked-in NEW SEALED stamp. Font ratio bumped 0.30 → 0.46 so
+  // the 6-digit YYMMDD fills the slot edge-to-edge instead of
+  // floating in a small box up top.
+  const dateFontSize = Math.max(8, Math.round(height * 0.46));
+  // Price font ratio 0.42 → 0.62 with edge-to-edge box so the
+  // handwritten digits dominate the mint half rather than
+  // floating in a small centred box.
   const priceFontSize = Math.max(11, Math.round(height * 0.62));
   // Hand-applied tilt clamped to ±1°.
   const rot = seed ? (hashStr(seed) % 201) / 100 - 1 : 0;
@@ -121,43 +120,45 @@ export default function HomeFeatureSticker({
         transformOrigin: 'top right',
       }}
     >
-      {/* Date overlay — white strip between the dig.haus wordmark
-          (baked-in, left ~30%) and the NEW SEALED stamp (baked-in,
-          right ~38%). Flex-centred vertically so the handwritten
-          glyph baseline lands in the middle of the upper white half
-          regardless of the font's intrinsic ascender/descender
-          metrics. Right-aligned so the digits sit flush against
-          the stamp edge whether the date renders as "260424" or
-          just "25". */}
+      {/* Date overlay — narrow white slot to the right of the
+          baked-in NEW SEALED stamp (the stamp ends ~73% in; right
+          edge of the asset is at 100%). Box bottom stays well
+          above the horizontal divider line baked into the tag at
+          ~50% so the handwritten glyphs (which can extend below
+          the visible-text bound due to descender metrics) don't
+          collide with the divider — the prior placement straddled
+          it and the divider read as a strikethrough on the date.
+          Justify-end so digits sit flush against the right edge. */}
       {dateText && (
         <div
           className="absolute flex items-center justify-end leading-none"
           style={{
-            top: 0,
-            height: '50%',
-            left: '32%',
-            right: '38%',
+            top: '4%',
+            bottom: '52%',
+            left: '73%',
+            right: '2%',
             fontFamily: GRAFFITI_FONT_STACK,
             fontSize: dateFontSize,
             color: '#1a1a1a',
-            letterSpacing: '-0.01em',
+            letterSpacing: '-0.02em',
           }}
         >
           {dateText}
         </div>
       )}
       {/* Price overlay — mint-green bottom half, edge-to-edge with
-          minimal vertical padding so the handwritten digits fill
-          the available space rather than floating in a small box.
-          Top edge clears the horizontal divider line baked into
-          the tag; bottom hugs the sticker base. */}
+          a 2px breathing line at the very bottom. Items-end so the
+          handwritten digits sit at the bottom of the box (visually
+          near the sticker base) instead of floating mid-area; the
+          font's natural top whitespace acts as the breathing room
+          between the divider line and the digits. */}
       <div
-        className="absolute flex items-center justify-center leading-none"
+        className="absolute flex items-end justify-center leading-none"
         style={{
           left: 0,
           right: 0,
           top: '52%',
-          bottom: 0,
+          bottom: 2,
           fontFamily: GRAFFITI_FONT_STACK,
           fontSize: priceFontSize,
           color: '#1a3a18',
