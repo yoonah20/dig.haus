@@ -19,6 +19,7 @@ import { useGridCols, trimToFullRows } from '../hooks/useGridCols';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { resolveApiUrl } from '../utils/apiUrl';
 import { formatRelativeKo, parseServerTimestamp } from '../utils/relativeTime';
+import { SectionTitle } from '../components/ui';
 import type { AlbumSearchResult } from '../types';
 
 // Below this width the desktop hero (asset-driven painted basement
@@ -43,25 +44,60 @@ function useIsMobileHero() {
   return isMobile;
 }
 
-// HomeNext is the canonical home composition: operator's storefront
-// hero on top, then a single time-ordered activity feed below that
-// interleaves three streams — newly registered albums, snapshots, and
-// 50자 평. The previous "신보 → 기억 → 평" stacked sections were
-// replaced 2026-04-30 because the operator-curated hero already
-// front-loaded operator voice; doubling that with a 21-card 신보 grid
-// pushed other diggers' activity below the fold. /dig still owns
-// the release-date-sorted catalog browse.
+// HomeNext is the canonical home composition. Hero on top, then a
+// single "최근 굴착 활동" feed beneath — albums + reviews merged by
+// createdAt, plus the most-recent snapshot pinned into the last slot
+// of the first row so curated wall snapshots always have a visible
+// home regardless of how often they're published. The earlier
+// horizontal strip experiment (2026-05-01) was pulled because the
+// strip read as visually disconnected from the rest of the page; a
+// pinned slot keeps snapshots in the main feed flow without burying
+// them when the time-merge would otherwise.
 
 // Discriminated union keyed by `kind` — each card type renders from
 // its own source data but they all share the createdAt sort key + a
-// stable id for React keying. The merge below is type-narrowing on
-// `kind`, so all three card components stay strict about their props.
+// stable id for React keying.
 type FeedItem =
   | { kind: 'album'; createdAt: string; key: string; album: AlbumSearchResult }
   | { kind: 'snapshot'; createdAt: string; key: string; snap: HomeSnapshot }
   | { kind: 'review'; createdAt: string; key: string; review: UserReviewFeedItem };
 
 const FEED_SIZE = 30;
+
+// Split a flat list into rows of fixed size. Last row may be
+// shorter, but the feed builder + trimToFullRows currently keeps
+// everything to whole rows of `size`.
+function chunk<T>(items: T[], size: number): T[][] {
+  if (size <= 0) return [];
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    rows.push(items.slice(i, i + size));
+  }
+  return rows;
+}
+
+// Per-cell renderer shared between rows that end with a snapshot
+// (custom column template + spacer placeholder) and uniform rows.
+// Pulled out so the row map below stays scannable; the union of
+// FeedItem variants gets discriminated here.
+function renderFeedCell(item: FeedItem) {
+  if (item.kind === 'album') {
+    // Reuse /dig's AlbumCard chrome (sticker stack + release-date
+    // label + price tags). The admin ⚠️ pending badge is suppressed
+    // here so the top-right corner is free for TimeChip — admin
+    // still sees ⚠️ on /dig where TimeChip isn't shown.
+    return (
+      <div key={item.key} className="relative">
+        <AlbumCard album={item.album} hidePendingBadge />
+        {item.album.createdAt && <TimeChip iso={item.album.createdAt} />}
+      </div>
+    );
+  }
+  if (item.kind === 'snapshot') {
+    return <SnapshotMiniCard key={item.key} snap={item.snap} />;
+  }
+  return <BlurredReviewCard key={item.key} item={item.review} />;
+}
 
 export default function HomeNext() {
   useDocumentHead({
@@ -71,24 +107,21 @@ export default function HomeNext() {
     type: 'website',
   });
 
-  // Per-stream fetch limit matches the merged feed cap so a single
-  // stream can fully populate the home feed when its activity
-  // outpaces the others. No artificial per-kind throttling — the
-  // chronological merge below is the only ordering rule.
+  // Albums + reviews share the chronological merge; snapshots are
+  // fetched at a higher limit because one is pinned per row of the
+  // grid (the last slot of every row is reserved for the next-most-
+  // recent snapshot, padding-falls-back to base items when snapshots
+  // run out). 8 covers ~5 rows on the densest 7-col xl layout.
   const recentAlbums = useRecentAlbums(true, FEED_SIZE);
-  const snapshots = useHomeSnapshots(true, FEED_SIZE);
+  const snapshots = useHomeSnapshots(true, 8);
   const reviews = useUserReviewsFeed(true, FEED_SIZE);
   const isMobile = useIsMobileHero();
 
   const ACTIVITY_COLS = { base: 2, sm: 3, md: 4, lg: 5, xl: 7 };
   const activityCols = useGridCols(ACTIVITY_COLS);
 
-  // Merge → sort by createdAt DESC → cap at FEED_SIZE. Each source
-  // is fetched at FEED_SIZE so the worst-case input is bounded; the
-  // cap here is what surfaces on the home grid before the user has
-  // to click through to per-stream pages (/dig for albums, the
-  // album page for 50자 평).
-  const feed = useMemo<FeedItem[]>(() => {
+  // Albums + reviews → sort by createdAt DESC → cap at FEED_SIZE.
+  const baseFeed = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = [];
 
     for (const album of recentAlbums.data?.albums ?? []) {
@@ -98,14 +131,6 @@ export default function HomeNext() {
         createdAt: album.createdAt,
         key: `album-${album.mbid}`,
         album,
-      });
-    }
-    for (const snap of snapshots.data?.snapshots ?? []) {
-      items.push({
-        kind: 'snapshot',
-        createdAt: snap.createdAt,
-        key: `snap-${snap.id}`,
-        snap,
       });
     }
     for (const review of reviews.data?.items ?? []) {
@@ -124,7 +149,42 @@ export default function HomeNext() {
     });
 
     return items.slice(0, FEED_SIZE);
-  }, [recentAlbums.data, snapshots.data, reviews.data]);
+  }, [recentAlbums.data, reviews.data]);
+
+  // Build rows by interleaving — cols-1 base items, then a snapshot
+  // (or one more base item if snapshots are exhausted). Result is a
+  // flat list with every row's last slot reserved for a snapshot
+  // when available. This replaces a single-snapshot pin in row 1
+  // because one slot is too easy to miss; pinning per-row guarantees
+  // visibility regardless of how far the user scrolls.
+  const recentSnapshots = snapshots.data?.snapshots ?? [];
+  const feed = useMemo<FeedItem[]>(() => {
+    const result: FeedItem[] = [];
+    const cols = activityCols;
+    let bi = 0;
+    let si = 0;
+    while (bi < baseFeed.length && result.length < FEED_SIZE) {
+      for (
+        let i = 0;
+        i < cols - 1 && bi < baseFeed.length && result.length < FEED_SIZE;
+        i++
+      ) {
+        result.push(baseFeed[bi++]);
+      }
+      if (si < recentSnapshots.length && result.length < FEED_SIZE) {
+        const snap = recentSnapshots[si++];
+        result.push({
+          kind: 'snapshot',
+          createdAt: snap.createdAt,
+          key: `snap-${snap.id}`,
+          snap,
+        });
+      } else if (bi < baseFeed.length && result.length < FEED_SIZE) {
+        result.push(baseFeed[bi++]);
+      }
+    }
+    return result;
+  }, [baseFeed, recentSnapshots, activityCols]);
 
   const trimmed = useMemo(
     () => trimToFullRows(feed, activityCols),
@@ -147,43 +207,59 @@ export default function HomeNext() {
 
       <div className="bg-[#120c05] px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-6">
+          {/* ── 최근 굴착 활동 ─────────────────────────────────────
+              Time-merged feed of newly registered albums + 50자 평,
+              sorted by createdAt DESC and capped at FEED_SIZE, with
+              the most-recent snapshot pinned into the last slot of
+              the first row. Card types are visually distinguished
+              (full AlbumCard chrome / blurred-cover review card /
+              5+1 cover-grid snapshot card); the shared time-sort
+              gives the feed a "what just happened" read regardless
+              of source. */}
           {!isLoading && trimmed.length > 0 && (
             <section>
-              <div
-                className="grid gap-3"
-                style={{
-                  gridTemplateColumns: `repeat(${activityCols}, minmax(0, 1fr))`,
-                }}
-              >
-                {trimmed.map((item) => {
-                  if (item.kind === 'album') {
-                    // Reuse /dig's AlbumCard chrome (sticker stack +
-                    // release-date label + price tags). The admin ⚠️
-                    // pending badge is suppressed here so the
-                    // top-right corner is free for TimeChip — admin
-                    // still sees ⚠️ on /dig where TimeChip isn't
-                    // shown.
-                    return (
-                      <div key={item.key} className="relative">
-                        <AlbumCard album={item.album} hidePendingBadge />
-                        {item.album.createdAt && (
-                          <TimeChip iso={item.album.createdAt} />
-                        )}
-                      </div>
-                    );
-                  }
-                  if (item.kind === 'snapshot') {
-                    return <SnapshotMiniCard key={item.key} snap={item.snap} />;
-                  }
+              <SectionTitle variant="tape" className="!mb-3">
+                최근 굴착 활동
+              </SectionTitle>
+              {/* Row-by-row grids instead of one big auto-flow grid.
+                  Rows that end with a snapshot use a custom column
+                  template `repeat(cols-1, 1fr) 0.25rem 1fr` — the
+                  0.25rem spacer column + grid gap-3 on each side
+                  yields ~28px visible separation before the
+                  snapshot, vs the 12px gap elsewhere, producing the
+                  "6 / 1" read on a 7-col row. The snapshot card
+                  itself stays a 1fr cell so its square footprint
+                  matches the other cards exactly. Rows without a
+                  trailing snapshot use the uniform `repeat(cols,
+                  1fr)` template so the spacer doesn't force every
+                  row's last cell to feel set-apart. */}
+              <div className="flex flex-col gap-3">
+                {chunk(trimmed, activityCols).map((row, ri) => {
+                  const last = row[row.length - 1];
+                  const lastIsSnap =
+                    row.length === activityCols && last?.kind === 'snapshot';
+                  const head = lastIsSnap ? row.slice(0, -1) : row;
                   return (
-                    <BlurredReviewCard key={item.key} item={item.review} />
+                    <div
+                      key={ri}
+                      className="grid gap-3"
+                      style={{
+                        gridTemplateColumns: lastIsSnap
+                          ? `repeat(${activityCols - 1}, minmax(0, 1fr)) 0.25rem minmax(0, 1fr)`
+                          : `repeat(${activityCols}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      {head.map(renderFeedCell)}
+                      {lastIsSnap && <div aria-hidden />}
+                      {lastIsSnap && last && renderFeedCell(last)}
+                    </div>
                   );
                 })}
               </div>
               {/* Catalog browse fallback. The home feed is recency-
-                  weighted across three streams and only surfaces
-                  FEED_SIZE cards; users who want the full release-
-                  date-sorted catalog go to /dig. */}
+                  weighted and only surfaces FEED_SIZE cards; users
+                  who want the full release-date-sorted catalog go
+                  to /dig. */}
               <div className="mt-3 text-right">
                 <Link
                   to="/dig"
@@ -449,6 +525,12 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
   );
 }
 
+// Square snapshot card for the merged feed grid. Same aspect-square
+// footprint as the album / review cards so it slots cleanly into the
+// "last cell of every row" pinned position. Title sits *below* the
+// 3×2 cover preview rather than above so it doesn't fight the
+// top-right TimeChip; rose ring distinguishes the card from album
+// (no ring) and review (amber ring) at a glance.
 function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
   const filledItems = snap.items.filter((it) => it.album != null);
   const total = filledItems.length;
@@ -458,21 +540,13 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
   const displayName = snap.user.displayName || snap.user.username;
   const mydigUrl = `/my/${snap.user.username}`;
 
-  // Same 80/20 vertical split as the review card. Top region
-  // (snapshot covers + memory name caption) → snapshot detail.
-  // Bottom strip (avatar + username) → /my/{username}. Memory
-  // name moves into a small caption above the cover grid since
-  // the bottom strip is now reserved for identity.
   return (
-    <div className="group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-violet-400/30 hover:border-violet-400/60 transition-colors bg-[#110b04]">
+    <div className="group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-rose-400/45 hover:border-rose-400/75 transition-colors bg-[#110b04]">
       <TimeChip iso={snap.createdAt} />
       <Link
         to={`${mydigUrl}/snap/${snap.slug}`}
-        className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1 p-2 hover:[&_.snap-name]:text-[#e8a020]"
+        className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1.5 p-2 hover:[&_.snap-name]:text-[#e8a020]"
       >
-        <div className="snap-name text-[13px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
-          {snap.name}
-        </div>
         <div className="grid grid-cols-3 gap-0.5">
           {Array.from({ length: 6 }, (_, i) => {
             if (i < 5) {
@@ -511,6 +585,9 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
               />
             );
           })}
+        </div>
+        <div className="snap-name text-[12px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
+          {snap.name}
         </div>
       </Link>
 
