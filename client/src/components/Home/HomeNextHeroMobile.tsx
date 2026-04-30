@@ -735,6 +735,12 @@ function MobileFeatureCell({
       // the nav while the bigger downward half just overlays
       // rows 2-5 (z-lift handles the paint order).
       hoverOriginY="40%"
+      // Mobile tap-active sleeve fills the viewport, so the
+      // desktop's quiet ±12° read as imperceptible against it.
+      // ±25° is loud enough to feel like a real tilt without
+      // crossing into the gimmicky perspective-flip territory
+      // beyond ~30°.
+      tiltMaxDeg={25}
       tapToActivate
       // The screen-fill hoverScale (~240% on a 390px phone) makes
       // the play chip balloon proportionally — at default scale 1 it

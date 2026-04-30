@@ -140,6 +140,13 @@ interface Props {
   // own column. Default 0 leaves the desktop wall + mydig
   // behaviour unchanged.
   hoverTranslateX?: number;
+  // Maximum tilt in degrees applied at the cursor/finger reaching
+  // the visual rect's edge. Default 12° is a quiet shrink-wrap
+  // glance suited to desktop covers being one of many on screen;
+  // the mobile hero passes a larger value (the tap-active sleeve
+  // dominates the viewport, so a bigger tilt reads as deliberate
+  // physical interaction rather than an accidental shimmer).
+  tiltMaxDeg?: number;
 }
 
 // CAA covers come back at 250px. The home + mydig walls render up to
@@ -199,6 +206,7 @@ export default function WallHoverCard({
   tapToActivate = false,
   playChipInsetPct,
   hoverTranslateX = 0,
+  tiltMaxDeg = 12,
 }: Props) {
   const spotifyAlbumId = extractSpotifyAlbumId(album.spotifyUrl ?? null);
   const hasPreview = !!spotifyAlbumId;
@@ -238,7 +246,7 @@ export default function WallHoverCard({
   // that confirmed the parallax direction. Spec travel stays at
   // ±50% so the highlight reaches the cover edges instead of
   // stalling near the centre.
-  const TILT_MAX = 12;
+  const TILT_MAX = tiltMaxDeg;
   const SPEC_TRAVEL = 50;
   // Pointer-driven tilt + spec — shared by mouse (desktop) and
   // touch (mobile tap-active drag). The Link element itself is not
