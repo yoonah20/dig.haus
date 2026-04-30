@@ -725,15 +725,16 @@ function MobileFeatureCell({
       plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
       hoverScalePct={hoverScalePct}
       hoverTranslateX={hoverTranslateX}
-      // Default origin 'bottom' grows the lifted sleeve purely
-      // upward, but on mobile the screen-fill 240% scale pushes
-      // the top edge ~216px up — the first row's cover top ends
-      // up well behind the fixed top nav. 'center' splits the
-      // growth ±108px so the top row clears the nav and the
-      // bottom row's overflow gets cropped by the slide's
-      // existing overflow-hidden rather than colliding with
-      // the carousel dot pagination.
-      hoverOriginY="center"
+      // Default origin 'bottom' grew the sleeve purely upward and
+      // pushed row 1's top edge into the TopNav. 'center' lifted
+      // it just shy of the nav (visual top exactly at slide top
+      // = right under the nav with 0px gutter), which still read
+      // as cramped. 40% biases the growth slightly more downward
+      // so row 1's visual top lands ~22px below the slide top,
+      // giving the active sleeve a clear breathing band against
+      // the nav while the bigger downward half just overlays
+      // rows 2-5 (z-lift handles the paint order).
+      hoverOriginY="40%"
       tapToActivate
       // The screen-fill hoverScale (~240% on a 390px phone) makes
       // the play chip balloon proportionally — at default scale 1 it

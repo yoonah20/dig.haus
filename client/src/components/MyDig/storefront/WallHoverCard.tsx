@@ -370,6 +370,19 @@ export default function WallHoverCard({
         height: lpSize,
         marginLeft: offsetX,
         textDecoration: 'none',
+        // touch-action: none on the active card stops the browser
+        // from claiming finger drags for native gestures —
+        // specifically the parent carousel's horizontal scroll-snap
+        // and the page's vertical scroll. Without this, a drag on
+        // the lifted sleeve fired window/scroll, which
+        // useTapActivate's effect treats as "leave the card" and
+        // setActiveTapId(null) flipped tap.isActive false mid-drag.
+        // That killed the tilt update path (gated on isActive) and
+        // also fired the deactivation useEffect that resets
+        // --tilt-x/--tilt-y back to 0. Keeping touch-action 'auto'
+        // at rest preserves normal taps + carousel swipe; only the
+        // active card locks touches in.
+        touchAction: tap.isActive ? 'none' : undefined,
         // 900px perspective is mild — tighter values exaggerate the
         // tilt to the point of looking gimmicky.
         perspective: '900px',
