@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import axios from '../lib/axios';
+import { Link, useNavigate } from 'react-router-dom';
 import HomeNextHero from '../components/Home/HomeNextHero';
 import HomeNextHeroMobile from '../components/Home/HomeNextHeroMobile';
-import AlbumCard from '../components/AlbumCard';
-import { SectionTitle } from '../components/ui';
 import {
   useHomeSnapshots,
   type HomeSnapshot,
@@ -14,13 +10,15 @@ import {
   useUserReviewsFeed,
   type UserReviewFeedItem,
 } from '../hooks/useUserReviewsFeed';
-import { useNavigate } from 'react-router-dom';
+import { useRecentAlbums } from '../hooks/useRecentAlbums';
+import AlbumCard from '../components/AlbumCard';
 import CoverArt from '../components/CoverArt';
 import UserHoverCard from '../components/UserHoverCard';
 import { useTapActivate } from '../hooks/useTapActivate';
 import { useGridCols, trimToFullRows } from '../hooks/useGridCols';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { resolveApiUrl } from '../utils/apiUrl';
+import { formatRelativeKo, parseServerTimestamp } from '../utils/relativeTime';
 import type { AlbumSearchResult } from '../types';
 
 // Below this width the desktop hero (asset-driven painted basement
@@ -45,96 +43,96 @@ function useIsMobileHero() {
   return isMobile;
 }
 
-// HomeNext is a scratch composition for the next iteration of /. The
-// live home is a single-viewport storefront wall — visually settled
-// but functionally thin (no new-release feed, no activity surfaces).
-// This page stitches the storefront wall to the rest of the store so
-// scrolling reveals "what's just landed" + "what people remember" +
-// "what people are saying" beneath the hero. Once the proportions
-// and section transitions feel right, this layout replaces Home.tsx
-// and the temp route comes off.
+// HomeNext is the canonical home composition: operator's storefront
+// hero on top, then a single time-ordered activity feed below that
+// interleaves three streams — newly registered albums, snapshots, and
+// 50자 평. The previous "신보 → 기억 → 평" stacked sections were
+// replaced 2026-04-30 because the operator-curated hero already
+// front-loaded operator voice; doubling that with a 21-card 신보 grid
+// pushed other diggers' activity below the fold. /dig still owns
+// the release-date-sorted catalog browse.
 
-interface AlbumListResponse {
-  albums: AlbumSearchResult[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
+// Discriminated union keyed by `kind` — each card type renders from
+// its own source data but they all share the createdAt sort key + a
+// stable id for React keying. The merge below is type-narrowing on
+// `kind`, so all three card components stay strict about their props.
+type FeedItem =
+  | { kind: 'album'; createdAt: string; key: string; album: AlbumSearchResult }
+  | { kind: 'snapshot'; createdAt: string; key: string; snap: HomeSnapshot }
+  | { kind: 'review'; createdAt: string; key: string; review: UserReviewFeedItem };
 
-// 30-day window matches the NEW! sticker's recent-release rule on
-// AlbumCard. Anything outside the window or with a future
-// releaseDate (D-XX pre-orders) gets filtered out client-side
-// after the server returns its release_date_desc-sorted page.
-const RECENT_DAYS = 30;
-
-function isWithinRecentWindow(
-  releaseDate: string | null | undefined
-): boolean {
-  if (!releaseDate) return false;
-  const match = releaseDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!match) return false;
-  const ts = Date.UTC(
-    Number(match[1]),
-    Number(match[2]) - 1,
-    Number(match[3])
-  );
-  if (Number.isNaN(ts)) return false;
-  const diffDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
-  return diffDays >= 0 && diffDays <= RECENT_DAYS;
-}
-
-// Fetch a generous slice from the server so the 30-day client
-// filter doesn't starve the 21-target render even if the latest
-// release_date_desc page is mostly older / future-dated stock.
-function useRecentReleases(fetchLimit = 60) {
-  return useQuery<AlbumListResponse>({
-    queryKey: ['home-next', 'recent-releases', fetchLimit],
-    queryFn: async () => {
-      const { data } = await axios.get<AlbumListResponse>('/api/albums', {
-        params: {
-          sort: 'release_date_desc',
-          page: 1,
-          pageSize: fetchLimit,
-        },
-      });
-      return data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-}
+const FEED_SIZE = 30;
 
 export default function HomeNext() {
   useDocumentHead({
     title: 'Home | dig.haus',
     description:
-      'No algorithms needed. Keep digging. — 운영자가 발굴한 vinyl wall + 신보 + 기억 + 50자 평',
+      'No algorithms needed. Keep digging. — 운영자가 발굴한 vinyl wall + 디거들의 활동 피드',
     type: 'website',
   });
 
-  const releases = useRecentReleases(60);
-  const snapshots = useHomeSnapshots(true, 14);
-  const reviews = useUserReviewsFeed(true, 21);
+  // Per-stream fetch limit matches the merged feed cap so a single
+  // stream can fully populate the home feed when its activity
+  // outpaces the others. No artificial per-kind throttling — the
+  // chronological merge below is the only ordering rule.
+  const recentAlbums = useRecentAlbums(true, FEED_SIZE);
+  const snapshots = useHomeSnapshots(true, FEED_SIZE);
+  const reviews = useUserReviewsFeed(true, FEED_SIZE);
   const isMobile = useIsMobileHero();
 
-  // Per-section col maps drive the responsive grid + the
-  // trim-to-full-rows behaviour below. The 새 앨범 section runs
-  // a denser layout that starts at 3 cols on mobile (album cards
-  // are smaller / chrome-lighter), the activity sections start
-  // at 2 since their square cards need more room to breathe.
-  const RELEASE_COLS = { base: 3, sm: 4, md: 5, lg: 6, xl: 7 };
   const ACTIVITY_COLS = { base: 2, sm: 3, md: 4, lg: 5, xl: 7 };
-  const releaseCols = useGridCols(RELEASE_COLS);
   const activityCols = useGridCols(ACTIVITY_COLS);
 
-  // Filter to released-and-recent only; cap at 21 (7 cols × 3 rows)
-  // matching the unified grid below. Memoised so we don't re-run
-  // the filter on every render — the server response is stable
-  // across renders most of the time.
-  const recentReleased = useMemo(() => {
-    const all = releases.data?.albums ?? [];
-    return all.filter((a) => isWithinRecentWindow(a.releaseDate)).slice(0, 21);
-  }, [releases.data]);
+  // Merge → sort by createdAt DESC → cap at FEED_SIZE. Each source
+  // is fetched at FEED_SIZE so the worst-case input is bounded; the
+  // cap here is what surfaces on the home grid before the user has
+  // to click through to per-stream pages (/dig for albums, the
+  // album page for 50자 평).
+  const feed = useMemo<FeedItem[]>(() => {
+    const items: FeedItem[] = [];
+
+    for (const album of recentAlbums.data?.albums ?? []) {
+      if (!album.createdAt) continue;
+      items.push({
+        kind: 'album',
+        createdAt: album.createdAt,
+        key: `album-${album.mbid}`,
+        album,
+      });
+    }
+    for (const snap of snapshots.data?.snapshots ?? []) {
+      items.push({
+        kind: 'snapshot',
+        createdAt: snap.createdAt,
+        key: `snap-${snap.id}`,
+        snap,
+      });
+    }
+    for (const review of reviews.data?.items ?? []) {
+      items.push({
+        kind: 'review',
+        createdAt: review.createdAt,
+        key: `review-${review.id}`,
+        review,
+      });
+    }
+
+    items.sort((a, b) => {
+      const ta = parseServerTimestamp(a.createdAt).getTime();
+      const tb = parseServerTimestamp(b.createdAt).getTime();
+      return tb - ta;
+    });
+
+    return items.slice(0, FEED_SIZE);
+  }, [recentAlbums.data, snapshots.data, reviews.data]);
+
+  const trimmed = useMemo(
+    () => trimToFullRows(feed, activityCols),
+    [feed, activityCols]
+  );
+
+  const isLoading =
+    recentAlbums.isLoading || snapshots.isLoading || reviews.isLoading;
 
   return (
     <div className="flex-1 flex flex-col">
@@ -148,105 +146,51 @@ export default function HomeNext() {
       {isMobile ? <HomeNextHeroMobile /> : <HomeNextHero />}
 
       <div className="bg-[#120c05] px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
-        {/* Unified 6-col flow — three card types stacked back-to-
-            back with no headings, only their ring colour to
-            distinguish:
-              · 최신 발매작 → sky (#5aa9e6 family — matches the NEW
-                sticker)
-              · 요즘 평 → amber (#e8a020 — the brand accent)
-              · 새로 남긴 기억 → violet (#b48cdc — added for this
-                surface; keeps memories distinct from active
-                comment chatter)
-            All three grids share the same column count and gap so
-            the rows queue up as one continuous "6 across, scrolling
-            forever" sheet. Cap counts are tuned so the band of
-            each type takes 1–3 rows: releases get the most space
-            (3 rows = 18), reviews medium (2 rows = 12), snapshots
-            compact (1 row = 6). */}
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-6">
-          {/* ── 최신 발매작 (sky ring) ─────────────────────────── */}
-          {!releases.isLoading && recentReleased.length > 0 && (
+          {!isLoading && trimmed.length > 0 && (
             <section>
-              <SectionTitle variant="tape" className="!mb-2">
-                새 앨범 파 보기
-              </SectionTitle>
-              <div
-                className="grid gap-3"
-                style={{
-                  gridTemplateColumns: `repeat(${releaseCols}, minmax(0, 1fr))`,
-                }}
-              >
-                {trimToFullRows(recentReleased, releaseCols).map((album) => (
-                  <div
-                    key={album.mbid}
-                    className="rounded-xl ring-1 ring-sky-400/25 hover:ring-sky-400/60 transition-[box-shadow]"
-                  >
-                    <AlbumCard
-                      album={album}
-                      hidePendingBadge
-                      bigDateSticker
-                      showPickSticker
-                    />
-                  </div>
-                ))}
-              </div>
-              {/* Footer link → /dig for browsing beyond the
-                  21-card recency window. mt-1 keeps the link
-                  hugging the grid so the section's bottom edge
-                  doesn't drift further from the next section
-                  than the inter-section gap-10 already gives. */}
-              <div className="mt-1 text-right">
-                <Link
-                  to="/dig"
-                  className="text-sm text-gray-400 hover:text-[#e8a020] transition-colors"
-                >
-                  앨범 더 보러가기 →
-                </Link>
-              </div>
-            </section>
-          )}
-
-          {/* ── 새로 남긴 기억 (violet ring) ──────────────────── */}
-          {!snapshots.isLoading &&
-            (snapshots.data?.snapshots ?? []).length > 0 && (
-              <section>
-                <SectionTitle variant="tape" className="!mb-2">
-                  유저 기억으로 파 보기
-                </SectionTitle>
-                <div
-                  className="grid gap-3"
-                  style={{
-                    gridTemplateColumns: `repeat(${activityCols}, minmax(0, 1fr))`,
-                  }}
-                >
-                  {trimToFullRows(
-                    (snapshots.data?.snapshots ?? []).slice(0, 14),
-                    activityCols
-                  ).map((snap) => (
-                    <SnapshotMiniCard key={snap.id} snap={snap} />
-                  ))}
-                </div>
-              </section>
-            )}
-
-          {/* ── 요즘 평 (amber ring) ──────────────────────────── */}
-          {!reviews.isLoading && (reviews.data?.items ?? []).length > 0 && (
-            <section>
-              <SectionTitle variant="tape" className="!mb-2">
-                50자 평으로 파 보기
-              </SectionTitle>
               <div
                 className="grid gap-3"
                 style={{
                   gridTemplateColumns: `repeat(${activityCols}, minmax(0, 1fr))`,
                 }}
               >
-                {trimToFullRows(
-                  (reviews.data?.items ?? []).slice(0, 21),
-                  activityCols
-                ).map((item) => (
-                  <BlurredReviewCard key={item.id} item={item} />
-                ))}
+                {trimmed.map((item) => {
+                  if (item.kind === 'album') {
+                    // Reuse /dig's AlbumCard chrome (sticker stack +
+                    // release-date label + price tags). The admin ⚠️
+                    // pending badge is suppressed here so the
+                    // top-right corner is free for TimeChip — admin
+                    // still sees ⚠️ on /dig where TimeChip isn't
+                    // shown.
+                    return (
+                      <div key={item.key} className="relative">
+                        <AlbumCard album={item.album} hidePendingBadge />
+                        {item.album.createdAt && (
+                          <TimeChip iso={item.album.createdAt} />
+                        )}
+                      </div>
+                    );
+                  }
+                  if (item.kind === 'snapshot') {
+                    return <SnapshotMiniCard key={item.key} snap={item.snap} />;
+                  }
+                  return (
+                    <BlurredReviewCard key={item.key} item={item.review} />
+                  );
+                })}
+              </div>
+              {/* Catalog browse fallback. The home feed is recency-
+                  weighted across three streams and only surfaces
+                  FEED_SIZE cards; users who want the full release-
+                  date-sorted catalog go to /dig. */}
+              <div className="mt-3 text-right">
+                <Link
+                  to="/dig"
+                  className="text-sm text-gray-400 hover:text-[#e8a020] transition-colors"
+                >
+                  앨범 더 보러가기 →
+                </Link>
               </div>
             </section>
           )}
@@ -303,6 +247,22 @@ const RATING_THUMB: Record<'up' | 'down' | 'soso', string> = {
   down: '👎',
   soso: '🤷',
 };
+
+// Small dark pill anchored top-right of every feed card's cover
+// area. Reads as "X분 전" / "어제" — the visible signal that the
+// grid is a chronological feed, not a random shuffle.
+function TimeChip({ iso }: { iso: string }) {
+  const label = formatRelativeKo(iso);
+  if (!label) return null;
+  return (
+    <span
+      className="absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 text-[10px] font-medium text-gray-200 bg-black/60 backdrop-blur-sm rounded-md leading-none pointer-events-none"
+      aria-hidden
+    >
+      {label}
+    </span>
+  );
+}
 
 // Bottom 20% of every activity card — fixed identity strip with
 // avatar + username. The full strip is a <Link> to /my/{username}
@@ -381,6 +341,7 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
 
   return (
     <div className="review-card-outer group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-[#e8a020]/25 hover:border-[#e8a020]/60 transition-colors bg-[#1a1208]">
+      <TimeChip iso={item.createdAt} />
       <Link
         to={albumHref}
         className="relative block flex-[4_1_0%] min-h-0"
@@ -504,6 +465,7 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
   // the bottom strip is now reserved for identity.
   return (
     <div className="group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-violet-400/30 hover:border-violet-400/60 transition-colors bg-[#110b04]">
+      <TimeChip iso={snap.createdAt} />
       <Link
         to={`${mydigUrl}/snap/${snap.slug}`}
         className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1 p-2 hover:[&_.snap-name]:text-[#e8a020]"
@@ -561,4 +523,3 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
     </div>
   );
 }
-

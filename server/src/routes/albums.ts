@@ -601,7 +601,7 @@ const SORT_CLAUSES: Record<string, string> = {
 const ALBUM_ROW_SELECT = `
   SELECT a.id, a.slug, a.mbid, a.title, a.artist_name, a.release_date, a.release_year,
          a.cover_art_url, a.cover_art_fallbacks, a.genres, a.spotify_url,
-         a.reviews_crawled_at,
+         a.reviews_crawled_at, a.created_at,
          COALESCE((SELECT SUM(CASE WHEN vote='up' THEN 1 ELSE 0 END) FROM album_votes WHERE album_id = a.id), 0) AS upvotes,
          COALESCE((SELECT SUM(CASE WHEN vote='down' THEN 1 ELSE 0 END) FROM album_votes WHERE album_id = a.id), 0) AS downvotes,
          (SELECT AVG(CASE
@@ -859,6 +859,7 @@ router.get('/', async (req, res) => {
         priceTagLinks: topLinksByAlbum.get(a.id) || [],
         genres,
         reviewsCrawledAt: a.reviews_crawled_at,
+        createdAt: a.created_at,
         crateCount: a.crate_count || 0,
         isHot: hotAlbumIds.has(a.id),
         // Cover-sticker status set — true if at least one purchase

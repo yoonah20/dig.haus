@@ -48,6 +48,12 @@ export interface AlbumSearchResult {
    *  dims cards with null; detail page swaps a placeholder into the
    *  review section. */
   reviewsCrawledAt?: string | null;
+  /** UTC timestamp the row was inserted into albums (a.created_at).
+   *  Powers the home unified feed's time-merge across albums +
+   *  snapshots + 50자 평 — needed because sort=registered_desc orders
+   *  by id DESC but doesn't expose the actual timestamp the merge
+   *  needs to interleave with the other two streams. */
+  createdAt?: string | null;
   /** Distinct users who have this album in any of their PUBLIC
    *  crates. Replaces the prior ownedCount + wantedCount split
    *  after collections + wants were absorbed into crates
