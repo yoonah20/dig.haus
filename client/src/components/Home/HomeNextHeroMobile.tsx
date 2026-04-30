@@ -522,7 +522,13 @@ function HeroWallSlideMobile({
                 // scaled post-it. `relative z-0` gives every row a
                 // baseline stacking context so the hovered row's
                 // z-50 actually wins against neighbours.
-                className="relative z-0 has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60]"
+                // Row also lifts on cover tap-active so the
+                // scaled sleeve in row N paints above row N+1's
+                // covers — without this, the screen-fill 240%
+                // scale on a row-1 cover gets buried behind
+                // row-2's LPs (which sit later in DOM and share
+                // the row-level z-0 stacking context).
+                className="relative z-0 has-[.dig-postit:hover]:z-[60] has-[.dig-postit[data-tap-active=true]]:z-[60] has-[.wall-hover-outer[data-tap-active=true]]:z-[60]"
                 style={{
                   marginBottom: ri < ROWS - 1 ? ROW_GAP_Y : 0,
                 }}

@@ -323,14 +323,28 @@ export default function WallHoverCard({
     updateTiltFromPointer(t.clientX, t.clientY);
   };
 
-  // Reset tilt + spec CSS vars whenever the card transitions out of
-  // tap-active. Without this the last touch position would freeze
-  // into the cover's resting state and the next tap would visibly
-  // pop a tilted sleeve before the user had a chance to drag.
+  // Tap-active transitions on touch devices need to mirror the
+  // mouseenter/leave path on desktop:
+  //   - Lift the slot's z-index so the scaled sleeve paints above
+  //     the slot's neighbours within the same row (the cover grows
+  //     past its lpSize footprint into the slot's reserved bottom
+  //     extension and beyond, where its sibling LPs would otherwise
+  //     paint over it).
+  //   - Reset --tilt-x / --tilt-y / --spec-x / --spec-y back to
+  //     neutral when the card deactivates so the next activation
+  //     pops clean instead of inheriting the last finger position.
+  // The release uses the default 300ms delay to match the
+  // scale-down transition (260ms) — dropping the z-index instantly
+  // would let neighbouring slots paint over the still-shrinking
+  // sleeve mid-transition.
   useEffect(() => {
-    if (tap.isActive) return;
     const el = cardRef.current;
     if (!el) return;
+    if (tap.isActive) {
+      liftHeroSlot(el);
+      return;
+    }
+    releaseHeroSlot(el);
     el.style.setProperty('--tilt-x', '0deg');
     el.style.setProperty('--tilt-y', '0deg');
     el.style.setProperty('--spec-x', '50%');
