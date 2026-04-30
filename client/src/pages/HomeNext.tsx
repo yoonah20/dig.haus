@@ -218,7 +218,31 @@ export default function HomeNext() {
               of source. */}
           {!isLoading && trimmed.length > 0 && (
             <section>
-              <SectionTitle variant="tape" className="!mb-3">
+              {/* digman mascot pairs with the section heading instead
+                  of the nav. The tape label reads as a hand-placed
+                  marker on a shop counter; the mascot beside it is
+                  the shop's "digger" — they share the same crate-
+                  digging metaphor so they belong to this section
+                  rather than the global chrome. Crop to head + face
+                  via object-cover + object-top, same trick used when
+                  the asset briefly lived in the nav, so the helmet +
+                  vinyl headlamp stay prominent without the torso
+                  eating vertical budget next to the heading. */}
+              <SectionTitle
+                variant="tape"
+                className="!mb-3"
+                meta={
+                  <span className="inline-block w-10 h-8 md:w-12 md:h-9 overflow-hidden align-middle">
+                    <img
+                      src="/textures/digman.webp"
+                      alt=""
+                      aria-hidden
+                      className="block w-full h-full object-cover object-top select-none"
+                      draggable={false}
+                    />
+                  </span>
+                }
+              >
                 최근 굴착 활동
               </SectionTitle>
               {/* Row-by-row grids instead of one big auto-flow grid.

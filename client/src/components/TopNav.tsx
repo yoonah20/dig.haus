@@ -60,57 +60,28 @@ export default function TopNav() {
     <>
       <nav className="sticky top-0 z-40 bg-[#120c05]/95 backdrop-blur-sm border-b border-[#e8a020]/15 px-3 sm:px-4 py-2.5">
         <div className="max-w-[1280px] mx-auto flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-baseline gap-2 sm:gap-3 min-w-0">
             <Link
               to="/"
               onClick={handleLogoClick}
-              // Brand-mark + wordmark pair. digman (headlamp = vinyl)
-              // sits to the left as the visual mascot; the amber
-              // stamp keeps the typeset wordmark intact alongside it.
-              // Both share the same Link so a click anywhere in the
-              // pair routes home.
-              className="inline-flex items-center gap-1.5 sm:gap-2 shrink-0 cursor-pointer"
-              aria-label="dig.haus 홈으로"
+              // Thick-bordered amber box around the original Syne
+              // wordmark — a CSS-only echo of the sticker logo
+              // (logo.png in /textures) without giving up the
+              // typeset font. Border thickens slightly on desktop
+              // for the larger glyph weight.
+              className="inline-flex items-center text-[#e8a020] text-xl md:text-2xl lowercase tracking-tight leading-none shrink-0 cursor-pointer border-2 md:border-[3px] border-[#e8a020] px-1 py-0.5"
+              style={{
+                fontFamily: "'Syne', 'Inter', sans-serif",
+                fontWeight: 700,
+                letterSpacing: '-0.03em',
+                // Stamp tilt — left side dips, mirrors the
+                // hand-applied feel the dig.haus PICK badge has
+                // on the hero LPs.
+                transform: 'rotate(-3deg)',
+                transformOrigin: 'center',
+              }}
             >
-              {/* Wrapper crops the asset to the head + face only.
-                  digman.webp is a roughly square head-and-shoulders
-                  illustration; in nav chrome the shoulders/torso eat
-                  vertical space without adding identity. The 4:3-ish
-                  container with object-cover + object-top scales the
-                  source to fit the width and slices the bottom ~30%
-                  off so the headlamp + face remain prominent. The
-                  width also bumps up because the crop frees enough
-                  height budget for a bigger glyph alongside the
-                  wordmark stamp. */}
-              <div className="w-12 h-9 md:w-16 md:h-12 overflow-hidden shrink-0">
-                <img
-                  src="/textures/digman.webp"
-                  alt=""
-                  aria-hidden
-                  className="block w-full h-full object-cover object-top select-none"
-                  draggable={false}
-                />
-              </div>
-              <span
-                // Thick-bordered amber box around the original Syne
-                // wordmark — a CSS-only echo of the sticker logo
-                // (logo.png in /textures) without giving up the
-                // typeset font. Border thickens slightly on desktop
-                // for the larger glyph weight.
-                className="inline-flex items-center text-[#e8a020] text-xl md:text-2xl lowercase tracking-tight leading-none border-2 md:border-[3px] border-[#e8a020] px-1 py-0.5"
-                style={{
-                  fontFamily: "'Syne', 'Inter', sans-serif",
-                  fontWeight: 700,
-                  letterSpacing: '-0.03em',
-                  // Stamp tilt — left side dips, mirrors the
-                  // hand-applied feel the dig.haus PICK badge has
-                  // on the hero LPs.
-                  transform: 'rotate(-3deg)',
-                  transformOrigin: 'center',
-                }}
-              >
-                dig.haus
-              </span>
+              dig.haus
             </Link>
             {/* Tagline reads alongside the wordmark on desktop. Hidden
                 below md (mobile) because it overflows next to the logo
