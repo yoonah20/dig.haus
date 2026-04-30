@@ -720,6 +720,14 @@ function MobileFeatureCell({
       hoverScalePct={hoverScalePct}
       hoverTranslateX={hoverTranslateX}
       tapToActivate
+      // The screen-fill hoverScale (~240% on a 390px phone) makes
+      // the play chip balloon proportionally — at default scale 1 it
+      // ends up ~77px on screen, dominating the lifted sleeve.
+      // Halving the native chip footprint and pulling the inset
+      // tighter (default 6 → 2) keeps the chip readable + corner-
+      // anchored without crowding the cover.
+      playChipScale={0.5}
+      playChipInsetPct={2}
       priceTagOverlay={
         topLink ? (
           <HomeFeatureSticker

@@ -139,8 +139,14 @@ export default function PostItNote({
   // strings (hover + data-[tap-active]) have to appear literally
   // for Tailwind JIT to emit them, so the mobile / desktop scale
   // variants are spelled out as full strings rather than templated.
+  // Mobile scale was sized for the 130% cover hover; once the cover
+  // started filling the slide horizontally (~240% on a 390px phone)
+  // a 2.2× post-it read as visually undersized next to it. Dialed
+  // up to 3.2× so the note keeps roughly the same proportional
+  // weight against the lifted sleeve as desktop's 2.8× does against
+  // its 1.77× cover.
   const scaleCls = isMobile
-    ? 'hover:[--postit-scale:2.2] data-[tap-active=true]:[--postit-scale:2.2]'
+    ? 'hover:[--postit-scale:3.2] data-[tap-active=true]:[--postit-scale:3.2]'
     : 'hover:[--postit-scale:2.8] data-[tap-active=true]:[--postit-scale:2.8]';
 
   // Tap-to-activate on touch devices — first tap expands the
