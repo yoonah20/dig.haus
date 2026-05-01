@@ -822,8 +822,8 @@ export default function ReviewSection({
           {sortedReviews.length === 0 && !koreanSummary && !isAdmin && (
             <DigmanEmpty
               variant="sign"
-              message="리뷰는 아직 굴착 중이에요"
-              hint="곧 새 비평이 도착할 예정입니다"
+              message="아직 리뷰를 파고 있습니다"
+              hint="굴착이 끝나면 확인하실 수 있습니다"
             />
           )}
 

@@ -46,14 +46,14 @@ function useIsMobileHero() {
 
 // HomeNext is the canonical home composition. Hero on top, then a
 // single "최근 굴착 활동" feed beneath — albums + reviews merged by
-// createdAt, with snapshots pinned into the last slot of every other
-// row (odd-indexed rows) so curated wall snapshots stay visible
-// without flooding the feed when 1-row = 2 cells on mobile. Reviews
-// always render in full because a fresh 50자 평 is the most expressive
-// "what just happened" signal on the site; albums fill whatever
-// budget is left. The earlier horizontal strip experiment (2026-05-01)
-// was pulled because the strip read as visually disconnected from
-// the rest of the page.
+// createdAt and rendered in a per-row grid. Snapshot density is
+// viewport-adaptive: desktop (cols >= 4) pins one snapshot to every
+// row's last slot, mobile (cols < 4) thins to one snapshot per 2
+// rows so a 3-cell row doesn't read as half-snapshot. Both album
+// and review streams contribute in full from their respective APIs
+// so neither gets crowded out when one side is dense. The earlier
+// horizontal strip experiment (2026-05-01) was pulled because the
+// strip read as visually disconnected from the rest of the page.
 
 // Discriminated union keyed by `kind` — each card type renders from
 // its own source data but they all share the createdAt sort key + a
@@ -121,11 +121,14 @@ export default function HomeNext() {
   const ACTIVITY_COLS = { base: 3, sm: 3, md: 4, lg: 5, xl: 7 };
   const activityCols = useGridCols(ACTIVITY_COLS);
 
-  // Reviews are always included in full — a freshly-posted 50자 평
-  // is the most expressive "what just happened" signal on the site
-  // and shouldn't compete with admin-batch album registrations for
-  // the same FEED_SIZE budget. Albums fill whatever room is left up
-  // to FEED_SIZE; merged list is then sorted by createdAt DESC.
+  // Each stream gets a guaranteed quota so neither side can squeeze
+  // the other out of view, then the merged list sorts by createdAt
+  // DESC. Earlier rules failed in opposite directions: "reviews
+  // always" crowded albums out when the site had ≥ FEED_SIZE
+  // reviews; "both in full, capped at FEED_SIZE" crowded reviews
+  // out when an admin album batch was the most-recent rows. The
+  // quota approach (top N reviews + top remainder albums) keeps
+  // both visible regardless of which stream is denser.
   const baseFeed = useMemo<FeedItem[]>(() => {
     const reviewItems: FeedItem[] = (reviews.data?.items ?? []).map(
       (review) => ({
@@ -144,8 +147,14 @@ export default function HomeNext() {
         album,
       }));
 
-    const albumBudget = Math.max(0, FEED_SIZE - reviewItems.length);
-    const items = [...reviewItems, ...albumItems.slice(0, albumBudget)];
+    // Reviews carry the "what just happened" voice on the home feed
+    // (a 50자 평 is more expressive than an album landing in the
+    // catalog), so they get the priority quota. Albums fill the
+    // rest of FEED_SIZE.
+    const REVIEW_QUOTA = 10;
+    const reviewsCapped = reviewItems.slice(0, REVIEW_QUOTA);
+    const albumBudget = Math.max(0, FEED_SIZE - reviewsCapped.length);
+    const items = [...reviewsCapped, ...albumItems.slice(0, albumBudget)];
 
     items.sort((a, b) => {
       const ta = parseServerTimestamp(a.createdAt).getTime();
@@ -156,29 +165,37 @@ export default function HomeNext() {
     return items;
   }, [recentAlbums.data, reviews.data]);
 
-  // Build rows by alternating — even-indexed rows are full rows of
-  // base items (cols cells of albums/reviews), odd-indexed rows
-  // reserve their last slot for a snapshot. This thins snapshot
-  // density to once-per-2-rows so narrow viewports (mobile 3 cols)
-  // don't read as half-snapshot/half-everything-else. Snapshots
-  // exhausted → odd-row last slot falls back to another base item.
+  // Snapshot density adapts to viewport width:
+  //   • Desktop (cols >= 4) — per-row pinning. Each row's last slot
+  //     is reserved for a snapshot, falling back to a base item if
+  //     snapshots run out. Wide rows have room for one snapshot
+  //     without crowding the album/review stream.
+  //   • Mobile (cols < 4) — every-other-row pinning. With only 3
+  //     cells per row, per-row pinning reads as half-snapshot/half-
+  //     everything-else; thinning to one snap per 2 rows preserves
+  //     visibility without dominating the feed.
   const recentSnapshots = snapshots.data?.snapshots ?? [];
   const feed = useMemo<FeedItem[]>(() => {
     const result: FeedItem[] = [];
     const cols = activityCols;
+    const perRowSnaps = cols >= 4;
     let bi = 0;
     let si = 0;
     let row = 0;
-    while (bi < baseFeed.length) {
-      const isSnapRow = row % 2 === 1;
+    while (bi < baseFeed.length && result.length < FEED_SIZE) {
+      const isSnapRow = perRowSnaps ? true : row % 2 === 1;
       const baseInRow = isSnapRow ? cols - 1 : cols;
       const startedRow = result.length;
-      for (let i = 0; i < baseInRow && bi < baseFeed.length; i++) {
+      for (
+        let i = 0;
+        i < baseInRow && bi < baseFeed.length && result.length < FEED_SIZE;
+        i++
+      ) {
         result.push(baseFeed[bi++]);
       }
       const filledBase = result.length - startedRow;
       if (filledBase < baseInRow) break; // partial row — drop it
-      if (isSnapRow) {
+      if (isSnapRow && result.length < FEED_SIZE) {
         if (si < recentSnapshots.length) {
           const snap = recentSnapshots[si++];
           result.push({
@@ -224,14 +241,12 @@ export default function HomeNext() {
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-6">
           {/* ── 최근 굴착 활동 ─────────────────────────────────────
               Time-merged feed of newly registered albums + 50자 평,
-              sorted by createdAt DESC, with the most-recent snapshots
-              pinned into the last slot of every odd-indexed row.
-              Reviews are always shown in full so a freshly-posted
-              50자 평 doesn't get squeezed out by an admin album
-              registration burst; albums fill the remaining FEED_SIZE
-              budget. Card types are visually distinguished (full
-              AlbumCard chrome / blurred-cover review card / 5+1
-              cover-grid snapshot card). */}
+              sorted by createdAt DESC, capped at FEED_SIZE cells.
+              Snapshot pinning adapts to viewport: desktop reserves
+              every row's last slot for a snapshot, mobile thins to
+              every-other-row. Card types are visually distinguished
+              (full AlbumCard chrome / blurred-cover review card /
+              5+1 cover-grid snapshot card). */}
           {!isLoading && trimmed.length > 0 && (
             <section>
               {/* digman mascot pairs with the section heading instead
@@ -239,27 +254,27 @@ export default function HomeNext() {
                   marker on a shop counter; the mascot beside it is
                   the shop's "digger" — they share the same crate-
                   digging metaphor so they belong to this section
-                  rather than the global chrome. digman.webp is now a
+                  rather than the global chrome. digman.webp is a
                   full-body portrait (helmet + face + uniform with
-                  dig.haus patch); object-cover with objectPosition
-                  shifted down to ~25% lands the visible window on
-                  the helmet brim + face area so only the face shows
-                  beside the heading rather than helmet-on-top with
-                  a sliver of forehead. Negative margin pulls the
-                  wrapper inside the h2's gap-3 so the mascot sits
-                  visually attached to the tape label rather than
-                  floating beside it. */}
+                  dig.haus patch); the wrapper is sized so object-
+                  cover + object-top crops to the top ~70% of the
+                  source — full helmet, face, shoulder line — and
+                  stops there. Anything past the shoulders pulls
+                  attention toward the dig.haus jacket patch which
+                  competes with the section title beside it.
+                  Negative margin pulls the wrapper inside the h2's
+                  gap-3 so the mascot sits visually attached to the
+                  tape label rather than floating beside it. */}
               <SectionTitle
                 variant="tape"
                 className="!mb-3"
                 meta={
-                  <span className="inline-block w-14 h-11 md:w-[72px] md:h-14 -ml-2 overflow-hidden align-middle">
+                  <span className="inline-block w-8 h-9 md:w-10 md:h-12 -ml-2 overflow-hidden align-middle">
                     <img
                       src="/textures/digman.webp"
                       alt=""
                       aria-hidden
-                      className="block w-full h-full object-cover select-none"
-                      style={{ objectPosition: '50% 25%' }}
+                      className="block w-full h-full object-cover object-top select-none"
                       draggable={false}
                     />
                   </span>

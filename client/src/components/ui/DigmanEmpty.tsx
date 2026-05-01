@@ -45,12 +45,14 @@ const SIZE_CLASSES: Record<
     md: 'w-20 h-16',
     lg: 'w-40 h-32',
   },
-  // Sign: a touch larger and squarer (sign + figure together fills
-  // ~1.2:1) so the WIP sign reads at glance rather than shrinking
-  // into a mascot vignette.
+  // Sign: larger than default because the WIP sign holds a logotype
+  // + warning symbol that needs to be legible — shrinking it past a
+  // certain point turns the asset into an unreadable yellow blob.
+  // Sized so the figure reads at glance even on review-section
+  // empty states where it's the main focal point of the area.
   sign: {
-    md: 'w-28 h-24',
-    lg: 'w-48 h-40',
+    md: 'w-[168px] h-[144px]',
+    lg: 'w-72 h-60',
   },
 };
 
@@ -81,13 +83,26 @@ export default function DigmanEmpty({
           draggable={false}
         />
       </div>
+      {/* Sign variant gets larger type because the asset itself is
+          larger; default keeps the muted/quieter sizing it shipped
+          with so it still reads as background voice on lists. */}
       <div
-        className={`${size === 'lg' ? 'text-base' : 'text-sm'} text-gray-500 italic`}
+        className={`${
+          isSign
+            ? size === 'lg'
+              ? 'text-lg'
+              : 'text-base'
+            : size === 'lg'
+              ? 'text-base'
+              : 'text-sm'
+        } text-gray-500 italic`}
       >
         {message}
       </div>
       {hint && (
-        <div className="text-xs text-gray-600">{hint}</div>
+        <div className={`${isSign ? 'text-sm' : 'text-xs'} text-gray-600`}>
+          {hint}
+        </div>
       )}
     </div>
   );

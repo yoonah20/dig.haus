@@ -25,15 +25,23 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 // MyDig + Admin chunks grew this fallback became visible long enough
 // that a faceless spinner felt cold. Swapped to the digman mascot
 // with a slow pulse so the in-between state stays on-brand instead.
+//
+// digman.webp was resized from a head-and-shoulders source to a full-
+// body portrait, which broke the original landscape crop (the old
+// w-24 h-[76px] + object-top combo clipped to helmet-only with the
+// new asset). Wrapper now matches the source's portrait aspect with
+// object-contain so the entire figure renders, and total footprint
+// is bumped ~+50% so the loading state has visual presence rather
+// than reading as a tiny mascot vignette.
 function RouteFallback() {
   return (
     <div className="min-h-[50vh] flex items-center justify-center">
-      <div className="w-24 h-[76px] overflow-hidden opacity-70 animate-pulse">
+      <div className="w-36 h-60 overflow-hidden opacity-70 animate-pulse">
         <img
           src="/textures/digman.webp"
           alt=""
           aria-hidden
-          className="block w-full h-full object-cover object-top select-none"
+          className="block w-full h-full object-contain select-none"
           draggable={false}
         />
       </div>
