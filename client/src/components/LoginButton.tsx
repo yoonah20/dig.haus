@@ -153,7 +153,11 @@ export default function LoginButton() {
     <div className="relative" ref={menuRef}>
       <button
         onClick={() => setMenuOpen((v) => !v)}
-        className="relative flex items-center gap-2 border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-full pl-1 pr-3 py-1 transition-colors cursor-pointer"
+        // Mobile collapses the pill to a circle (avatar only) — the
+        // bigger sticker logo on the left already eats the nav row,
+        // so dropping the username text frees space without losing
+        // identity. sm+ restores the pill with name alongside.
+        className="relative flex items-center gap-0 sm:gap-2 border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-full p-0.5 sm:pl-1 sm:pr-3 sm:py-1 transition-colors cursor-pointer"
       >
         {user.avatarUrl ? (
           <img
@@ -167,7 +171,7 @@ export default function LoginButton() {
             {(user.name || user.email)[0]?.toUpperCase()}
           </div>
         )}
-        <span className="text-sm text-[#e8a020] max-w-[120px] truncate">
+        <span className="hidden sm:inline text-sm text-[#e8a020] max-w-[120px] truncate">
           {user.name || user.email}
         </span>
         {isAdmin && pendingCount > 0 && (

@@ -66,9 +66,11 @@ export default function TopNav() {
               onClick={handleLogoClick}
               // Thick-bordered amber box around the original Syne
               // wordmark — a CSS-only echo of the sticker logo
-              // (logo.png in /textures) without giving up the
-              // typeset font. Border thickens slightly on desktop
-              // for the larger glyph weight.
+              // (logo.webp in /textures) without giving up the
+              // typeset font. Reverted from the raster sticker
+              // because the typeset version reads cleaner at the
+              // small nav size and the digman mascot now lives
+              // alongside the home feed heading instead.
               className="inline-flex items-center text-[#e8a020] text-xl md:text-2xl lowercase tracking-tight leading-none shrink-0 cursor-pointer border-2 md:border-[3px] border-[#e8a020] px-1 py-0.5"
               style={{
                 fontFamily: "'Syne', 'Inter', sans-serif",

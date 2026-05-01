@@ -46,13 +46,14 @@ function useIsMobileHero() {
 
 // HomeNext is the canonical home composition. Hero on top, then a
 // single "최근 굴착 활동" feed beneath — albums + reviews merged by
-// createdAt, plus the most-recent snapshot pinned into the last slot
-// of the first row so curated wall snapshots always have a visible
-// home regardless of how often they're published. The earlier
-// horizontal strip experiment (2026-05-01) was pulled because the
-// strip read as visually disconnected from the rest of the page; a
-// pinned slot keeps snapshots in the main feed flow without burying
-// them when the time-merge would otherwise.
+// createdAt, with snapshots pinned into the last slot of every other
+// row (odd-indexed rows) so curated wall snapshots stay visible
+// without flooding the feed when 1-row = 2 cells on mobile. Reviews
+// always render in full because a fresh 50자 평 is the most expressive
+// "what just happened" signal on the site; albums fill whatever
+// budget is left. The earlier horizontal strip experiment (2026-05-01)
+// was pulled because the strip read as visually disconnected from
+// the rest of the page.
 
 // Discriminated union keyed by `kind` — each card type renders from
 // its own source data but they all share the createdAt sort key + a
@@ -117,30 +118,34 @@ export default function HomeNext() {
   const reviews = useUserReviewsFeed(true, FEED_SIZE);
   const isMobile = useIsMobileHero();
 
-  const ACTIVITY_COLS = { base: 2, sm: 3, md: 4, lg: 5, xl: 7 };
+  const ACTIVITY_COLS = { base: 3, sm: 3, md: 4, lg: 5, xl: 7 };
   const activityCols = useGridCols(ACTIVITY_COLS);
 
-  // Albums + reviews → sort by createdAt DESC → cap at FEED_SIZE.
+  // Reviews are always included in full — a freshly-posted 50자 평
+  // is the most expressive "what just happened" signal on the site
+  // and shouldn't compete with admin-batch album registrations for
+  // the same FEED_SIZE budget. Albums fill whatever room is left up
+  // to FEED_SIZE; merged list is then sorted by createdAt DESC.
   const baseFeed = useMemo<FeedItem[]>(() => {
-    const items: FeedItem[] = [];
-
-    for (const album of recentAlbums.data?.albums ?? []) {
-      if (!album.createdAt) continue;
-      items.push({
-        kind: 'album',
-        createdAt: album.createdAt,
-        key: `album-${album.mbid}`,
-        album,
-      });
-    }
-    for (const review of reviews.data?.items ?? []) {
-      items.push({
+    const reviewItems: FeedItem[] = (reviews.data?.items ?? []).map(
+      (review) => ({
         kind: 'review',
         createdAt: review.createdAt,
         key: `review-${review.id}`,
         review,
-      });
-    }
+      })
+    );
+    const albumItems: FeedItem[] = (recentAlbums.data?.albums ?? [])
+      .filter((a) => a.createdAt)
+      .map((album) => ({
+        kind: 'album',
+        createdAt: album.createdAt as string,
+        key: `album-${album.mbid}`,
+        album,
+      }));
+
+    const albumBudget = Math.max(0, FEED_SIZE - reviewItems.length);
+    const items = [...reviewItems, ...albumItems.slice(0, albumBudget)];
 
     items.sort((a, b) => {
       const ta = parseServerTimestamp(a.createdAt).getTime();
@@ -148,40 +153,50 @@ export default function HomeNext() {
       return tb - ta;
     });
 
-    return items.slice(0, FEED_SIZE);
+    return items;
   }, [recentAlbums.data, reviews.data]);
 
-  // Build rows by interleaving — cols-1 base items, then a snapshot
-  // (or one more base item if snapshots are exhausted). Result is a
-  // flat list with every row's last slot reserved for a snapshot
-  // when available. This replaces a single-snapshot pin in row 1
-  // because one slot is too easy to miss; pinning per-row guarantees
-  // visibility regardless of how far the user scrolls.
+  // Build rows by alternating — even-indexed rows are full rows of
+  // base items (cols cells of albums/reviews), odd-indexed rows
+  // reserve their last slot for a snapshot. This thins snapshot
+  // density to once-per-2-rows so narrow viewports (mobile 3 cols)
+  // don't read as half-snapshot/half-everything-else. Snapshots
+  // exhausted → odd-row last slot falls back to another base item.
   const recentSnapshots = snapshots.data?.snapshots ?? [];
   const feed = useMemo<FeedItem[]>(() => {
     const result: FeedItem[] = [];
     const cols = activityCols;
     let bi = 0;
     let si = 0;
-    while (bi < baseFeed.length && result.length < FEED_SIZE) {
-      for (
-        let i = 0;
-        i < cols - 1 && bi < baseFeed.length && result.length < FEED_SIZE;
-        i++
-      ) {
+    let row = 0;
+    while (bi < baseFeed.length) {
+      const isSnapRow = row % 2 === 1;
+      const baseInRow = isSnapRow ? cols - 1 : cols;
+      const startedRow = result.length;
+      for (let i = 0; i < baseInRow && bi < baseFeed.length; i++) {
         result.push(baseFeed[bi++]);
       }
-      if (si < recentSnapshots.length && result.length < FEED_SIZE) {
-        const snap = recentSnapshots[si++];
-        result.push({
-          kind: 'snapshot',
-          createdAt: snap.createdAt,
-          key: `snap-${snap.id}`,
-          snap,
-        });
-      } else if (bi < baseFeed.length && result.length < FEED_SIZE) {
-        result.push(baseFeed[bi++]);
+      const filledBase = result.length - startedRow;
+      if (filledBase < baseInRow) break; // partial row — drop it
+      if (isSnapRow) {
+        if (si < recentSnapshots.length) {
+          const snap = recentSnapshots[si++];
+          result.push({
+            kind: 'snapshot',
+            createdAt: snap.createdAt,
+            key: `snap-${snap.id}`,
+            snap,
+          });
+        } else if (bi < baseFeed.length) {
+          result.push(baseFeed[bi++]);
+        } else {
+          // Drop the partial snap-row entirely — last cell would
+          // otherwise be empty and break the grid template.
+          result.length = startedRow;
+          break;
+        }
       }
+      row++;
     }
     return result;
   }, [baseFeed, recentSnapshots, activityCols]);
@@ -209,13 +224,14 @@ export default function HomeNext() {
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-6">
           {/* ── 최근 굴착 활동 ─────────────────────────────────────
               Time-merged feed of newly registered albums + 50자 평,
-              sorted by createdAt DESC and capped at FEED_SIZE, with
-              the most-recent snapshot pinned into the last slot of
-              the first row. Card types are visually distinguished
-              (full AlbumCard chrome / blurred-cover review card /
-              5+1 cover-grid snapshot card); the shared time-sort
-              gives the feed a "what just happened" read regardless
-              of source. */}
+              sorted by createdAt DESC, with the most-recent snapshots
+              pinned into the last slot of every odd-indexed row.
+              Reviews are always shown in full so a freshly-posted
+              50자 평 doesn't get squeezed out by an admin album
+              registration burst; albums fill the remaining FEED_SIZE
+              budget. Card types are visually distinguished (full
+              AlbumCard chrome / blurred-cover review card / 5+1
+              cover-grid snapshot card). */}
           {!isLoading && trimmed.length > 0 && (
             <section>
               {/* digman mascot pairs with the section heading instead
@@ -223,14 +239,16 @@ export default function HomeNext() {
                   marker on a shop counter; the mascot beside it is
                   the shop's "digger" — they share the same crate-
                   digging metaphor so they belong to this section
-                  rather than the global chrome. Crop to head + face
-                  via object-cover + object-top, same trick used when
-                  the asset briefly lived in the nav, so the helmet +
-                  vinyl headlamp stay prominent without the torso
-                  eating vertical budget next to the heading.
-                  Negative margin pulls the wrapper inside the h2's
-                  gap-3 so the mascot sits visually attached to the
-                  tape label rather than floating beside it. */}
+                  rather than the global chrome. digman.webp is now a
+                  full-body portrait (helmet + face + uniform with
+                  dig.haus patch); object-cover with objectPosition
+                  shifted down to ~25% lands the visible window on
+                  the helmet brim + face area so only the face shows
+                  beside the heading rather than helmet-on-top with
+                  a sliver of forehead. Negative margin pulls the
+                  wrapper inside the h2's gap-3 so the mascot sits
+                  visually attached to the tape label rather than
+                  floating beside it. */}
               <SectionTitle
                 variant="tape"
                 className="!mb-3"
@@ -240,7 +258,8 @@ export default function HomeNext() {
                       src="/textures/digman.webp"
                       alt=""
                       aria-hidden
-                      className="block w-full h-full object-cover object-top select-none"
+                      className="block w-full h-full object-cover select-none"
+                      style={{ objectPosition: '50% 25%' }}
                       draggable={false}
                     />
                   </span>

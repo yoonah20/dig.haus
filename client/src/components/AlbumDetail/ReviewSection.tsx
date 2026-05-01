@@ -9,7 +9,7 @@ import { AiSummaryBadge } from './SimilarAlbums';
 import { useGenerateReviewSummary, useDiscoverReviewUrls } from '../../hooks/useAlbum';
 import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 import CardOverlayButton from '../CardOverlayButton';
-import { SectionTitle, Field } from '../ui';
+import { SectionTitle, Field, DigmanEmpty } from '../ui';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -812,20 +812,19 @@ export default function ReviewSection({
             </div>
           )}
 
-          {/* Non-admin empty state — rendered as a single review-card
-              sized cell so the review section doesn't collapse into
-              an empty gap. Shown whenever there are no cached
-              reviews, regardless of crawl state; the guest path no
-              longer distinguishes between "pending crawl" and
-              "crawled but empty" because the distinction is an
-              admin-operational detail that doesn't help visitors.
-              Admin's own empty state is the "+ 리뷰 추가" slot below. */}
+          {/* Non-admin empty state — digman + WIP sign reads as
+              "still being collected" rather than "this album has
+              nothing". The guest path no longer distinguishes
+              between "pending crawl" and "crawled but empty"
+              because the distinction is an admin-operational detail
+              that doesn't help visitors. Admin's own empty state is
+              the "+ 리뷰 추가" slot below. */}
           {sortedReviews.length === 0 && !koreanSummary && !isAdmin && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              <div className="flex items-center justify-center bg-[#151515] border border-white/5 rounded-lg p-4 min-h-[100px] text-sm text-gray-500">
-                등록된 리뷰가 없습니다
-              </div>
-            </div>
+            <DigmanEmpty
+              variant="sign"
+              message="리뷰는 아직 굴착 중이에요"
+              hint="곧 새 비평이 도착할 예정입니다"
+            />
           )}
 
           {(sortedReviews.length > 0 || isAdmin) && (
