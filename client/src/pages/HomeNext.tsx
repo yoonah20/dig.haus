@@ -227,12 +227,15 @@ export default function HomeNext() {
                   via object-cover + object-top, same trick used when
                   the asset briefly lived in the nav, so the helmet +
                   vinyl headlamp stay prominent without the torso
-                  eating vertical budget next to the heading. */}
+                  eating vertical budget next to the heading.
+                  Negative margin pulls the wrapper inside the h2's
+                  gap-3 so the mascot sits visually attached to the
+                  tape label rather than floating beside it. */}
               <SectionTitle
                 variant="tape"
                 className="!mb-3"
                 meta={
-                  <span className="inline-block w-10 h-8 md:w-12 md:h-9 overflow-hidden align-middle">
+                  <span className="inline-block w-14 h-11 md:w-[72px] md:h-14 -ml-2 overflow-hidden align-middle">
                     <img
                       src="/textures/digman.webp"
                       alt=""
