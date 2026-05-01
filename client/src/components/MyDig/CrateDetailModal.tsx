@@ -7,6 +7,7 @@ import {
   useUpdateCrate,
 } from '../../hooks/useCrates';
 import CoverArt from '../CoverArt';
+import { DigmanEmpty } from '../ui';
 
 // Detail view for a single crate. Owner sees full management surface
 // (rename / describe / public toggle / delete crate / remove items);
@@ -214,9 +215,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
         {/* Cover grid */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {items.length === 0 ? (
-            <div className="text-sm text-gray-500 py-8 text-center">
-              아직 담긴 앨범이 없어요.
-            </div>
+            <DigmanEmpty message="아직 담긴 앨범이 없어요." />
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
               {items.map((it) => (

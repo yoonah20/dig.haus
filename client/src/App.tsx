@@ -18,11 +18,25 @@ const Profile = lazy(() => import('./pages/Profile'));
 const MyDig = lazy(() => import('./pages/MyDig'));
 const ApiConsole = lazy(() => import('./pages/ApiConsole'));
 const LlmCompare = lazy(() => import('./pages/LlmCompare'));
+const NotFound = lazy(() => import('./pages/NotFound'));
 
+// Suspense fallback for lazy-loaded routes. The amber spinner was
+// the placeholder while every chunk in the app was small — once the
+// MyDig + Admin chunks grew this fallback became visible long enough
+// that a faceless spinner felt cold. Swapped to the digman mascot
+// with a slow pulse so the in-between state stays on-brand instead.
 function RouteFallback() {
   return (
     <div className="min-h-[50vh] flex items-center justify-center">
-      <div className="w-6 h-6 border-2 border-gray-700 border-t-[#e8a020] rounded-full animate-spin" />
+      <div className="w-24 h-[76px] overflow-hidden opacity-70 animate-pulse">
+        <img
+          src="/textures/digman.webp"
+          alt=""
+          aria-hidden
+          className="block w-full h-full object-cover object-top select-none"
+          draggable={false}
+        />
+      </div>
     </div>
   );
 }
@@ -455,6 +469,11 @@ export default function App() {
                   />
                   <Route path="/admin/api-console" element={<ApiConsole />} />
                   <Route path="/admin/compare" element={<LlmCompare />} />
+                  {/* Catch-all 404. Has to sit last so explicit
+                      routes match first; the digman page reads as
+                      "this hole is blocked" rather than the React
+                      Router default of a blank screen. */}
+                  <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
               </ErrorBoundary>

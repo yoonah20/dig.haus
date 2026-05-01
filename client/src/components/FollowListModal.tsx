@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useFollowers, useFollowing } from '../hooks/useFollow';
 import FollowButton from './FollowButton';
 import { resolveApiUrl } from '../utils/apiUrl';
+import { DigmanEmpty } from './ui';
 
 // Modal that lists a user's followers or followings. Two columns
 // aren't needed — it's a single column of rows, each row carrying
@@ -60,9 +61,13 @@ export default function FollowListModal({
             </div>
           )}
           {query.data && query.data.users.length === 0 && (
-            <div className="py-6 text-center text-xs text-gray-500 italic">
-              {kind === 'followers' ? '아직 팔로워가 없어요.' : '아직 팔로우한 디거가 없어요.'}
-            </div>
+            <DigmanEmpty
+              message={
+                kind === 'followers'
+                  ? '아직 팔로워가 없어요.'
+                  : '아직 팔로우한 디거가 없어요.'
+              }
+            />
           )}
           <div className="flex flex-col divide-y divide-white/5">
             {query.data?.users.map((u) => {

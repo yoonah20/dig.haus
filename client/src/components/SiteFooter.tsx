@@ -48,21 +48,35 @@ export default function SiteFooter({ pinned = false }: { pinned?: boolean }) {
     >
       {/* Line 1: site identity + live counts. Counts append as they
           become available so the line shapes around whatever
-          /api/stats/site returns. */}
-      <div>
-        dig.haus &copy; 2026
-        {users > 0 && (
-          <>
-            {' · '}
-            {users.toLocaleString()}명이 파는 중
-          </>
-        )}
-        {albums > 0 && (
-          <>
-            {' · '}
-            앨범 {albums.toLocaleString()}개 묻혀 있음
-          </>
-        )}
+          /api/stats/site returns. The digman thumbnail sits inline
+          to the left of the wordmark — same crop logic used on the
+          home feed heading (head + face only) at a footer-friendly
+          mini size, doubling as a visual full-stop on the page. */}
+      <div className="inline-flex items-center justify-center gap-1.5">
+        <span className="inline-block w-6 h-[18px] overflow-hidden align-middle opacity-60">
+          <img
+            src="/textures/digman.webp"
+            alt=""
+            aria-hidden
+            className="block w-full h-full object-cover object-top select-none"
+            draggable={false}
+          />
+        </span>
+        <span>
+          dig.haus &copy; 2026
+          {users > 0 && (
+            <>
+              {' · '}
+              {users.toLocaleString()}명이 파는 중
+            </>
+          )}
+          {albums > 0 && (
+            <>
+              {' · '}
+              앨범 {albums.toLocaleString()}개 묻혀 있음
+            </>
+          )}
+        </span>
       </div>
       {/* Line 2: legal links — broken onto their own row so the
           dense counts line doesn't visually bury them. Dimmer

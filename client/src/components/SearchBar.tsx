@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useCurationProgress } from '../contexts/CurationProgressContext';
 import type { AlbumSearchResult } from '../types';
+import { DigmanEmpty } from './ui';
 
 // URL paste branch — when the input string looks like an http(s) URL we
 // route through the Discogs / OG-scrape extractor instead of running a
@@ -334,11 +335,18 @@ export default function SearchBar({
               flow see a login hint instead. URL mode renders its own
               loading / error / result branches above and skips this. */}
           {!isUrlMode && !dbLoading && !externalLoading && !anyContent && (
-            <div className="px-5 py-4 text-sm text-gray-400">
-              {loggedIn
-                ? '검색 결과가 없어요. 다른 키워드로 시도해보세요.'
-                : '등록된 앨범이 없어요. 로그인하면 새 앨범을 등록할 수 있어요.'}
-            </div>
+            <DigmanEmpty
+              message={
+                loggedIn
+                  ? '검색 결과가 없어요.'
+                  : '등록된 앨범이 없어요.'
+              }
+              hint={
+                loggedIn
+                  ? '다른 키워드로 시도해보세요.'
+                  : '로그인하면 새 앨범을 등록할 수 있어요.'
+              }
+            />
           )}
 
           {/* Manual entry — visible whenever the dropdown is open in

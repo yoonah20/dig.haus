@@ -1,5 +1,6 @@
 import { useHomeSnapshots } from '../../hooks/useHomeSnapshots';
 import SnapshotCard from './SnapshotCard';
+import { DigmanEmpty } from '../ui';
 
 // Count defaults to 3 — small enough to keep the rail short at
 // fixed height, large enough that the section reads as a "feed"
@@ -24,11 +25,7 @@ export default function SnapshotFeed({ count = 3 }: { count?: number }) {
   }
 
   if (snaps.length === 0) {
-    return (
-      <div className="text-xs text-gray-600 italic py-4 text-center">
-        아직 공개된 스냅샷이 없어요.
-      </div>
-    );
+    return <DigmanEmpty message="아직 공개된 스냅샷이 없어요." />;
   }
 
   return (
