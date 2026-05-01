@@ -46,12 +46,12 @@ function useIsMobileHero() {
 
 // HomeNext is the canonical home composition. Hero on top, then a
 // single "최근 굴착 활동" feed beneath — albums + reviews merged by
-// createdAt and rendered in a per-row grid. Snapshot density is
-// viewport-adaptive: desktop (cols >= 4) pins one snapshot to every
-// row's last slot, mobile (cols < 4) thins to one snapshot per 2
-// rows so a 3-cell row doesn't read as half-snapshot. Both album
-// and review streams contribute in full from their respective APIs
-// so neither gets crowded out when one side is dense. The earlier
+// createdAt with no quota or priority weighting (whatever happened
+// most recently wins) and rendered in a per-row grid. Snapshots
+// are the only stream that gets reserved slots: density adapts to
+// viewport — desktop (cols >= 4) pins one snapshot to every row's
+// last slot, mobile (cols < 4) thins to one snapshot per 2 rows so
+// a 3-cell row doesn't read as half-snapshot. The earlier
 // horizontal strip experiment (2026-05-01) was pulled because the
 // strip read as visually disconnected from the rest of the page.
 
@@ -121,14 +121,11 @@ export default function HomeNext() {
   const ACTIVITY_COLS = { base: 3, sm: 3, md: 4, lg: 5, xl: 7 };
   const activityCols = useGridCols(ACTIVITY_COLS);
 
-  // Each stream gets a guaranteed quota so neither side can squeeze
-  // the other out of view, then the merged list sorts by createdAt
-  // DESC. Earlier rules failed in opposite directions: "reviews
-  // always" crowded albums out when the site had ≥ FEED_SIZE
-  // reviews; "both in full, capped at FEED_SIZE" crowded reviews
-  // out when an admin album batch was the most-recent rows. The
-  // quota approach (top N reviews + top remainder albums) keeps
-  // both visible regardless of which stream is denser.
+  // Plain time-merge — every review and every album the APIs return
+  // are pushed in as-is and sorted by createdAt DESC. No quota, no
+  // priority weighting, no per-stream cap. Whatever happened most
+  // recently wins, full stop. Snapshots are the only stream that
+  // gets reserved slots (handled by the row builder below).
   const baseFeed = useMemo<FeedItem[]>(() => {
     const reviewItems: FeedItem[] = (reviews.data?.items ?? []).map(
       (review) => ({
@@ -147,15 +144,7 @@ export default function HomeNext() {
         album,
       }));
 
-    // Reviews carry the "what just happened" voice on the home feed
-    // (a 50자 평 is more expressive than an album landing in the
-    // catalog), so they get the priority quota. Albums fill the
-    // rest of FEED_SIZE.
-    const REVIEW_QUOTA = 10;
-    const reviewsCapped = reviewItems.slice(0, REVIEW_QUOTA);
-    const albumBudget = Math.max(0, FEED_SIZE - reviewsCapped.length);
-    const items = [...reviewsCapped, ...albumItems.slice(0, albumBudget)];
-
+    const items = [...reviewItems, ...albumItems];
     items.sort((a, b) => {
       const ta = parseServerTimestamp(a.createdAt).getTime();
       const tb = parseServerTimestamp(b.createdAt).getTime();
@@ -240,13 +229,13 @@ export default function HomeNext() {
       <div className="bg-[#120c05] px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-6">
           {/* ── 최근 굴착 활동 ─────────────────────────────────────
-              Time-merged feed of newly registered albums + 50자 평,
+              Plain time-merge of newly registered albums + 50자 평,
               sorted by createdAt DESC, capped at FEED_SIZE cells.
-              Snapshot pinning adapts to viewport: desktop reserves
-              every row's last slot for a snapshot, mobile thins to
-              every-other-row. Card types are visually distinguished
-              (full AlbumCard chrome / blurred-cover review card /
-              5+1 cover-grid snapshot card). */}
+              Only snapshots get reserved slots — every row's last
+              cell on desktop, every-other-row on mobile. Card types
+              are visually distinguished (full AlbumCard chrome /
+              blurred-cover review card / 5+1 cover-grid snapshot
+              card). */}
           {!isLoading && trimmed.length > 0 && (
             <section>
               {/* digman mascot pairs with the section heading instead
@@ -254,30 +243,26 @@ export default function HomeNext() {
                   marker on a shop counter; the mascot beside it is
                   the shop's "digger" — they share the same crate-
                   digging metaphor so they belong to this section
-                  rather than the global chrome. digman.webp is a
-                  full-body portrait (helmet + face + uniform with
-                  dig.haus patch); the wrapper is sized so object-
-                  cover + object-top crops to the top ~70% of the
-                  source — full helmet, face, shoulder line — and
-                  stops there. Anything past the shoulders pulls
-                  attention toward the dig.haus jacket patch which
-                  competes with the section title beside it.
-                  Negative margin pulls the wrapper inside the h2's
-                  gap-3 so the mascot sits visually attached to the
-                  tape label rather than floating beside it. */}
+                  rather than the global chrome. digman_feed.webp
+                  is a purpose-cropped head+shoulders icon prepared
+                  at its intended display size, so it renders at
+                  native pixel dimensions without a CSS crop wrapper
+                  — every previous attempt to size or crop the
+                  general digman.webp here drifted off the target.
+                  Negative margin pulls it inside the h2's gap-3 so
+                  the mascot sits visually attached to the tape
+                  label rather than floating beside it. */}
               <SectionTitle
                 variant="tape"
                 className="!mb-3"
                 meta={
-                  <span className="inline-block w-8 h-9 md:w-10 md:h-12 -ml-2 overflow-hidden align-middle">
-                    <img
-                      src="/textures/digman.webp"
-                      alt=""
-                      aria-hidden
-                      className="block w-full h-full object-cover object-top select-none"
-                      draggable={false}
-                    />
-                  </span>
+                  <img
+                    src="/textures/digman_feed.webp"
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                    className="block -ml-2 select-none"
+                  />
                 }
               >
                 최근 굴착 활동
