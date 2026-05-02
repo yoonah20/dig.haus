@@ -863,6 +863,67 @@ router.delete('/genres/:id', (req, res) => {
   }
 });
 
+// Korean term replacements — admin-curated string-substitution rules
+// applied after the hardcoded KO_TERM_REPLACEMENTS list in
+// claude.ts (see normaliseKoreanTerms). pattern is matched as a
+// plain (non-regex) substring; replacement swaps every occurrence.
+// New rules apply only to NEW LLM output; previously-stored prose is
+// untouched (preserves audit trail in excerpt_edits).
+router.get('/term-replacements', (_req, res) => {
+  try {
+    const rows = queryAll(
+      `SELECT id, pattern, replacement, created_at FROM term_replacements ORDER BY id DESC`
+    );
+    res.json({ rules: rows });
+  } catch (err) {
+    console.error('[admin/term-replacements] list failed:', err);
+    res.status(500).json({ error: '목록 조회 실패' });
+  }
+});
+
+router.post('/term-replacements', (req, res) => {
+  const pattern = String(req.body?.pattern ?? '').trim();
+  const replacement = String(req.body?.replacement ?? '').trim();
+  if (!pattern) return res.status(400).json({ error: 'pattern 필수' });
+  if (!replacement) return res.status(400).json({ error: 'replacement 필수' });
+  if (pattern.length > 200 || replacement.length > 200) {
+    return res.status(400).json({ error: '200자 이하로 입력해 주세요' });
+  }
+  if (pattern === replacement) {
+    return res.status(400).json({ error: 'pattern과 replacement이 같습니다' });
+  }
+  try {
+    const result = execute(
+      `INSERT INTO term_replacements (pattern, replacement) VALUES (?, ?)`,
+      [pattern, replacement]
+    );
+    const row = queryGet(
+      `SELECT id, pattern, replacement, created_at FROM term_replacements WHERE id = ?`,
+      [result.lastInsertRowid]
+    );
+    res.status(201).json({ rule: row });
+  } catch (err: any) {
+    if (err?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: '이미 등록된 pattern입니다' });
+    }
+    console.error('[admin/term-replacements] insert failed:', err);
+    res.status(500).json({ error: '등록 실패' });
+  }
+});
+
+router.delete('/term-replacements/:id', (req, res) => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'id 잘못됨' });
+  try {
+    const result = execute(`DELETE FROM term_replacements WHERE id = ?`, [id]);
+    if (result.changes === 0) return res.status(404).json({ error: 'not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[admin/term-replacements] delete failed:', err);
+    res.status(500).json({ error: '삭제 실패' });
+  }
+});
+
 router.get('/scrape-failures', (req, res) => {
   const days = Math.max(1, Math.min(365, parseInt(String(req.query.days || '30'), 10) || 30));
   try {

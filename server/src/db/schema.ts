@@ -1890,6 +1890,28 @@ export function initializeDatabase(db: Database.Database): void {
     `CREATE INDEX IF NOT EXISTS idx_tag_blacklist_tag ON tag_blacklist(tag COLLATE NOCASE)`
   );
 
+  // Korean-term replacement rules — admin-curated string substitutions
+  // applied to LLM-generated Korean prose after the hardcoded
+  // KO_TERM_REPLACEMENTS pass in claude.ts. The hardcoded list covers
+  // the systematic mistranslations the LLM falls into (e.g. genre
+  // names literal-translated like 금속 → 메탈), but new variants keep
+  // surfacing — vinyl-listener vernacular has more long-tail than a
+  // hand-maintained array can keep up with. This table lets the
+  // operator add a "spotted in the wild" rule without a code edit:
+  // pattern is matched as a plain (non-regex) substring, replacement
+  // swaps in. Examples: 금속 사운드 → 메탈 사운드, 누 메탈 → 뉴 메탈.
+  // Applied only to NEW Korean output going forward; existing rows
+  // are not retroactively rewritten (the audit trail in excerpt_edits
+  // would lose its meaning if we rewrote stored prose).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS term_replacements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pattern TEXT NOT NULL UNIQUE,
+      replacement TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
   // Crate — user-named container of unlimited capacity, replaces the
   // legacy collections + wants tables (post-Phase 3 roadmap item 2).
   // is_public defaults to 0: per the design discussion, "남들 눈치

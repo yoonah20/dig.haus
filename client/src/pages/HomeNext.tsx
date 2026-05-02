@@ -243,60 +243,64 @@ export default function HomeNext() {
                   marker on a shop counter; the mascot beside it is
                   the shop's "digger" — they share the same crate-
                   digging metaphor so they belong to this section
-                  rather than the global chrome. digman_feed.webp
-                  is a purpose-cropped head+shoulders icon prepared
-                  at its intended display size, so it renders at
-                  native pixel dimensions without a CSS crop wrapper
-                  — every previous attempt to size or crop the
-                  general digman.webp here drifted off the target.
-                  Negative margin pulls it inside the h2's gap-3 so
-                  the mascot sits visually attached to the tape
-                  label rather than floating beside it. */}
+                  rather than the global chrome. digman_feed.png is
+                  a 100×100 head+shoulders icon prepared at its
+                  intended display size; CSS scaling makes the
+                  illustration's outlines look fuzzy, so we lock the
+                  rendered size to 100×100 with explicit width/height
+                  + maxWidth:none (Tailwind preflight's
+                  img{max-width:100%} would otherwise shrink it
+                  inside narrow flex containers). Negative margin
+                  pulls it inside the h2's gap-3 so the mascot sits
+                  visually attached to the tape label rather than
+                  floating beside it. */}
               <SectionTitle
                 variant="tape"
                 className="!mb-3"
                 meta={
                   <img
-                    src="/textures/digman_feed.webp"
+                    src="/textures/digman_feed.png"
                     alt=""
                     aria-hidden
                     draggable={false}
+                    width={100}
+                    height={100}
                     className="block -ml-2 select-none"
+                    style={{ width: 100, height: 100, maxWidth: 'none' }}
                   />
                 }
               >
                 최근 굴착 활동
               </SectionTitle>
               {/* Row-by-row grids instead of one big auto-flow grid.
-                  Rows that end with a snapshot use a custom column
-                  template `repeat(cols-1, 1fr) 0.25rem 1fr` — the
-                  0.25rem spacer column + grid gap-3 on each side
-                  yields ~28px visible separation before the
-                  snapshot, vs the 12px gap elsewhere, producing the
-                  "6 / 1" read on a 7-col row. The snapshot card
-                  itself stays a 1fr cell so its square footprint
-                  matches the other cards exactly. Rows without a
-                  trailing snapshot use the uniform `repeat(cols,
-                  1fr)` template so the spacer doesn't force every
-                  row's last cell to feel set-apart. */}
+                  Desktop snap rows use a custom template
+                  `repeat(cols-1, 1fr) 0.25rem 1fr` — the 0.25rem
+                  spacer column + grid gap-3 on each side yields
+                  ~28px visible separation before the snapshot vs
+                  the 12px gap elsewhere, producing the "6 / 1" read
+                  on a 7-col row. Mobile (cols < 4) drops the spacer
+                  entirely; it would otherwise eat 16px of width per
+                  row and leave the snapshot cell narrower than the
+                  base cells, breaking the square grid. */}
               <div className="flex flex-col gap-3">
                 {chunk(trimmed, activityCols).map((row, ri) => {
                   const last = row[row.length - 1];
                   const lastIsSnap =
                     row.length === activityCols && last?.kind === 'snapshot';
                   const head = lastIsSnap ? row.slice(0, -1) : row;
+                  const useSpacer = lastIsSnap && activityCols >= 4;
                   return (
                     <div
                       key={ri}
                       className="grid gap-3"
                       style={{
-                        gridTemplateColumns: lastIsSnap
+                        gridTemplateColumns: useSpacer
                           ? `repeat(${activityCols - 1}, minmax(0, 1fr)) 0.25rem minmax(0, 1fr)`
                           : `repeat(${activityCols}, minmax(0, 1fr))`,
                       }}
                     >
                       {head.map(renderFeedCell)}
-                      {lastIsSnap && <div aria-hidden />}
+                      {useSpacer && <div aria-hidden />}
                       {lastIsSnap && last && renderFeedCell(last)}
                     </div>
                   );
@@ -593,14 +597,23 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
         to={`${mydigUrl}/snap/${snap.slug}`}
         className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1.5 p-2 hover:[&_.snap-name]:text-[#e8a020]"
       >
-        <div className="grid grid-cols-3 gap-0.5">
+        {/* Cover grid uses fr-based rows + flex-1 so it absorbs the
+            available Link area instead of forcing a fixed 3×2-of-
+            squares height that overflowed the card on narrow mobile
+            cells (causing the title to clip). Cells drop aspect-
+            square — at small widths the grid yields slightly-tall
+            rectangles and CoverArt's object-cover crops to fit;
+            covers stay legible at the 25-30px scale they end up at
+            on a 3-col mobile row. Title gets shrink-0 so it reserves
+            its single-line height first. */}
+        <div className="grid grid-cols-3 grid-rows-2 gap-0.5 flex-1 min-h-0">
           {Array.from({ length: 6 }, (_, i) => {
             if (i < 5) {
               const item = visible[i];
               return (
                 <div
                   key={i}
-                  className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden"
+                  className="bg-[#0a0604] rounded-[2px] overflow-hidden"
                 >
                   {item?.album?.coverArtUrl && (
                     <CoverArt
@@ -617,7 +630,7 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
               return (
                 <div
                   key={i}
-                  className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden flex items-center justify-center text-[12px] font-medium text-[#c9a060] tabular-nums"
+                  className="bg-[#0a0604] rounded-[2px] overflow-hidden flex items-center justify-center text-[12px] font-medium text-[#c9a060] tabular-nums"
                   aria-label={`${overflow}개 더`}
                 >
                   +{overflow}
@@ -627,12 +640,12 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
             return (
               <div
                 key={i}
-                className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden"
+                className="bg-[#0a0604] rounded-[2px] overflow-hidden"
               />
             );
           })}
         </div>
-        <div className="snap-name text-[12px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
+        <div className="snap-name shrink-0 text-[12px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
           {snap.name}
         </div>
       </Link>

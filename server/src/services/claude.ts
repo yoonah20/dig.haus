@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { memoAsync } from '../utils/memoCache.js';
-import { execute } from '../db/index.js';
+import { execute, queryAll } from '../db/index.js';
 import { invokeLlm } from './llmRouter.js';
 
 // maxRetries=5 amplified 429 storms into 5×-call cascades per failed
@@ -264,11 +264,43 @@ const KO_TERM_REPLACEMENTS: Array<[RegExp, string]> = [
   [/에모/g, '이모'],
 ];
 
+// Cached snapshot of the term_replacements table. Refreshed lazily
+// when the row count or max(id) changes so the cache invalidates the
+// moment an admin adds, edits, or deletes a rule. Avoids hitting the
+// DB twice per LLM output (this gets called for every excerpt_ko +
+// summary), and the small payload (rule list is order-of-tens) makes
+// in-memory replay cheap.
+type DbReplacement = { pattern: string; replacement: string };
+let _dbReplacementsCache: DbReplacement[] = [];
+let _dbReplacementsKey = '0:0';
+
+function loadDbReplacements(): DbReplacement[] {
+  const meta = queryAll(
+    `SELECT COUNT(*) AS c, COALESCE(MAX(id), 0) AS m FROM term_replacements`
+  )[0] as { c: number; m: number };
+  const key = `${meta.c}:${meta.m}`;
+  if (key === _dbReplacementsKey) return _dbReplacementsCache;
+  _dbReplacementsCache = queryAll(
+    `SELECT pattern, replacement FROM term_replacements ORDER BY id`
+  ) as DbReplacement[];
+  _dbReplacementsKey = key;
+  return _dbReplacementsCache;
+}
+
 export function normaliseKoreanTerms(text: string | null | undefined): string {
   if (!text) return '';
   let out = text;
   for (const [pattern, replacement] of KO_TERM_REPLACEMENTS) {
     out = out.replace(pattern, replacement);
+  }
+  // Admin-curated rules are applied AFTER the hardcoded list so the
+  // operator can override or extend it case-by-case. Plain string
+  // substitution (no regex) — splitting on the literal pattern then
+  // joining with replacement is the simplest way to swap every
+  // occurrence without users having to know regex escaping.
+  for (const { pattern, replacement } of loadDbReplacements()) {
+    if (!pattern) continue;
+    out = out.split(pattern).join(replacement);
   }
   return out;
 }

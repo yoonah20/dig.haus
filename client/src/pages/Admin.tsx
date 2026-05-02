@@ -1054,6 +1054,16 @@ export default function Admin() {
             <TagBlacklistPanel />
           </section>
 
+          {/* Korean term replacements — admin-curated string-
+              substitution rules applied on top of the hardcoded
+              KO_TERM_REPLACEMENTS list in the LLM post-process.
+              Catches the long tail of mistranslations the curator
+              spots in the wild (금속 사운드 → 메탈 사운드, 누 메탈 →
+              뉴 메탈) without a code edit. */}
+          <section className="mt-4">
+            <TermReplacementsPanel />
+          </section>
+
           {/* Scrape-failure log — surfaces hostnames that consistently
               fail URL scraping, so we can decide which need a
               site-specific parser vs. staying on the paste-in
@@ -1507,6 +1517,139 @@ function TagBlacklistPanel() {
                 title={`"${t.tag}" 블랙리스트에서 제거 (앨범에 다시 등장 가능)`}
               >
                 해제
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+// Korean term replacement rules. Server: term_replacements table +
+// /api/admin/term-replacements CRUD. Applied during normaliseKoreanTerms
+// after the hardcoded KO_TERM_REPLACEMENTS pass.
+interface TermReplacementRule {
+  id: number;
+  pattern: string;
+  replacement: string;
+  created_at: string;
+}
+
+function TermReplacementsPanel() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useQuery<{ rules: TermReplacementRule[] }>({
+    queryKey: ['admin-term-replacements'],
+    queryFn: async () => (await axios.get('/api/admin/term-replacements')).data,
+    staleTime: 30_000,
+  });
+
+  const [pattern, setPattern] = useState('');
+  const [replacement, setReplacement] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const create = useMutation({
+    mutationFn: async ({ p, r }: { p: string; r: string }) => {
+      await axios.post('/api/admin/term-replacements', {
+        pattern: p,
+        replacement: r,
+      });
+    },
+    onSuccess: () => {
+      setPattern('');
+      setReplacement('');
+      setError(null);
+      qc.invalidateQueries({ queryKey: ['admin-term-replacements'] });
+    },
+    onError: (err: any) => {
+      setError(err?.response?.data?.error || '등록 실패');
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: number) => {
+      await axios.delete(`/api/admin/term-replacements/${id}`);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-term-replacements'] }),
+  });
+
+  const rules = data?.rules ?? [];
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const p = pattern.trim();
+    const r = replacement.trim();
+    if (!p || !r) {
+      setError('pattern과 replacement 둘 다 필요해요');
+      return;
+    }
+    if (p === r) {
+      setError('pattern과 replacement이 같습니다');
+      return;
+    }
+    create.mutate({ p, r });
+  };
+
+  return (
+    <Panel title="한국어 용어 치환" icon="🔁" count={rules.length}>
+      <form
+        onSubmit={submit}
+        className="px-4 py-3 border-b border-white/5 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center"
+      >
+        <input
+          type="text"
+          value={pattern}
+          onChange={(e) => setPattern(e.target.value)}
+          placeholder="찾을 단어 (예: 금속 사운드)"
+          className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none"
+          maxLength={200}
+        />
+        <span className="text-gray-500 text-sm shrink-0 px-1">→</span>
+        <input
+          type="text"
+          value={replacement}
+          onChange={(e) => setReplacement(e.target.value)}
+          placeholder="바꿀 단어 (예: 메탈 사운드)"
+          className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none"
+          maxLength={200}
+        />
+        <button
+          type="submit"
+          disabled={create.isPending}
+          className="shrink-0 text-sm bg-[#e8a020] hover:bg-[#f5b030] disabled:opacity-40 text-[#141008] font-medium px-3 py-1.5 rounded cursor-pointer transition-colors"
+        >
+          {create.isPending ? '...' : '추가'}
+        </button>
+      </form>
+      {error && (
+        <div className="px-4 py-2 text-[12px] text-red-400 border-b border-white/5">
+          {error}
+        </div>
+      )}
+      {isLoading ? (
+        <EmptyRow>로딩 중...</EmptyRow>
+      ) : isError ? (
+        <EmptyRow>불러오지 못했습니다.</EmptyRow>
+      ) : rules.length === 0 ? (
+        <EmptyRow>아직 등록된 치환 룰이 없어요. (예: 금속 사운드 → 메탈 사운드)</EmptyRow>
+      ) : (
+        <div className="divide-y divide-white/5">
+          {rules.map((r) => (
+            <div key={r.id} className="px-4 py-2.5 flex items-center gap-3">
+              <div className="flex-1 min-w-0 flex items-center gap-2 text-sm text-white truncate">
+                <span className="truncate" title={r.pattern}>{r.pattern}</span>
+                <span className="text-gray-500 shrink-0">→</span>
+                <span className="truncate text-[#e8a020]" title={r.replacement}>
+                  {r.replacement}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => remove.mutate(r.id)}
+                disabled={remove.isPending}
+                className="text-[11px] text-gray-400 hover:text-red-300 border border-white/10 hover:border-red-400/60 rounded px-2 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
+                title="이 치환 룰 삭제"
+              >
+                삭제
               </button>
             </div>
           ))}

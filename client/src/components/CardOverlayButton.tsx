@@ -11,6 +11,16 @@ import type { MouseEvent, ReactNode } from 'react';
 // on desktop the card stays clean until the user points at it. The
 // wrapping container should apply the reveal pattern (see usage at
 // PurchaseLinksPanel.tsx ~L290).
+//
+// Click handling stops propagation + prevents default at the
+// CardOverlayButton boundary. Most cards that host these overlays
+// wrap an <a target="_blank"> at their root (review URL, purchase
+// link), and on touch devices the bare <button> click would bubble
+// to the parent anchor and navigate away before the handler's
+// confirm/work could complete — making delete / edit / retranslate
+// look "broken" on mobile. The button always intercepts the event
+// so callers don't need to remember to pass `e` through every
+// single handler signature.
 export default function CardOverlayButton({
   onClick,
   title,
@@ -24,10 +34,15 @@ export default function CardOverlayButton({
   variant?: 'neutral' | 'danger';
   disabled?: boolean;
 }) {
+  const handleClick = (e: MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    onClick(e);
+  };
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={handleClick}
       title={title}
       aria-label={title}
       disabled={disabled}
