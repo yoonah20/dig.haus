@@ -602,6 +602,35 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     }
   }, [album.coverArtUrl, albumId, coverInput, queryClient]);
 
+  // Drop the current custom cover and re-host the album's earliest
+  // working fallback URL (typically the Cover Art Archive original
+  // captured at first-fetch). The server iterates fallbacks until one
+  // hosts successfully, so a rotted top-of-list URL doesn't block the
+  // revert.
+  const revertCover = useCallback(async () => {
+    if (!confirm('커스텀 커버를 삭제하고 기본값으로 되돌릴까요?')) return;
+    setUpdatingCover(true);
+    try {
+      await axios.delete(`/api/albums/${albumId}/cover-art`);
+      await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
+      await queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
+      setEditingCover(false);
+    } catch (err) {
+      console.error('Revert cover art error:', err);
+      const detail =
+        axios.isAxiosError(err) && typeof err.response?.data?.error === 'string'
+          ? err.response.data.error
+          : null;
+      alert(
+        detail
+          ? `기본값 되돌리기에 실패했습니다.\n\n${detail}`
+          : '기본값 되돌리기에 실패했습니다.'
+      );
+    } finally {
+      setUpdatingCover(false);
+    }
+  }, [albumId, queryClient]);
+
   const handleDelete = useCallback(async () => {
     if (!confirm('이 앨범을 DB에서 삭제할까요? 되돌릴 수 없습니다.')) return;
     setDeleting(true);
@@ -923,25 +952,43 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 autoFocus
                 className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 w-full"
               />
-              <div className="flex justify-end gap-2 mt-1">
-                <button
-                  onClick={cancelEditCover}
-                  disabled={updatingCover}
-                  className="px-2 py-1 text-sm text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
-                  title="취소"
-                  aria-label="취소"
-                >
-                  ✕
-                </button>
-                <button
-                  onClick={saveEditCover}
-                  disabled={updatingCover}
-                  className="px-2 py-1 text-sm text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
-                  title="저장"
-                  aria-label="저장"
-                >
-                  {updatingCover ? '...' : '✓'}
-                </button>
+              <div className="flex justify-between items-center gap-2 mt-1">
+                {/* Revert lives left-aligned so it reads as a meta
+                    action separate from the cancel/save pair. Hidden
+                    when there's no fallback to revert to (no point
+                    surfacing a button that would only ever 404). */}
+                {(album.coverArtFallbacks?.length ?? 0) > 0 ? (
+                  <button
+                    onClick={revertCover}
+                    disabled={updatingCover}
+                    className="px-2 py-1 text-xs text-gray-400 hover:text-[#e8a020] disabled:opacity-40 cursor-pointer"
+                    title="기본 커버로 되돌리기"
+                  >
+                    ↩ 기본값
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={cancelEditCover}
+                    disabled={updatingCover}
+                    className="px-2 py-1 text-sm text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
+                    title="취소"
+                    aria-label="취소"
+                  >
+                    ✕
+                  </button>
+                  <button
+                    onClick={saveEditCover}
+                    disabled={updatingCover}
+                    className="px-2 py-1 text-sm text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+                    title="저장"
+                    aria-label="저장"
+                  >
+                    {updatingCover ? '...' : '✓'}
+                  </button>
+                </div>
               </div>
             </div>
           )}

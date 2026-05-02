@@ -1262,6 +1262,65 @@ router.patch('/:id/cover-art', requireAdmin, async (req, res) => {
   }
 });
 
+// ─── DELETE /api/albums/:id/cover-art — revert to first working fallback ────
+//
+// Drops a custom-set cover and re-hosts the album's earliest known
+// fallback URL (typically the Cover Art Archive original captured at
+// album-fetch time, sometimes a Spotify CDN URL further down the
+// list). Iterates fallbacks in order so a rotted CAA URL falls
+// through to the next candidate instead of failing the whole revert.
+// 404 when there's nothing to revert to (no fallbacks recorded), 502
+// when every fallback fails to host.
+router.delete('/:id/cover-art', requireAdmin, async (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const row = queryGet(
+    'SELECT mbid, cover_art_fallbacks FROM albums WHERE mbid = ?',
+    [mbid]
+  );
+  if (!row) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  let fallbacks: string[] = [];
+  if (row.cover_art_fallbacks) {
+    try {
+      const parsed = JSON.parse(row.cover_art_fallbacks);
+      if (Array.isArray(parsed)) {
+        fallbacks = parsed.filter(
+          (u): u is string =>
+            typeof u === 'string' && /^https?:\/\//i.test(u.trim())
+        );
+      }
+    } catch {
+      // ignore — treated as empty
+    }
+  }
+  if (fallbacks.length === 0) {
+    return res
+      .status(404)
+      .json({ error: '되돌릴 기본 커버 URL이 없습니다.' });
+  }
+
+  const failures: Array<{ url: string; msg: string }> = [];
+  for (const url of fallbacks) {
+    try {
+      const hostedUrl = await hostCustomCover(url.trim());
+      updateAlbumFields(mbid, { cover_art_url: hostedUrl });
+      return res.json({ ok: true, coverArtUrl: hostedUrl });
+    } catch (err) {
+      const msg =
+        err instanceof CustomCoverError ? err.message : 'unknown error';
+      failures.push({ url, msg });
+    }
+  }
+  console.error('Revert cover art — all fallbacks failed:', failures);
+  return res.status(502).json({
+    error: '모든 fallback 커버 호스팅에 실패했습니다.',
+  });
+});
+
 // ─── POST /api/albums/:id/refresh-discogs — admin re-fetch Discogs prices ───
 
 router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
