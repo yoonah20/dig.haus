@@ -168,13 +168,10 @@ export function upgradeWallCoverFallbacks(
   return urls.map((u) => upgradeWallCoverUrl(u) ?? u);
 }
 
-// Translate a transform-origin Y token ('top' / 'center' / 'bottom'
-// / '0%' / '50%' / '100%' / arbitrary percentage) into a 0-1 fraction
-// of the element's height. Used by the cursor-tilt math to project
-// the link's stable layout rect through the same origin the scale
-// wrapper uses, so cursor normalisation hits the visual sleeve's
-// real centre instead of the layout box's centre (which the home
-// wall's 75% origin pulls noticeably off).
+// Translate a transform-origin Y token into a 0-1 fraction of the
+// element's height. Lets the cursor-tilt math project the link's
+// stable layout rect through the same origin the scale wrapper uses,
+// so the dy=0 flat point lands on the visual sleeve's actual centre.
 function parseOriginYFrac(raw: string): number {
   if (raw === 'top') return 0;
   if (raw === 'center') return 0.5;
@@ -229,16 +226,34 @@ export default function WallHoverCard({
   //     cover reads as a glossy sleeve under a single light source
   //     anchored to the cursor.
   //
-  // Reference is the *visual* rect centre, not the layout rect
-  // centre — hover-scale + origin shifts the visual centre off the
-  // layout centre (origin "bottom" pulls it up ~38% of lpSize on
-  // the home wall), and normalising against the wrong centre is
-  // exactly what made `dy=0` land on a tilted-looking sleeve in
-  // earlier passes.
+  // Reference centre + reference half-extent come from the projected
+  // *visual* (post-scale) rect on both axes. Confirmed by the operator
+  // by physically locating the flat point on the lifted cover: it has
+  // to land at the geometric middle of what the eye sees, not at the
+  // pre-scale layout midpoint (which sits well below the visual centre
+  // when hoverOriginY='bottom').
   //
-  // No clamp: cursor outside the visual rect fires mouseleave, so
-  // dx/dy stay roughly in [-1, +1] with a tiny graceful overshoot
-  // near the edges.
+  // Earlier iterations missed this in two opposite ways:
+  //
+  //  1. Anchoring at the LAYOUT centre put the flat point at the
+  //     pre-scale midpoint — visually below the centre of the
+  //     lifted sleeve, which the operator could feel by sweeping
+  //     the cursor for the dy=0 spot.
+  //
+  //  2. Anchoring at the LAYOUT centre with VISUAL halfH let the
+  //     cursor overshoot to dy ≈ -1.4 in the upper overhang while
+  //     hard-capping the bottom at +0.57 (no overhang there with
+  //     bottom origin). Upward tilt felt dramatic, downward felt
+  //     anaemic.
+  //
+  // Visual centre + visual half on both axes makes the reachable
+  // cursor range — exactly the visible cover, since CSS hit-tests
+  // transformed children by their painted bounds — symmetric ±1
+  // around the flat point. No clamp needed: stepping past the
+  // visual edges fires mouseleave and resets the tilt.
+  //
+  // hoverTranslateX shifts the visual centre on X for the mobile-
+  // band hero where the cover slides off-axis after lift.
   //
   // ±12° tilt reads as a gentle shrink-wrap glance — wider than
   // the prior ±7° (which was hard to perceive against the busy
@@ -248,15 +263,6 @@ export default function WallHoverCard({
   // stalling near the centre.
   const TILT_MAX = tiltMaxDeg;
   const SPEC_TRAVEL = 50;
-  // Pointer-driven tilt + spec — shared by mouse (desktop) and
-  // touch (mobile tap-active drag). The Link element itself is not
-  // transformed; its inner scale wrapper is. So getBoundingClientRect
-  // here returns the LAYOUT box at the unscaled cell position, and
-  // we project the visual centre forward by the scale + translate
-  // applied by the hover transform. hoverTranslateX is in CSS-pixel
-  // screen space (transform string is `translateX(...) scale(...)`,
-  // so the translate applies post-scale and shifts the visual rect
-  // by exactly that many on-screen pixels).
   const updateTiltFromPointer = (clientX: number, clientY: number) => {
     const el = cardRef.current;
     if (!el) return;
