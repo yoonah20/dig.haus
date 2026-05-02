@@ -2,18 +2,19 @@ import { queryAll } from '../db/index.js';
 
 // Strip artist/album separators that copy-pastes from other sites
 // drag in. "Skymning - Stormchoirs" / "Skymning – Stormchoirs" /
-// "Skymning : Stormchoirs" should behave the same as "Skymning
-// Stormchoirs"; otherwise the dash propagates as a literal token,
-// confusing both the LIKE clause and MusicBrainz's query parser.
+// "Skymning : Stormchoirs" / "DARKWATER / Human" should behave the
+// same as "Skymning Stormchoirs"; otherwise the punctuation
+// propagates as a literal token, confusing both the LIKE clause and
+// MusicBrainz's query parser.
 //
 // Only strips separators surrounded by whitespace, so intra-word
-// punctuation like "AC-DC" or "Sigur Rós" is preserved.
+// punctuation like "AC-DC", "AC/DC" or "Sigur Rós" is preserved.
 //
 // Character class: ASCII hyphen + Unicode hyphen-and-dashes block
 // (U+2010 hyphen, U+2011 non-breaking, U+2012 figure dash,
 // U+2013 en dash, U+2014 em dash, U+2015 horizontal bar) + colon
-// + pipe + middle dot (U+00B7).
-const SEPARATOR_RE = /\s+[-‐-―:|·]+\s+/g;
+// + pipe + middle dot (U+00B7) + forward slash.
+const SEPARATOR_RE = /\s+[-‐-―:|·/]+\s+/g;
 
 export function normalizeSearchQuery(raw: string): string {
   return raw
