@@ -1819,6 +1819,65 @@ export function initializeDatabase(db: Database.Database): void {
     );
   });
 
+  // Cleanup of policy-banned tag families in tag_blacklist +
+  // albums.genres. Two rules — digit-only ("2005", "1990") and
+  // anything containing "best" ("best of 2024", "best songs ever",
+  // "best metal albums") — are now auto-banned by the route layer
+  // (EXCLUDED_PATTERNS + isAutoBannedTag in albums.ts) so they
+  // don't need tag_blacklist rows. The PATCH /albums/:id/tags
+  // diff bug that shipped earlier had been pushing these into the
+  // blacklist + into albums.genres anyway; this one-shot cleans up
+  // the residue so cross-album LIKE prefilters and admin UI lists
+  // don't keep showing entries that are dead by rule.
+  runOnce(db, 'cleanup-auto-banned-tags-2026-05-02', () => {
+    const isPolicyBanned = (raw: string): boolean => {
+      const t = raw.trim();
+      return /^\d+$/.test(t) || /\bbest\b/i.test(t);
+    };
+
+    const blRows = db
+      .prepare(`SELECT id, tag FROM tag_blacklist`)
+      .all() as Array<{ id: number; tag: string }>;
+    const removeIds = blRows.filter((r) => isPolicyBanned(r.tag)).map((r) => r.id);
+    if (removeIds.length > 0) {
+      const placeholders = removeIds.map(() => '?').join(',');
+      db.prepare(
+        `DELETE FROM tag_blacklist WHERE id IN (${placeholders})`
+      ).run(...removeIds);
+      console.log(
+        `[migration] tag_blacklist: removed ${removeIds.length} policy-banned entries (digit-only + "best ...")`
+      );
+    }
+
+    const albumRows = db
+      .prepare(`SELECT mbid, genres FROM albums WHERE genres IS NOT NULL`)
+      .all() as Array<{ mbid: string; genres: string }>;
+    const upd = db.prepare(
+      `UPDATE albums SET genres = ? WHERE mbid = ?`
+    );
+    let stripped = 0;
+    for (const a of albumRows) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(a.genres);
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(parsed)) continue;
+      const tags = parsed.filter((t): t is string => typeof t === 'string');
+      const filtered = tags.filter((t) => !isPolicyBanned(t));
+      if (filtered.length !== tags.length) {
+        upd.run(JSON.stringify(filtered), a.mbid);
+        stripped++;
+      }
+    }
+    if (stripped > 0) {
+      console.log(
+        `[migration] albums.genres: stripped policy-banned tags from ${stripped} album(s)`
+      );
+    }
+  });
+
   // Walls 2 and 3 inherited the schema defaults for the LP / title
   // tuner cols (lpSize 357, upperLpY 279, lowerLpY 752, etc.) while
   // wall 1 carried the operator's tuned values (lpSize 336, upper

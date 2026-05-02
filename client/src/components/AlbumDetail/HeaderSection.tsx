@@ -74,7 +74,10 @@ function TagEditor({
   }, [adding]);
 
   const persist = useCallback(
-    async (nextTags: string[], removeOnly: string[] = []) => {
+    async (
+      nextTags: string[],
+      opts: { removeOnly?: string[]; blacklist?: string[] } = {}
+    ) => {
       setSaving(true);
       try {
         const res = await axios.patch<{
@@ -84,11 +87,14 @@ function TagEditor({
           strippedAlbumCount?: number;
         }>(`/api/albums/${albumId}/tags`, {
           tags: nextTags,
-          // Only sent when the admin used the − button — server
-          // strips these tags from this album but skips the
-          // tag_blacklist + cross-album strip path. Empty array on
-          // a normal × removal so nothing changes server-side.
-          removeOnly,
+          // Explicit signals to the server. The earlier diff-based
+          // approach over-banned because the client only sees the
+          // top N cleaned tags while the DB may have stored 30 raw
+          // tags from import — diffing against the raw list flagged
+          // every invisible tag as "removed" on a single × click.
+          // Sending the operator's intent directly fixes that.
+          removeOnly: opts.removeOnly ?? [],
+          blacklist: opts.blacklist ?? [],
         });
         await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
         await queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
@@ -128,7 +134,7 @@ function TagEditor({
   //     제거됩니다" and gets bailed out instead of swallowed silently).
   const removeTagFromAlbum = (tag: string) => {
     if (saving) return;
-    void persist(tags.filter((t) => t !== tag), [tag]);
+    void persist(tags.filter((t) => t !== tag), { removeOnly: [tag] });
   };
   const removeTagAndBlacklist = async (tag: string) => {
     if (saving) return;
@@ -151,7 +157,7 @@ function TagEditor({
         `계속할까요?`
     );
     if (!ok) return;
-    void persist(tags.filter((t) => t !== tag));
+    void persist(tags.filter((t) => t !== tag), { blacklist: [tag] });
   };
 
   const commitAdd = () => {

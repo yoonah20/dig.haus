@@ -86,11 +86,15 @@ const EXCLUDED_PATTERNS: RegExp[] = [
   /\bseen live\b/i,
   /\bmust hear\b/i,
   /\bneed to\b/i,
-  // "best X" family — "best song", "best songs", "best track", "best
-  // tracks", "best of 2024" style. EXCLUDED_TAGS catches the exact
-  // forms we've seen in the wild; this regex catches year-scoped
-  // variants and any other "best + noun" that slips through.
-  /\bbest\s+(song|songs|tracks?|ever|of)\b/i,
+  // Anything containing "best" — editorial / listicle metadata
+  // ("best of 2024", "best songs ever", "best metal albums") is
+  // never a genre. Earlier the pattern only caught specific
+  // phrasings; broadened to a single \bbest\b match because the
+  // long-tail of "best of YYYY" / "best <subgenre>" variants is
+  // too large to enumerate by hand and they're never musical
+  // descriptors. False positives ("personal best" as an album
+  // name) are vanishingly rare in tag space.
+  /\bbest\b/i,
 ];
 
 // Admin-curated tag blacklist, layered on top of EXCLUDED_TAGS. Loaded
@@ -117,6 +121,22 @@ function getTagBlacklist(): Set<string> {
 export function invalidateTagBlacklistCache(): void {
   _tagBlacklistCache = null;
   _tagBlacklistCacheAt = 0;
+}
+
+// Tags banned by policy without needing a tag_blacklist row — the
+// long-tail of editorial / collection metadata that can't be
+// enumerated one entry at a time:
+//   - digit-only ("2005", "1990") — release-year noise
+//   - anything containing "best" ("best of 2024", "best songs ever",
+//     "best metal albums") — listicle / editorial fluff
+// Used at PATCH input sanitisation so the operator can't accidentally
+// reintroduce them via the TagEditor input. The cleanGenres pass on
+// the read+write paths (EXCLUDED_PATTERNS) handles the import-time
+// gate; this is the defence on the manual-edit path.
+function isAutoBannedTag(lowerTrimmed: string): boolean {
+  if (/^\d+$/.test(lowerTrimmed)) return true;
+  if (/\bbest\b/.test(lowerTrimmed)) return true;
+  return false;
 }
 
 // Known short genre names to keep (3 chars or less)
@@ -1277,18 +1297,28 @@ router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
 
 // ─── PATCH /api/albums/:id/tags — admin replace genre tag list ──────────
 //
-// Diffs the new tag list against what's currently saved. Anything
-// that disappeared in the diff is, by default, both blacklisted (via
-// tag_blacklist, idempotent on lower-cased tag) and stripped from
-// every other album currently carrying it — the curator's "this tag
-// is globally bad" stamp.
+// Updates an album's tag list and (optionally) blacklists tags the
+// curator wants globally banned. The earlier version inferred
+// blacklist intent by diffing the client's payload against the raw
+// stored genres, which over-banned because the album detail GET
+// surfaces a top-N cleaned subset (cleanGenres) — the client never
+// saw the raw list, so a single × click would pull every digit-
+// containing or otherwise-filtered tag along for the ride.
 //
-// `removeOnly` (optional string[]) carves out the second case: tags
-// the admin wants gone from THIS album because they don't fit, but
-// shouldn't be banned globally. Listed tags get the album-level
-// removal but skip the blacklist + cross-album strip. The two paths
-// have separate UI affordances (− and × respectively in TagEditor),
-// since the admin's intent differs between "wrong fit" and "bad tag".
+// New contract — explicit signals only, no diff inference:
+//   - `tags` (string[]):     tags the operator wants visible AFTER
+//                            edit. Server merges them into the
+//                            existing raw list (unseen tags stay).
+//   - `blacklist` (string[]): tags to globally ban — added to
+//                            tag_blacklist, removed from this album,
+//                            stripped from every other album.
+//   - `removeOnly` (string[]): tags to remove from THIS album only.
+//                            No blacklist, no cross-album strip.
+//
+// Blacklist + removeOnly are also subtracted from the stored raw
+// list so the curator's intent persists. New tags in `tags` (not
+// previously stored) get appended to the end of the raw list,
+// preserving import order for existing tags.
 
 router.patch('/:id/tags', requireAdmin, (req, res) => {
   const resolved = resolveAlbumId(req.params.id as string);
@@ -1302,92 +1332,117 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
     return res.status(404).json({ error: 'Album not found' });
   }
 
-  const raw = (req.body ?? {}).tags;
-  if (!Array.isArray(raw)) {
+  const body = req.body ?? {};
+  const tagsRaw = body.tags;
+  if (!Array.isArray(tagsRaw)) {
     return res.status(400).json({ error: 'tags must be an array of strings' });
   }
+  const removeOnlyRaw = body.removeOnly;
+  const blacklistRaw = body.blacklist;
 
-  // Tags listed here are removed from the album but skip the
-  // blacklist path. Lower-cased so the diff comparison below can
-  // match on a normalised key.
-  const removeOnlyRaw = (req.body ?? {}).removeOnly;
-  const removeOnly = new Set<string>(
-    Array.isArray(removeOnlyRaw)
-      ? removeOnlyRaw
-          .filter((t): t is string => typeof t === 'string')
-          .map((t) => t.toLowerCase())
-      : []
-  );
+  const sanitiseList = (arr: unknown): string[] => {
+    if (!Array.isArray(arr)) return [];
+    const out: string[] = [];
+    const seen = new Set<string>();
+    for (const t of arr) {
+      if (typeof t !== 'string') continue;
+      const trimmed = t.trim();
+      if (!trimmed || trimmed.length > 80) continue;
+      const key = trimmed.toLowerCase();
+      // Digit-only tags are auto-banned by policy — silently drop
+      // them from any input array. Stops accidental year tag
+      // additions and stops the operator from polluting
+      // tag_blacklist with entries that don't help (everything
+      // numeric is already filtered).
+      if (isAutoBannedTag(key)) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(trimmed);
+      if (out.length >= 30) break;
+    }
+    return out;
+  };
 
-  const cleaned: string[] = [];
-  const seen = new Set<string>();
-  for (const t of raw) {
-    if (typeof t !== 'string') continue;
-    const trimmed = t.trim();
-    if (!trimmed || trimmed.length > 80) continue;
-    const key = trimmed.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    cleaned.push(trimmed);
-    if (cleaned.length >= 30) break;
-  }
+  const visible = sanitiseList(tagsRaw);
+  const removeOnly = sanitiseList(removeOnlyRaw);
+  const blacklistList = sanitiseList(blacklistRaw);
 
-  // Compute diff (tags in old but not in new) so each removal flows
-  // into the blacklist + global strip step below.
-  const previousTags: string[] = row.genres
+  // Lower-cased lookup sets for the merge pass below.
+  const removeOnlyLower = new Set(removeOnly.map((t) => t.toLowerCase()));
+  const blacklistLower = new Set(blacklistList.map((t) => t.toLowerCase()));
+  const visibleLowerSet = new Set(visible.map((t) => t.toLowerCase()));
+
+  // Previously-stored raw tags — full list, may include digit tags
+  // and other entries the cleanGenres pass would hide from the
+  // client. We keep these intact unless explicitly listed for
+  // removal, so a × on one tag doesn't take 25 invisible neighbours
+  // along with it.
+  const previousRaw: string[] = row.genres
     ? (() => {
         try {
           const arr = JSON.parse(row.genres);
-          return Array.isArray(arr) ? arr.filter((t): t is string => typeof t === 'string') : [];
+          return Array.isArray(arr)
+            ? arr.filter((t): t is string => typeof t === 'string')
+            : [];
         } catch {
           return [];
         }
       })()
     : [];
-  const newKeys = new Set(cleaned.map((t) => t.toLowerCase()));
-  const removedTags = previousTags.filter(
-    (t) => !newKeys.has(t.toLowerCase())
-  );
-  // Subset that should actually be blacklisted — drop anything the
-  // admin marked as remove-only ("doesn't fit this album, but the
-  // tag itself is fine"). The album-level removal still happens via
-  // the `cleaned` list above; only the global ban + cross-album
-  // strip is gated on this filter.
-  const tagsToBlacklist = removedTags.filter(
-    (t) => !removeOnly.has(t.toLowerCase())
-  );
 
-  // Closure captures this so we can read the per-album strip total
-  // out of the transaction for the response payload.
+  // Build the next raw list:
+  //   1. Keep every previously-stored tag that wasn't explicitly
+  //      removed or blacklisted (case-insensitive).
+  //   2. Append any tag in `visible` that isn't already present —
+  //      these are NEW additions the operator typed in.
+  // Cap at 30 to mirror the historical limit. Order: existing first
+  // (preserves import order), additions last.
+  const nextRaw: string[] = [];
+  const nextLower = new Set<string>();
+  for (const t of previousRaw) {
+    const lower = t.toLowerCase();
+    if (removeOnlyLower.has(lower) || blacklistLower.has(lower)) continue;
+    if (nextLower.has(lower)) continue;
+    nextRaw.push(t);
+    nextLower.add(lower);
+    if (nextRaw.length >= 30) break;
+  }
+  for (const t of visible) {
+    const lower = t.toLowerCase();
+    if (nextLower.has(lower)) continue;
+    if (removeOnlyLower.has(lower) || blacklistLower.has(lower)) continue;
+    if (nextRaw.length >= 30) break;
+    nextRaw.push(t);
+    nextLower.add(lower);
+  }
+
   let strippedAlbumCountOut = 0;
   try {
     transaction((): void => {
-      updateAlbumFields(mbid, { genres: JSON.stringify(cleaned) });
+      updateAlbumFields(mbid, { genres: JSON.stringify(nextRaw) });
 
-      if (tagsToBlacklist.length > 0) {
+      if (blacklistList.length > 0) {
         const adminId = (req.user as { id?: number } | undefined)?.id ?? null;
         const db = getDb();
         const insertBl = db.prepare(
           `INSERT OR IGNORE INTO tag_blacklist (tag, added_by_user_id) VALUES (?, ?)`
         );
-        for (const tag of tagsToBlacklist) {
+        for (const tag of blacklistList) {
           insertBl.run(tag.toLowerCase(), adminId);
         }
 
-        // Strip the just-blacklisted tags from every other album that
-        // currently carries one. SQLite has no first-class JSON-array
-        // operator that handles case-insensitive removes cleanly, so
-        // we do it in JS: pull rows where the genres TEXT contains any
-        // of the removed tags as a substring (rough but cheap), then
-        // re-filter the parsed array exactly. The substring match
-        // overshoots (e.g. "rock" matches "rock and roll" rows even if
-        // they don't have "rock" as a tag) which is fine — the JS
-        // filter is the authoritative step.
-        const removedLower = new Set(
-          tagsToBlacklist.map((t) => t.toLowerCase())
+        // Cross-album strip: pull rows whose genres TEXT contains any
+        // of the just-blacklisted tags as a substring (rough but
+        // cheap LIKE prefilter), then re-filter the parsed JSON array
+        // exactly. The substring filter overshoots (e.g. "rock"
+        // matches "rock and roll") — the JS pass is the authoritative
+        // step.
+        const likeClauses = blacklistList
+          .map(() => `genres LIKE ?`)
+          .join(' OR ');
+        const likeParams = blacklistList.map(
+          (t) => `%${t.replace(/[%_]/g, '')}%`
         );
-        const likeClauses = tagsToBlacklist.map(() => `genres LIKE ?`).join(' OR ');
-        const likeParams = tagsToBlacklist.map((t) => `%${t.replace(/[%_]/g, '')}%`);
         const candidates = queryAll(
           `SELECT mbid, genres FROM albums WHERE mbid != ? AND genres IS NOT NULL AND (${likeClauses})`,
           [mbid, ...likeParams]
@@ -1405,9 +1460,7 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
           }
           if (!Array.isArray(parsed)) continue;
           const tags = parsed.filter((t): t is string => typeof t === 'string');
-          const next = tags.filter(
-            (t) => !removedLower.has(t.toLowerCase())
-          );
+          const next = tags.filter((t) => !blacklistLower.has(t.toLowerCase()));
           if (next.length !== tags.length) {
             updateGenres.run(JSON.stringify(next), cand.mbid);
             strippedAlbumCount += 1;
@@ -1415,18 +1468,18 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
         }
         if (strippedAlbumCount > 0) {
           console.log(
-            `[tags] blacklisted ${tagsToBlacklist.length} tag(s); stripped from ${strippedAlbumCount} other album(s)`
+            `[tags] blacklisted ${blacklistList.length} tag(s); stripped from ${strippedAlbumCount} other album(s)`
           );
         }
         strippedAlbumCountOut = strippedAlbumCount;
       }
     });
 
-    if (tagsToBlacklist.length > 0) invalidateTagBlacklistCache();
+    if (blacklistList.length > 0) invalidateTagBlacklistCache();
     res.json({
       ok: true,
-      tags: cleaned,
-      blacklisted: tagsToBlacklist.map((t) => t.toLowerCase()),
+      tags: visible,
+      blacklisted: blacklistList.map((t) => t.toLowerCase()),
       strippedAlbumCount: strippedAlbumCountOut,
     });
   } catch (error) {

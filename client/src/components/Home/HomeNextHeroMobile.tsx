@@ -690,19 +690,21 @@ function MobileFeatureCell({
   // / store-link sticker on the cover. coverOverlay below stays
   // cover-only.
 
-  // Tap-active cover should fill the slide horizontally rather than
-  // sitting at column-anchored 130% (which barely reads bigger than
-  // the rest of the wall on a 390px phone). Scale is the ratio
-  // needed to take lpSize → ~94% of containerW; translateX
-  // recenters the column-anchored cover on the slide so left/right
-  // cells both land in the middle. Values clamp at 220% / known
-  // sane bounds to guard against degenerate containerW (still 0
-  // before the ResizeObserver fires).
+  // Tap-active cover scales toward ~94% of the slide width but caps
+  // at 200% so the active sleeve reads clearly larger without
+  // dominating the viewport. The earlier 280% ceiling let typical
+  // phones (~390px wide) push the cover to ~210%, which felt heavy-
+  // handed against the rail; 200% is the comfortable upper bound.
+  // translateX recenters the column-anchored cover on the slide so
+  // left/right cells both land in the middle. The lower clamp 140
+  // guards against degenerate containerW (still 0 before the
+  // ResizeObserver fires).
   const col = position % COLS;
+  const row = Math.floor(position / COLS);
   const targetCoverPx = containerW > 0 ? containerW * 0.94 : lpSize;
   const hoverScalePct =
     lpSize > 0
-      ? Math.max(140, Math.min(280, Math.round((targetCoverPx / lpSize) * 100)))
+      ? Math.max(140, Math.min(200, Math.round((targetCoverPx / lpSize) * 100)))
       : 140;
   // Column 0 sits left of slide center, column 1 sits right of it.
   // By symmetry of `justifyContent: center` on the row grid the
@@ -710,6 +712,20 @@ function MobileFeatureCell({
   // half the cover width, with sign flipping per column.
   const recenterX = lpSize / 2 + COVER_GAP_X / 2;
   const hoverTranslateX = col === 0 ? recenterX : -recenterX;
+  // Per-row growth bias for the tap-active sleeve.
+  //   - Row 0 (top): 40% — quiet downward bias keeps the sleeve
+  //     clear of the TopNav.
+  //   - Row ROWS-1 (bottom shelf): 85% — origin near bottom so the
+  //     sleeve grows mostly upward. The 240% scale was clipping
+  //     the bottom edge against the hero's lower boundary at 40%
+  //     because the cover extended 0.84h below the cell. 85% drops
+  //     overflow below to ~0.14h, which the bottom rail comfortably
+  //     absorbs.
+  //   - Rows 1..ROWS-2: 40% as before; the existing layout has
+  //     enough room above and below middle rows that a centered
+  //     bias would only matter if it changed appearance, and the
+  //     uniform pop direction is part of the established feel.
+  const hoverOriginY = row === ROWS - 1 ? '85%' : '40%';
 
   return (
     <WallHoverCard
@@ -725,22 +741,14 @@ function MobileFeatureCell({
       plasticBlendMode={plasticMeta?.plasticBlendMode ?? 'normal'}
       hoverScalePct={hoverScalePct}
       hoverTranslateX={hoverTranslateX}
-      // Default origin 'bottom' grew the sleeve purely upward and
-      // pushed row 1's top edge into the TopNav. 'center' lifted
-      // it just shy of the nav (visual top exactly at slide top
-      // = right under the nav with 0px gutter), which still read
-      // as cramped. 40% biases the growth slightly more downward
-      // so row 1's visual top lands ~22px below the slide top,
-      // giving the active sleeve a clear breathing band against
-      // the nav while the bigger downward half just overlays
-      // rows 2-5 (z-lift handles the paint order).
-      hoverOriginY="40%"
-      // Mobile tap-active sleeve fills the viewport, so the
-      // desktop's quiet ±12° read as imperceptible against it.
-      // ±25° is loud enough to feel like a real tilt without
-      // crossing into the gimmicky perspective-flip territory
-      // beyond ~30°.
-      tiltMaxDeg={25}
+      hoverOriginY={hoverOriginY}
+      // Mobile drops the tilt entirely — the screen-fill scale is
+      // already a clear "this is the active cover" signal, and the
+      // rotation read as gimmicky on a phone where the visible LP
+      // already takes most of the frame. Spec highlight still
+      // tracks the touch position via WallHoverCard's pointer
+      // handler (a faint gloss is welcome; the 25° tilt was not).
+      tiltMaxDeg={0}
       tapToActivate
       // The screen-fill hoverScale (~240% on a 390px phone) makes
       // the play chip balloon proportionally — at default scale 1 it
