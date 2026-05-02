@@ -243,7 +243,7 @@ export default function HomeNext() {
                   marker on a shop counter; the mascot beside it is
                   the shop's "digger" — they share the same crate-
                   digging metaphor so they belong to this section
-                  rather than the global chrome. digman_feed.png is
+                  rather than the global chrome. digman_feed.webp is
                   a 160×160 source rendered at an 80×80 display
                   target (down from 100×100 — at 100 the mascot
                   read as too dominant against the tape-label
@@ -259,7 +259,7 @@ export default function HomeNext() {
                 className="!mb-3"
                 meta={
                   <img
-                    src="/textures/digman_feed.png"
+                    src="/textures/digman_feed.webp"
                     alt=""
                     aria-hidden
                     draggable={false}
