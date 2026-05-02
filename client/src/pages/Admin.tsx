@@ -228,6 +228,61 @@ function EmptyRow({ children }: { children: ReactNode }) {
   return <div className="p-4 text-sm text-gray-500">{children}</div>;
 }
 
+// Lightweight section header for grouping panels inside an admin
+// tab. Used in the curation tab to split "내가 만든 룰" surfaces
+// (Sources / TagBlacklist / TermReplacements) from "운영 로그"
+// surfaces (ScrapeFailures / CurationRuns) so the tab reads as
+// two distinct concerns rather than five panels stacked into one
+// long scroll.
+function SubSection({
+  title,
+  hint,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="mb-8 last:mb-0">
+      <div className="mb-3 flex items-baseline gap-3 flex-wrap">
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">
+          {title}
+        </h2>
+        {hint && (
+          <span className="text-[11px] text-gray-600">{hint}</span>
+        )}
+      </div>
+      <div className="flex flex-col gap-4">{children}</div>
+    </section>
+  );
+}
+
+// Compact search input pattern used by the curation panels (tag
+// blacklist, term replacements). Renders inside Panel's
+// headerAction slot. Lives here as a primitive so the search
+// styling stays consistent across panels — same width, same
+// muted-amber focus, same placeholder treatment.
+function PanelSearchInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <input
+      type="search"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-40 sm:w-52 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2 py-1 text-[12px] text-gray-200 placeholder:text-gray-600 outline-none"
+    />
+  );
+}
+
 function formatTokens(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
@@ -1030,58 +1085,30 @@ export default function Admin() {
 
       {activeTab === 'curation' && (
         <>
-          {/* Source trust panel — cumulative success / failure lists
-              beside the curated whitelist / blacklist so admin can
-              promote proven hosts with a single click. Whitelisted
-              hosts re-rank to the top of /reviews/discover; blacklisted
-              hosts are refused at scrape time (same runtime effect as
-              the hardcoded EXCLUDED_URL_DOMAINS, editable without a
-              deploy). Placed above the scrape-failure log because the
-              curation workflow starts with "decide which sources to
-              trust" before looking at per-URL failures. */}
-          <section>
+          {/* Two SubSections separate the tab's two concerns. The
+              earlier flat layout stacked five panels in one column,
+              mixing curated-rule surfaces (sources / tag blacklist
+              / term replacements) with read-only operational logs
+              (scrape failures / curation runs). Grouping them under
+              labelled headers makes the tab read as "rules I curated
+              + logs of what happened" rather than five disconnected
+              moderation tools. */}
+          <SubSection
+            title="큐레이션 룰"
+            hint="내가 만든 차단/치환 규칙 — 신규 import 부터 적용됨"
+          >
             <SourcesPanel />
-          </section>
-
-          {/* Tag blacklist — genre strings the curator stamped as
-              "never re-add" via the × button in TagEditor. Sits next
-              to the source trust panel because both are curated
-              "things admin pruned" lists, but operates on a different
-              axis (tag strings vs. URL hosts). Most-recent-first so
-              an accidental × click is easy to undo from the top of
-              the list. */}
-          <section className="mt-4">
             <TagBlacklistPanel />
-          </section>
-
-          {/* Korean term replacements — admin-curated string-
-              substitution rules applied on top of the hardcoded
-              KO_TERM_REPLACEMENTS list in the LLM post-process.
-              Catches the long tail of mistranslations the curator
-              spots in the wild (금속 사운드 → 메탈 사운드, 누 메탈 →
-              뉴 메탈) without a code edit. */}
-          <section className="mt-4">
             <TermReplacementsPanel />
-          </section>
+          </SubSection>
 
-          {/* Scrape-failure log — surfaces hostnames that consistently
-              fail URL scraping, so we can decide which need a
-              site-specific parser vs. staying on the paste-in
-              fallback. Append-only table on the server; the panel
-              lets admin clear entries per hostname after addressing
-              (or giving up on) a site. */}
-          <section className="mt-4">
+          <SubSection
+            title="운영 로그"
+            hint="자동 수집된 텔레메트리 — 큐레이션 결과 / 실패 추적용"
+          >
             <ScrapeFailuresPanel />
-          </section>
-
-          {/* Per-album record of every curation pipeline run (one-click
-              or batch). Written by the client from
-              CurationProgressContext as each album finishes — gives
-              admin a permanent ledger of "how much coverage did that
-              batch actually produce, and what did it cost." */}
-          <section className="mt-4">
             <CurationRunsPanel />
-          </section>
+          </SubSection>
         </>
       )}
 
@@ -1480,19 +1507,39 @@ function TagBlacklistPanel() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-tag-blacklist'] }),
   });
 
+  const [query, setQuery] = useState('');
   const tags = data?.tags ?? [];
+  const q = query.trim().toLowerCase();
+  const filteredTags = q
+    ? tags.filter((t) => t.tag.toLowerCase().includes(q))
+    : tags;
 
   return (
-    <Panel title="태그 블랙리스트" icon="🏷️" count={tags.length}>
+    <Panel
+      title="태그 블랙리스트"
+      icon="🏷️"
+      count={tags.length}
+      headerAction={
+        tags.length > 0 ? (
+          <PanelSearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="태그 검색..."
+          />
+        ) : null
+      }
+    >
       {isLoading ? (
         <EmptyRow>로딩 중...</EmptyRow>
       ) : isError ? (
         <EmptyRow>불러오지 못했습니다.</EmptyRow>
       ) : tags.length === 0 ? (
         <EmptyRow>비어 있음</EmptyRow>
+      ) : filteredTags.length === 0 ? (
+        <EmptyRow>"{query}" 검색 결과 없음</EmptyRow>
       ) : (
         <div className="divide-y divide-white/5">
-          {tags.map((t) => (
+          {filteredTags.map((t) => (
             <div
               key={t.tag}
               className="px-4 py-2.5 flex items-center gap-3"
@@ -1556,6 +1603,7 @@ function TermReplacementsPanel() {
   const [note, setNote] = useState('');
   const [isRegex, setIsRegex] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   const create = useMutation({
     mutationFn: async (body: {
@@ -1616,8 +1664,30 @@ function TermReplacementsPanel() {
     });
   };
 
+  const q = query.trim().toLowerCase();
+  const filteredRules = q
+    ? rules.filter((r) =>
+        [r.pattern, r.replacement, r.note ?? ''].some((s) =>
+          s.toLowerCase().includes(q)
+        )
+      )
+    : rules;
+
   return (
-    <Panel title="한국어 용어 치환" icon="🔁" count={rules.length}>
+    <Panel
+      title="한국어 용어 치환"
+      icon="🔁"
+      count={rules.length}
+      headerAction={
+        rules.length > 0 ? (
+          <PanelSearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="패턴/메모 검색..."
+          />
+        ) : null
+      }
+    >
       <form
         onSubmit={submit}
         className="px-4 py-3 border-b border-white/5 flex flex-col gap-2"
@@ -1685,9 +1755,11 @@ function TermReplacementsPanel() {
         <EmptyRow>불러오지 못했습니다.</EmptyRow>
       ) : rules.length === 0 ? (
         <EmptyRow>아직 등록된 치환 룰이 없어요. (예: 금속 사운드 → 메탈 사운드)</EmptyRow>
+      ) : filteredRules.length === 0 ? (
+        <EmptyRow>"{query}" 검색 결과 없음</EmptyRow>
       ) : (
         <div className="divide-y divide-white/5">
-          {rules.map((r) => (
+          {filteredRules.map((r) => (
             <div key={r.id} className="px-4 py-2 flex items-start gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 text-[13px] text-white">

@@ -244,16 +244,16 @@ export default function HomeNext() {
                   the shop's "digger" — they share the same crate-
                   digging metaphor so they belong to this section
                   rather than the global chrome. digman_feed.png is
-                  a 100×100 head+shoulders icon prepared at its
-                  intended display size; CSS scaling makes the
-                  illustration's outlines look fuzzy, so we lock the
-                  rendered size to 100×100 with explicit width/height
-                  + maxWidth:none (Tailwind preflight's
-                  img{max-width:100%} would otherwise shrink it
-                  inside narrow flex containers). Negative margin
-                  pulls it inside the h2's gap-3 so the mascot sits
-                  visually attached to the tape label rather than
-                  floating beside it. */}
+                  a 160×160 head+shoulders icon (was 100×100; bumped
+                  for retina sharpness 2026-05-02) rendered at a
+                  100×100 display target — explicit width/height +
+                  maxWidth:none locks the on-screen size regardless
+                  of the source's intrinsic dimensions, so swapping
+                  the asset doesn't grow the heading row, and the
+                  browser handles the 1.6× downscale. Negative
+                  margin pulls it inside the h2's gap-3 so the
+                  mascot sits visually attached to the tape label
+                  rather than floating beside it. */}
               <SectionTitle
                 variant="tape"
                 className="!mb-3"
