@@ -1528,11 +1528,18 @@ function TagBlacklistPanel() {
 
 // Korean term replacement rules. Server: term_replacements table +
 // /api/admin/term-replacements CRUD. Applied during normaliseKoreanTerms
-// after the hardcoded KO_TERM_REPLACEMENTS pass.
+// — single source of truth, replaces the formerly-hardcoded array.
+// is_regex distinguishes plain-string rules (most operator additions)
+// from regex rules (most migrated system rules with alternation /
+// capture groups). note is a short Korean explanation on system
+// rules so the curator can read what each migrated rule does
+// without parsing regex by hand.
 interface TermReplacementRule {
   id: number;
   pattern: string;
   replacement: string;
+  is_regex: number;
+  note: string | null;
   created_at: string;
 }
 
@@ -1546,18 +1553,24 @@ function TermReplacementsPanel() {
 
   const [pattern, setPattern] = useState('');
   const [replacement, setReplacement] = useState('');
+  const [note, setNote] = useState('');
+  const [isRegex, setIsRegex] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const create = useMutation({
-    mutationFn: async ({ p, r }: { p: string; r: string }) => {
-      await axios.post('/api/admin/term-replacements', {
-        pattern: p,
-        replacement: r,
-      });
+    mutationFn: async (body: {
+      pattern: string;
+      replacement: string;
+      note: string | null;
+      isRegex: boolean;
+    }) => {
+      await axios.post('/api/admin/term-replacements', body);
     },
     onSuccess: () => {
       setPattern('');
       setReplacement('');
+      setNote('');
+      setIsRegex(false);
       setError(null);
       qc.invalidateQueries({ queryKey: ['admin-term-replacements'] });
     },
@@ -1582,43 +1595,84 @@ function TermReplacementsPanel() {
       setError('pattern과 replacement 둘 다 필요해요');
       return;
     }
-    if (p === r) {
+    if (!isRegex && p === r) {
       setError('pattern과 replacement이 같습니다');
       return;
     }
-    create.mutate({ p, r });
+    if (isRegex) {
+      try {
+        // eslint-disable-next-line no-new
+        new RegExp(p, 'g');
+      } catch (err) {
+        setError(`정규식이 잘못됐어요: ${(err as Error).message}`);
+        return;
+      }
+    }
+    create.mutate({
+      pattern: p,
+      replacement: r,
+      note: note.trim() || null,
+      isRegex,
+    });
   };
 
   return (
     <Panel title="한국어 용어 치환" icon="🔁" count={rules.length}>
       <form
         onSubmit={submit}
-        className="px-4 py-3 border-b border-white/5 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center"
+        className="px-4 py-3 border-b border-white/5 flex flex-col gap-2"
       >
-        <input
-          type="text"
-          value={pattern}
-          onChange={(e) => setPattern(e.target.value)}
-          placeholder="찾을 단어 (예: 금속 사운드)"
-          className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none"
-          maxLength={200}
-        />
-        <span className="text-gray-500 text-sm shrink-0 px-1">→</span>
-        <input
-          type="text"
-          value={replacement}
-          onChange={(e) => setReplacement(e.target.value)}
-          placeholder="바꿀 단어 (예: 메탈 사운드)"
-          className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none"
-          maxLength={200}
-        />
-        <button
-          type="submit"
-          disabled={create.isPending}
-          className="shrink-0 text-sm bg-[#e8a020] hover:bg-[#f5b030] disabled:opacity-40 text-[#141008] font-medium px-3 py-1.5 rounded cursor-pointer transition-colors"
-        >
-          {create.isPending ? '...' : '추가'}
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+          <input
+            type="text"
+            value={pattern}
+            onChange={(e) => setPattern(e.target.value)}
+            placeholder={
+              isRegex
+                ? '정규식 (예: 죽음의?\\s*금속)'
+                : '찾을 단어 (예: 금속 사운드)'
+            }
+            className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none font-mono"
+            maxLength={500}
+          />
+          <span className="text-gray-500 text-sm shrink-0 px-1">→</span>
+          <input
+            type="text"
+            value={replacement}
+            onChange={(e) => setReplacement(e.target.value)}
+            placeholder={
+              isRegex ? '치환문 (capture group: $1)' : '바꿀 단어 (예: 메탈 사운드)'
+            }
+            className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none font-mono"
+            maxLength={500}
+          />
+          <button
+            type="submit"
+            disabled={create.isPending}
+            className="shrink-0 text-sm bg-[#e8a020] hover:bg-[#f5b030] disabled:opacity-40 text-[#141008] font-medium px-3 py-1.5 rounded cursor-pointer transition-colors"
+          >
+            {create.isPending ? '...' : '추가'}
+          </button>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+          <label className="flex items-center gap-1.5 text-[12px] text-gray-400 shrink-0 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isRegex}
+              onChange={(e) => setIsRegex(e.target.checked)}
+              className="cursor-pointer"
+            />
+            정규식 사용
+          </label>
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="메모 (선택, 예: '금속'이 metal로 직역됨)"
+            className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1 text-[12px] text-gray-300 outline-none"
+            maxLength={200}
+          />
+        </div>
       </form>
       {error && (
         <div className="px-4 py-2 text-[12px] text-red-400 border-b border-white/5">
@@ -1634,19 +1688,44 @@ function TermReplacementsPanel() {
       ) : (
         <div className="divide-y divide-white/5">
           {rules.map((r) => (
-            <div key={r.id} className="px-4 py-2.5 flex items-center gap-3">
-              <div className="flex-1 min-w-0 flex items-center gap-2 text-sm text-white truncate">
-                <span className="truncate" title={r.pattern}>{r.pattern}</span>
-                <span className="text-gray-500 shrink-0">→</span>
-                <span className="truncate text-[#e8a020]" title={r.replacement}>
-                  {r.replacement}
-                </span>
+            <div key={r.id} className="px-4 py-2 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 text-[13px] text-white">
+                  {r.is_regex ? (
+                    <span
+                      className="shrink-0 px-1 py-0 text-[9px] font-bold tracking-wider rounded bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30"
+                      title="정규식 룰"
+                    >
+                      RE
+                    </span>
+                  ) : null}
+                  <span className="truncate font-mono" title={r.pattern}>
+                    {r.pattern}
+                  </span>
+                  <span className="text-gray-500 shrink-0">→</span>
+                  <span
+                    className="truncate font-mono text-[#e8a020]"
+                    title={r.replacement}
+                  >
+                    {r.replacement}
+                  </span>
+                </div>
+                {r.note && (
+                  <div
+                    className="text-[11px] text-gray-500 mt-0.5 truncate"
+                    title={r.note}
+                  >
+                    {r.note}
+                  </div>
+                )}
               </div>
               <button
                 type="button"
-                onClick={() => remove.mutate(r.id)}
+                onClick={() => {
+                  if (confirm(`"${r.pattern}" 룰 삭제할까요?`)) remove.mutate(r.id);
+                }}
                 disabled={remove.isPending}
-                className="text-[11px] text-gray-400 hover:text-red-300 border border-white/10 hover:border-red-400/60 rounded px-2 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
+                className="shrink-0 text-[11px] text-gray-400 hover:text-red-300 border border-white/10 hover:border-red-400/60 rounded px-2 py-0.5 disabled:opacity-40 cursor-pointer transition-colors"
                 title="이 치환 룰 삭제"
               >
                 삭제

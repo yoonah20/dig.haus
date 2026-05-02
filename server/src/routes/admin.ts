@@ -863,16 +863,18 @@ router.delete('/genres/:id', (req, res) => {
   }
 });
 
-// Korean term replacements — admin-curated string-substitution rules
-// applied after the hardcoded KO_TERM_REPLACEMENTS list in
-// claude.ts (see normaliseKoreanTerms). pattern is matched as a
-// plain (non-regex) substring; replacement swaps every occurrence.
-// New rules apply only to NEW LLM output; previously-stored prose is
-// untouched (preserves audit trail in excerpt_edits).
+// Korean term replacements — single source of truth for every
+// mistranslation fix applied during normaliseKoreanTerms. System
+// rules (migrated from the formerly-hardcoded array) and operator
+// rules share this table; they're indistinguishable except by note
+// content and is_regex usage. Apply order = id ASC, so the migrated
+// rules (lower ids) run first, then any operator additions.
 router.get('/term-replacements', (_req, res) => {
   try {
     const rows = queryAll(
-      `SELECT id, pattern, replacement, created_at FROM term_replacements ORDER BY id DESC`
+      `SELECT id, pattern, replacement, is_regex, note, created_at
+         FROM term_replacements
+        ORDER BY id ASC`
     );
     res.json({ rules: rows });
   } catch (err) {
@@ -884,21 +886,44 @@ router.get('/term-replacements', (_req, res) => {
 router.post('/term-replacements', (req, res) => {
   const pattern = String(req.body?.pattern ?? '').trim();
   const replacement = String(req.body?.replacement ?? '').trim();
+  const isRegex = req.body?.isRegex ? 1 : 0;
+  const noteRaw = req.body?.note;
+  const note =
+    typeof noteRaw === 'string' && noteRaw.trim() ? noteRaw.trim() : null;
   if (!pattern) return res.status(400).json({ error: 'pattern 필수' });
   if (!replacement) return res.status(400).json({ error: 'replacement 필수' });
-  if (pattern.length > 200 || replacement.length > 200) {
-    return res.status(400).json({ error: '200자 이하로 입력해 주세요' });
+  if (pattern.length > 500 || replacement.length > 500) {
+    return res.status(400).json({ error: '500자 이하로 입력해 주세요' });
   }
-  if (pattern === replacement) {
+  if (note && note.length > 200) {
+    return res.status(400).json({ error: 'note는 200자 이하' });
+  }
+  // For plain-string rules pattern === replacement is a no-op.
+  // Regex rules with capture groups can legitimately have the same
+  // raw text on both sides (e.g. pattern "(메탈)" replacement "$1
+  // 씬"), so we only check the equality for is_regex=0.
+  if (!isRegex && pattern === replacement) {
     return res.status(400).json({ error: 'pattern과 replacement이 같습니다' });
+  }
+  if (isRegex) {
+    try {
+      // eslint-disable-next-line no-new
+      new RegExp(pattern, 'g');
+    } catch (err) {
+      return res
+        .status(400)
+        .json({ error: `정규식이 잘못됐어요: ${(err as Error).message}` });
+    }
   }
   try {
     const result = execute(
-      `INSERT INTO term_replacements (pattern, replacement) VALUES (?, ?)`,
-      [pattern, replacement]
+      `INSERT INTO term_replacements (pattern, replacement, is_regex, note)
+         VALUES (?, ?, ?, ?)`,
+      [pattern, replacement, isRegex, note]
     );
     const row = queryGet(
-      `SELECT id, pattern, replacement, created_at FROM term_replacements WHERE id = ?`,
+      `SELECT id, pattern, replacement, is_regex, note, created_at
+         FROM term_replacements WHERE id = ?`,
       [result.lastInsertRowid]
     );
     res.status(201).json({ rule: row });

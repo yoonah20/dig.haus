@@ -1721,6 +1721,104 @@ export function initializeDatabase(db: Database.Database): void {
     );
   });
 
+  // term_replacements absorbs the formerly-hardcoded
+  // KO_TERM_REPLACEMENTS array from claude.ts so admin can manage
+  // every Korean-term substitution rule from one place. Two-step:
+  //
+  //   1. Add `is_regex` + `note` columns onto pre-existing tables
+  //      (CREATE TABLE IF NOT EXISTS won't add columns to a table
+  //      that already exists). PRAGMA-checked so we don't ALTER
+  //      twice on a freshly-created table.
+  //   2. Seed the 30 system rules with is_regex=1 and a short
+  //      Korean note. INSERT OR IGNORE keeps the seed idempotent
+  //      against any UNIQUE collisions with rules an operator may
+  //      already have inserted manually.
+  //
+  // After this migration runs, claude.ts's normaliseKoreanTerms reads
+  // exclusively from this table — the in-code array is removed.
+  runOnce(db, 'term-replacements-add-regex-and-seed-system-rules-2026-05-02', () => {
+    const cols = db
+      .prepare(`PRAGMA table_info(term_replacements)`)
+      .all() as { name: string }[];
+    const colNames = new Set(cols.map((c) => c.name));
+    if (!colNames.has('is_regex')) {
+      db.exec(
+        `ALTER TABLE term_replacements ADD COLUMN is_regex INTEGER NOT NULL DEFAULT 0`
+      );
+    }
+    if (!colNames.has('note')) {
+      db.exec(`ALTER TABLE term_replacements ADD COLUMN note TEXT`);
+    }
+
+    // Pattern is the JS regex source (no surrounding /…/g — the
+    // applier compiles with the `g` flag at runtime). Replacement
+    // can use $1 etc. for capture groups. Order preserved by id
+    // ASC so the apply order matches the historical array order.
+    const SYSTEM_RULES: Array<{ pattern: string; replacement: string; note: string }> = [
+      { pattern: '오래된\\s*학교', replacement: '올드 스쿨', note: '"old school" 직역' },
+      { pattern: '구곡\\s*스타일', replacement: '올드 스쿨', note: '"old school" 직역' },
+      { pattern: '구식\\s*학교', replacement: '올드 스쿨', note: '"old school" 직역' },
+      { pattern: '구(?:식|형)\\s*학파', replacement: '올드 스쿨', note: '"old school" 직역' },
+      { pattern: '죽음의?\\s*금속', replacement: '데스 메탈', note: '"death metal" 직역' },
+      { pattern: '죽음의?\\s*메탈', replacement: '데스 메탈', note: '"death metal" 반(半)번역' },
+      { pattern: '검은\\s*금속', replacement: '블랙 메탈', note: '"black metal" 직역' },
+      { pattern: '무거운\\s*금속', replacement: '헤비 메탈', note: '"heavy metal" 직역' },
+      { pattern: '파멸\\s*금속', replacement: '둠 메탈', note: '"doom metal" 직역' },
+      { pattern: '운명\\s*금속', replacement: '둠 메탈', note: '"doom metal" 직역' },
+      { pattern: '속도\\s*금속', replacement: '스피드 메탈', note: '"speed metal" 직역' },
+      { pattern: '전투\\s*금속', replacement: '배틀 메탈', note: '"battle metal" 직역' },
+      { pattern: '장례\\s*둠', replacement: '퓨너럴 둠', note: '"funeral doom" 직역' },
+      { pattern: '장송\\s*둠', replacement: '퓨너럴 둠', note: '"funeral doom" 직역' },
+      { pattern: '페너럴\\s*둠', replacement: '퓨너럴 둠', note: 'funeral doom 음차 오기' },
+      { pattern: '펀럴\\s*둠', replacement: '퓨너럴 둠', note: 'funeral doom 음차 오기' },
+      { pattern: '신발\\s*응시', replacement: '슈게이즈', note: '"shoegaze" 직역' },
+      { pattern: '후기\\s*펑크', replacement: '포스트 펑크', note: '"post-punk" 직역' },
+      { pattern: '새로운\\s*물결', replacement: '뉴 웨이브', note: '"new wave" 직역' },
+      {
+        pattern: '진보(?:적)?\\s*(?:록|로큰롤)',
+        replacement: '프로그레시브 록',
+        note: '"progressive rock" 직역',
+      },
+      { pattern: '대안\\s*메탈', replacement: '얼터너티브 메탈', note: '"alternative" 직역' },
+      { pattern: '대안\\s*록', replacement: '얼터너티브 록', note: '"alternative" 직역' },
+      {
+        pattern:
+          '지하\\s*(메탈|하드코어|펑크|록|힙합|재즈|일렉트로닉|인디|코어|둠|블랙|스래시|데스|프로그|포스트|포크|랩|레게|일렉트로|덴스|클럽)',
+        replacement: '언더그라운드 $1',
+        note: '"underground {장르}" — 지하(건축의미)로 직역됨',
+      },
+      {
+        pattern:
+          '산업적\\s*(메탈|록|일렉트로닉|록큰롤|코어|덴스|테크노|노이즈|힙합)',
+        replacement: '인더스트리얼 $1',
+        note: '"industrial {장르}" — 산업적(형용사)로 직역됨',
+      },
+      {
+        pattern:
+          '(메탈|하드코어|펑크|록|그라인드코어|재즈|일렉트로닉|앰비언트|슈게이즈|인디|하드록|코어|웨이브|둠|블랙|스래시|데스|프로그|포스트|힙합|포크)\\s*(?:장면|현장)',
+        replacement: '$1 씬',
+        note: '"{장르} scene" — 장면/현장 대신 씬',
+      },
+      { pattern: '에모', replacement: '이모', note: 'emo — 에모(음차) 대신 이모' },
+    ];
+
+    const insert = db.prepare(
+      `INSERT OR IGNORE INTO term_replacements (pattern, replacement, is_regex, note)
+         VALUES (?, ?, 1, ?)`
+    );
+    let inserted = 0;
+    const tx = db.transaction(() => {
+      for (const r of SYSTEM_RULES) {
+        const result = insert.run(r.pattern, r.replacement, r.note);
+        if (result.changes > 0) inserted++;
+      }
+    });
+    tx();
+    console.log(
+      `[migration] term_replacements: seeded ${inserted}/${SYSTEM_RULES.length} system rules`
+    );
+  });
+
   // Walls 2 and 3 inherited the schema defaults for the LP / title
   // tuner cols (lpSize 357, upperLpY 279, lowerLpY 752, etc.) while
   // wall 1 carried the operator's tuned values (lpSize 336, upper
@@ -1890,16 +1988,24 @@ export function initializeDatabase(db: Database.Database): void {
     `CREATE INDEX IF NOT EXISTS idx_tag_blacklist_tag ON tag_blacklist(tag COLLATE NOCASE)`
   );
 
-  // Korean-term replacement rules — admin-curated string substitutions
-  // applied to LLM-generated Korean prose after the hardcoded
-  // KO_TERM_REPLACEMENTS pass in claude.ts. The hardcoded list covers
-  // the systematic mistranslations the LLM falls into (e.g. genre
-  // names literal-translated like 금속 → 메탈), but new variants keep
-  // surfacing — vinyl-listener vernacular has more long-tail than a
-  // hand-maintained array can keep up with. This table lets the
-  // operator add a "spotted in the wild" rule without a code edit:
-  // pattern is matched as a plain (non-regex) substring, replacement
-  // swaps in. Examples: 금속 사운드 → 메탈 사운드, 누 메탈 → 뉴 메탈.
+  // Korean-term replacement rules — single source of truth for every
+  // mistranslation fix applied to LLM-generated Korean prose. The
+  // table absorbed the formerly-hardcoded KO_TERM_REPLACEMENTS array
+  // from claude.ts (2026-05-02 migration below) so operator-curated
+  // and shipped-with-the-app rules live in one place admin can
+  // browse, add to, and prune.
+  //
+  //   - pattern / replacement: the rule itself.
+  //   - is_regex: 0 = plain substring (split + join), 1 = JS RegExp
+  //     source compiled with the `g` flag at apply time. Regex is
+  //     only needed when the rule has alternation, optional groups,
+  //     or capture-group references in replacement (e.g. /지하\s*
+  //     (메탈|록|...)/ → "언더그라운드 $1"). Most ad-hoc operator
+  //     rules will be plain strings.
+  //   - note: short Korean explanation surfaced in the admin list
+  //     so the curator can read the migrated regex rules without
+  //     parsing them by hand.
+  //
   // Applied only to NEW Korean output going forward; existing rows
   // are not retroactively rewritten (the audit trail in excerpt_edits
   // would lose its meaning if we rewrote stored prose).
@@ -1908,6 +2014,8 @@ export function initializeDatabase(db: Database.Database): void {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       pattern TEXT NOT NULL UNIQUE,
       replacement TEXT NOT NULL,
+      is_regex INTEGER NOT NULL DEFAULT 0,
+      note TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);

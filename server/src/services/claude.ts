@@ -167,110 +167,42 @@ export async function generateKoreanSummary(
 
 // Post-process the summary in case Sonnet sneaks in a "# Album -
 // Artist" heading or a markdown lead despite being told not to.
-// Strips:
-//   1. Markdown heading lines (starts with #)
-//   2. Lines that are essentially "{title}" / "{artist}" /
-//      "{title} - {artist}" / "{title} by {artist}" in any order
-//      (case-insensitive, ignoring punctuation)
-//   3. Leading/trailing bold markers (**text**) and hyphen bullets
-//      — keeps the text content.
-// Claude (both Haiku and Sonnet) occasionally translates English
-// genre terms literally instead of transliterating them — so
-// "old-school death metal" becomes "오래된 학교 데스 메탈" or "구곡 스타일 데스
-// 메탈" instead of the vernacular "올드 스쿨 데스 메탈". The translations
-// aren't wrong, but they're jarring to readers who know the scene
-// in its English-transliterated form (which is how Korean metal /
-// indie / punk fans actually talk).
+// Korean-term post-processor — runs on every LLM-generated Korean
+// field (excerpts, summaries) to normalise mistranslations into
+// vinyl-listener vernacular. The rule set used to be a hardcoded
+// array in this file; it now lives in the term_replacements table
+// (system rules seeded via runOnce migration in schema.ts, operator
+// rules added through /admin/curation). One source of truth, all
+// edits flow through the admin UI.
 //
-// This post-processor runs on every Korean-language field we get
-// back (excerpts, summaries, etc). The map is deliberately short —
-// only phrases we've seen in the wild get entries, and each is
-// specific enough that false positives are unlikely. Expand as new
-// cases surface rather than trying to anticipate every idiom.
+// Rule shape:
+//   - is_regex=1 — pattern compiled as JS RegExp with the `g` flag,
+//     replacement may use $1 etc. for capture groups. Used for the
+//     migrated system rules that hinge on alternation / optional
+//     groups / capture references (e.g. "underground {genre}" →
+//     "언더그라운드 $1").
+//   - is_regex=0 — pattern matched as a plain substring (split +
+//     join). Used for ad-hoc operator rules where regex would be
+//     overkill ("금속 사운드" → "메탈 사운드").
 //
 // Word-boundary handling: Korean doesn't have \b-style boundaries
 // that regex knows about, so we rely on the replacement phrases
 // being long / specific enough (2+ syllables of context) that
 // accidentally nesting inside a larger word is rare.
-const KO_TERM_REPLACEMENTS: Array<[RegExp, string]> = [
-  // "old school" — most common literal-translation victim.
-  [/오래된\s*학교/g, '올드 스쿨'],
-  [/구곡\s*스타일/g, '올드 스쿨'],
-  [/구식\s*학교/g, '올드 스쿨'],
-  [/구(?:식|형)\s*학파/g, '올드 스쿨'],
-  // Genre-name "metal" literally translated as 금속, plus the common
-  // half-translated form "죽음 메탈" (의 dropped) that DeepSeek slips
-  // into when it transliterates 메탈 but still translates 'death'.
-  [/죽음의?\s*금속/g, '데스 메탈'],
-  [/죽음의?\s*메탈/g, '데스 메탈'],
-  [/검은\s*금속/g, '블랙 메탈'],
-  [/무거운\s*금속/g, '헤비 메탈'],
-  [/파멸\s*금속/g, '둠 메탈'],
-  [/운명\s*금속/g, '둠 메탈'],
-  [/속도\s*금속/g, '스피드 메탈'],
-  [/전투\s*금속/g, '배틀 메탈'],
-  // Funeral doom — "장례 둠" is a literal mistranslation, and 페너럴
-  // / 펀럴 are common transliteration misspellings. Normalize to the
-  // vernacular "퓨너럴 둠". The shorter "장례 둠" pattern also covers
-  // "장례 둠 메탈" automatically (the 메탈 suffix survives unchanged).
-  [/장례\s*둠/g, '퓨너럴 둠'],
-  [/장송\s*둠/g, '퓨너럴 둠'],
-  [/페너럴\s*둠/g, '퓨너럴 둠'],
-  [/펀럴\s*둠/g, '퓨너럴 둠'],
-  // Other genre names that get literal-translated.
-  [/신발\s*응시/g, '슈게이즈'],
-  [/후기\s*펑크/g, '포스트 펑크'],
-  [/새로운\s*물결/g, '뉴 웨이브'],
-  [/진보(?:적)?\s*(?:록|로큰롤)/g, '프로그레시브 록'],
-  // "alternative" — standard vernacular is "얼터너티브", but literal
-  // translation comes back as "대안" (lit. "alternative choice"). The
-  // vinyl-listener audience expects the transliterated form.
-  [/대안\s*메탈/g, '얼터너티브 메탈'],
-  [/대안\s*록/g, '얼터너티브 록'],
-  // "underground {genre}" — Claude literal-translates "underground"
-  // as "지하" (the building-basement sense) when it precedes a genre
-  // name, producing "지하 힙합" / "지하 메탈" instead of the vernacular
-  // "언더그라운드 힙합". Trigger only on the recognised genre nouns so
-  // genuinely architectural prose ("지하 주차장에서 녹음한") survives.
-  [
-    /지하\s*(메탈|하드코어|펑크|록|힙합|재즈|일렉트로닉|인디|코어|둠|블랙|스래시|데스|프로그|포스트|포크|랩|레게|일렉트로|덴스|클럽)/g,
-    '언더그라운드 $1',
-  ],
-  // "industrial {genre}" — comes through as the adjective "산업적"
-  // ("industry-like") instead of the genre-name transliteration
-  // "인더스트리얼". Anchored to genre nouns so plain "산업적 사운드" /
-  // "산업적 분위기" descriptive prose keeps its adjective sense.
-  [
-    /산업적\s*(메탈|록|일렉트로닉|록큰롤|코어|덴스|테크노|노이즈|힙합)/g,
-    '인더스트리얼 $1',
-  ],
-  // Genre "scene" → vernacular "씬", not literal "장면" ("scene" in
-  // the film/moment sense) or "현장" ("field/site"). Covers the
-  // common case "{genre} scene". Whitelist of trigger words instead
-  // of a generic wildcard so we don't accidentally rewrite "마지막
-  // 장면" ("final scene" of a concept album's closing track) or
-  // similar non-scene prose.
-  [
-    /(메탈|하드코어|펑크|록|그라인드코어|재즈|일렉트로닉|앰비언트|슈게이즈|인디|하드록|코어|웨이브|둠|블랙|스래시|데스|프로그|포스트|힙합|포크)\s*(?:장면|현장)/g,
-    '$1 씬',
-  ],
-  // emo genre — Claude often transliterates as "에모" (the literal
-  // phonetic match), but the Korean vinyl / hardcore-adjacent
-  // community uses "이모" exclusively. Replace blanket because the
-  // characters "에모" only appear in compound loanwords (에모지 →
-  // 이모지, 에모셔널 → 이모셔널) where the alternate spelling is
-  // also valid and arguably more idiomatic, so the collateral
-  // damage is acceptable.
-  [/에모/g, '이모'],
-];
-
+//
 // Cached snapshot of the term_replacements table. Refreshed lazily
 // when the row count or max(id) changes so the cache invalidates the
 // moment an admin adds, edits, or deletes a rule. Avoids hitting the
 // DB twice per LLM output (this gets called for every excerpt_ko +
 // summary), and the small payload (rule list is order-of-tens) makes
-// in-memory replay cheap.
-type DbReplacement = { pattern: string; replacement: string };
+// in-memory replay cheap. Compiled regex is cached alongside the
+// rule so a noisy summary call doesn't recompile the same pattern.
+type DbReplacement = {
+  pattern: string;
+  replacement: string;
+  is_regex: number;
+  compiled?: RegExp;
+};
 let _dbReplacementsCache: DbReplacement[] = [];
 let _dbReplacementsKey = '0:0';
 
@@ -280,9 +212,25 @@ function loadDbReplacements(): DbReplacement[] {
   )[0] as { c: number; m: number };
   const key = `${meta.c}:${meta.m}`;
   if (key === _dbReplacementsKey) return _dbReplacementsCache;
-  _dbReplacementsCache = queryAll(
-    `SELECT pattern, replacement FROM term_replacements ORDER BY id`
+  const rows = queryAll(
+    `SELECT pattern, replacement, is_regex FROM term_replacements ORDER BY id`
   ) as DbReplacement[];
+  for (const r of rows) {
+    if (r.is_regex) {
+      try {
+        r.compiled = new RegExp(r.pattern, 'g');
+      } catch (err) {
+        // Bad regex stored — log once and fall back to plain
+        // string match so the rest of the rules still apply. Admin
+        // can fix or delete the offender from the UI.
+        console.warn(
+          `[normaliseKoreanTerms] invalid regex skipped: ${r.pattern} (${(err as Error).message})`
+        );
+        r.compiled = undefined;
+      }
+    }
+  }
+  _dbReplacementsCache = rows;
   _dbReplacementsKey = key;
   return _dbReplacementsCache;
 }
@@ -290,17 +238,13 @@ function loadDbReplacements(): DbReplacement[] {
 export function normaliseKoreanTerms(text: string | null | undefined): string {
   if (!text) return '';
   let out = text;
-  for (const [pattern, replacement] of KO_TERM_REPLACEMENTS) {
-    out = out.replace(pattern, replacement);
-  }
-  // Admin-curated rules are applied AFTER the hardcoded list so the
-  // operator can override or extend it case-by-case. Plain string
-  // substitution (no regex) — splitting on the literal pattern then
-  // joining with replacement is the simplest way to swap every
-  // occurrence without users having to know regex escaping.
-  for (const { pattern, replacement } of loadDbReplacements()) {
-    if (!pattern) continue;
-    out = out.split(pattern).join(replacement);
+  for (const r of loadDbReplacements()) {
+    if (!r.pattern) continue;
+    if (r.is_regex && r.compiled) {
+      out = out.replace(r.compiled, r.replacement);
+    } else {
+      out = out.split(r.pattern).join(r.replacement);
+    }
   }
   return out;
 }
