@@ -244,16 +244,16 @@ export default function HomeNext() {
                   the shop's "digger" — they share the same crate-
                   digging metaphor so they belong to this section
                   rather than the global chrome. digman_feed.png is
-                  a 160×160 head+shoulders icon (was 100×100; bumped
-                  for retina sharpness 2026-05-02) rendered at a
-                  100×100 display target — explicit width/height +
-                  maxWidth:none locks the on-screen size regardless
-                  of the source's intrinsic dimensions, so swapping
-                  the asset doesn't grow the heading row, and the
-                  browser handles the 1.6× downscale. Negative
-                  margin pulls it inside the h2's gap-3 so the
-                  mascot sits visually attached to the tape label
-                  rather than floating beside it. */}
+                  a 160×160 source rendered at an 80×80 display
+                  target (down from 100×100 — at 100 the mascot
+                  read as too dominant against the tape-label
+                  heading). The 2× downscale lands cleanly on
+                  retina screens. Explicit width/height + maxWidth:
+                  none locks the size so future asset swaps don't
+                  drift the heading row. Negative margin pulls it
+                  inside the h2's gap-3 so the mascot sits visually
+                  attached to the tape label rather than floating
+                  beside it. */}
               <SectionTitle
                 variant="tape"
                 className="!mb-3"
@@ -263,10 +263,10 @@ export default function HomeNext() {
                     alt=""
                     aria-hidden
                     draggable={false}
-                    width={100}
-                    height={100}
+                    width={80}
+                    height={80}
                     className="block -ml-2 select-none"
-                    style={{ width: 100, height: 100, maxWidth: 'none' }}
+                    style={{ width: 80, height: 80, maxWidth: 'none' }}
                   />
                 }
               >
