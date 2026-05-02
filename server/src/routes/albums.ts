@@ -595,7 +595,11 @@ const ALBUM_PAGE_SIZE_DEFAULT = 20;
 // /dig's adaptive sizing can fully fill ultra-density × tall
 // monitors (10 cols × ≥10 rows). The server-side N+1 subqueries
 // per row are still cheap enough at this scale to not need
-// JOIN/GROUP-BY collapsing.
+// JOIN/GROUP-BY collapsing — at ~600 albums and a few thousand
+// reviews, the correlated subqueries hit indexes for the LIMIT'd
+// row set and beat a full-aggregate JOIN materialisation by ~2×
+// (benchmarked 2026-05-02). Revisit if/when album count or
+// review count grows an order of magnitude.
 const ALBUM_PAGE_SIZE_MAX = 150;
 
 const SORT_CLAUSES: Record<string, string> = {

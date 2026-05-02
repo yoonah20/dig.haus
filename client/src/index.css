@@ -499,27 +499,4 @@ select:focus-visible {
  * ambiguity. The class itself stays in the markup as the selector
  * the helper uses to walk up from the inner trigger element. */
 
-@keyframes dustDrift {
-  0% {
-    transform: translate3d(0, 0, 0);
-    opacity: 0;
-  }
-  12% {
-    opacity: var(--dust-alpha, 0.5);
-  }
-  50% {
-    transform: translate3d(
-      calc(var(--dust-dx, 4vw) * 0.5),
-      calc(var(--dust-dy, -10vh) * 0.5),
-      0
-    );
-  }
-  88% {
-    opacity: var(--dust-alpha, 0.5);
-  }
-  100% {
-    transform: translate3d(var(--dust-dx, 4vw), var(--dust-dy, -10vh), 0);
-    opacity: 0;
-  }
-}
 
