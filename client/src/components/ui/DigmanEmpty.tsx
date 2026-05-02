@@ -6,10 +6,15 @@
 // rather than a one-off illustration in any single screen.
 //
 // `variant` picks the asset + framing:
-//   - 'default' (digman.webp): head-and-shoulders source, cropped to
-//     head + face via object-cover + object-top so the bottom ~30%
-//     torso doesn't eat vertical budget. Use for general empties —
-//     no snapshots, no followers, no search hits, 404.
+//   - 'default' (digman.webp): full-body portrait source (350×550,
+//     ~7:11). Rendered uncropped via object-contain inside a
+//     portrait-aspect frame so the entire figure stays visible.
+//     Earlier the wrapper was 5:4 + object-cover/object-top, which
+//     clipped the lower body by design — but a re-export bumped the
+//     source from a head-and-shoulders crop to a full-body figure,
+//     and the same cover/top math then sliced through the face
+//     mid-frame. Use for general empties — no snapshots, no
+//     followers, no search hits, 404.
 //   - 'sign'    (digman_sign.webp): digman holding a yellow A-frame
 //     "work in progress" sign with the dig.haus logotype. The sign
 //     is the central element so the asset is rendered uncropped
@@ -29,7 +34,7 @@ type DigmanEmptyProps = {
    *  for surfaces that want a follow-up hint. */
   hint?: string;
   size?: 'md' | 'lg';
-  /** 'default' = head-cropped digman; 'sign' = digman + WIP sign. */
+  /** 'default' = full-body digman; 'sign' = digman + WIP sign. */
   variant?: 'default' | 'sign';
   className?: string;
 };
@@ -38,12 +43,13 @@ const SIZE_CLASSES: Record<
   NonNullable<DigmanEmptyProps['variant']>,
   Record<NonNullable<DigmanEmptyProps['size']>, string>
 > = {
-  // Default: ~80×64 (md) and ~160×128 (lg). 5:4 crop matches the
-  // SectionTitle pairing on the home feed so proportions stay
-  // consistent across surfaces.
+  // Default: portrait frame matching the source's 7:11 aspect (within
+  // a Tailwind preset). 64×96 (md) for in-page list empties, 128×192
+  // (lg) for full-page empties like 404. object-contain keeps the
+  // whole figure visible — no cropping.
   default: {
-    md: 'w-20 h-16',
-    lg: 'w-40 h-32',
+    md: 'w-16 h-24',
+    lg: 'w-32 h-48',
   },
   // Sign: larger than default because the WIP sign holds a logotype
   // + warning symbol that needs to be legible — shrinking it past a
@@ -65,16 +71,17 @@ export default function DigmanEmpty({
 }: DigmanEmptyProps) {
   const isSign = variant === 'sign';
   const src = isSign ? '/textures/digman_sign.webp' : '/textures/digman.webp';
-  // Default crops head; sign keeps the whole composition visible.
-  const imgFit = isSign
-    ? 'object-contain object-center'
-    : 'object-cover object-top';
+  // Both variants render uncropped now — the default used to crop to
+  // the head via object-cover/object-top against a 5:4 frame, but the
+  // re-exported full-body source put the face on the crop seam. Frame
+  // aspect handles framing instead.
+  const imgFit = 'object-contain object-center';
 
   return (
     <div
       className={`flex flex-col items-center justify-center gap-2 py-6 text-center ${className}`}
     >
-      <div className={`${SIZE_CLASSES[variant][size]} overflow-hidden`}>
+      <div className={SIZE_CLASSES[variant][size]}>
         <img
           src={src}
           alt=""
