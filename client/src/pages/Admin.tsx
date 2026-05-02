@@ -1085,29 +1085,39 @@ export default function Admin() {
 
       {activeTab === 'curation' && (
         <>
-          {/* Two SubSections separate the tab's two concerns. The
-              earlier flat layout stacked five panels in one column,
-              mixing curated-rule surfaces (sources / tag blacklist
-              / term replacements) with read-only operational logs
-              (scrape failures / curation runs). Grouping them under
-              labelled headers makes the tab read as "rules I curated
-              + logs of what happened" rather than five disconnected
-              moderation tools. */}
+          {/* Two SubSections separate the tab's two concerns
+              (curated rules vs. operational logs). Within each, the
+              panels arrange into a desktop grid so the tab no
+              longer reads as one long vertical scroll on a
+              wide monitor:
+                - SourcesPanel stays full-width — it already runs
+                  its own 4-col internal layout (success / failure
+                  / whitelist / blacklist) that needs the room.
+                - TagBlacklist + TermReplacements stack vertically
+                  on mobile but sit side-by-side at lg+ — both are
+                  list-style "rules I curated" panels with similar
+                  shape, so they pair naturally.
+                - ScrapeFailures + CurationRuns also pair at lg+
+                  for the same reason — two telemetry tables. */}
           <SubSection
             title="큐레이션 룰"
             hint="내가 만든 차단/치환 규칙 — 신규 import 부터 적용됨"
           >
             <SourcesPanel />
-            <TagBlacklistPanel />
-            <TermReplacementsPanel />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <TagBlacklistPanel />
+              <TermReplacementsPanel />
+            </div>
           </SubSection>
 
           <SubSection
             title="운영 로그"
             hint="자동 수집된 텔레메트리 — 큐레이션 결과 / 실패 추적용"
           >
-            <ScrapeFailuresPanel />
-            <CurationRunsPanel />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <ScrapeFailuresPanel />
+              <CurationRunsPanel />
+            </div>
           </SubSection>
         </>
       )}
