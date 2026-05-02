@@ -411,7 +411,7 @@ export default function ReviewSection({
   const defaultManualSource = () =>
     Object.values(sourceHistory).slice(-1)[0] || 'AllMusic';
 
-  const startAddReview = () => {
+  const startAddReview = async () => {
     setAddUrl('');
     setDiscoveredUrls([]);
     setManualSource(defaultManualSource());
@@ -420,6 +420,26 @@ export default function ReviewSection({
     setManualBody('');
     setAddMode('url');
     setAddingReview(true);
+
+    // Common case: admin copied a review URL from another tab and
+    // came here to paste it. Pre-fill the textarea from the
+    // clipboard so the gesture is one click instead of click → ⌘V.
+    // Silently no-ops if the clipboard API is unavailable, permission
+    // is denied, or the contents aren't URL-shaped — falls back to
+    // the empty textarea the admin sees today.
+    //
+    // Multi-URL clipboards (one URL per line) flow through unchanged:
+    // the existing add-URL parser splits on newlines, so a list of
+    // URLs lands as a list, not a single concatenated string.
+    try {
+      if (!navigator.clipboard?.readText) return;
+      const text = await navigator.clipboard.readText();
+      if (text && /^https?:\/\//i.test(text.trim())) {
+        setAddUrl(text.trim());
+      }
+    } catch {
+      // ignore — denied / unavailable / not URL-shaped
+    }
   };
 
   const cancelAddReview = () => {
