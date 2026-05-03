@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import HomeNextHero from '../components/Home/HomeNextHero';
 import HomeNextHeroMobile from '../components/Home/HomeNextHeroMobile';
@@ -7,10 +7,10 @@ import {
   type HomeSnapshot,
 } from '../hooks/useHomeSnapshots';
 import {
-  useUserReviewsFeed,
+  useInfiniteUserReviewsFeed,
   type UserReviewFeedItem,
 } from '../hooks/useUserReviewsFeed';
-import { useRecentAlbums } from '../hooks/useRecentAlbums';
+import { useInfiniteRecentAlbums } from '../hooks/useRecentAlbums';
 import AlbumCard from '../components/AlbumCard';
 import CoverArt from '../components/CoverArt';
 import UserHoverCard from '../components/UserHoverCard';
@@ -63,6 +63,12 @@ type FeedItem =
   | { kind: 'snapshot'; createdAt: string; key: string; snap: HomeSnapshot }
   | { kind: 'review'; createdAt: string; key: string; review: UserReviewFeedItem };
 
+// Page size for the infinite-scroll streams (albums + reviews).
+// Each fetchNextPage pulls this many items from each stream; the
+// chronological merge happens client-side over all pages. 30 keeps
+// the first-paint cost manageable while giving the scroll observer
+// roughly five rows of runway before the next page is needed on
+// the densest 7-col xl layout.
 const FEED_SIZE = 30;
 
 // Split a flat list into rows of fixed size. Last row may be
@@ -108,34 +114,39 @@ export default function HomeNext() {
     type: 'website',
   });
 
-  // Albums + reviews share the chronological merge; snapshots are
-  // fetched at a higher limit because one is pinned per row of the
-  // grid (the last slot of every row is reserved for the next-most-
-  // recent snapshot, padding-falls-back to base items when snapshots
-  // run out). 8 covers ~5 rows on the densest 7-col xl layout.
-  const recentAlbums = useRecentAlbums(true, FEED_SIZE);
+  // Albums + reviews are paged via useInfiniteQuery so the feed
+  // grows as the visitor scrolls. Snapshots stay one-shot — there
+  // are only ever a small finite set in flight, and the row builder
+  // already falls back to base items when snapshots run out, so
+  // pagination there would be wasted code.
+  const recentAlbums = useInfiniteRecentAlbums(true, FEED_SIZE);
+  const reviews = useInfiniteUserReviewsFeed(true, FEED_SIZE);
   const snapshots = useHomeSnapshots(true, 8);
-  const reviews = useUserReviewsFeed(true, FEED_SIZE);
   const isMobile = useIsMobileHero();
 
   const ACTIVITY_COLS = { base: 3, sm: 3, md: 4, lg: 5, xl: 7 };
   const activityCols = useGridCols(ACTIVITY_COLS);
 
-  // Plain time-merge — every review and every album the APIs return
-  // are pushed in as-is and sorted by createdAt DESC. No quota, no
-  // priority weighting, no per-stream cap. Whatever happened most
-  // recently wins, full stop. Snapshots are the only stream that
-  // gets reserved slots (handled by the row builder below).
+  // Flatten every fetched page from each infinite stream, then plain
+  // time-merge. Same merge rule as before — chronological DESC, no
+  // quota, no priority weighting. As the visitor scrolls and more
+  // pages land, this re-runs and grows the feed.
+  const allReviewItems = useMemo<UserReviewFeedItem[]>(
+    () => reviews.data?.pages.flatMap((p) => p.items) ?? [],
+    [reviews.data]
+  );
+  const allAlbumItems = useMemo<AlbumSearchResult[]>(
+    () => recentAlbums.data?.pages.flatMap((p) => p.albums) ?? [],
+    [recentAlbums.data]
+  );
   const baseFeed = useMemo<FeedItem[]>(() => {
-    const reviewItems: FeedItem[] = (reviews.data?.items ?? []).map(
-      (review) => ({
-        kind: 'review',
-        createdAt: review.createdAt,
-        key: `review-${review.id}`,
-        review,
-      })
-    );
-    const albumItems: FeedItem[] = (recentAlbums.data?.albums ?? [])
+    const reviewItems: FeedItem[] = allReviewItems.map((review) => ({
+      kind: 'review',
+      createdAt: review.createdAt,
+      key: `review-${review.id}`,
+      review,
+    }));
+    const albumItems: FeedItem[] = allAlbumItems
       .filter((a) => a.createdAt)
       .map((album) => ({
         kind: 'album',
@@ -152,7 +163,7 @@ export default function HomeNext() {
     });
 
     return items;
-  }, [recentAlbums.data, reviews.data]);
+  }, [allReviewItems, allAlbumItems]);
 
   // Snapshot density adapts to viewport width:
   //   • Desktop (cols >= 4) — per-row pinning. Each row's last slot
@@ -171,20 +182,20 @@ export default function HomeNext() {
     let bi = 0;
     let si = 0;
     let row = 0;
-    while (bi < baseFeed.length && result.length < FEED_SIZE) {
+    // Walk every fetched base item — no FEED_SIZE cap now that the
+    // streams paginate. Snapshots run out fast (one-shot fetch);
+    // after that, the snap slot just falls back to the next base
+    // item via the else-if branch below.
+    while (bi < baseFeed.length) {
       const isSnapRow = perRowSnaps ? true : row % 2 === 1;
       const baseInRow = isSnapRow ? cols - 1 : cols;
       const startedRow = result.length;
-      for (
-        let i = 0;
-        i < baseInRow && bi < baseFeed.length && result.length < FEED_SIZE;
-        i++
-      ) {
+      for (let i = 0; i < baseInRow && bi < baseFeed.length; i++) {
         result.push(baseFeed[bi++]);
       }
       const filledBase = result.length - startedRow;
       if (filledBase < baseInRow) break; // partial row — drop it
-      if (isSnapRow && result.length < FEED_SIZE) {
+      if (isSnapRow) {
         if (si < recentSnapshots.length) {
           const snap = recentSnapshots[si++];
           result.push({
@@ -215,6 +226,36 @@ export default function HomeNext() {
   const isLoading =
     recentAlbums.isLoading || snapshots.isLoading || reviews.isLoading;
 
+  // Infinite-scroll sentinel — when this div enters the viewport
+  // (with a 600px rootMargin so prefetch happens before the visitor
+  // sees the bottom), trigger fetchNextPage on whichever stream
+  // still has more pages. Both streams advance together so the
+  // chronological merge stays balanced — fetching only one would
+  // skew the feed toward whichever stream got ahead.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (!entries[0]?.isIntersecting) return;
+        if (recentAlbums.hasNextPage && !recentAlbums.isFetchingNextPage) {
+          recentAlbums.fetchNextPage();
+        }
+        if (reviews.hasNextPage && !reviews.isFetchingNextPage) {
+          reviews.fetchNextPage();
+        }
+      },
+      { rootMargin: '600px 0px' }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [recentAlbums, reviews]);
+
+  const stillFetchingMore =
+    recentAlbums.isFetchingNextPage || reviews.isFetchingNextPage;
+  const reachedEnd = !recentAlbums.hasNextPage && !reviews.hasNextPage;
+
   return (
     <div className="flex-1 flex flex-col">
       {/* ── Hero ───────────────────────────────────────────────────
@@ -230,12 +271,14 @@ export default function HomeNext() {
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-6">
           {/* ── 최근 굴착 활동 ─────────────────────────────────────
               Plain time-merge of newly registered albums + 50자 평,
-              sorted by createdAt DESC, capped at FEED_SIZE cells.
-              Only snapshots get reserved slots — every row's last
-              cell on desktop, every-other-row on mobile. Card types
-              are visually distinguished (full AlbumCard chrome /
-              blurred-cover review card / 5+1 cover-grid snapshot
-              card). */}
+              sorted by createdAt DESC. Streams paginate via
+              useInfiniteQuery — IntersectionObserver on the sentinel
+              below the grid pages in more rows as the visitor
+              scrolls. Only snapshots get reserved slots — every
+              row's last cell on desktop, every-other-row on mobile.
+              Card types are visually distinguished (full AlbumCard
+              chrome / blurred-cover review card / 5+1 cover-grid
+              snapshot card). */}
           {!isLoading && trimmed.length > 0 && (
             <section>
               {/* digman mascot pairs with the section heading instead
@@ -306,14 +349,29 @@ export default function HomeNext() {
                   );
                 })}
               </div>
-              {/* Catalog browse fallback. The home feed is recency-
-                  weighted and only surfaces FEED_SIZE cards; users
-                  who want the full release-date-sorted catalog go
-                  to /dig. */}
-              <div className="mt-3 text-right">
+              {/* Infinite-scroll sentinel. The IntersectionObserver
+                  above watches this element and pages in more
+                  albums/reviews as the visitor approaches the
+                  bottom. The /dig link stays as a "release-date-
+                  sorted catalog" alternative — different sort key
+                  than the home feed's recency merge, so it's not
+                  redundant once paging is automatic. */}
+              <div
+                ref={sentinelRef}
+                aria-hidden
+                style={{ height: 1, marginTop: 16 }}
+              />
+              <div className="mt-3 flex items-center justify-between text-sm text-gray-500">
+                <span aria-live="polite">
+                  {stillFetchingMore
+                    ? '더 불러오는 중…'
+                    : reachedEnd
+                      ? '여기까지'
+                      : ''}
+                </span>
                 <Link
                   to="/dig"
-                  className="text-sm text-gray-400 hover:text-[#e8a020] transition-colors"
+                  className="text-gray-400 hover:text-[#e8a020] transition-colors"
                 >
                   앨범 더 보러가기 →
                 </Link>

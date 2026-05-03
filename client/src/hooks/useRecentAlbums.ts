@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import type { AlbumSearchResult } from '../types';
 
@@ -29,6 +29,30 @@ export function useRecentAlbums(enabled = true, limit = 30) {
       });
       return data;
     },
+    enabled,
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+// Infinite-scroll variant for the home feed. The /api/albums endpoint
+// already returns page / totalPages, so getNextPageParam can drive
+// page-by-page fetching without a separate cursor mechanism.
+export function useInfiniteRecentAlbums(enabled = true, pageSize = 30) {
+  return useInfiniteQuery<AlbumListResponse>({
+    queryKey: ['home-recent-albums-infinite', pageSize],
+    queryFn: async ({ pageParam = 1 }) => {
+      const { data } = await axios.get<AlbumListResponse>('/api/albums', {
+        params: {
+          sort: 'registered_desc',
+          page: pageParam,
+          pageSize,
+        },
+      });
+      return data;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
     enabled,
     staleTime: 1000 * 60 * 2,
   });

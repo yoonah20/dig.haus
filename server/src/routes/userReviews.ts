@@ -121,6 +121,24 @@ router.get('/user-reviews/feed', (req, res) => {
   const limitRaw = parseInt((req.query.limit as string) || '', 10);
   const limit =
     Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 60) : 30;
+  // `order=recent` switches to deterministic created_at DESC + OFFSET
+  // for infinite-scroll pagination on the home feed. Default keeps
+  // the random-jitter + recency-weighted ordering the CommentTicker
+  // depends on for its surface-old-comments behaviour.
+  const orderMode = req.query.order === 'recent' ? 'recent' : 'weighted';
+  const offsetRaw = parseInt((req.query.offset as string) || '', 10);
+  const offset =
+    Number.isFinite(offsetRaw) && offsetRaw >= 0 ? offsetRaw : 0;
+
+  const orderClause =
+    orderMode === 'recent'
+      ? 'ORDER BY ur.created_at DESC LIMIT ? OFFSET ?'
+      : `ORDER BY
+       (ABS(RANDOM()) % 1000) +
+       (julianday('now') - julianday(ur.created_at)) * 30
+     LIMIT ?`;
+  const params: Array<number> =
+    orderMode === 'recent' ? [limit, offset] : [limit];
 
   const rows = queryAll(
     `SELECT ur.id, ur.body, ur.emoji, ur.rating, ur.created_at, ur.user_id,
@@ -139,11 +157,8 @@ router.get('/user-reviews/feed', (req, res) => {
      INNER JOIN albums a ON a.id = ur.album_id
      LEFT JOIN users u ON u.id = ur.user_id
      WHERE LENGTH(TRIM(ur.body)) > 0
-     ORDER BY
-       (ABS(RANDOM()) % 1000) +
-       (julianday('now') - julianday(ur.created_at)) * 30
-     LIMIT ?`,
-    [limit]
+     ${orderClause}`,
+    params
   ) as Array<{
     id: number;
     body: string;
