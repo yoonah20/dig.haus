@@ -205,6 +205,33 @@ export default function Album() {
           ) : null}
         </div>
 
+        {/* Issue closer — hardhat mascot + "Every Day I Dig" signature
+            sits between similar-albums and the prev/next nav as a
+            small page-end flourish. Caveat-set tagline in the amber
+            brand colour reads as the operator's marker scribble at
+            the bottom of the page. Not gated on showNav — every
+            album page closes with this so the sign-off is consistent
+            even on early-catalog albums that don't have neighbours
+            yet. */}
+        <div className="flex items-end justify-center gap-3 pt-2">
+          <img
+            src="/textures/digman.webp"
+            alt=""
+            aria-hidden
+            className="w-20 sm:w-24 -rotate-6 drop-shadow-[2px_4px_4px_rgba(0,0,0,0.45)] select-none pointer-events-none"
+          />
+          <span
+            className="text-[#e8a020] pb-2 -rotate-3 leading-none select-none"
+            style={{
+              fontFamily: "'Caveat', cursive",
+              fontWeight: 700,
+              fontSize: '36px',
+            }}
+          >
+            Every Day I Dig
+          </span>
+        </div>
+
         {/* Prev / Next album navigation */}
         {showNav && (
           <nav className="border-t border-white/5 pt-8 max-w-2xl mx-auto">
