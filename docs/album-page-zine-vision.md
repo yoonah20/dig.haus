@@ -1,4 +1,20 @@
-# Album page — record-shop zine vision
+# Album page — record-shop zine vision *(PARKED 2026-05-04)*
+
+> **Status: parked.** Built end-to-end as a parallel `/album-zine/:slug` route on 2026-05-04 (~3,000 lines across 6 components, all sections functional including BuyCard grid, sticky-note 50자 평, huge handwritten score, 5-col similar-albums rail). After feature completion the user compared it side-by-side with the live `/album` and concluded the zine direction wasn't working. Code deleted from main; this doc + the mockup PNG kept as the record of what was tried + why.
+>
+> **Why it didn't work** (read before any future revival attempt):
+> 1. Cream paper hurts on screens — paper-stock tones are tuned for printed light, not pixels at body-text sizes.
+> 2. Korean text on cream loses sharpness. Hahmlet / Noto Serif KR at 13–15px don't carry over from dark mode. The reference mock read well partly because it was English-heavy.
+> 3. Five fonts in one page (Anton + Newsreader + Hahmlet + JetBrains Mono + Caveat) competed. Magazine spreads use 2–3.
+> 4. Chrome density too high — boxed buttons + dashed forms + pink ribbons + rubber stamps + masking tape + paper noise stacked on the same page.
+> 5. Editorial voice (`RECOMMENDATION`, `REAL PEOPLE REAL WORDS`) presumes editorial weight not every album in a 350-and-growing catalog earns.
+> 6. Live page is already tuned. Adding a 5th visual dialect (alongside home / mydig / album chrome / admin) competed with what works instead of consolidating.
+>
+> The single zine-derived element kept on the live page: hardhat mascot + `Every Day I Dig` Caveat signature at the bottom of `/album/:slug`. Sits between similar-albums rail and prev/next nav as a small page-end flourish — that's the dose of the zine character that survived.
+>
+> **Don't revive without first solving the cream-paper × Korean-text × screen-readability question.** That's the architectural issue, not implementation polish. The text below preserves the original zine plan as the historical record of what was attempted.
+
+---
 
 Long-term aesthetic target for `/album/:slug`. The PR1–PR7 chrome refactor that landed 2026-04-25 was infrastructure (tokens + primitives + tape headers + lamp wash) that this future pass sits on top of, not the destination. The user explicitly flagged the chrome refactor as "too subtle" and put `album-page-zine-mockup.png` in this folder as the actual ambition.
 

@@ -12,7 +12,7 @@ This is intentionally a **roadmap**, not a plan. It captures what's on the table
 - **Crate functionality shipped** (originally roadmap item 2). Schema (`crate_boxes` + `crate_items`), full CRUD API at `/api/mydig/crates`, `CrateSection.tsx` listing + `CrateDetailModal.tsx` management, VinylWallEditor "내 상자" source filter. 샀음/살거 absorbed into the crate system via `CrateButton.tsx` (replaced the prior split-pill). The "magic cabinet" *visual* is the only remaining piece, blocked on design.
 - **Home hero multi-wall carousel shipped** (originally roadmap addition D). 3 walls seeded against `hero_*.avif` backdrops, per-wall ink/shadow tokens on `home_walls`, `HomeNextHero.tsx` carousel with IntersectionObserver + sessionStorage memory, admin add/order/name/per-wall metadata UI in `routes/homeFeatures.ts`.
 - **Toaster (Topster-style) PNG export shipped** (originally roadmap item 1a). Server-rendered at `/api/mydig/:user/toaster.png` via `services/toasterRenderer.ts`, web share API path for mobile, "토스터" button on `/my/:username` header beside the URL share button.
-- **Album page chrome refactor shipped** (PR1–PR7, 2026-04-25). Tokens + four chrome primitives (Panel/Chip/Field/SectionTitle), section title migration, palette/rounding consistency. Foundation for the zine pass (item 0b below) which is still pending.
+- **Album page chrome refactor shipped** (PR1–PR7, 2026-04-25). Tokens + four chrome primitives (Panel/Chip/Field/SectionTitle), section title migration, palette/rounding consistency. The zine pass that was meant to sit on top of this foundation was tried + scrapped on 2026-05-04 — see "Probably won't ship" below for the diagnosis.
 - **Phase 4 nightly pipeline PARKED** — Pre-L0 spot-check failed on Qwen3-14B; bench harness torn down; revivable from c051df8 if a better local model appears.
 - **Live MyDig storefront** is the transitional Hongdae-dusk composition. Long-term target is Path B per `docs/phase3-storefront-decisions.md` entries 18–19 (illustrated lofi-bedroom background asset behind CSS/SVG overlays).
 - **DB scale**: ~350 albums. Comfortable usable scale is closer to 30,000.
@@ -32,10 +32,9 @@ After the May cleanup, the roadmap reduces to four buckets:
 
 ### Blocked on design
 
-- **0b: Album page zine pass** — Tier 1 typography pivot waiting on visual direction. See `docs/album-page-zine-vision.md`. Confirmed parked 2026-05-03 pending a design step.
 - **3: Shop-feel visual polish** — needs asset purchase + visual identity decisions. Pairs with the Crate "magic cabinet" visual (same asset pipeline).
 - **Crate "magic cabinet" visual** — the storefront surface for the now-functional Crate system. Functionality done; visual undone.
-- **Hardhat mascot character** — yellow-hardhat mascot direction parked in `docs/`; greenlight pending per memory.
+- **Hardhat mascot character** — initial dose landed 2026-05-04 as the `Every Day I Dig` Caveat signature at the bottom of `/album/:slug` (between similar-albums and prev/next nav). Broader character direction (other surfaces, animated states) still parked in `docs/`; greenlight pending per memory.
 
 ### Blocked on vision
 
@@ -43,6 +42,7 @@ After the May cleanup, the roadmap reduces to four buckets:
 
 ### Probably won't ship (or not in this cycle)
 
+- **0b: Album page zine pass — TRIED + PARKED 2026-05-04.** Built end-to-end as `/album-zine/:slug` (~3,000 lines, 6 components: ZineCrateButton, ZinePurchasePanel, ZineUserReviewsSection, ZineReviewSummary, ZineSimilarAlbums, atoms). Scrapped after side-by-side comparison with live `/album` showed the cream-paper × Korean-text × screen-readability combo wasn't working. Full diagnosis lives in the parked header of `docs/album-page-zine-vision.md`. Don't revive without first solving the readability question — the failure is in the medium, not the implementation. Single salvaged element: hardhat mascot + `Every Day I Dig` Caveat signature on the live page.
 - **A: Discogs collection import** — useful pre-growth, not needed at current scale per a 2026-05-03 decision. Reconsider before any user-growth push.
 - **C: Random dig button** — author themselves doesn't use random buttons. Kept on the list philosophically but flagged for drop on next review.
 - **E: 라이너 노트 promotion** — small UI peel-off, on hold per a 2026-05-03 decision. Trivial to revive (1–2 days) when wanted.
@@ -68,7 +68,7 @@ The album page chrome refactor (PR1–PR7, 2026-04-25) hoisted tokens and shippe
 - **Admin** is largely utilitarian, no shared design language.
 - **Modals, voting pills, ownership/crate buttons, hover cards** each evolved independently and don't reliably share spacing, radius, or shadow tokens.
 
-The result is *coherent within each surface, drifting across surfaces*. The user reports the overall feel as "중구난방." Before the zine pass (item 0b) lands and adds yet another visual dialect, an audit pass is worth the time:
+The result is *coherent within each surface, drifting across surfaces*. The user reports the overall feel as "중구난방." (The 2026-05-04 zine pass — which would have added a fifth dialect — was scrapped specifically because of this drift. The audit below is the path that remains.)
 
 1. **Inventory** — catalog all token usage (color, spacing, radius, shadow, typography) across surfaces. Identify which surfaces re-import the album page tokens vs invent local ones.
 2. **Identify drift vs intentional divergence** — the per-wall ink/shadow on `home_walls` is intentional (each wall has its own paper colour, must read against its backdrop); the admin's separate styles are accidental drift. Mark each.
@@ -77,7 +77,7 @@ The result is *coherent within each surface, drifting across surfaces*. The user
 
 **Output**: a short tokens reference doc + a list of consolidation PRs. Most consolidation can ship incrementally (one surface per PR) rather than as a single big-bang cleanup.
 
-**Sequencing**: best done *before* the zine pass (0b) so the zine inherits a clean foundation rather than adding a fifth dialect to the existing four. Independent of B and G.
+**Sequencing**: independent — doesn't depend on B or G. Originally meant to land before the zine pass (0b) to give it a clean foundation; with 0b parked, the audit's value shifts to consolidating the four existing dialects (home / mydig / album chrome / admin) into a more coherent identity.
 
 ### B. Label pages as first-class destinations
 
@@ -97,7 +97,7 @@ Backend already has `/api/labels/:name` (Discogs + MusicBrainz lookup) and label
 
 **Schema delta**: `curated_artists (id, name, ko_name?, blurb?, ...)` + `album_curated_artists (album_id, curated_artist_id, role?)` many-to-many. Label and genre lenses need zero schema work.
 
-**Sequencing**: independent — doesn't depend on items 0b / B / 3, can land any time. Reinforces B if/when both ship.
+**Sequencing**: independent — doesn't depend on B or 3, can land any time. Reinforces B if/when both ship.
 
 ### 1b. Right-rail social ticker (vision-blocked)
 
@@ -117,7 +117,7 @@ Don't ship until the vision shape is decided; the easy implementation choice wil
 Phase 3 schema cleanup    (1-2 days, anytime; closes lingering debt)
    └─ users.mydig_public, shelf_slots.genre_id, crate_boxes.position
 
-Design system audit       (~1 week, before zine pass)
+Design system audit       (~1 week, anytime)
    ├─ inventory tokens + primitives across surfaces
    ├─ consolidate accidental drift (incremental PRs)
    └─ document intentional divergence
@@ -131,12 +131,11 @@ B  Label pages             (multi-week phase of its own)
    └─ admin-written intros + per-label vinyl wall + follow-this-label
 
 [design unblocks, then:]
-0b  Album page zine pass   (multi-week, Tier 1-4)
-3   Shop-feel visual       (after 0b, shares asset pipeline)
+3   Shop-feel visual       (asset pipeline)
     Crate magic-cabinet visual (after 3, same asset pipeline)
 ```
 
-The original sequencing chain (0 → 4 → 2 → 3 → 1a → 1b) is mostly retired because 1a / 2 / D shipped and 4 is parked. What remains is: close the schema debt, run the design system audit so future visual work inherits a clean foundation, then pick between "curatorial expansion" (G + B) and "design unblocks" (0b → 3 → magic cabinet).
+The original sequencing chain (0 → 4 → 2 → 3 → 1a → 1b) is mostly retired because 1a / 2 / D shipped, 4 is parked, and 0b was tried + scrapped on 2026-05-04. What remains is: close the schema debt, run the design system audit so future visual work inherits a clean foundation, then pick between "curatorial expansion" (G + B) and "design unblocks" (3 → magic cabinet).
 
 ---
 
