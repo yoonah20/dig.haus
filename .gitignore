@@ -19,3 +19,7 @@ db-dump/
 
 # Local Claude Code settings
 .claude/settings.local.json
+
+# Local-only files (per-developer, not shared)
+/dev
+/docs/operator-portrait.md
