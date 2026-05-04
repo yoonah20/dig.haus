@@ -155,7 +155,31 @@ export default function HomeNext() {
         album,
       }));
 
-    const items = [...reviewItems, ...albumItems];
+    // Cap the visible feed at whichever stream's loaded tail is more
+    // recent. Without this cap, an admin-batch day (30 albums all on
+    // the same date) followed by a sparse-review window produced a
+    // long "comment-only" stretch below the batch — reviews page 1
+    // covered ~2 weeks while albums page 1 covered ~1 day, so every
+    // row below the album tail was reviews-solo until album page 2
+    // landed. Items older than the cap stay in cache and surface as
+    // soon as the lagging stream pages forward (sentinel triggers
+    // fetchNextPage on both streams). hasNextPage=false drops a
+    // stream out of the cap so the other can run alone to its end.
+    const tailTimeOf = (items: FeedItem[]) =>
+      items.length > 0
+        ? parseServerTimestamp(items[items.length - 1].createdAt).getTime()
+        : Number.NEGATIVE_INFINITY;
+    const albumTail = recentAlbums.hasNextPage
+      ? tailTimeOf(albumItems)
+      : Number.NEGATIVE_INFINITY;
+    const reviewTail = reviews.hasNextPage
+      ? tailTimeOf(reviewItems)
+      : Number.NEGATIVE_INFINITY;
+    const cutoff = Math.max(albumTail, reviewTail);
+
+    const items = [...reviewItems, ...albumItems].filter(
+      (it) => parseServerTimestamp(it.createdAt).getTime() >= cutoff
+    );
     items.sort((a, b) => {
       const ta = parseServerTimestamp(a.createdAt).getTime();
       const tb = parseServerTimestamp(b.createdAt).getTime();
@@ -163,7 +187,12 @@ export default function HomeNext() {
     });
 
     return items;
-  }, [allReviewItems, allAlbumItems]);
+  }, [
+    allReviewItems,
+    allAlbumItems,
+    recentAlbums.hasNextPage,
+    reviews.hasNextPage,
+  ]);
 
   // Snapshot density adapts to viewport width:
   //   • Desktop (cols >= 4) — per-row pinning. Each row's last slot
