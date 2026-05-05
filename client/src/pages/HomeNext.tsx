@@ -139,7 +139,7 @@ export default function HomeNext() {
     () => recentAlbums.data?.pages.flatMap((p) => p.albums) ?? [],
     [recentAlbums.data]
   );
-  const baseFeed = useMemo<FeedItem[]>(() => {
+  const baseFeed = useMemo<{ albums: FeedItem[]; reviews: FeedItem[] }>(() => {
     const reviewItems: FeedItem[] = allReviewItems.map((review) => ({
       kind: 'review',
       createdAt: review.createdAt,
@@ -177,16 +177,16 @@ export default function HomeNext() {
       : Number.NEGATIVE_INFINITY;
     const cutoff = Math.max(albumTail, reviewTail);
 
-    const items = [...reviewItems, ...albumItems].filter(
-      (it) => parseServerTimestamp(it.createdAt).getTime() >= cutoff
-    );
-    items.sort((a, b) => {
-      const ta = parseServerTimestamp(a.createdAt).getTime();
-      const tb = parseServerTimestamp(b.createdAt).getTime();
-      return tb - ta;
-    });
+    const keep = (it: FeedItem) =>
+      parseServerTimestamp(it.createdAt).getTime() >= cutoff;
 
-    return items;
+    // Preserve each stream's intra-stream chronological order. The
+    // row builder below pulls from these two queues with a per-row
+    // review cap, so we keep them split rather than merging here.
+    return {
+      albums: albumItems.filter(keep),
+      reviews: reviewItems.filter(keep),
+    };
   }, [
     allReviewItems,
     allAlbumItems,
@@ -208,36 +208,68 @@ export default function HomeNext() {
     const result: FeedItem[] = [];
     const cols = activityCols;
     const perRowSnaps = cols >= 4;
-    let bi = 0;
-    let si = 0;
+    // Per-row review cap. Pure time-merge produced "comment-only"
+    // rows whenever a stretch of reviews happened with no album
+    // registrations between them — particularly noticeable when one
+    // user wrote many reviews in the same week. The cap shifts
+    // overflow reviews into the next row(s) (intra-stream order
+    // preserved), pulling albums forward to fill the freed cells so
+    // the visual mix stays steady. ~33% of base cells per row,
+    // floor=1 so the cap never goes to zero on narrow grids.
+    const reviewCapPerRow = Math.max(1, Math.ceil(cols / 3));
+    const albumQ = [...baseFeed.albums];
+    const reviewQ = [...baseFeed.reviews];
+    const snapQ: FeedItem[] = recentSnapshots.map((snap) => ({
+      kind: 'snapshot',
+      createdAt: snap.createdAt,
+      key: `snap-${snap.id}`,
+      snap,
+    }));
+    const tsOf = (it: FeedItem) =>
+      parseServerTimestamp(it.createdAt).getTime();
     let row = 0;
-    // Walk every fetched base item — no FEED_SIZE cap now that the
-    // streams paginate. Snapshots run out fast (one-shot fetch);
-    // after that, the snap slot just falls back to the next base
-    // item via the else-if branch below.
-    while (bi < baseFeed.length) {
+    while (albumQ.length + reviewQ.length > 0) {
       const isSnapRow = perRowSnaps ? true : row % 2 === 1;
       const baseInRow = isSnapRow ? cols - 1 : cols;
       const startedRow = result.length;
-      for (let i = 0; i < baseInRow && bi < baseFeed.length; i++) {
-        result.push(baseFeed[bi++]);
-      }
-      const filledBase = result.length - startedRow;
-      if (filledBase < baseInRow) break; // partial row — drop it
-      if (isSnapRow) {
-        if (si < recentSnapshots.length) {
-          const snap = recentSnapshots[si++];
-          result.push({
-            kind: 'snapshot',
-            createdAt: snap.createdAt,
-            key: `snap-${snap.id}`,
-            snap,
-          });
-        } else if (bi < baseFeed.length) {
-          result.push(baseFeed[bi++]);
+      let rowReviews = 0;
+      let filled = 0;
+      while (filled < baseInRow) {
+        if (albumQ.length === 0 && reviewQ.length === 0) break;
+        let pickAlbum: boolean;
+        if (albumQ.length === 0) {
+          pickAlbum = false;
+        } else if (reviewQ.length === 0) {
+          pickAlbum = true;
+        } else if (rowReviews >= reviewCapPerRow) {
+          pickAlbum = true;
         } else {
-          // Drop the partial snap-row entirely — last cell would
-          // otherwise be empty and break the grid template.
+          pickAlbum = tsOf(albumQ[0]) >= tsOf(reviewQ[0]);
+        }
+        if (pickAlbum) {
+          result.push(albumQ.shift()!);
+        } else {
+          result.push(reviewQ.shift()!);
+          rowReviews++;
+        }
+        filled++;
+      }
+      if (filled < baseInRow) {
+        // Couldn't fill the base portion — drop the partial row.
+        result.length = startedRow;
+        break;
+      }
+      if (isSnapRow) {
+        if (snapQ.length > 0) {
+          result.push(snapQ.shift()!);
+        } else if (albumQ.length > 0) {
+          result.push(albumQ.shift()!);
+        } else if (reviewQ.length > 0) {
+          // Snapshots exhausted and no albums left — fall back to a
+          // review even if it nudges the row past the cap. Better
+          // than dropping the whole row when only reviews remain.
+          result.push(reviewQ.shift()!);
+        } else {
           result.length = startedRow;
           break;
         }
