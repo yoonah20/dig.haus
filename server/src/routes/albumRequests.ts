@@ -343,13 +343,19 @@ router.post(
 // ─── GET /api/album-requests ─────────────────────────────────────────
 //
 // Admin notification feed — powers the red count badge on the admin
-// avatar pill. Only *non-admin* user submissions surface here. Two
+// avatar pill. Only *non-admin* user submissions surface here. Three
 // exclusions:
 //   • `requested_by_user_id IS NULL` — fully-direct admin registrations
-//     (e.g. seed inserts) never had a requester
-//   • `u.is_admin = 0` — admin using the regular register flow sets
-//     their own id as requester; we don't ping admin for their own work
-router.get('/album-requests', requireAdmin, (_req, res) => {
+//     (e.g. seed inserts) never had a requester (INNER JOIN handles)
+//   • `u.is_admin = 0` — any admin in the users table
+//   • `a.requested_by_user_id != $callingAdminId` — belt-and-suspenders
+//     against an admin whose `users.is_admin` somehow drifts from 1
+//     (e.g. an env-var blip on a re-login resetting the flag while
+//     they're already in /admin via session). The session admin id
+//     is authoritative for "this person is admin right now", so we
+//     skip their own registrations regardless of the DB column state.
+router.get('/album-requests', requireAdmin, (req, res) => {
+  const adminUserId = (req.user as AppUser).id;
   const rows = queryAll(
     `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.release_year,
             a.cover_art_url, a.cover_art_fallbacks, a.created_at,
@@ -360,7 +366,9 @@ router.get('/album-requests', requireAdmin, (_req, res) => {
      JOIN users u ON u.id = a.requested_by_user_id
      WHERE a.reviews_crawled_at IS NULL
        AND COALESCE(u.is_admin, 0) = 0
-     ORDER BY a.created_at DESC`
+       AND a.requested_by_user_id != ?
+     ORDER BY a.created_at DESC`,
+    [adminUserId]
   );
 
   res.json({
