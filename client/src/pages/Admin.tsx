@@ -65,6 +65,7 @@ interface AdminStats {
     createdAt: string;
     coverArtUrl: string | null;
     coverArtFallbacks?: string[];
+    registeredByAdmin: boolean;
   }>;
   recentPurchaseLinks: Array<{
     id: number;
@@ -877,8 +878,13 @@ export default function Admin() {
                 ) : (
                   data.recentAlbums.map((a) => {
                     const ts = parseServerTimestamp(a.createdAt).getTime();
+                    // Skip NEW for admin self-registrations — the highlight
+                    // is meant to flag user-submitted rows the admin
+                    // hasn't seen, not the admin's own work.
                     const isNew =
-                      Number.isFinite(ts) && ts > prevSeenAt;
+                      !a.registeredByAdmin &&
+                      Number.isFinite(ts) &&
+                      ts > prevSeenAt;
                     return (
                       <Link
                         key={a.id}

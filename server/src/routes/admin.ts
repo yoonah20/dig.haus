@@ -116,9 +116,20 @@ router.get('/stats', (_req, res) => {
      FROM album_votes WHERE DATE(created_at) = DATE('now')`
   );
 
+  // LEFT JOIN users so we can flag rows the admin registered themselves
+  // — admin self-registrations should not light up as NEW in the
+  // dashboard feed. `requested_by_user_id IS NULL` covers direct admin
+  // inserts (e.g. browsing to /album/:mbid for an uncached album,
+  // seed rows); `u.is_admin = 1` covers the regular register-modal
+  // flow which stamps the admin's own id.
   const recentAlbums = queryAll(
-    `SELECT id, mbid, slug, title, artist_name, created_at, cover_art_url, cover_art_fallbacks
-     FROM albums ORDER BY created_at DESC LIMIT 20`
+    `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.created_at,
+            a.cover_art_url, a.cover_art_fallbacks,
+            a.requested_by_user_id,
+            COALESCE(u.is_admin, 0) AS requester_is_admin
+     FROM albums a
+     LEFT JOIN users u ON u.id = a.requested_by_user_id
+     ORDER BY a.created_at DESC LIMIT 20`
   ).map((a: any) => ({
     id: a.id,
     mbid: a.slug || a.mbid,
@@ -127,6 +138,8 @@ router.get('/stats', (_req, res) => {
     createdAt: a.created_at,
     coverArtUrl: a.cover_art_url,
     coverArtFallbacks: safeParseArray(a.cover_art_fallbacks),
+    registeredByAdmin:
+      a.requested_by_user_id == null || !!a.requester_is_admin,
   }));
 
   // Recent purchase-link activity — complements the per-album view by
