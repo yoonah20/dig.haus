@@ -129,6 +129,7 @@ export async function generateKoreanSummary(
   artist: string,
   reviews: Array<{ source: string; score?: number; excerpt?: string }>
 ): Promise<string | null> {
+  const start = performance.now();
   try {
     const reviewsText = reviews
       .map((r) => `[${r.source}]${r.score ? ` (${r.score}/100)` : ''}: ${r.excerpt || ''}`)
@@ -155,11 +156,19 @@ export async function generateKoreanSummary(
       defaultModel: 'deepseek-chat',
       albumTitle: `${artist} - ${albumTitle}`,
     });
+    const ms = Math.round(performance.now() - start);
+    console.log(
+      `[reviews/timing] op=summary reviews=${reviews.length} promptLen=${promptText.length} ms=${ms} outcome=${result.text ? 'ok' : 'empty'}`
+    );
     if (!result.text) return null;
     return normaliseKoreanTerms(
       stripSummaryPreamble(result.text, albumTitle, artist)
     );
   } catch (err) {
+    const ms = Math.round(performance.now() - start);
+    console.log(
+      `[reviews/timing] op=summary reviews=${reviews.length} ms=${ms} outcome=error`
+    );
     console.warn(`[claude] generateKoreanSummary failed for "${artist} - ${albumTitle}":`, (err as Error).message);
     return null;
   }

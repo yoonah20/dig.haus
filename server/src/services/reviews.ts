@@ -1433,6 +1433,28 @@ export async function scrapeReviewFromUrl(
   albumMbid: string | null = null
 ): Promise<ScrapeOutcome> {
   console.log(`[reviews] scrapeReviewFromUrl: ${url}`);
+  // Per-stage timers so we can profile where each scrape spends its
+  // time across a real curation run. Single-line `[reviews/timing]`
+  // log at exit makes the data greppable: `grep '\[reviews/timing\]'
+  // server.log | awk` over a few hundred attempts gives the fetch /
+  // LLM ms distribution and how often the 40k pageText cap is even
+  // close to being hit. Drives the decision on tightening the slice
+  // cap and on whether parallelism (CHUNK_SIZE) or per-call latency
+  // is the real bottleneck.
+  const scrapeStart = performance.now();
+  let fetchMs = 0;
+  let llmMs = 0;
+  let pageTextLen = 0;
+  let trimmedLen = 0;
+  let textSource: 'jina' | 'raw' | '?' = '?';
+  let host = '?';
+  const emitTiming = (outcome: string) => {
+    const totalMs = Math.round(performance.now() - scrapeStart);
+    console.log(
+      `[reviews/timing] host=${host} fetch=${fetchMs}ms llm=${llmMs}ms total=${totalMs}ms ` +
+        `textLen=${pageTextLen} trimmedLen=${trimmedLen} src=${textSource} outcome=${outcome}`
+    );
+  };
 
   // Defensive path-pattern guard for callers that bypass the discover
   // pipeline — the manual add-url / batch-scrape path feeds URLs
@@ -1443,14 +1465,16 @@ export async function scrapeReviewFromUrl(
   // blacklist check is here too for symmetry with the discover flow.
   try {
     const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
+    host = parsed.hostname.toLowerCase().replace(/^www\./, '');
     if (isHostBlacklisted(host)) {
       recordScrapeFailure(url, albumMbid, 'blacklisted-domain', 'blacklisted domain');
+      emitTiming('blacklisted-domain');
       return { kind: 'fail', reason: 'blacklisted-domain', message: 'blacklisted domain' };
     }
     const pathKey = parsed.pathname + parsed.search;
     if (EXCLUDED_URL_PATH_PATTERNS.some((re) => re.test(pathKey))) {
       recordScrapeFailure(url, albumMbid, 'excluded-path', 'excluded path pattern');
+      emitTiming('excluded-path');
       return { kind: 'fail', reason: 'excluded-path', message: 'excluded path pattern' };
     }
   } catch {
@@ -1462,10 +1486,12 @@ export async function scrapeReviewFromUrl(
   // that need the original markup) and Jina Reader (for Claude's text
   // input — fewer tokens, JS-rendered content resolved, some bot walls
   // bypassed). Either can fail independently — we combine what succeeds.
+  const fetchStart = performance.now();
   const [initialRawResult, jinaRaw] = await Promise.all([
     fetchRawHtml(url),
     fetchJinaReader(url),
   ]);
+  fetchMs = Math.round(performance.now() - fetchStart);
 
   // Wayback fallback when raw fetch is bot-blocked. archive.org
   // snapshots reach metalstorm / metalcrypt / ghostcultmag and similar
@@ -1506,6 +1532,7 @@ export async function scrapeReviewFromUrl(
   // org case (all external visitors see HTTP 403) was the trigger.
   if (!rawResult.ok && rawResult.reason === 'bot-blocked') {
     recordScrapeFailure(url, albumMbid, 'bot-blocked', rawResult.message);
+    emitTiming('bot-blocked');
     return { kind: 'fail', reason: 'bot-blocked', message: rawResult.message };
   }
 
@@ -1515,6 +1542,7 @@ export async function scrapeReviewFromUrl(
   if (!rawResult.ok && !jinaAvailable) {
     const reason = rawResult.reason;
     recordScrapeFailure(url, albumMbid, reason, rawResult.message);
+    emitTiming(`fetch-fail/${reason}`);
     return { kind: 'fail', reason, message: rawResult.message };
   }
 
@@ -1527,6 +1555,7 @@ export async function scrapeReviewFromUrl(
   // post-tag/tag-link class anchors, and OpenGraph article:tag meta.
   if (rawResult.ok && hasSpotifyTag(html)) {
     recordScrapeFailure(url, albumMbid, 'not-a-review', 'page tagged "spotify"');
+    emitTiming('not-a-review/spotify-tag');
     return { kind: 'fail', reason: 'not-a-review', message: 'page tagged "spotify"' };
   }
 
@@ -1643,8 +1672,12 @@ export async function scrapeReviewFromUrl(
     ? trimLeadingNavigation(rawText, artist, album)
     : rawText;
   const pageText = trimmed.slice(0, 40000);
+  textSource = jinaAvailable ? 'jina' : 'raw';
+  trimmedLen = trimmed.length;
+  pageTextLen = pageText.length;
   if (pageText.length < 100) {
     recordScrapeFailure(url, albumMbid, 'text-too-short');
+    emitTiming('text-too-short');
     return { kind: 'fail', reason: 'text-too-short' };
   }
 
@@ -1656,6 +1689,7 @@ export async function scrapeReviewFromUrl(
   // avoids both the cost and the laundered-interview storage.
   if (detectInterviewStructure(pageText)) {
     recordScrapeFailure(url, albumMbid, 'not-a-review', 'interview/Q&A structure');
+    emitTiming('not-a-review/interview');
     return { kind: 'fail', reason: 'not-a-review', message: 'interview/Q&A structure' };
   }
 
@@ -1723,9 +1757,12 @@ BUT: strictly refuse the following non-review page types, even when they mention
 Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refusal as prose into the excerpt / excerptKo fields. When in doubt between "weak album review" and "non-review content about the album", pick the refusal — admin can paste the URL manually via the 수동 입력 tab if they disagree.`;
 
   try {
+    const llmStart = performance.now();
     const rawText = await extractJsonWithFallback('scrape_review', prompt, 2000);
+    llmMs = Math.round(performance.now() - llmStart);
     if (!rawText) {
       recordScrapeFailure(url, albumMbid, 'claude-no-text');
+      emitTiming('claude-no-text');
       return { kind: 'fail', reason: 'claude-no-text' };
     }
 
@@ -1735,12 +1772,14 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
     const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       recordScrapeFailure(url, albumMbid, 'json-parse-failed', jsonText.slice(0, 200));
+      emitTiming('json-parse-failed');
       return { kind: 'fail', reason: 'json-parse-failed', message: jsonText.slice(0, 200) };
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
     if (parsed.error) {
       recordScrapeFailure(url, albumMbid, 'not-a-review', String(parsed.error));
+      emitTiming('not-a-review/llm-error-key');
       return { kind: 'fail', reason: 'not-a-review', message: String(parsed.error) };
     }
 
@@ -1851,6 +1890,7 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
     const prose = `${parsed.excerpt ?? ''}\n${parsed.excerptKo ?? ''}`;
     if (rejectionPatterns.some((re) => re.test(prose))) {
       recordScrapeFailure(url, albumMbid, 'not-a-review-in-prose', prose.slice(0, 200));
+      emitTiming('not-a-review/prose-rejection');
       return {
         kind: 'fail',
         reason: 'not-a-review',
@@ -1858,6 +1898,7 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       };
     }
 
+    emitTiming('ok');
     return {
       kind: 'ok',
       review: {
@@ -1875,6 +1916,7 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
   } catch (err) {
     const msg = (err as Error).message;
     recordScrapeFailure(url, albumMbid, 'claude-error', msg);
+    emitTiming('claude-error');
     return { kind: 'fail', reason: 'claude-error', message: msg };
   }
 }
