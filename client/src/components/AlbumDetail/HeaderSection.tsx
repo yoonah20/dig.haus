@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../../lib/axios';
+import { useGenerateReviewSummary } from '../../hooks/useAlbum';
 import type { AlbumDetail, StreamingLinks, BuyInfo } from '../../types';
 import CoverArt from '../CoverArt';
 import PlayChip from '../PlayChip';
@@ -446,6 +447,25 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     }
   }, [albumId, queryClient, refreshingDiscogs]);
 
+  // Surface 요약 생성 in the ⚙️ 관리 menu so admin can regenerate
+  // the Korean summary after reviews are crawled — the
+  // ReviewsAdminBar (which also exposes this action) only renders
+  // while reviews_crawled_at IS NULL, so once an album lands a
+  // partial review set without a summary the bar is gone and the
+  // ⚙️ menu becomes the only entry point.
+  const generateSummary = useGenerateReviewSummary(albumId);
+  const handleGenerateSummary = useCallback(async () => {
+    if (generateSummary.isPending) return;
+    try {
+      await generateSummary.mutateAsync();
+    } catch (err: any) {
+      alert(
+        err?.response?.data?.error ||
+          '요약 생성에 실패했습니다. 리뷰가 2개 이상 필요합니다.'
+      );
+    }
+  }, [generateSummary]);
+
   const handleResetReviews = useCallback(async () => {
     if (resettingReviews) return;
     if (!confirm('이 앨범의 모든 리뷰와 요약을 삭제하고 "리뷰 없음" 상태로 되돌릴까요?')) return;
@@ -800,6 +820,12 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 disabled={regeneratingSimilar}
               >
                 {regeneratingSimilar ? '재생성 중...' : '🎯 비슷한 앨범 재생성'}
+              </AdminMenuItem>
+              <AdminMenuItem
+                onClick={() => { setAdminMenuOpen(false); void handleGenerateSummary(); }}
+                disabled={generateSummary.isPending}
+              >
+                {generateSummary.isPending ? '생성 중...' : '📝 요약 생성'}
               </AdminMenuItem>
               <AdminMenuItem
                 onClick={() => { setAdminMenuOpen(false); void handleResetReviews(); }}
