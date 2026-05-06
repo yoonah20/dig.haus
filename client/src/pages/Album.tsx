@@ -236,7 +236,7 @@ export default function Album() {
               fontSize: '36px',
             }}
           >
-            Every Day I Dig
+            Every Time I Dig
           </span>
         </div>
 
