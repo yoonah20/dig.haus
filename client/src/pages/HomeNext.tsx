@@ -93,9 +93,15 @@ function renderFeedCell(item: FeedItem) {
     // label + price tags). The admin ⚠️ pending badge is suppressed
     // here so the top-right corner is free for TimeChip — admin
     // still sees ⚠️ on /dig where TimeChip isn't shown.
+    //
+    // `n=feed` marks the click as originating from the home
+    // registered-order feed so the album page resolves prev/next
+    // by registration order rather than the default release-date
+    // sort — the user expects in-feed-order neighbours when they
+    // came in via this surface.
     return (
       <div key={item.key} className="relative">
-        <AlbumCard album={item.album} hidePendingBadge />
+        <AlbumCard album={item.album} hidePendingBadge linkSearch="n=feed" />
         {item.album.createdAt && <TimeChip iso={item.album.createdAt} />}
       </div>
     );

@@ -36,7 +36,15 @@ export default function Album() {
   const { data: base, isLoading: baseLoading, error: baseError } = useAlbumBase(slug!);
   const baseReady = !!base;
   const { sort } = useHomeState();
-  const { data: neighbors } = useAlbumNeighbors(slug!, sort, baseReady);
+  // `?n=feed` marks the page as entered from the home registered-order
+  // feed, where the user expects prev/next to follow that same order
+  // rather than whatever sort /dig is currently set to. The marker is
+  // re-applied on prev/next links below so a chain of arrow clicks
+  // stays in feed order until the visitor leaves via a non-arrow path.
+  const fromFeed = searchParams.get('n') === 'feed';
+  const neighborSort = fromFeed ? 'registered_desc' : sort;
+  const neighborLinkSuffix = fromFeed ? '?n=feed' : '';
+  const { data: neighbors } = useAlbumNeighbors(slug!, neighborSort, baseReady);
   // Use slug for sub-endpoints (server resolves slug→mbid)
   const albumId = base?.album?.slug || slug!;
   const { data: reviewsData, isLoading: reviewsLoading } = useAlbumReviews(albumId, baseReady);
@@ -238,7 +246,7 @@ export default function Album() {
             <div className={`grid gap-4 ${hasPrev && hasNext ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {hasPrev && (
                 <Link
-                  to={`/album/${neighbors!.prev!.slug}`}
+                  to={`/album/${neighbors!.prev!.slug}${neighborLinkSuffix}`}
                   className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${!hasNext ? 'col-span-full max-w-sm mx-auto' : ''}`}
                 >
                   <span className="text-gray-600 group-hover:text-[#e8a020] transition-colors text-lg shrink-0">←</span>
@@ -259,7 +267,7 @@ export default function Album() {
               )}
               {hasNext && (
                 <Link
-                  to={`/album/${neighbors!.next!.slug}`}
+                  to={`/album/${neighbors!.next!.slug}${neighborLinkSuffix}`}
                   className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${hasPrev ? 'justify-end text-right' : 'col-span-full max-w-sm mx-auto'}`}
                 >
                   <div className="min-w-0">

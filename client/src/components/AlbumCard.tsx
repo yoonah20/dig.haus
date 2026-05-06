@@ -268,6 +268,7 @@ export default function AlbumCard({
   hidePendingBadge = false,
   bigDateSticker = false,
   showPickSticker = false,
+  linkSearch,
 }: {
   album: AlbumSearchResult;
   /** Strip all corner chrome — SOON/HOT/date stickers, price tag,
@@ -290,6 +291,11 @@ export default function AlbumCard({
    *  reviews backing it). Off by default; the home 새 앨범
    *  grid opts in. */
   showPickSticker?: boolean;
+  /** Query string (without the leading `?`) appended to the Link's
+   *  destination. Used by the home feed to mark "you came from the
+   *  registered-order feed" so the album page picks neighbors in
+   *  that order instead of the default release-date sort. */
+  linkSearch?: string;
 }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
@@ -467,7 +473,7 @@ export default function AlbumCard({
 
   return (
     <Link
-      to={`/album/${album.mbid}`}
+      to={`/album/${album.mbid}${linkSearch ? `?${linkSearch}` : ''}`}
       className={`block album-card-outer relative${isActive ? ' is-active' : ''}`}
       // containerType: inline-size makes the card a container query
       // root — every `cqw` unit below resolves to 1% of THIS card's
