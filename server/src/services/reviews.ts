@@ -1828,6 +1828,25 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       /(?:this\s+is|this\s+page\s+is|the\s+(?:page|article|content)\s+is)\s+(?:an?\s+)?(?:interview|live\s+(?:show\s+)?review|concert\s+(?:review|report)|tour\s+report|announcement|press\s+release)/i,
       /(?:이\s*(?:페이지|글|기사)(?:는|가)?)\s*(?:인터뷰|라이브\s*공연|콘서트\s*(?:리뷰|리포트)|발매\s*소식|보도\s*자료)/,
       /(?:the\s+article|this\s+piece)\s+(?:is\s+)?(?:not\s+)?(?:an\s+)?album\s+review\s*[,.;]/i,
+      // "이 페이지는 (앨범) 리뷰가 아닌 X" — the LLM names the page
+      // type explicitly (release calendar, news index, link list, etc.)
+      // instead of returning the error key. The "X" here can be
+      // anything; we don't constrain it. Pair with the existing
+      // "이 페이지는 인터뷰/라이브..." rule above which only catches a
+      // fixed set of page types.
+      /이\s*(?:페이지|글|기사|포스트)[은는이가]?\s*(?:앨범\s*)?리뷰[가는]?\s*아닌/,
+      // Release / news / event calendar pages — sites like
+      // time-for-metal.eu publish a per-week release roster that
+      // links to reviews but doesn't contain review prose. Catches
+      // both 릴리스/발매/뉴스/이벤트 캘린더 phrasings.
+      /(?:릴리스|발매|뉴스|이벤트|투어)\s*캘린더/,
+      /(?:release|news|event|tour)\s+calendar/i,
+      // Aggregator / link-list pages — the page only LINKS to
+      // reviews on other sites instead of containing review prose
+      // itself. "리뷰 링크만 (포함/수록/있/싣)" is the LLM's typical
+      // way of describing this when it doesn't refuse cleanly.
+      /(?:리뷰|평론)\s*링크만?\s*(?:포함|수록|있|싣|모아)/,
+      /(?:only|just)\s+(?:contains?|has|provides?)\s+(?:links?|hyperlinks?)\s+to\s+reviews?/i,
     ];
     const prose = `${parsed.excerpt ?? ''}\n${parsed.excerptKo ?? ''}`;
     if (rejectionPatterns.some((re) => re.test(prose))) {
