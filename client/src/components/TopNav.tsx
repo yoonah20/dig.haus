@@ -137,12 +137,15 @@ export default function TopNav() {
           </div>
           {/* Desktop-inline search (md+ only). Always mounted so the
               input is a fixture in the nav row — record-shop "search
-              the index" affordance, no click-to-expand step. flex-1
-              absorbs the slack between the logo cluster and the
-              right-side buttons; max-w-md keeps it from sprawling at
-              huge viewports. The compact prop on SearchBar shrinks
-              the input chrome to nav-button height (~32px). */}
-          <div className="hidden md:flex flex-1 max-w-md justify-end px-2 lg:px-4">
+              the index" affordance, no click-to-expand step.
+              ml-auto pushes the wrapper flush against the right-side
+              buttons cluster (vs. absorbing slack symmetrically with
+              flex-1, which read as visually centered between the
+              logo and the buttons). Explicit width per breakpoint
+              keeps the input proportional without sprawling at xl.
+              The compact prop on SearchBar shrinks the input chrome
+              to nav-button height (~32px). */}
+          <div className="hidden md:flex w-64 lg:w-80 xl:w-96 ml-auto">
             <SearchBar
               key={inlineSeed.key}
               initialQuery={inlineSeed.query}
