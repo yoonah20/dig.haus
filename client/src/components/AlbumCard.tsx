@@ -53,7 +53,7 @@ function parseReleaseTimestamp(releaseDate: string | null | undefined): number |
   return Number.isNaN(ts) ? null : ts;
 }
 
-function isRecentRelease(releaseDate: string | null | undefined): boolean {
+export function isRecentRelease(releaseDate: string | null | undefined): boolean {
   const ts = parseReleaseTimestamp(releaseDate);
   if (ts === null) return false;
   const diffDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);

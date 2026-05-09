@@ -34,6 +34,32 @@ export function useRecentAlbums(enabled = true, limit = 30) {
   });
 }
 
+// Recently *released* albums (release_date_desc) for the home "최근
+// 발매 목록" strip. Distinct from useRecentAlbums (registered_desc):
+// this stream sorts by actual release date, and the client filters
+// to the same 30-day past-only window the NEW sticker uses
+// (isRecentRelease in AlbumCard) so "최근 발매" stays defined in one
+// place. Future releases sort to the top under release_date_desc but
+// get dropped by the past-only filter — fetchSize is generous enough
+// to clear that SOON tail and still land cols×2 cards.
+export function useRecentReleases(enabled = true, fetchSize = 60) {
+  return useQuery<AlbumListResponse>({
+    queryKey: ['home-recent-releases', fetchSize],
+    queryFn: async () => {
+      const { data } = await axios.get<AlbumListResponse>('/api/albums', {
+        params: {
+          sort: 'release_date_desc',
+          page: 1,
+          pageSize: fetchSize,
+        },
+      });
+      return data;
+    },
+    enabled,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
 // Infinite-scroll variant for the home feed. The /api/albums endpoint
 // already returns page / totalPages, so getNextPageParam can drive
 // page-by-page fetching without a separate cursor mechanism.

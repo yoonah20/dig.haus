@@ -10,8 +10,11 @@ import {
   useInfiniteUserReviewsFeed,
   type UserReviewFeedItem,
 } from '../hooks/useUserReviewsFeed';
-import { useInfiniteRecentAlbums } from '../hooks/useRecentAlbums';
-import AlbumCard from '../components/AlbumCard';
+import {
+  useInfiniteRecentAlbums,
+  useRecentReleases,
+} from '../hooks/useRecentAlbums';
+import AlbumCard, { isRecentRelease } from '../components/AlbumCard';
 import CoverArt from '../components/CoverArt';
 import UserHoverCard from '../components/UserHoverCard';
 import { useTapActivate } from '../hooks/useTapActivate';
@@ -128,10 +131,26 @@ export default function HomeNext() {
   const recentAlbums = useInfiniteRecentAlbums(true, FEED_SIZE);
   const reviews = useInfiniteUserReviewsFeed(true, FEED_SIZE);
   const snapshots = useHomeSnapshots(true, 8);
+  const recentReleases = useRecentReleases(true, 60);
   const isMobile = useIsMobileHero();
 
   const ACTIVITY_COLS = { base: 3, sm: 3, md: 4, lg: 5, xl: 7 };
   const activityCols = useGridCols(ACTIVITY_COLS);
+
+  // "최근 발매 목록" — release_date_desc fetch from the server,
+  // filtered through isRecentRelease (the same 30-day past-only
+  // window the NEW sticker uses) so the strip can't drift from the
+  // sticker. Sliced to exactly two rows at the current viewport
+  // (cols × 2). If the filtered count is smaller, the trailing
+  // grid cells stay empty rather than the section getting hidden —
+  // operator decision: heading should always be visible even on
+  // the rare empty day.
+  const recentReleaseAlbums = useMemo<AlbumSearchResult[]>(() => {
+    const all = recentReleases.data?.albums ?? [];
+    return all
+      .filter((a) => isRecentRelease(a.releaseDate))
+      .slice(0, activityCols * 2);
+  }, [recentReleases.data, activityCols]);
 
   // Flatten every fetched page from each infinite stream, then plain
   // time-merge. Same merge rule as before — chronological DESC, no
@@ -336,6 +355,39 @@ export default function HomeNext() {
 
       <div className="bg-[#120c05] px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-6">
+          {/* ── 최근 발매 목록 ─────────────────────────────────────
+              Past-only 30-day window keyed off release_date — the
+              same gate the NEW sticker on AlbumCard uses, so the
+              section is in lockstep with what the cover sticker
+              already says is "recently released". Sized to exactly
+              two rows of the activity grid (cols × 2) so the strip
+              never grows/shrinks past the visual budget the
+              operator allocated. Heading stays mounted even when
+              the filtered list is empty — operator note: in
+              practice there's always something within 30 days, but
+              the section is supposed to be a fixture not a
+              conditional. */}
+          {!recentReleases.isLoading && (
+            <section>
+              <SectionTitle variant="tape" className="!mb-3">
+                최근 발매 목록
+              </SectionTitle>
+              <div
+                className="grid gap-3"
+                style={{
+                  gridTemplateColumns: `repeat(${activityCols}, minmax(0, 1fr))`,
+                }}
+              >
+                {recentReleaseAlbums.map((album) => (
+                  <AlbumCard
+                    key={album.mbid}
+                    album={album}
+                    hidePendingBadge
+                  />
+                ))}
+              </div>
+            </section>
+          )}
           {/* ── 최근 굴착 활동 ─────────────────────────────────────
               Plain time-merge of newly registered albums + 50자 평,
               sorted by createdAt DESC. Streams paginate via
