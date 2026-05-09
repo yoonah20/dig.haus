@@ -962,6 +962,41 @@ export function initializeDatabase(db: Database.Database): void {
     }
   });
 
+  // Add four hosts that the [reviews/timing] log surfaced as repeat
+  // bot-block / fetch-fail offenders across a multi-day curation
+  // window: metalreviews.com (9× blocked, 0 success), metalcrypt.com
+  // (7× blocked, 1 raw-only success), chorus.fm (3× blocked, 0
+  // success — fetch consistently times out at 16s+), metalstorm.net
+  // (3× blocked, 0 success). The Wayback fallback didn't recover any
+  // of these in the same window, so each attempt cost ~5–17s of
+  // fetch time without producing a row. Blacklisting at the source
+  // layer cuts auto-curation off before scraping; the manual paste
+  // tab still works for the rare admin-curated case where one of
+  // these hosts has a review worth keeping. Re-enable from the
+  // /admin/curation panel if the bot wall ever drops. No purge step
+  // — historical rows from these hosts (rare, but real) stay.
+  runOnce(db, 'seed-source-blacklist-bot-wall-2026-05-09', () => {
+    const rows: Array<[string, string]> = [
+      ['metalreviews.com', 'cloudflare wall (9× blocked, 0 success in timing log)'],
+      ['metalcrypt.com', 'cloudflare wall (7× blocked, 1 success — net loss)'],
+      ['chorus.fm', 'cloudflare wall, 16s+ timeout (3× blocked, 0 success)'],
+      ['metalstorm.net', 'bot wall (3× blocked, 0 success — wayback also empty)'],
+    ];
+    const stmt = db.prepare(
+      `INSERT OR IGNORE INTO source_blacklist (host, reason) VALUES (?, ?)`
+    );
+    let inserted = 0;
+    for (const [host, reason] of rows) {
+      const r = stmt.run(host, reason);
+      if ((r.changes as number) > 0) inserted++;
+    }
+    if (inserted > 0) {
+      console.log(
+        `[migration] seeded source_blacklist with ${inserted} bot-wall host(s)`
+      );
+    }
+  });
+
   // Purge review rows whose excerpt text is the LLM admitting it
   // couldn't load / verify the page ("페이지가 로드되지 않아 리뷰 내용을
   // 확인할 수 없다" and similar). Future scrapes are blocked by the

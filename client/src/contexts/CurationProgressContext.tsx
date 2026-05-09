@@ -28,10 +28,19 @@ import { useQueryClient } from '@tanstack/react-query';
 
 // Bumped 5 → 8 (2026-04-21). 15-save target hits in 2 chunks instead
 // of 3; DeepSeek's free-tier rate allowance (~60 RPM observed) has
-// plenty of headroom at 8 concurrent, and Jina Reader is unrate-
+// plenty of headroom at 12 concurrent, and Jina Reader is unrate-
 // limited. The chunk still waits on its slowest URL, so net speedup
 // is roughly (n-1)×(avg chunk time) across the run.
-const CHUNK_SIZE = 8;
+//
+// Bumped 8 → 12 (2026-05-09) after the [reviews/timing] log showed
+// fetch=70% of total wall time with a long-tail (p90=15.5s, p95=
+// 16.5s); more concurrent slots means a 16s straggler doesn't
+// monopolise the chunk while 7 fast pages wait. Paired with per-
+// host serialisation in the dispatch loop below so the same site
+// never gets two simultaneous hits — that was the failure mode the
+// earlier "stay at 8" guard was protecting against, now solved
+// directly instead of via a global cap.
+const CHUNK_SIZE = 12;
 
 // Auto-curation targets *successful* saves (15) rather than just
 // slicing the first 15 URLs — if some fail (403, Cloudflare, not-a-
@@ -249,17 +258,37 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
         const chunkSize = Math.max(1, Math.min(CHUNK_SIZE, roomLeft));
         const chunk = candidates.slice(attempted, attempted + chunkSize);
         attempted += chunk.length;
+        // Per-host serialisation: parallel across distinct hosts, but
+        // same-host URLs run sequentially so we never hit one site
+        // (sputnikmusic, metalstorm, etc.) with two simultaneous
+        // requests. Two effects: (1) avoids tripping rate-limit /
+        // bot-wall heuristics that look for burst patterns, (2) when
+        // a host serves a 16s timeout the chunk's other hosts aren't
+        // forced to wait behind it — they finish independently.
+        const byHost = new Map<string, string[]>();
+        for (const url of chunk) {
+          let host: string;
+          try {
+            host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+          } catch {
+            host = url; // Malformed URL — give it its own bucket.
+          }
+          if (!byHost.has(host)) byHost.set(host, []);
+          byHost.get(host)!.push(url);
+        }
         await Promise.all(
-          chunk.map(async (url) => {
-            try {
-              const resp = await axios.post(
-                `/api/albums/${encodeURIComponent(albumMbid)}/reviews/add-url`,
-                { url }
-              );
-              if (resp.data?.duplicate) dup++;
-              else saved++;
-            } catch {
-              failed++;
+          [...byHost.values()].map(async (urls) => {
+            for (const url of urls) {
+              try {
+                const resp = await axios.post(
+                  `/api/albums/${encodeURIComponent(albumMbid)}/reviews/add-url`,
+                  { url }
+                );
+                if (resp.data?.duplicate) dup++;
+                else saved++;
+              } catch {
+                failed++;
+              }
             }
           })
         );
