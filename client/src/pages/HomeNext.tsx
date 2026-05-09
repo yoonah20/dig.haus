@@ -369,7 +369,22 @@ export default function HomeNext() {
               conditional. */}
           {!recentReleases.isLoading && (
             <section>
-              <SectionTitle variant="tape" className="!mb-3">
+              <SectionTitle
+                variant="tape"
+                className="!mb-3"
+                meta={
+                  <img
+                    src="/textures/digman_feed.webp"
+                    alt=""
+                    aria-hidden
+                    draggable={false}
+                    width={80}
+                    height={80}
+                    className="block -ml-2 select-none"
+                    style={{ width: 80, height: 80, maxWidth: 'none' }}
+                  />
+                }
+              >
                 최근 발매 목록
               </SectionTitle>
               <div
