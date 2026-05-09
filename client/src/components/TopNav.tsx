@@ -263,7 +263,7 @@ export default function TopNav() {
         {searchOpen && (
           <div
             ref={panelRef}
-            className="md:hidden absolute left-0 right-0 top-full bg-[#0f0f0f] border-b border-white/5 px-4 py-4 animate-[slideDown_150ms_ease-out]"
+            className="md:hidden absolute left-0 right-0 top-full bg-[#120c05]/95 backdrop-blur-sm border-b border-[#e8a020]/40 px-4 py-4 animate-[slideDown_150ms_ease-out]"
           >
             <SearchBar
               initialQuery={initialQuery}
