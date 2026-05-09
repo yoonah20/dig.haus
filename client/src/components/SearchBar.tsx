@@ -35,12 +35,18 @@ interface SearchBarProps {
   initialQuery?: string;
   autoFocus?: boolean;
   onSelect?: () => void;
+  // compact = inline-in-nav variant. Switches the input + magnifier
+  // glyph to nav-button height (~32px) so it lines up with the
+  // surrounding 🔍/digger/mydig buttons. The dropdown panel below
+  // keeps its full sizing — only the input chrome shrinks.
+  compact?: boolean;
 }
 
 export default function SearchBar({
   initialQuery = '',
   autoFocus = false,
   onSelect,
+  compact = false,
 }: SearchBarProps) {
   const [input, setInput] = useState(initialQuery);
   const [query, setQuery] = useState(initialQuery);
@@ -204,11 +210,31 @@ export default function SearchBar({
   const anyContent =
     dbAlbums.length > 0 || externalAlbums.length > 0 || urlAlbum !== null;
 
+  // Compact variant trims the input chrome to nav-button height so
+  // the inline-in-nav placement reads as part of the button row
+  // instead of a slab. Outer max-w-2xl is dropped in compact mode
+  // because the parent (nav slot) is what bounds width there.
+  const outerCls = compact
+    ? 'relative w-full'
+    : 'relative w-full max-w-2xl mx-auto';
+  const inputCls = compact
+    ? 'w-full bg-[#1a1a1a] border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition'
+    : 'w-full bg-[#1a1a1a] border border-white/10 rounded-xl pl-12 pr-5 py-3 text-base text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition';
+  const iconCls = compact
+    ? 'absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none'
+    : 'absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none';
+  const spinnerOuterCls = compact
+    ? 'absolute right-2.5 top-1/2 -translate-y-1/2'
+    : 'absolute right-4 top-1/2 -translate-y-1/2';
+  const spinnerCls = compact
+    ? 'w-4 h-4 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin'
+    : 'w-5 h-5 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin';
+
   return (
-    <div className="relative w-full max-w-2xl mx-auto">
+    <div className={outerCls}>
       <div className="relative">
         <svg
-          className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none"
+          className={iconCls}
           xmlns="http://www.w3.org/2000/svg"
           fill="none"
           viewBox="0 0 24 24"
@@ -228,12 +254,12 @@ export default function SearchBar({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="아티스트 또는 앨범 검색..."
-          className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl pl-12 pr-5 py-3 text-base text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition"
+          className={inputCls}
         />
 
         {(dbLoading || externalLoading || urlLoading) && (
-          <div className="absolute right-4 top-1/2 -translate-y-1/2">
-            <div className="w-5 h-5 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+          <div className={spinnerOuterCls}>
+            <div className={spinnerCls} />
           </div>
         )}
       </div>

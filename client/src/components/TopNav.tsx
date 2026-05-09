@@ -7,6 +7,26 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useHomeState } from '../contexts/HomeStateContext';
 
+// md (≥768px) and up gets the inline search input in the nav row;
+// below that we keep the button → drop-panel pattern because the
+// nav already runs out of horizontal room with the logo + buttons.
+// SSR / first-paint defaults to desktop since most visitors are on
+// laptops and the desktop layout is the more common case.
+function useIsDesktopNav() {
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return window.matchMedia('(min-width: 768px)').matches;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 768px)');
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isDesktop;
+}
+
 export default function TopNav() {
   const { user } = useAuth();
   const [usernameModalOpen, setUsernameModalOpen] = useState(false);
@@ -15,6 +35,20 @@ export default function TopNav() {
   const panelRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const { setPage } = useHomeState();
+  const isDesktop = useIsDesktopNav();
+  // Inline-search seed key + value. External openOverlay(query) calls
+  // (DigPage `?q=` redirect, ArtistCredit click) flow through the
+  // shared overlay context — on desktop we consume them by re-keying
+  // the inline SearchBar so it remounts with the new initialQuery and
+  // autoFocuses, mirroring how the mobile drop panel handles the same
+  // seed. closeOverlay clears the shared "open" flag so the same
+  // query can re-trigger if the user clicks the artist link twice.
+  const [inlineSeed, setInlineSeed] = useState({ query: '', key: 0 });
+  useEffect(() => {
+    if (!isDesktop || !searchOpen) return;
+    setInlineSeed((prev) => ({ query: initialQuery, key: prev.key + 1 }));
+    closeOverlay();
+  }, [isDesktop, searchOpen, initialQuery, closeOverlay]);
 
   // Clicking the logo always sends the user to the home page's
   // first card. From another route = normal navigation + scroll top.
@@ -60,7 +94,7 @@ export default function TopNav() {
     <>
       <nav className="sticky top-0 z-40 bg-[#120c05]/95 backdrop-blur-sm border-b border-[#e8a020]/15 px-3 sm:px-4 py-2.5">
         <div className="max-w-[1280px] mx-auto flex items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-baseline gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-baseline gap-2 sm:gap-3 min-w-0 shrink">
             <Link
               to="/"
               onClick={handleLogoClick}
@@ -101,7 +135,22 @@ export default function TopNav() {
               No algorithms needed. Keep digging.
             </span>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-3">
+          {/* Desktop-inline search (md+ only). Always mounted so the
+              input is a fixture in the nav row — record-shop "search
+              the index" affordance, no click-to-expand step. flex-1
+              absorbs the slack between the logo cluster and the
+              right-side buttons; max-w-md keeps it from sprawling at
+              huge viewports. The compact prop on SearchBar shrinks
+              the input chrome to nav-button height (~32px). */}
+          <div className="hidden md:flex flex-1 max-w-md justify-end px-2 lg:px-4">
+            <SearchBar
+              key={inlineSeed.key}
+              initialQuery={inlineSeed.query}
+              autoFocus={inlineSeed.key > 0}
+              compact
+            />
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* "+" album-register nav button is gone — registration
                 happens inline in the search overlay now. Typing an
                 album that isn't in dig.haus yet shows MB/Discogs
@@ -109,7 +158,8 @@ export default function TopNav() {
                 a [⚡] that registers + kicks off auto-curation. Less
                 nav chrome, fewer surfaces to maintain. */}
             {/* Search + register — the magnifying glass owns this
-                affordance now. The unified search modal handles both
+                affordance on mobile only now; md+ has the inline
+                input above. The unified search modal handles both
                 "find an album that's already in dig.haus" and "request
                 / register one that isn't yet" via the per-row + button
                 on MB/Discogs candidates, so search and registration
@@ -117,7 +167,7 @@ export default function TopNav() {
                 button over and means "go digging" (link to /dig). */}
             <button
               onClick={() => (searchOpen ? closeOverlay() : openOverlay())}
-              className="group w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] hover:bg-[#e8a020] transition-colors cursor-pointer"
+              className="md:hidden group w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] hover:bg-[#e8a020] transition-colors cursor-pointer"
               title="검색 / 앨범 등록"
               aria-label="검색 / 앨범 등록"
             >
@@ -210,7 +260,7 @@ export default function TopNav() {
         {searchOpen && (
           <div
             ref={panelRef}
-            className="absolute left-0 right-0 top-full bg-[#0f0f0f] border-b border-white/5 px-4 py-4 animate-[slideDown_150ms_ease-out]"
+            className="md:hidden absolute left-0 right-0 top-full bg-[#0f0f0f] border-b border-white/5 px-4 py-4 animate-[slideDown_150ms_ease-out]"
           >
             <SearchBar
               initialQuery={initialQuery}
