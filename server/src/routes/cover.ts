@@ -81,7 +81,17 @@ router.get('/', async (req, res) => {
     });
     res.send(buffer);
   } catch (err) {
-    console.error('cover fetch failed:', src, (err as Error).message);
+    // 404 from upstream is the expected "MusicBrainz has the release
+    // but no cover was ever uploaded to coverartarchive.org" case —
+    // happens for thousands of obscure releases and the client
+    // already falls through to the next coverArtFallbacks candidate.
+    // Logging it on every miss buried real errors (timeouts, 500s,
+    // unreachable hosts) under a wall of expected-noise lines.
+    // Other failure modes still log so we can spot regressions.
+    const status = (err as { response?: { status?: number } }).response?.status;
+    if (status !== 404) {
+      console.error('cover fetch failed:', src, (err as Error).message);
+    }
     res.setHeader('Cache-Control', 'public, max-age=60');
     res.status(502).json({ error: 'cover fetch failed' });
   }
