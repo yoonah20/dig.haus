@@ -1437,10 +1437,10 @@ export async function scrapeReviewFromUrl(
   // time across a real curation run. Single-line `[reviews/timing]`
   // log at exit makes the data greppable: `grep '\[reviews/timing\]'
   // server.log | awk` over a few hundred attempts gives the fetch /
-  // LLM ms distribution and how often the 40k pageText cap is even
-  // close to being hit. Drives the decision on tightening the slice
-  // cap and on whether parallelism (CHUNK_SIZE) or per-call latency
-  // is the real bottleneck.
+  // LLM ms distribution and how often the pageText cap (28k as of
+  // 2026-05-09) is even close to being hit. Drives ongoing decisions
+  // on the slice cap, host blacklist additions, and whether parallelism
+  // (CHUNK_SIZE) or per-call latency is the real bottleneck.
   const scrapeStart = performance.now();
   let fetchMs = 0;
   let llmMs = 0;
@@ -1448,11 +1448,18 @@ export async function scrapeReviewFromUrl(
   let trimmedLen = 0;
   let textSource: 'jina' | 'raw' | '?' = '?';
   let host = '?';
+  // Wayback fallback state — `none` means raw fetch didn't trip the
+  // bot-blocked path so wayback wasn't attempted; `ok` / `fail` is
+  // the fallback's outcome when it was. Surfaced in the timing line
+  // so we can grep for `wayback=fail` / `wayback=ok` to see whether
+  // the recovery path is earning its ~5s latency cost or not.
+  let waybackResult: 'none' | 'ok' | 'fail' = 'none';
   const emitTiming = (outcome: string) => {
     const totalMs = Math.round(performance.now() - scrapeStart);
     console.log(
       `[reviews/timing] host=${host} fetch=${fetchMs}ms llm=${llmMs}ms total=${totalMs}ms ` +
-        `textLen=${pageTextLen} trimmedLen=${trimmedLen} src=${textSource} outcome=${outcome}`
+        `textLen=${pageTextLen} trimmedLen=${trimmedLen} src=${textSource} ` +
+        `wayback=${waybackResult} outcome=${outcome}`
     );
   };
 
@@ -1508,6 +1515,9 @@ export async function scrapeReviewFromUrl(
     if (wb.ok) {
       console.log(`[wayback] ${url} via snapshot ${wb.timestamp}`);
       rawResult = { ok: true, html: wb.html };
+      waybackResult = 'ok';
+    } else {
+      waybackResult = 'fail';
     }
   }
 
@@ -1659,19 +1669,22 @@ export async function scrapeReviewFromUrl(
   // fewer tokens vs stripHtml of the whole page, and boilerplate nav/
   // comments are already gone. Fall back to stripHtml when Jina didn't
   // work (rate limit, their upstream error, etc.).
-  //
-  // Slice cap of 40000 chars (≈10k tokens on DeepSeek) because some
-  // WordPress sites produce Jina output with 30KB+ of sidebar nav
-  // before the actual article body — spectrumculture's Igorrr review
-  // lives at offset ~33000 in its Jina markdown. Trimming leading nav
-  // (trimLeadingNavigation) shaves most of that, but the higher slice
-  // cap is there as a safety net for sites the trim heuristic can't
-  // handle.
   const rawText = jinaAvailable ? jinaText! : stripHtml(html);
   const trimmed = jinaAvailable
     ? trimLeadingNavigation(rawText, artist, album)
     : rawText;
-  const pageText = trimmed.slice(0, 40000);
+  // Slice cap: 28k chars (≈7k tokens on DeepSeek). Lowered from the
+  // earlier 40k after the [reviews/timing] log showed pre-slice
+  // content >40k in only ~5% of OK scrapes and >28k in ~11%, while
+  // LLM cost scales linearly with input. Long-tail outliers
+  // (spectrumculture's Igorrr review at offset ~33k, Bandcamp /
+  // Substack pages with heavy sidebar nav past 40k) get clipped
+  // here; for those, trimLeadingNavigation already shaves most of
+  // the lead, and the actual review body fits within 28k for the
+  // sites we've measured. If the future log shows ok-rate dropping
+  // on a previously-fine host, bump back up — the cap is the easy
+  // dial.
+  const pageText = trimmed.slice(0, 28000);
   textSource = jinaAvailable ? 'jina' : 'raw';
   trimmedLen = trimmed.length;
   pageTextLen = pageText.length;
