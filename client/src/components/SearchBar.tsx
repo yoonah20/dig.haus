@@ -218,8 +218,8 @@ export default function SearchBar({
     ? 'relative w-full'
     : 'relative w-full max-w-2xl mx-auto';
   const inputCls = compact
-    ? 'w-full bg-[#1a1a1a] border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition'
-    : 'w-full bg-[#1a1a1a] border border-white/10 rounded-xl pl-12 pr-5 py-3 text-base text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition';
+    ? 'w-full bg-[#1a1108] border border-[#e8a020]/25 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition'
+    : 'w-full bg-[#1a1108] border border-[#e8a020]/30 rounded-xl pl-12 pr-5 py-3 text-base text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition';
   const iconCls = compact
     ? 'absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none'
     : 'absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none';
@@ -265,7 +265,7 @@ export default function SearchBar({
       </div>
 
       {showDropdown && (
-        <div className="absolute z-50 mt-2 w-full bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-[70vh] overflow-y-auto">
+        <div className="absolute z-50 mt-2 w-full bg-[#120c05]/95 backdrop-blur-sm border border-[#e8a020]/40 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden max-h-[70vh] overflow-y-auto">
           {/* URL paste branch — the extracted Discogs candidate sits at
               the top by itself, no DB / external sections beside it.
               Loading + error states surface here too so the user
@@ -382,7 +382,7 @@ export default function SearchBar({
               because manual entry is the escape hatch, not the primary
               path. Expanding swaps the prompt for an inline form. */}
           {!isUrlMode && loggedIn && (
-            <section className="border-t border-white/5 bg-[#161616]">
+            <section className="border-t border-[#e8a020]/15 bg-[#1a1108]">
               {!manualOpen ? (
                 <button
                   type="button"
@@ -419,7 +419,7 @@ export default function SearchBar({
           )}
 
           {errorMsg && (
-            <div className="px-5 py-3 text-xs text-red-400 border-t border-white/5 bg-[#1f0f0f]">
+            <div className="px-5 py-3 text-xs text-red-400 border-t border-[#e8a020]/15 bg-[#1a0a05]">
               {errorMsg}
             </div>
           )}
@@ -431,7 +431,7 @@ export default function SearchBar({
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-4 pt-3 pb-1.5 text-[10px] uppercase tracking-wider text-gray-500 bg-[#181818]">
+    <div className="px-4 pt-3 pb-1.5 text-[10px] uppercase tracking-wider text-[#e8a020]/70 bg-[#1a1108] border-b border-[#e8a020]/10">
       {label}
     </div>
   );
@@ -529,7 +529,7 @@ function ExternalRow({
 
 function Thumb({ album }: { album: AlbumSearchResult }) {
   return (
-    <div className="w-8 h-8 flex-shrink-0 bg-[#252525] rounded overflow-hidden">
+    <div className="w-8 h-8 flex-shrink-0 bg-[#1a1108] rounded overflow-hidden">
       {album.coverArtUrl ? (
         <img
           src={album.coverArtUrl}
@@ -597,7 +597,7 @@ function ManualAlbumForm({
       }}
       className="px-4 py-3 space-y-2"
     >
-      <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">
+      <div className="text-[10px] uppercase tracking-wider text-[#e8a020]/70 mb-1">
         직접 등록
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -606,7 +606,7 @@ function ManualAlbumForm({
           value={artist}
           onChange={(e) => setArtist(e.target.value)}
           placeholder="아티스트 *"
-          className="bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
           autoFocus
         />
         <input
@@ -614,7 +614,7 @@ function ManualAlbumForm({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="앨범 제목 *"
-          className="bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
         />
         <input
           type="text"
@@ -623,12 +623,12 @@ function ManualAlbumForm({
           placeholder="발매 연도 (YYYY)"
           maxLength={4}
           inputMode="numeric"
-          className="bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
         />
         <select
           value={format}
           onChange={(e) => setFormat(e.target.value as typeof format)}
-          className="bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 focus:border-[#e8a020] focus:outline-none"
+          className="bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 focus:border-[#e8a020] focus:outline-none"
         >
           <option value="">포맷 선택</option>
           <option value="Vinyl">Vinyl</option>
@@ -640,14 +640,14 @@ function ManualAlbumForm({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="레이블 (선택)"
-          className="col-span-2 bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="col-span-2 bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
         />
         <input
           type="url"
           value={coverArtUrl}
           onChange={(e) => setCoverArtUrl(e.target.value)}
           placeholder="커버 이미지 URL (선택, https://…)"
-          className="col-span-2 bg-[#1f1f1f] border border-white/10 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="col-span-2 bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
         />
       </div>
       <p className="text-[10px] text-gray-500 leading-snug">
