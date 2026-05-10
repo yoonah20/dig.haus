@@ -104,7 +104,7 @@ function renderFeedCell(item: FeedItem) {
     // came in via this surface.
     return (
       <div key={item.key} className="relative">
-        <AlbumCard album={item.album} hidePendingBadge linkSearch="n=feed" />
+        <AlbumCard album={item.album} hidePendingBadge showPickSticker linkSearch="n=feed" />
         {item.album.createdAt && <TimeChip iso={item.album.createdAt} />}
       </div>
     );
@@ -354,7 +354,7 @@ export default function HomeNext() {
       {isMobile ? <HomeNextHeroMobile /> : <HomeNextHero />}
 
       <div className="bg-[#120c05] px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
-        <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-6">
+        <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-10">
           {/* ── 최근 발매 목록 ─────────────────────────────────────
               Past-only 30-day window keyed off release_date — the
               same gate the NEW sticker on AlbumCard uses, so the
@@ -398,6 +398,7 @@ export default function HomeNext() {
                     key={album.mbid}
                     album={album}
                     hidePendingBadge
+                    showPickSticker
                   />
                 ))}
               </div>
