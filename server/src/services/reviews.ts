@@ -1812,6 +1812,29 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       // "이 페이지는 인터뷰/라이브..." rule above which only catches a
       // fixed set of page types.
       /이\s*(?:페이지|글|기사|포스트)[은는이가]?\s*(?:앨범\s*)?리뷰[가는]?\s*아닌/,
+      // Wrong-album pages — the LLM identifies that the page is a
+      // review for a DIFFERENT album than the target ("'Electrified'가
+      // 아닌 'First Bite' 앨범의 리뷰를 담고 있어 대상 앨범의 리뷰를
+      // 추출할 수 없다"). Two shapes:
+      //   1. "[X](이/가) 아닌 [Y] 앨범(의) 리뷰" — names the mismatch
+      //      with both album titles, often in quotes.
+      //   2. "대상/타겟/요청한/찾는/해당 앨범의 리뷰를 추출/찾/확인할
+      //      수 없" — explicit refusal phrasing where the LLM admits
+      //      the target wasn't on the page.
+      /[가이]\s*아닌[^.\n]{0,60}앨범[^.\n]{0,5}리뷰/,
+      /(?:대상|타겟|요청한?|찾는|해당)\s*앨범[^.\n]{0,25}(?:추출|찾|확인|발견)[^.\n]{0,15}(?:없|불가|못|않)/,
+      /(?:page|article|review)\s+is\s+(?:for|about|of)\s+(?:a\s+)?different\s+album/i,
+      // Score-only meta-commentary — the page has no review prose
+      // AND no rating, and the LLM writes "이 페이지에는 명시적인
+      // 평점이 없다" (or similar) into excerptKo as if that were the
+      // album excerpt. score=null is a legitimate outcome on real
+      // review prose, but a metadata / tracklist / comments page
+      // that has nothing but the absence of a rating to comment on
+      // isn't a review. lambgoat.com/albums/<id>/<slug> tracklist
+      // pages and similar bare album-detail pages trigger this.
+      /(?:이\s*(?:페이지|글|기사|리뷰|텍스트)|페이지)에(?:는|서)?\s*(?:명시적인?|구체적인?|직접적인?|특정한?|확실한?)?\s*(?:평점|별점|점수|등급|레이팅)[을를은는이가]?\s*(?:없|존재하지\s*않|찾을\s*수\s*없|기재되지\s*않|표시되지\s*않|부재|확인되지\s*않)/,
+      /(?:명시적인?|구체적인?|직접적인?)\s*(?:평점|별점|점수|등급)[을를은는이가]?\s*(?:없|부재|존재하지\s*않|찾을\s*수\s*없)/,
+      /no\s+(?:explicit|specific|clear|stated|visible)\s+(?:score|rating|grade)/i,
       // Release / news / event calendar pages — sites like
       // time-for-metal.eu publish a per-week release roster that
       // links to reviews but doesn't contain review prose. Catches
