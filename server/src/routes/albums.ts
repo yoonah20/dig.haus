@@ -1582,7 +1582,7 @@ router.patch('/:id/korean-summary', requireAdmin, (req, res) => {
   }
 });
 
-// Review-level endpoints (/reviews/:reviewId/score, /excerpt, /retranslate)
+// Review-level endpoints (/reviews/:reviewId/score, /excerpt, /rescrape)
 // moved to routes/albumReviews.ts.
 
 // ─── DELETE /api/albums/:id — remove album and related data ─────────────
