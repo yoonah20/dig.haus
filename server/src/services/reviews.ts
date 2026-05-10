@@ -1812,6 +1812,18 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       // "이 페이지는 인터뷰/라이브..." rule above which only catches a
       // fixed set of page types.
       /이\s*(?:페이지|글|기사|포스트)[은는이가]?\s*(?:앨범\s*)?리뷰[가는]?\s*아닌/,
+      // Wrong-album pages — the LLM identifies that the page is a
+      // review for a DIFFERENT album than the target ("'Electrified'가
+      // 아닌 'First Bite' 앨범의 리뷰를 담고 있어 대상 앨범의 리뷰를
+      // 추출할 수 없다"). Two shapes:
+      //   1. "[X](이/가) 아닌 [Y] 앨범(의) 리뷰" — names the mismatch
+      //      with both album titles, often in quotes.
+      //   2. "대상/타겟/요청한/찾는/해당 앨범의 리뷰를 추출/찾/확인할
+      //      수 없" — explicit refusal phrasing where the LLM admits
+      //      the target wasn't on the page.
+      /[가이]\s*아닌[^.\n]{0,60}앨범[^.\n]{0,5}리뷰/,
+      /(?:대상|타겟|요청한?|찾는|해당)\s*앨범[^.\n]{0,25}(?:추출|찾|확인|발견)[^.\n]{0,15}(?:없|불가|못|않)/,
+      /(?:page|article|review)\s+is\s+(?:for|about|of)\s+(?:a\s+)?different\s+album/i,
       // Release / news / event calendar pages — sites like
       // time-for-metal.eu publish a per-week release roster that
       // links to reviews but doesn't contain review prose. Catches
