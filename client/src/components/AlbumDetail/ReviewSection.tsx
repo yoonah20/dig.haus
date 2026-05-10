@@ -122,15 +122,19 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
   const handleRetranslate = async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Each retranslate burns a fresh LLM call (routed to DeepSeek
-    // primarily, Claude as fallback) — guard against accidental
-    // double-clicks and casual exploration.
-    if (!confirm('이 리뷰 발췌를 다시 번역할까요? (외부 API 호출됩니다)')) return;
+    // 원문 페이지를 Jina로 다시 받아서 LLM에 전체 페이지를 다시
+    // 보여주고 발췌 + 한국어 요약을 새로 추출하는 흐름. 저장된
+    // excerpt만 다시 번역하던 옛 동작은 매 클릭마다 거의 같은
+    // 결과를 내놓는 문제가 있어서 폐기됨.
+    if (!confirm('원문 페이지를 다시 읽고 발췌 + 요약을 새로 추출할까요? (외부 API 호출됩니다)')) return;
     setRetranslating(true);
     try {
-      await axios.post(`/api/albums/reviews/${review.id}/retranslate`);
+      await axios.post(`/api/albums/reviews/${review.id}/rescrape`);
       onRetranslated();
-    } catch {}
+    } catch (err: any) {
+      const apiMessage = err?.response?.data?.error;
+      alert(apiMessage || '원문 다시 읽기에 실패했어요.');
+    }
     setRetranslating(false);
   };
 
@@ -197,7 +201,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
           <CardOverlayButton
             onClick={handleRetranslate}
             disabled={retranslating}
-            title="재번역"
+            title="원문 다시 읽기"
           >
             {retranslating ? '…' : '↻'}
           </CardOverlayButton>
@@ -249,7 +253,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
       ) : (
         (review.excerptKo || review.excerpt) && (
           <p className="text-gray-400 text-sm leading-relaxed">
-            {retranslating ? '번역 중...' : (review.excerptKo || review.excerpt)}
+            {retranslating ? '원문 다시 읽는 중...' : (review.excerptKo || review.excerpt)}
           </p>
         )
       )}

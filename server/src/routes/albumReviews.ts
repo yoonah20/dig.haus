@@ -11,10 +11,8 @@ import {
 import { searchReviewUrls } from '../services/serper.js';
 import {
   generateKoreanSummary,
-  HAIKU,
   selectEditorialReviewUrls,
 } from '../services/claude.js';
-import { invokeLlm } from '../services/llmRouter.js';
 import {
   getCachedAlbum,
   updateAlbumFields,
@@ -626,53 +624,75 @@ router.patch('/reviews/:reviewId/excerpt', requireAdmin, (req, res) => {
   }
 });
 
-// ─── POST /api/albums/reviews/:reviewId/retranslate — re-translate excerpt ──
+// ─── POST /api/albums/reviews/:reviewId/rescrape — re-fetch + re-extract ───
+//
+// "다시 요약하기" admin action. Previously called /retranslate and re-ran the
+// Korean translation against the stored `excerpt` column — which meant the
+// LLM saw the same input every click and produced near-identical output,
+// the very symptom that drove the redesign. The new flow does what the
+// label promises: re-fetch the original page through the same Jina + LLM
+// path a fresh review takes, and overwrite excerpt / excerpt_ko / score in
+// place. manual_score is preserved (admin overrides survive); source_name
+// is held constant so the (album_mbid, source_name) UNIQUE doesn't trip
+// on a sourceName the LLM happens to capitalize differently this time.
 
-router.post('/reviews/:reviewId/retranslate', adminClaudeLimiter, requireAdmin, async (req, res) => {
+router.post('/reviews/:reviewId/rescrape', adminClaudeLimiter, requireAdmin, async (req, res) => {
   const reviewId = parseInt((req.params.reviewId as string), 10);
   if (isNaN(reviewId)) {
     return res.status(400).json({ error: 'Invalid review ID' });
   }
 
   try {
-    const review = queryGet('SELECT excerpt, source_name FROM reviews WHERE id = ?', [reviewId]);
-    if (!review || !review.excerpt) {
+    const review = queryGet(
+      'SELECT id, album_mbid, source_name, full_review_url FROM reviews WHERE id = ?',
+      [reviewId]
+    );
+    if (!review) {
       return res.status(404).json({ error: 'Review not found' });
     }
-
-    // Route through invokeLlm so LLM_PRIMARY_MODEL env overrides take
-    // effect here just like every other LLM call-site. Prior to this
-    // change the route called Anthropic directly, which meant
-    // retranslate bypassed the DeepSeek primary and kept costing
-    // Haiku pennies per click even when the rest of the pipeline had
-    // moved off Claude. defaultModel stays HAIKU so admin can fall
-    // back to Claude if DeepSeek misbehaves on Korean prose.
-    const prompt = `다음 음악 리뷰 발췌문을 자연스러운 한국어로 번역해줘.
-- 원문의 의미와 뉘앙스를 유지
-- 2-3문장으로 번역
-- 출처 언급 금지
-- 마크다운 문법 절대 사용 금지 (#, **, *, - 등 특수문자 없이 순수 텍스트로만)
-
-원문:\n${review.excerpt}`;
-    const result = await invokeLlm({
-      operation: 'retranslate',
-      prompt,
-      maxTokens: 500,
-      defaultModel: HAIKU,
-    });
-    const rawText = result.text?.trim() || null;
-    const excerptKo = rawText
-      ? rawText.replace(/#{1,6}\s/g, '').replace(/\*\*/g, '').replace(/\*/g, '').replace(/^-\s/gm, '').trim()
-      : null;
-
-    if (excerptKo) {
-      execute('UPDATE reviews SET excerpt_ko = ? WHERE id = ?', [excerptKo, reviewId]);
+    if (!review.full_review_url) {
+      return res.status(400).json({
+        error: '원문 URL이 저장되어 있지 않아 다시 가져올 수 없어요. 수정으로 직접 편집해 주세요.',
+      });
     }
 
-    res.json({ excerptKo });
+    const album = getCachedAlbum(review.album_mbid);
+    if (!album) {
+      return res.status(404).json({ error: 'Album not found' });
+    }
+
+    const outcome = await scrapeReviewFromUrl(
+      review.full_review_url,
+      album.artist_name || '',
+      album.title || '',
+      review.album_mbid
+    );
+
+    if (outcome.kind !== 'ok') {
+      return res.status(422).json({
+        error: '원문 다시 읽기에 실패했어요.',
+        reason: outcome.reason,
+        message: outcome.message,
+      });
+    }
+
+    const fresh = outcome.review;
+    execute(
+      `UPDATE reviews
+       SET excerpt = ?, excerpt_ko = ?, score = ?, score_max = ?, scraped_at = datetime('now')
+       WHERE id = ?`,
+      [fresh.excerpt, fresh.excerptKo, fresh.score, fresh.scoreMax, reviewId]
+    );
+
+    res.json({
+      excerpt: fresh.excerpt,
+      excerptKo: fresh.excerptKo,
+      score: fresh.score,
+      scoreMax: fresh.scoreMax,
+    });
   } catch (error) {
-    console.error('Retranslate error:', error);
-    res.status(500).json({ error: 'Failed to retranslate' });
+    console.error('Rescrape error:', error);
+    res.status(500).json({ error: 'Failed to rescrape review' });
   }
 });
 
