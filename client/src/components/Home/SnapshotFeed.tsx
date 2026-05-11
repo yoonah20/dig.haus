@@ -25,7 +25,7 @@ export default function SnapshotFeed({ count = 3 }: { count?: number }) {
   }
 
   if (snaps.length === 0) {
-    return <DigmanEmpty message="아직 공개된 스냅샷이 없어요." />;
+    return <DigmanEmpty variant="sleep" message="아직 공개된 스냅샷이 없어요." />;
   }
 
   return (

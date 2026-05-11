@@ -24,6 +24,7 @@ export default function NotFound() {
     <div className="flex-1 flex items-center justify-center px-4 py-16">
       <div className="flex flex-col items-center gap-5">
         <DigmanEmpty
+          variant="dizzy"
           size="lg"
           message="이 굴은 막혔어요."
           hint="찾고 있던 페이지가 여기엔 없어요."

@@ -38,7 +38,7 @@ function RouteFallback() {
     <div className="min-h-[50vh] flex items-center justify-center">
       <div className="w-36 h-60 overflow-hidden opacity-70 animate-pulse">
         <img
-          src="/textures/digman.webp"
+          src="/textures/digman_sleep.webp"
           alt=""
           aria-hidden
           className="block w-full h-full object-contain select-none"
