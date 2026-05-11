@@ -99,7 +99,7 @@ export default function LoginButton() {
           <div
             role="dialog"
             aria-label="로그인 동의"
-            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[#141414] border border-white/10 rounded-2xl p-5 shadow-2xl z-50"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-panel-strong border border-white/10 rounded-2xl p-5 shadow-2xl z-50"
           >
             <h2 className="text-base font-semibold text-white mb-3">
               로그인하기 전에

@@ -207,7 +207,7 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
           <h2 className="text-[10px] uppercase tracking-wider text-gray-500 mb-2">
             active routing
           </h2>
-          <div className="bg-[#141414] border border-white/5 rounded-md overflow-hidden">
+          <div className="bg-panel-strong border border-white/5 rounded-md overflow-hidden">
             <table className="w-full text-[11px]">
               <thead>
                 <tr className="text-[10px] uppercase tracking-wider text-gray-500 bg-panel-strong">
@@ -336,7 +336,7 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
       )}
 
       {!isLoading && rows.length === 0 && (
-        <div className="text-xs text-gray-500 bg-[#141414] border border-white/5 rounded-md px-4 py-6 text-center">
+        <div className="text-xs text-gray-500 bg-panel-strong border border-white/5 rounded-md px-4 py-6 text-center">
           {data?.enabled
             ? '비교 로그가 없습니다. 자동 큐레이션 또는 앨범 등록을 한 번 돌려보세요.'
             : 'LLM_COMPARE=1 env를 설정한 뒤 서버를 재시작하면 새 호출부터 기록됩니다.'}
@@ -352,7 +352,7 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
             return (
               <div
                 key={r.id}
-                className="bg-[#141414] border border-white/5 rounded-md overflow-hidden"
+                className="bg-panel-strong border border-white/5 rounded-md overflow-hidden"
               >
                 <button
                   onClick={() => toggleExpanded(r.id)}
@@ -446,7 +446,7 @@ function Kpi({
       ? 'text-red-400'
       : 'text-white';
   return (
-    <div className="bg-[#141414] border border-white/5 rounded-md px-3 py-2">
+    <div className="bg-panel-strong border border-white/5 rounded-md px-3 py-2">
       <div className="text-[10px] uppercase tracking-wider text-gray-500">
         {label}
       </div>
