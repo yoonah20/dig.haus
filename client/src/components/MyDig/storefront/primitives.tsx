@@ -1063,7 +1063,7 @@ export function WoodenCrate({
     '#5a3c24',
     '#2a1a0d',
     '#6b4628',
-    '#1a0f08',
+    'var(--color-panel-strong)',
     '#8b6a3e',
     '#4a311d',
     '#3a2513',
@@ -1501,7 +1501,7 @@ function Turntable({
           cy={cy}
           rx={platterR}
           ry={platterR * 0.82}
-          fill="#0f0a05"
+          fill="var(--color-panel-strong)"
           stroke="#1a120a"
           strokeWidth="1"
         />

@@ -204,7 +204,7 @@ export default function UserHoverCard({
             // [big avatar | info column] side-by-side. Fixed-positioned
             // via the measured rect so this lives outside any ancestor
             // overflow-hidden (e.g. the marquee) and never clips.
-            className="fixed z-[60] w-72 bg-[#0f0a05] border border-accent/25 rounded-xl shadow-xl p-3 text-xs text-gray-200 animate-[fadeInUp_150ms_ease-out] pointer-events-auto"
+            className="fixed z-[60] w-72 bg-panel-strong border border-accent/25 rounded-xl shadow-xl p-3 text-xs text-gray-200 animate-[fadeInUp_150ms_ease-out] pointer-events-auto"
             style={{ top: pos.top, left: pos.left }}
             onMouseEnter={scheduleShow}
             onMouseLeave={scheduleHide}

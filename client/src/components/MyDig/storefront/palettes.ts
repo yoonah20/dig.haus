@@ -29,7 +29,7 @@ export const ROOM = {
   // floor — warm walnut planks, one-point perspective
   floor: '#3a2614',
   floorHi: '#4a3020',
-  floorLo: '#1a0f08',
+  floorLo: 'var(--color-panel-strong)',
   floorPlank: '#2a1a0d',
   baseboard: '#1a120a',
   baseboardHi: '#5a3f2a',
@@ -48,7 +48,7 @@ export const ROOM = {
 
   // crate interior — dark void inside wooden record crates; keeps
   // the LP top edges that sit inside from fading into the wood
-  crateInterior: '#1a0f08',
+  crateInterior: 'var(--color-panel-strong)',
   crateShadow: 'rgba(0, 0, 0, 0.55)',
 
   // shelf cubby interior — legacy keys still referenced by the
@@ -63,14 +63,14 @@ export const ROOM = {
   cubbyLip: '#3a2513',
 
   // masking tape — cream/beige, warm under the lamp
-  tapeTop: '#f5e8c8',
+  tapeTop: 'var(--color-tape-cream)',
   tapeMid: '#e8d6a8',
   tapeBot: '#c9b488',
   tapeFiber: 'rgba(80, 60, 30, 0.5)',
   ink: '#2a1a0d',
 
   // text — light on the warm wall
-  headingInk: '#f5e8c8',
+  headingInk: 'var(--color-tape-cream)',
   bodyInk: '#d9c4a0',
   mutedInk: '#a88a60',
   accentInk: 'var(--color-accent)',

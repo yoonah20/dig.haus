@@ -895,7 +895,7 @@ function MobileSnapshotsDropdown({
         </span>
       </button>
       {open && (
-        <div className="mt-1 rounded-md bg-[#0f0a05]/85 border border-white/10 divide-y divide-white/5 overflow-hidden">
+        <div className="mt-1 rounded-md bg-panel-strong/85 border border-white/10 divide-y divide-white/5 overflow-hidden">
           {/* Back-to-live row when viewing a snapshot. Mirrors the
               "← 현재 마이딕으로…" affordance from the desktop list
               but as a plain button row for mobile. */}
@@ -1382,7 +1382,7 @@ function CommentBubble({
         <div
           className="px-3.5 py-2.5 rounded-xl text-[13px] leading-snug font-serif italic text-center"
           style={{
-            background: '#f5e8c8',
+            background: 'var(--color-tape-cream)',
             color: 'var(--color-panel-strong)',
             boxShadow:
               '0 8px 20px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(20,14,8,0.2)',
@@ -1436,7 +1436,7 @@ function CommentBubble({
         <div
           className="px-3 py-2 rounded-xl text-[12px] leading-snug font-serif italic"
           style={{
-            background: '#f5e8c8',
+            background: 'var(--color-tape-cream)',
             color: 'var(--color-panel-strong)',
             boxShadow:
               '0 6px 14px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(20,14,8,0.2)',
@@ -1474,7 +1474,7 @@ function CommentBubble({
               marginLeft: -6,
               width: 12,
               height: 12,
-              background: '#f5e8c8',
+              background: 'var(--color-tape-cream)',
               transform: 'rotate(45deg)',
               boxShadow: '3px 3px 6px rgba(0,0,0,0.3)',
               clipPath: 'polygon(100% 0%, 100% 100%, 0% 100%)',

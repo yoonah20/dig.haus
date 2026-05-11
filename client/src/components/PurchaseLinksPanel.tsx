@@ -518,7 +518,7 @@ function LinkForm({
     <div className="space-y-1.5">
       <form
         onSubmit={handleSubmit}
-        className="bg-[#141414] rounded-xl border border-white/10 p-4 max-w-xl space-y-3.5"
+        className="bg-panel-strong rounded-xl border border-white/10 p-4 max-w-xl space-y-3.5"
       >
         {/* URL — full width, labelled, because it's the one required
             field and people paste long URLs into it. The in-field
