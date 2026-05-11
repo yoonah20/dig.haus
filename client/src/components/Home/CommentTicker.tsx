@@ -83,7 +83,7 @@ function Avatar({
   const initial = (name || '?').trim().charAt(0).toUpperCase();
   return (
     <div
-      className="rounded-full bg-[#2a1f10] text-[#e8a020] flex items-center justify-center shrink-0 border border-white/10 font-semibold"
+      className="rounded-full bg-[#2a1f10] text-accent flex items-center justify-center shrink-0 border border-white/10 font-semibold"
       style={{ width: size, height: size, fontSize: Math.max(size * 0.4, 14) }}
       aria-hidden
     >
@@ -158,7 +158,7 @@ export function TickerItem({
       <div
         className={`${reversed ? 'bubble-tail-right flex-row-reverse' : 'bubble-tail'} ${
           fresh ? 'bubble-fresh' : ''
-        } flex-1 min-w-0 flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 min-h-[64px] group-hover:border-[#e8a020]/50 transition-colors`}
+        } flex-1 min-w-0 flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 min-h-[64px] group-hover:border-accent/50 transition-colors`}
         style={BUBBLE_STYLE}
       >
         {/* Body with trailing rating + feeling emojis — the 50자 cap

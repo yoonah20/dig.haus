@@ -194,7 +194,7 @@ export default function PersistentNowPlayingPlayer() {
           onClick={clearNowPlaying}
           aria-label="재생 닫기"
           title="재생 닫기"
-          className="absolute top-0 left-full ml-1.5 z-10 w-7 h-7 rounded-full border-2 border-[#e8a020] bg-transparent text-[#e8a020] hover:bg-[#e8a020] hover:text-[#141008] text-base leading-none flex items-center justify-center cursor-pointer opacity-0 group-hover/np:opacity-100 transition-[opacity,background-color,color] duration-150"
+          className="absolute top-0 left-full ml-1.5 z-10 w-7 h-7 rounded-full border-2 border-accent bg-transparent text-accent hover:bg-accent hover:text-[#141008] text-base leading-none flex items-center justify-center cursor-pointer opacity-0 group-hover/np:opacity-100 transition-[opacity,background-color,color] duration-150"
         >
           ×
         </button>

@@ -359,7 +359,7 @@ export default function HomeNext() {
           the mobile swap kicks in once matchMedia resolves. */}
       {isMobile ? <HomeNextHeroMobile /> : <HomeNextHero />}
 
-      <div className="bg-[#120c05] px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
+      <div className="bg-background px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-10">
           {/* ── 최근 발매 목록 ─────────────────────────────────────
               Past-only 30-day window keyed off release_date — the
@@ -512,7 +512,7 @@ export default function HomeNext() {
                 </span>
                 <Link
                   to="/dig"
-                  className="text-gray-400 hover:text-[#e8a020] transition-colors"
+                  className="text-gray-400 hover:text-accent transition-colors"
                 >
                   앨범 더 보러가기 →
                 </Link>
@@ -554,7 +554,7 @@ function MiniAvatar({
   const initial = (name || '?').trim().charAt(0).toUpperCase();
   return (
     <div
-      className="rounded-full bg-[#2a1f10] text-[#e8a020] flex items-center justify-center shrink-0 border border-white/10 font-semibold"
+      className="rounded-full bg-[#2a1f10] text-accent flex items-center justify-center shrink-0 border border-white/10 font-semibold"
       style={{ width: size, height: size, fontSize: Math.round(size * 0.55) }}
       aria-hidden
     >
@@ -638,7 +638,7 @@ function AuthorStrip({
     <Link
       to={mydigUrl}
       aria-label={`${displayName}의 마이딕`}
-      className={`${stripBase} hover:bg-[#e8a020]/15 hover:text-[#e8a020]`}
+      className={`${stripBase} hover:bg-accent/15 hover:text-accent`}
     >
       {trigger}
     </Link>
@@ -665,7 +665,7 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
   });
 
   return (
-    <div className="review-card-outer group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-[#e8a020]/25 hover:border-[#e8a020]/60 transition-colors bg-[#1a1208]">
+    <div className="review-card-outer group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-accent/25 hover:border-accent/60 transition-colors bg-[#1a1208]">
       <TimeChip iso={item.createdAt} />
       <Link
         to={albumHref}
@@ -794,7 +794,7 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
       <TimeChip iso={snap.createdAt} />
       <Link
         to={`${mydigUrl}/snap/${snap.slug}`}
-        className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1.5 p-2 hover:[&_.snap-name]:text-[#e8a020]"
+        className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1.5 p-2 hover:[&_.snap-name]:text-accent"
       >
         {/* Cover grid uses fr-based rows + flex-1 so it absorbs the
             available Link area instead of forcing a fixed 3×2-of-

@@ -113,7 +113,7 @@ function useAuthOutcomeAndStripNoise(): AuthOutcome | null {
 function PendingApprovalModal({ onDismiss }: { onDismiss: () => void }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="w-full max-w-sm rounded-2xl bg-[#1a1a1a] border border-white/10 shadow-2xl p-6 text-center">
+      <div className="w-full max-w-sm rounded-2xl bg-panel border border-white/10 shadow-2xl p-6 text-center">
         <h2 className="text-lg font-semibold text-white mb-2">
           조금만 기다려 주세요
         </h2>
@@ -126,7 +126,7 @@ function PendingApprovalModal({ onDismiss }: { onDismiss: () => void }) {
         <button
           type="button"
           onClick={onDismiss}
-          className="mt-5 inline-flex items-center justify-center rounded-md bg-[#e8a020] hover:bg-[#f5b030] text-[#141008] font-bold px-5 py-2 text-sm cursor-pointer transition-colors"
+          className="mt-5 inline-flex items-center justify-center rounded-md bg-accent hover:bg-[#f5b030] text-[#141008] font-bold px-5 py-2 text-sm cursor-pointer transition-colors"
         >
           확인
         </button>
@@ -175,7 +175,7 @@ export default function App() {
           <CurationProgressProvider>
             <div
               className={`min-h-screen flex flex-col text-gray-100 relative ${
-                isHome ? 'bg-[#120c05]' : 'bg-[#0a0703]'
+                isHome ? 'bg-background' : 'bg-[#0a0703]'
               }`}
               // isolation:isolate creates a fresh stacking context
               // so the z-index:-1 backdrop layer stays behind this
@@ -192,7 +192,7 @@ export default function App() {
                   // eye away from the covers. Mobile and desktop
                   // share the same flat tone here.
                   className="absolute inset-0 pointer-events-none"
-                  style={{ zIndex: -1, backgroundColor: '#1a1a1a' }}
+                  style={{ zIndex: -1, backgroundColor: 'var(--color-panel)' }}
                 />
               )}
               {isMydig && (

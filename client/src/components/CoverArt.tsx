@@ -74,7 +74,7 @@ export default function CoverArt({ src, fallbacks = [], alt, className = '', onL
     const initials = getInitials(alt);
     return (
       <div
-        className={`flex items-center justify-center bg-[#1a1a1a] text-gray-500 font-bold select-none ${className}`}
+        className={`flex items-center justify-center bg-panel text-gray-500 font-bold select-none ${className}`}
         title={alt}
       >
         <span className="text-2xl">{initials || '?'}</span>

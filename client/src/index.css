@@ -33,30 +33,36 @@
 }
 
 @theme {
-  --color-background: #15110a;
-  --color-background-secondary: #1a1a1a;
-  --color-background-tertiary: #252525;
+  /* Slight-lift warm palette — Step 1 of the design-system pass. The
+     pre-lift values (page #120c05 / panel #1a1a1a / panel-strong
+     #0f0f0f) were a "basement at night" tone that didn't match the
+     bright daytime digman mascot living on top of it. Each tier
+     bumps ~5-10% in lightness and pulls toward the amber undertone
+     so the surface palette + the illustrations belong to the same
+     world — "황혼의 카운터" instead of "basement at night". Accent
+     yellow (#e8a020) is intentionally unchanged; it's the brand
+     anchor and the rest of the palette rotates around it.
+
+     Pre-lift values kept in commit history for one-line rollback if
+     the operator decides this lift went too far. */
+  --color-background: #1a130a;
   --color-accent: #e8a020;
   --color-accent-hover: #f0b040;
   --color-accent-muted: #e8a02033;
-  --color-foreground: #e5e5e5;
-  --color-foreground-muted: #999999;
-  --color-border: #2a2a2a;
+  --color-foreground: #ede4d0;
+  --color-foreground-muted: #a89c84;
+  --color-border: #3a2a18;
 
-  /* Panel chrome — consolidates the three card backgrounds the album-
-     page audit found in the wild (#1a1a1a, #1d140a, #0f0f0f) into a
-     single panel base + hover + strong (for inputs / dim overlays).
-     The album-page refactor's PR3 swaps the hardcoded hexes to these
-     so the page reads as one composition rather than three islands.
-     Panel duplicates --color-background-secondary on purpose: the
-     existing token is "what the page background secondary level
-     looks like" while --color-panel reads as "what a content panel
-     surface looks like" at the call site, and they happen to share
-     a value today. Splitting the names lets either move without the
-     other if a future redesign breaks them apart. */
-  --color-panel: #1a1a1a;
-  --color-panel-hover: #252525;
-  --color-panel-strong: #0f0f0f;
+  /* Panel chrome — surface tiers for cards / panels / inputs. Panel
+     base is the default card / dropdown background; panel-hover is
+     the +1 tier for elevated / hovered surfaces; panel-strong is
+     the recessed / sunken tier used for inputs and dim overlays.
+     All three tinted toward the amber undertone in Step 1 so they
+     feel cohesive against the new background rather than reading
+     as a separate neutral palette. */
+  --color-panel: #241a10;
+  --color-panel-hover: #2e2218;
+  --color-panel-strong: #13100a;
 
   /* MyDig storefront vocabulary hoisted into site-wide tokens so the
      album page can reuse the same wood / lamp / tape colors for its

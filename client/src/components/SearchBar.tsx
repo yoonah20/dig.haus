@@ -218,8 +218,8 @@ export default function SearchBar({
     ? 'relative w-full'
     : 'relative w-full max-w-2xl mx-auto';
   const inputCls = compact
-    ? 'w-full bg-[#1a1108] border border-[#e8a020]/25 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition'
-    : 'w-full bg-[#1a1108] border border-[#e8a020]/30 rounded-xl pl-12 pr-5 py-3 text-base text-white placeholder-gray-500 focus:border-[#e8a020] focus:outline-none transition';
+    ? 'w-full bg-[#1a1108] border border-accent/25 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:border-accent focus:outline-none transition'
+    : 'w-full bg-[#1a1108] border border-accent/30 rounded-xl pl-12 pr-5 py-3 text-base text-white placeholder-gray-500 focus:border-accent focus:outline-none transition';
   const iconCls = compact
     ? 'absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none'
     : 'absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none';
@@ -227,8 +227,8 @@ export default function SearchBar({
     ? 'absolute right-2.5 top-1/2 -translate-y-1/2'
     : 'absolute right-4 top-1/2 -translate-y-1/2';
   const spinnerCls = compact
-    ? 'w-4 h-4 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin'
-    : 'w-5 h-5 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin';
+    ? 'w-4 h-4 border-2 border-gray-500 border-t-accent rounded-full animate-spin'
+    : 'w-5 h-5 border-2 border-gray-500 border-t-accent rounded-full animate-spin';
 
   return (
     <div className={outerCls}>
@@ -265,7 +265,7 @@ export default function SearchBar({
       </div>
 
       {showDropdown && (
-        <div className="absolute z-50 mt-2 w-full bg-[#120c05]/95 backdrop-blur-sm border border-[#e8a020]/40 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden max-h-[70vh] overflow-y-auto">
+        <div className="absolute z-50 mt-2 w-full bg-background/95 backdrop-blur-sm border border-accent/40 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden max-h-[70vh] overflow-y-auto">
           {/* URL paste branch — the extracted Discogs candidate sits at
               the top by itself, no DB / external sections beside it.
               Loading + error states surface here too so the user
@@ -383,7 +383,7 @@ export default function SearchBar({
               because manual entry is the escape hatch, not the primary
               path. Expanding swaps the prompt for an inline form. */}
           {!isUrlMode && loggedIn && (
-            <section className="border-t border-[#e8a020]/15 bg-[#1a1108]">
+            <section className="border-t border-accent/15 bg-[#1a1108]">
               {!manualOpen ? (
                 <button
                   type="button"
@@ -420,7 +420,7 @@ export default function SearchBar({
           )}
 
           {errorMsg && (
-            <div className="px-5 py-3 text-xs text-red-400 border-t border-[#e8a020]/15 bg-[#1a0a05]">
+            <div className="px-5 py-3 text-xs text-red-400 border-t border-accent/15 bg-[#1a0a05]">
               {errorMsg}
             </div>
           )}
@@ -432,7 +432,7 @@ export default function SearchBar({
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-4 pt-3 pb-1.5 text-[10px] uppercase tracking-wider text-[#e8a020]/70 bg-[#1a1108] border-b border-[#e8a020]/10">
+    <div className="px-4 pt-3 pb-1.5 text-[10px] uppercase tracking-wider text-accent/70 bg-[#1a1108] border-b border-accent/10">
       {label}
     </div>
   );
@@ -503,10 +503,10 @@ function ExternalRow({
           disabled={disabled || pending}
           title="이 앨범을 dig.haus에 등록"
           aria-label="등록"
-          className="w-7 h-7 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] text-base leading-none hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-7 h-7 flex items-center justify-center rounded-full border border-accent/60 text-accent text-base leading-none hover:bg-accent hover:text-black transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {pending ? (
-            <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+            <span className="w-3 h-3 border-2 border-gray-500 border-t-accent rounded-full animate-spin" />
           ) : (
             '+'
           )}
@@ -518,7 +518,7 @@ function ExternalRow({
             disabled={disabled || pending}
             title="등록 후 자동 큐레이션까지 실행"
             aria-label="등록 + 큐레이션"
-            className="w-7 h-7 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] text-base leading-none hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-7 h-7 flex items-center justify-center rounded-full border border-accent/60 text-accent text-base leading-none hover:bg-accent hover:text-black transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             ⚡
           </button>
@@ -598,7 +598,7 @@ function ManualAlbumForm({
       }}
       className="px-4 py-3 space-y-2"
     >
-      <div className="text-[10px] uppercase tracking-wider text-[#e8a020]/70 mb-1">
+      <div className="text-[10px] uppercase tracking-wider text-accent/70 mb-1">
         직접 등록
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -607,7 +607,7 @@ function ManualAlbumForm({
           value={artist}
           onChange={(e) => setArtist(e.target.value)}
           placeholder="아티스트 *"
-          className="bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
           autoFocus
         />
         <input
@@ -615,7 +615,7 @@ function ManualAlbumForm({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="앨범 제목 *"
-          className="bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
         />
         <input
           type="text"
@@ -624,12 +624,12 @@ function ManualAlbumForm({
           placeholder="발매 연도 (YYYY)"
           maxLength={4}
           inputMode="numeric"
-          className="bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
         />
         <select
           value={format}
           onChange={(e) => setFormat(e.target.value as typeof format)}
-          className="bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 focus:border-[#e8a020] focus:outline-none"
+          className="bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 focus:border-accent focus:outline-none"
         >
           <option value="">포맷 선택</option>
           <option value="Vinyl">Vinyl</option>
@@ -641,14 +641,14 @@ function ManualAlbumForm({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="레이블 (선택)"
-          className="col-span-2 bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="col-span-2 bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
         />
         <input
           type="url"
           value={coverArtUrl}
           onChange={(e) => setCoverArtUrl(e.target.value)}
           placeholder="커버 이미지 URL (선택, https://…)"
-          className="col-span-2 bg-[#0f0903] border border-[#e8a020]/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-[#e8a020] focus:outline-none"
+          className="col-span-2 bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
         />
       </div>
       <p className="text-[10px] text-gray-500 leading-snug">
@@ -665,7 +665,7 @@ function ManualAlbumForm({
         <button
           type="submit"
           disabled={!canSubmit}
-          className="px-3 py-1.5 text-xs font-semibold rounded bg-[#e8a020] text-black hover:bg-[#f0b040] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-3 py-1.5 text-xs font-semibold rounded bg-accent text-black hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {pending ? '등록 중…' : '등록하기'}
         </button>

@@ -8,7 +8,7 @@ import { forwardRef } from 'react';
 
 // Form-control chrome. The album page's form surfaces (admin URL
 // input, manual entry textarea, score input, excerpt edits) all
-// independently reinvented `bg-[#0f0f0f] border border-white/10
+// independently reinvented `bg-panel-strong border border-white/10
 // rounded-md` with subtly different padding — the audit flagged
 // the dark-on-dark contrast as too low and the ad-hoc rounding as
 // part of the "early-development" feel. Field locks the chrome
@@ -16,7 +16,7 @@ import { forwardRef } from 'react';
 // callers just pick the kind via the `as` prop.
 
 const FIELD_CHROME =
-  'bg-panel-strong border border-white/10 rounded-input px-3 py-2 text-sm text-gray-200 placeholder-gray-500 transition-colors focus:border-[#e8a020]/60 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed';
+  'bg-panel-strong border border-white/10 rounded-input px-3 py-2 text-sm text-gray-200 placeholder-gray-500 transition-colors focus:border-accent/60 focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed';
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & { as?: 'input' };
 type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {

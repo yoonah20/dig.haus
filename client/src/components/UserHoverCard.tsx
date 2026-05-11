@@ -204,7 +204,7 @@ export default function UserHoverCard({
             // [big avatar | info column] side-by-side. Fixed-positioned
             // via the measured rect so this lives outside any ancestor
             // overflow-hidden (e.g. the marquee) and never clips.
-            className="fixed z-[60] w-72 bg-[#0f0a05] border border-[#e8a020]/25 rounded-xl shadow-xl p-3 text-xs text-gray-200 animate-[fadeInUp_150ms_ease-out] pointer-events-auto"
+            className="fixed z-[60] w-72 bg-[#0f0a05] border border-accent/25 rounded-xl shadow-xl p-3 text-xs text-gray-200 animate-[fadeInUp_150ms_ease-out] pointer-events-auto"
             style={{ top: pos.top, left: pos.left }}
             onMouseEnter={scheduleShow}
             onMouseLeave={scheduleHide}
@@ -224,7 +224,7 @@ export default function UserHoverCard({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-[72px] h-[72px] rounded-full bg-[#2a1f10] border border-white/10 shrink-0 flex items-center justify-center text-[#e8a020] font-semibold text-2xl">
+                <div className="w-[72px] h-[72px] rounded-full bg-[#2a1f10] border border-white/10 shrink-0 flex items-center justify-center text-accent font-semibold text-2xl">
                   {(data.user.name || '?').trim().charAt(0).toUpperCase()}
                 </div>
               )}
@@ -270,7 +270,7 @@ export default function UserHoverCard({
                     className={`flex items-center gap-1.5 truncate ${
                       data.mydig.wallItemCount === 0
                         ? 'text-gray-500 hover:text-gray-400'
-                        : 'text-[#e8a020] hover:text-[#f0b040]'
+                        : 'text-accent hover:text-accent-hover'
                     }`}
                     onClick={(e) => e.stopPropagation()}
                   >
@@ -305,7 +305,7 @@ export default function UserHoverCard({
                     href={`https://instagram.com/${data.user.instagramHandle}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-[#e8a020] hover:text-[#f0b040] truncate"
+                    className="flex items-center gap-1.5 text-accent hover:text-accent-hover truncate"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <svg

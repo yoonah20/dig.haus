@@ -73,7 +73,7 @@ export const ROOM = {
   headingInk: '#f5e8c8',
   bodyInk: '#d9c4a0',
   mutedInk: '#a88a60',
-  accentInk: '#e8a020',
+  accentInk: 'var(--color-accent)',
   hairline: 'rgba(245, 232, 200, 0.12)',
 
   // sticky notes — faded yellow, pinned to wall as lived-in detail

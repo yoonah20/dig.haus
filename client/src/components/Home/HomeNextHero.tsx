@@ -614,7 +614,7 @@ export default function HomeNextHero() {
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="text-[11px] text-gray-200 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-colors"
+            className="text-[11px] text-gray-200 bg-black/70 border border-white/15 hover:border-accent/60 hover:text-accent rounded-full px-3 py-1 transition-colors"
             title={`${activeIdx + 1}번째 벽 편집`}
           >
             ✏️ 편집
@@ -622,14 +622,14 @@ export default function HomeNextHero() {
           <button
             type="button"
             onClick={() => setTunerOpen(true)}
-            className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full px-3 py-1 transition-colors flex items-center gap-1.5"
+            className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-accent/60 hover:text-accent rounded-full px-3 py-1 transition-colors flex items-center gap-1.5"
             title={`${activeIdx + 1}번째 벽 위치 보정`}
           >
             ⚙ 보정
             {isDirty && (
               <span
                 aria-hidden
-                className="w-1.5 h-1.5 rounded-full bg-[#e8a020]"
+                className="w-1.5 h-1.5 rounded-full bg-accent"
               />
             )}
           </button>
@@ -641,7 +641,7 @@ export default function HomeNextHero() {
                 disabled={activeIdx === 0 || moveWall.isPending}
                 title="이 벽을 왼쪽으로"
                 aria-label="이 벽을 왼쪽으로"
-                className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full w-7 h-7 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-accent/60 hover:text-accent rounded-full w-7 h-7 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 ←
               </button>
@@ -653,7 +653,7 @@ export default function HomeNextHero() {
                 }
                 title="이 벽을 오른쪽으로"
                 aria-label="이 벽을 오른쪽으로"
-                className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] rounded-full w-7 h-7 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className="text-[11px] text-gray-300 bg-black/70 border border-white/15 hover:border-accent/60 hover:text-accent rounded-full w-7 h-7 flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 →
               </button>
@@ -1088,7 +1088,7 @@ function HeroTunerPanel({
         <span className="text-xs text-gray-200 font-semibold flex items-center gap-2">
           Hero 보정
           {isDirty && (
-            <span className="text-[9px] text-[#e8a020] uppercase tracking-wide">
+            <span className="text-[9px] text-accent uppercase tracking-wide">
               미저장
             </span>
           )}
@@ -1097,7 +1097,7 @@ function HeroTunerPanel({
           <button
             type="button"
             onClick={onReset}
-            className="text-[10px] text-gray-400 hover:text-[#e8a020] px-1.5 py-0.5 rounded border border-white/10 transition-colors"
+            className="text-[10px] text-gray-400 hover:text-accent px-1.5 py-0.5 rounded border border-white/10 transition-colors"
             title="기본값으로 (저장 전)"
           >
             기본
@@ -1212,7 +1212,7 @@ function HeroTunerPanel({
           type="button"
           onClick={onSave}
           disabled={!isDirty}
-          className="text-[11px] px-2.5 py-1 rounded bg-[#e8a020] text-[#1a1208] font-semibold hover:bg-[#f0b040] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="text-[11px] px-2.5 py-1 rounded bg-accent text-[#1a1208] font-semibold hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           저장
         </button>
@@ -1248,7 +1248,7 @@ function TunerRow({
         step={step}
         value={value}
         onChange={(e) => onChange(parseInt(e.target.value, 10) || 0)}
-        className="flex-1 h-1 accent-[#e8a020]"
+        className="flex-1 h-1 accent-accent"
       />
       <input
         type="number"

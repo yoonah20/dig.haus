@@ -185,7 +185,7 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
 
   if (editing) {
     return (
-      <div className="bg-panel rounded-panel overflow-hidden border border-[#e8a020]/40 p-3 flex flex-col gap-2">
+      <div className="bg-panel rounded-panel overflow-hidden border border-accent/40 p-3 flex flex-col gap-2">
         <div className="text-xs text-gray-400 truncate" title={`${album.artist} — ${album.title}`}>
           {album.artist} — {album.title}
         </div>
@@ -231,7 +231,7 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
           <button
             onClick={saveEdit}
             disabled={saving}
-            className="px-2 py-0.5 text-xs text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+            className="px-2 py-0.5 text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
             aria-label="저장"
           >
             {saving ? '...' : '✓'}
@@ -382,7 +382,7 @@ function AddSlot({ albumId }: { albumId: string }) {
 
   if (open) {
     return (
-      <div className="bg-panel rounded-panel overflow-hidden border border-dashed border-[#e8a020]/40 p-3 flex flex-col gap-2">
+      <div className="bg-panel rounded-panel overflow-hidden border border-dashed border-accent/40 p-3 flex flex-col gap-2">
         <div className="text-xs text-gray-400">비슷한 앨범 수동 추가</div>
         <Field
           type="text"
@@ -411,7 +411,7 @@ function AddSlot({ albumId }: { albumId: string }) {
           <button
             onClick={handleAdd}
             disabled={saving}
-            className="px-2 py-0.5 text-xs text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+            className="px-2 py-0.5 text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
           >
             {saving ? '추가 중...' : '✓ 추가'}
           </button>
@@ -423,9 +423,9 @@ function AddSlot({ albumId }: { albumId: string }) {
   return (
     <button
       onClick={() => setOpen(true)}
-      className="bg-transparent rounded-panel border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 flex flex-col items-center justify-center h-full transition-colors cursor-pointer group"
+      className="bg-transparent rounded-panel border-2 border-dashed border-white/10 hover:border-accent/40 flex flex-col items-center justify-center h-full transition-colors cursor-pointer group"
     >
-      <span className="text-2xl text-gray-600 group-hover:text-[#e8a020] transition-colors">+</span>
+      <span className="text-2xl text-gray-600 group-hover:text-accent transition-colors">+</span>
       <span className="text-xs text-gray-600 group-hover:text-gray-400 mt-1 transition-colors">추가</span>
     </button>
   );
@@ -462,7 +462,7 @@ export default function SimilarAlbums({ albums, albumId }: { albums: SimilarAlbu
 export function AiSummaryBadge() {
   return (
     <span
-      className="inline-flex items-center text-[10px] font-sans font-semibold tracking-wider uppercase text-[#e8a020]/80 border border-[#e8a020]/40 rounded-pill px-1.5 py-0.5 leading-none align-middle translate-y-[-2px]"
+      className="inline-flex items-center text-[10px] font-sans font-semibold tracking-wider uppercase text-accent/80 border border-accent/40 rounded-pill px-1.5 py-0.5 leading-none align-middle translate-y-[-2px]"
       title="AI가 정리한 내용입니다."
       aria-label="AI 요약"
     >

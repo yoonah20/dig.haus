@@ -66,14 +66,14 @@ export default function UsernameModal({ open, onClose, onSaved, initialValue }: 
         if (e.target === e.currentTarget && !saving) onClose();
       }}
     >
-      <div className="bg-[#1a1a1a] rounded-xl border border-white/10 max-w-md w-full p-6">
+      <div className="bg-panel rounded-xl border border-white/10 max-w-md w-full p-6">
         <h2 className="text-lg font-bold text-white mb-2">
           {initialValue ? '사용자명 변경' : '내 가게 이름 정하기'}
         </h2>
         <p className="text-sm text-gray-400 mb-4 leading-relaxed">
           마이딕 URL에 쓰이는 사용자명이에요. 영문 소문자/숫자/밑줄/하이픈 3-20자.
           <br />
-          <code className="text-[11px] text-[#e8a020]">
+          <code className="text-[11px] text-accent">
             dig.haus/my/<span className="text-gray-500">{trimmed || 'your_name'}</span>
           </code>
         </p>
@@ -89,7 +89,7 @@ export default function UsernameModal({ open, onClose, onSaved, initialValue }: 
           autoFocus
           placeholder="예: dustylp"
           maxLength={30}
-          className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 mb-2"
+          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60 mb-2"
         />
         {!localValid && trimmed.length > 0 && (
           <p className="text-xs text-gray-500 mb-2">
@@ -110,7 +110,7 @@ export default function UsernameModal({ open, onClose, onSaved, initialValue }: 
             type="button"
             onClick={handleSave}
             disabled={!localValid || saving}
-            className="text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="text-xs font-medium text-accent border border-accent/60 hover:bg-accent/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {saving ? '저장 중…' : '저장'}
           </button>

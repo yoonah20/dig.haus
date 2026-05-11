@@ -153,7 +153,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
                   }
                 }}
                 maxLength={60}
-                className="w-full bg-transparent text-xl font-serif italic text-white border-b border-transparent hover:border-white/15 focus:border-[#e8a020] focus:outline-none"
+                className="w-full bg-transparent text-xl font-serif italic text-white border-b border-transparent hover:border-white/15 focus:border-accent focus:outline-none"
               />
             ) : (
               <h2 className="text-xl font-serif italic text-white">
@@ -167,7 +167,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
                   type="button"
                   onClick={togglePublic}
                   disabled={update.isPending}
-                  className="cursor-pointer hover:text-[#e8a020] transition-colors"
+                  className="cursor-pointer hover:text-accent transition-colors"
                   title="공개 / 비공개 토글"
                 >
                   {crate.isPublic ? '🌐 공개' : '🔒 비공개'}
@@ -202,7 +202,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
                 placeholder="이 상자가 어떤 모음인지 짧게 적어보세요. (선택)"
                 maxLength={240}
                 rows={2}
-                className="w-full bg-[#0a0703] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none"
+                className="w-full bg-[#0a0703] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600 resize-none"
               />
             ) : (
               <p className="text-sm text-gray-300 leading-relaxed">
@@ -221,11 +221,11 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
               {items.map((it) => (
                 <div
                   key={it.id}
-                  className="relative group aspect-square rounded-md overflow-hidden bg-[#1a1a1a]"
+                  className="relative group aspect-square rounded-md overflow-hidden bg-panel"
                 >
                   <Link
                     to={`/album/${it.slug || it.mbid}`}
-                    className="absolute inset-0 hover:ring-2 hover:ring-[#e8a020]/40 transition-all"
+                    className="absolute inset-0 hover:ring-2 hover:ring-accent/40 transition-all"
                     title={`${it.title} — ${it.artist}`}
                   >
                     <CoverArt

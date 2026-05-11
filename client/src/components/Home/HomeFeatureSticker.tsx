@@ -135,7 +135,7 @@ export default function HomeFeatureSticker({
           right: '3%',
           fontFamily: GRAFFITI_FONT_STACK,
           fontSize: priceFontSize,
-          color: '#1a1a1a',
+          color: 'var(--color-panel)',
           letterSpacing: '-0.02em',
           textDecoration: isSoldout ? 'line-through' : 'none',
           textDecorationThickness: isSoldout ? 1.5 : undefined,

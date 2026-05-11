@@ -175,7 +175,7 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
   const body = (
     <div className="font-mono text-sm">
       <header className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
-        <h1 className="text-lg text-[#e8a020]">LLM Shadow Comparison</h1>
+        <h1 className="text-lg text-accent">LLM Shadow Comparison</h1>
         <div className="flex items-center gap-3 text-[11px] text-gray-500">
           <span
             className={
@@ -210,7 +210,7 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
           <div className="bg-[#141414] border border-white/5 rounded-md overflow-hidden">
             <table className="w-full text-[11px]">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-gray-500 bg-[#0f0f0f]">
+                <tr className="text-[10px] uppercase tracking-wider text-gray-500 bg-panel-strong">
                   <th className="text-left px-3 py-1.5">operation</th>
                   <th className="text-left px-3 py-1.5">primary</th>
                   <th className="text-left px-3 py-1.5">shadow</th>
@@ -226,7 +226,7 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
                       <td className="px-3 py-1">
                         <span
                           className={
-                            primaryOverridden ? 'text-[#e8a020]' : 'text-gray-400'
+                            primaryOverridden ? 'text-accent' : 'text-gray-400'
                           }
                         >
                           {shortModel(r.primaryModel)}
@@ -278,7 +278,7 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
           onClick={() => setOperation('')}
           className={`px-2 py-1 rounded border transition-colors cursor-pointer ${
             operation === ''
-              ? 'border-[#e8a020] text-[#e8a020] bg-[#e8a020]/10'
+              ? 'border-accent text-accent bg-accent/10'
               : 'border-white/10 text-gray-400 hover:border-white/30'
           }`}
         >
@@ -290,7 +290,7 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
             onClick={() => setOperation(op.operation)}
             className={`px-2 py-1 rounded border transition-colors cursor-pointer ${
               operation === op.operation
-                ? 'border-[#e8a020] text-[#e8a020] bg-[#e8a020]/10'
+                ? 'border-accent text-accent bg-accent/10'
                 : 'border-white/10 text-gray-400 hover:border-white/30'
             }`}
           >
@@ -362,7 +362,7 @@ export default function LlmCompare({ embedded = false }: { embedded?: boolean } 
                     <span className="text-gray-500 tabular-nums text-[11px]">
                       {formatTime(r.created_at)}
                     </span>
-                    <span className="text-[#e8a020]/80">{r.operation}</span>
+                    <span className="text-accent/80">{r.operation}</span>
                     <span className="text-gray-400 truncate min-w-0">
                       {r.album_title || '—'}
                     </span>

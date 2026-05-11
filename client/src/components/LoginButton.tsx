@@ -90,7 +90,7 @@ export default function LoginButton() {
       <div className="relative" ref={consentRef}>
         <button
           onClick={() => setConsentOpen((v) => !v)}
-          className="px-4 py-1.5 border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black rounded-full text-sm font-medium tracking-wide transition-colors cursor-pointer"
+          className="px-4 py-1.5 border border-accent/60 text-accent hover:bg-accent hover:text-black rounded-full text-sm font-medium tracking-wide transition-colors cursor-pointer"
           title="Google 계정으로 입장하기"
         >
           입장하기
@@ -110,7 +110,7 @@ export default function LoginButton() {
                 href="/terms.html"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#e8a020] hover:underline"
+                className="text-accent hover:underline"
               >
                 이용약관
               </a>
@@ -119,7 +119,7 @@ export default function LoginButton() {
                 href="/privacy.html"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[#e8a020] hover:underline"
+                className="text-accent hover:underline"
               >
                 개인정보처리방침
               </a>
@@ -138,7 +138,7 @@ export default function LoginButton() {
                   setConsentOpen(false);
                   login();
                 }}
-                className="px-3 py-1.5 text-sm bg-[#e8a020] text-black rounded-md hover:bg-[#f0b040] cursor-pointer font-medium"
+                className="px-3 py-1.5 text-sm bg-accent text-black rounded-md hover:bg-accent-hover cursor-pointer font-medium"
               >
                 동의하고 계속
               </button>
@@ -157,26 +157,26 @@ export default function LoginButton() {
         // bigger sticker logo on the left already eats the nav row,
         // so dropping the username text frees space without losing
         // identity. sm+ restores the pill with name alongside.
-        className="relative flex items-center gap-0 sm:gap-2 border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-full p-0.5 sm:pl-1 sm:pr-3 sm:py-1 transition-colors cursor-pointer"
+        className="relative flex items-center gap-0 sm:gap-2 border border-accent/60 hover:bg-accent/10 rounded-full p-0.5 sm:pl-1 sm:pr-3 sm:py-1 transition-colors cursor-pointer"
       >
         {user.avatarUrl ? (
           <img
             src={resolveApiUrl(user.avatarUrl) ?? undefined}
             alt={user.name || user.email}
-            className="w-7 h-7 rounded-full border border-[#e8a020]/40"
+            className="w-7 h-7 rounded-full border border-accent/40"
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="w-7 h-7 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-xs font-bold">
+          <div className="w-7 h-7 rounded-full bg-accent/20 text-accent flex items-center justify-center text-xs font-bold">
             {(user.name || user.email)[0]?.toUpperCase()}
           </div>
         )}
-        <span className="hidden sm:inline text-sm text-[#e8a020] max-w-[120px] truncate">
+        <span className="hidden sm:inline text-sm text-accent max-w-[120px] truncate">
           {user.name || user.email}
         </span>
         {isAdmin && pendingCount > 0 && (
           <span
-            className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none px-1 border border-[#120c05]"
+            className="absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none px-1 border border-background"
             title={`등록 요청 ${pendingCount}건`}
             aria-label={`등록 요청 ${pendingCount}건 대기 중`}
           >
@@ -186,7 +186,7 @@ export default function LoginButton() {
       </button>
 
       {menuOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl py-1 z-50">
+        <div className="absolute right-0 mt-2 w-56 bg-panel border border-white/10 rounded-lg shadow-2xl py-1 z-50">
           <Link
             to="/profile"
             onClick={() => setMenuOpen(false)}
@@ -206,7 +206,7 @@ export default function LoginButton() {
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMenuOpen(false)}
-              className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-[#e8a020] hover:bg-white/5 cursor-pointer"
+              className="w-full text-left flex items-center gap-2 px-4 py-2 text-sm text-accent hover:bg-white/5 cursor-pointer"
             >
               <span>🛠 관리자 대시보드</span>
               {pendingCount > 0 && (

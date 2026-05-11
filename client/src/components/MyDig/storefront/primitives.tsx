@@ -379,7 +379,7 @@ export function VinylDisc({
       {/* Centre label — dig.haus amber (fixed). The vinyl body is
           what takes the cover-derived tint; the label stays house
           brand so every disc still reads as a dig.haus pressing. */}
-      <circle cx="50" cy="50" r="15" fill="#e8a020" />
+      <circle cx="50" cy="50" r="15" fill="var(--color-accent)" />
       <circle cx="50" cy="50" r="15" fill="url(#vinylLabelSheen)" />
       <circle
         cx="50"
@@ -1630,7 +1630,7 @@ function Amp({ x, y, w, h }: { x: number; y: number; w: number; h: number }) {
                 bottom: 2,
                 width: 1,
                 height: '60%',
-                background: '#e8a020',
+                background: 'var(--color-accent)',
                 transformOrigin: 'bottom',
                 transform: i === 0 ? 'rotate(-18deg)' : 'rotate(12deg)',
               }}

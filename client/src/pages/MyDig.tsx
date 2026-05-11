@@ -177,7 +177,7 @@ export default function MyDig() {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-lg">이 페이지를 불러오지 못했어요.</p>
-          <Link to="/" className="text-[#e8a020] mt-4 inline-block hover:underline">
+          <Link to="/" className="text-accent mt-4 inline-block hover:underline">
             홈으로
           </Link>
         </div>
@@ -531,7 +531,7 @@ function SnapshotChoicePrompt({
           <button
             type="button"
             onClick={onCaptureCurrent}
-            className="text-sm text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
+            className="text-sm text-accent hover:text-[#f5b040] border border-accent/60 hover:border-accent rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
           >
             📸 지금 그대로 기억하기
             <span className="block text-[12px] text-gray-500 mt-0.5 font-normal">
@@ -541,7 +541,7 @@ function SnapshotChoicePrompt({
           <button
             type="button"
             onClick={onComposeFresh}
-            className="text-sm text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
+            className="text-sm text-accent hover:text-[#f5b040] border border-accent/60 hover:border-accent rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
           >
             ✨ 처음부터 새 기억 만들기
             <span className="block text-[12px] text-gray-500 mt-0.5 font-normal">
@@ -641,7 +641,7 @@ function ProfileHeader({
           <button
             type="button"
             onClick={onEdit}
-            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            className="text-[11px] text-gray-200 hover:text-accent bg-[#1a130a]/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
             title={
               mode === 'snapshot'
                 ? '스냅샷 이름·설명·앨범 편집'
@@ -655,7 +655,7 @@ function ProfileHeader({
           <button
             type="button"
             onClick={onSaveSnapshot}
-            className="text-[11px] text-gray-200 hover:text-[#e8a020] bg-[#1a130a]/40 border border-white/10 hover:border-[#e8a020]/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            className="text-[11px] text-gray-200 hover:text-accent bg-[#1a130a]/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
             title="현재 구성을 기억으로 만들기"
           >
             <span className="hidden md:inline">📸 </span>기억<span className="hidden md:inline"> 만들기</span>
@@ -832,7 +832,7 @@ function EmptyWallOnboarding({ onStart }: { onStart: () => void }) {
       <button
         type="button"
         onClick={onStart}
-        className="mt-2 inline-flex items-center gap-2 text-base md:text-lg font-bold rounded-md px-6 py-3 bg-[#e8a020] text-[#141008] hover:bg-[#f5b030] transition-colors cursor-pointer shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
+        className="mt-2 inline-flex items-center gap-2 text-base md:text-lg font-bold rounded-md px-6 py-3 bg-accent text-[#141008] hover:bg-[#f5b030] transition-colors cursor-pointer shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
       >
         지금 시작하기 →
       </button>
@@ -877,7 +877,7 @@ function MobileSnapshotsDropdown({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-[#1a130a]/60 border border-white/10 text-[13px] text-gray-200 hover:border-[#e8a020]/40 transition-colors"
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-[#1a130a]/60 border border-white/10 text-[13px] text-gray-200 hover:border-accent/40 transition-colors"
       >
         <span className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] uppercase tracking-wider text-gray-500 shrink-0">
@@ -906,7 +906,7 @@ function MobileSnapshotsDropdown({
                 onClear();
                 setOpen(false);
               }}
-              className="w-full text-left px-3 py-2 text-[13px] text-[#e8a020] hover:bg-[#e8a020]/10"
+              className="w-full text-left px-3 py-2 text-[13px] text-accent hover:bg-accent/10"
             >
               ← 현재 마이딕으로
             </button>
@@ -932,7 +932,7 @@ function MobileSnapshotsDropdown({
                   disabled={isActive}
                   className={`w-full text-left px-3 py-2 text-[13px] ${
                     isActive
-                      ? 'text-[#e8a020] bg-[#e8a020]/5 cursor-default'
+                      ? 'text-accent bg-accent/5 cursor-default'
                       : 'text-gray-200 hover:bg-white/5'
                   }`}
                 >

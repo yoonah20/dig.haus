@@ -51,7 +51,7 @@ export default function CopyTitleButton({ text, label }: { text: string; label?:
       aria-label={label || '클립보드에 복사'}
       title={copied ? '복사됨' : text}
       className={`inline-flex items-center justify-center p-1 rounded transition-colors cursor-pointer ${
-        copied ? 'text-[#e8a020]' : 'text-gray-600 hover:text-[#e8a020]'
+        copied ? 'text-accent' : 'text-gray-600 hover:text-accent'
       }`}
     >
       {copied ? CHECK_ICON : COPY_ICON}

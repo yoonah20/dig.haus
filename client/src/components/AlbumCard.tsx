@@ -506,7 +506,7 @@ export default function AlbumCard({
         <div className="album-flip relative w-full h-full">
           {/* Front — cover art + price stickers + optional NEW / HOT flags */}
           <div
-            className="absolute inset-0 bg-[#1a1a1a] rounded-xl overflow-hidden"
+            className="absolute inset-0 bg-panel rounded-xl overflow-hidden"
             style={{
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
@@ -613,7 +613,7 @@ export default function AlbumCard({
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)',
-              background: '#0f0f0f',
+              background: 'var(--color-panel-strong)',
             }}
           >
             {/* Mirrored, desaturated, slightly-darker cover as base */}

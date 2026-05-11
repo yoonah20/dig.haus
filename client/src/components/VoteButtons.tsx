@@ -113,7 +113,7 @@ export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: P
           <span className="tabular-nums">{count.toLocaleString()}</span>
         </button>
         {tooltip === direction && (
-          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap bg-[#1a1a1a] border border-[#e8a020]/40 text-[#e8a020] text-xs rounded-md px-3 py-1.5 shadow-lg z-50 pointer-events-none">
+          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap bg-panel border border-accent/40 text-accent text-xs rounded-md px-3 py-1.5 shadow-lg z-50 pointer-events-none">
             입장하기(로그인)가 필요합니다
           </div>
         )}

@@ -92,7 +92,7 @@ export default function TopNav() {
 
   return (
     <>
-      <nav className="sticky top-0 z-40 bg-[#120c05]/95 backdrop-blur-sm border-b border-[#e8a020]/15 px-3 sm:px-4 py-2.5">
+      <nav className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-accent/15 px-3 sm:px-4 py-2.5">
         <div className="max-w-[1280px] mx-auto flex items-center justify-between gap-2 sm:gap-3">
           <div className="flex items-baseline gap-2 sm:gap-3 min-w-0 shrink">
             <Link
@@ -105,7 +105,7 @@ export default function TopNav() {
               // because the typeset version reads cleaner at the
               // small nav size and the digman mascot now lives
               // alongside the home feed heading instead.
-              className="inline-flex items-center text-[#e8a020] text-xl md:text-2xl lowercase tracking-tight leading-none shrink-0 cursor-pointer border-2 md:border-[3px] border-[#e8a020] px-1 py-0.5"
+              className="inline-flex items-center text-accent text-xl md:text-2xl lowercase tracking-tight leading-none shrink-0 cursor-pointer border-2 md:border-[3px] border-accent px-1 py-0.5"
               style={{
                 fontFamily: "'Syne', 'Inter', sans-serif",
                 fontWeight: 700,
@@ -170,13 +170,13 @@ export default function TopNav() {
                 button over and means "go digging" (link to /dig). */}
             <button
               onClick={() => (searchOpen ? closeOverlay() : openOverlay())}
-              className="md:hidden group w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] hover:bg-[#e8a020] transition-colors cursor-pointer"
+              className="md:hidden group w-8 h-8 flex items-center justify-center rounded-full border border-accent/60 hover:border-accent hover:bg-accent transition-colors cursor-pointer"
               title="검색 / 앨범 등록"
               aria-label="검색 / 앨범 등록"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-[18px] h-[18px] text-[#e8a020] group-hover:text-black transition-colors"
+                className="w-[18px] h-[18px] text-accent group-hover:text-black transition-colors"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -197,13 +197,13 @@ export default function TopNav() {
                 wall destination rather than a catalog. */}
             <Link
               to="/dig"
-              className="group w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 hover:border-[#e8a020] hover:bg-[#e8a020] transition-colors cursor-pointer"
+              className="group w-8 h-8 flex items-center justify-center rounded-full border border-accent/60 hover:border-accent hover:bg-accent transition-colors cursor-pointer"
               title="디깅하기 — 전체 둘러보기"
               aria-label="디깅하기"
             >
               <span
                 aria-hidden
-                className="w-[18px] h-[18px] bg-[#e8a020] group-hover:bg-black transition-colors"
+                className="w-[18px] h-[18px] bg-accent group-hover:bg-black transition-colors"
                 style={{
                   WebkitMaskImage: "url('/icons/shovel-dig.png')",
                   WebkitMaskSize: 'contain',
@@ -236,7 +236,7 @@ export default function TopNav() {
                     setUsernameModalOpen(true);
                   }
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center rounded-full border border-accent/60 text-accent hover:bg-accent hover:text-black transition-colors cursor-pointer"
                 title="mydig으로"
                 aria-label="mydig으로"
               >
@@ -263,7 +263,7 @@ export default function TopNav() {
         {searchOpen && (
           <div
             ref={panelRef}
-            className="md:hidden absolute left-0 right-0 top-full bg-[#120c05]/95 backdrop-blur-sm border-b border-[#e8a020]/40 px-4 py-4 animate-[slideDown_150ms_ease-out]"
+            className="md:hidden absolute left-0 right-0 top-full bg-background/95 backdrop-blur-sm border-b border-accent/40 px-4 py-4 animate-[slideDown_150ms_ease-out]"
           >
             <SearchBar
               initialQuery={initialQuery}

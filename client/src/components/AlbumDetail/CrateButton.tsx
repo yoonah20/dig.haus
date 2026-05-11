@@ -155,8 +155,8 @@ export default function CrateButton({ albumId, crateCount }: Props) {
         aria-label="담기"
         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-semibold border transition-colors cursor-pointer ${
           isInAnyCrate
-            ? 'bg-[#e8a020] border-[#e8a020] text-[#141008] hover:bg-[#f0b040]'
-            : 'bg-transparent border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020]/10 hover:border-[#e8a020]'
+            ? 'bg-accent border-accent text-[#141008] hover:bg-accent-hover'
+            : 'bg-transparent border-accent/60 text-accent hover:bg-accent/10 hover:border-accent'
         }`}
       >
         <span style={{ fontSize: 13, lineHeight: 1 }}>📦</span>
@@ -174,7 +174,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
           clicks meant for the chip mid-fade. */}
       {toast && (
         <div
-          className="absolute z-40 left-0 top-full mt-2 px-3 py-1.5 rounded-md text-[12px] text-[#141008] bg-[#e8a020] shadow-[0_4px_12px_rgba(0,0,0,0.45)] pointer-events-none whitespace-nowrap animate-[fadeInUp_220ms_ease-out]"
+          className="absolute z-40 left-0 top-full mt-2 px-3 py-1.5 rounded-md text-[12px] text-[#141008] bg-accent shadow-[0_4px_12px_rgba(0,0,0,0.45)] pointer-events-none whitespace-nowrap animate-[fadeInUp_220ms_ease-out]"
           role="status"
           aria-live="polite"
         >
@@ -194,7 +194,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
             <button
               type="button"
               onClick={() => setNewCrateName('')}
-              className="w-full text-left px-3 py-2 text-sm text-[#e8a020] hover:bg-white/5 cursor-pointer flex items-center gap-1.5"
+              className="w-full text-left px-3 py-2 text-sm text-accent hover:bg-white/5 cursor-pointer flex items-center gap-1.5"
             >
               <span>＋</span>
               <span>새 상자 만들기</span>
@@ -217,13 +217,13 @@ export default function CrateButton({ albumId, crateCount }: Props) {
                 }}
                 placeholder="상자 이름"
                 maxLength={60}
-                className="flex-1 min-w-0 bg-[#0a0703] border border-white/10 rounded px-2 py-1 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none"
+                className="flex-1 min-w-0 bg-[#0a0703] border border-white/10 rounded px-2 py-1 text-sm text-gray-100 focus:border-accent focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => void handleCreate()}
                 disabled={create.isPending || !newCrateName?.trim()}
-                className="text-sm text-[#e8a020] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                className="text-sm text-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 담기
               </button>
@@ -254,7 +254,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
                   <span
                     className={`inline-flex items-center justify-center w-4 h-4 rounded text-[10px] ${
                       inCrate
-                        ? 'bg-[#e8a020] text-[#141008]'
+                        ? 'bg-accent text-[#141008]'
                         : 'border border-white/20'
                     }`}
                   >

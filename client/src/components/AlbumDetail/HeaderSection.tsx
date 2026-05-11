@@ -29,7 +29,7 @@ function AdminMenuItem({
   const base = 'w-full text-left px-3 py-1.5 text-xs transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer';
   const color = danger
     ? 'text-red-400 hover:bg-red-900/30 hover:text-red-300'
-    : 'text-gray-300 hover:bg-white/5 hover:text-[#e8a020]';
+    : 'text-gray-300 hover:bg-white/5 hover:text-accent';
   return (
     <button role="menuitem" onClick={onClick} disabled={disabled} className={`${base} ${color}`}>
       {children}
@@ -192,7 +192,7 @@ function TagEditor({
           (they animate back up when the toast clears). */}
       {toast && (
         <div
-          className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#e8a020]/15 border border-[#e8a020]/40 text-[12px] text-[#e8a020] animate-[fadeInUp_220ms_ease-out]"
+          className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent/15 border border-accent/40 text-[12px] text-accent animate-[fadeInUp_220ms_ease-out]"
           role="status"
           aria-live="polite"
         >
@@ -265,7 +265,7 @@ function TagEditor({
             <button
               onClick={commitAdd}
               disabled={saving}
-              className="text-xs text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+              className="text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
               aria-label="태그 저장"
             >
               {saving ? '...' : '✓'}
@@ -283,7 +283,7 @@ function TagEditor({
           <button
             onClick={() => setAdding(true)}
             disabled={saving}
-            className="px-3 py-1 border border-dashed border-gray-600 hover:border-[#e8a020] text-gray-500 hover:text-[#e8a020] text-xs rounded-full transition-colors cursor-pointer disabled:opacity-40"
+            className="px-3 py-1 border border-dashed border-gray-600 hover:border-accent text-gray-500 hover:text-accent text-xs rounded-full transition-colors cursor-pointer disabled:opacity-40"
           >
             + 태그 추가
           </button>
@@ -798,7 +798,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
         <div ref={adminMenuRef} className="absolute top-0 right-0">
           <button
             onClick={() => setAdminMenuOpen((v) => !v)}
-            className="text-xs text-gray-600 hover:text-[#e8a020] transition-colors px-2 py-1 rounded-md border border-transparent hover:border-white/10 cursor-pointer"
+            className="text-xs text-gray-600 hover:text-accent transition-colors px-2 py-1 rounded-md border border-transparent hover:border-white/10 cursor-pointer"
             aria-haspopup="menu"
             aria-expanded={adminMenuOpen}
           >
@@ -911,7 +911,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               )}
               <button
                 onClick={startEditCover}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-[#e8a020]/40 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-all cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-accent/40 text-accent hover:bg-accent hover:text-black transition-all cursor-pointer"
                 title="커버 이미지 URL 수정"
                 aria-label="커버 이미지 URL 수정"
               >
@@ -936,7 +936,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   const url = `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(query)}`;
                   window.open(url, '_blank', 'noopener,noreferrer');
                 }}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-[#e8a020]/40 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-all cursor-pointer"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-sm border border-accent/40 text-accent hover:bg-accent hover:text-black transition-all cursor-pointer"
                 title={`"${album.title} ${album.artist} cover" Google 이미지 검색`}
                 aria-label="구글 이미지 검색"
               >
@@ -976,7 +976,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 disabled={updatingCover}
                 placeholder="https://..."
                 autoFocus
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 w-full"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60 w-full"
               />
               <div className="flex justify-between items-center gap-2 mt-1">
                 {/* Revert lives left-aligned so it reads as a meta
@@ -987,7 +987,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   <button
                     onClick={revertCover}
                     disabled={updatingCover}
-                    className="px-2 py-1 text-xs text-gray-400 hover:text-[#e8a020] disabled:opacity-40 cursor-pointer"
+                    className="px-2 py-1 text-xs text-gray-400 hover:text-accent disabled:opacity-40 cursor-pointer"
                     title="기본 커버로 되돌리기"
                   >
                     ↩ 기본값
@@ -1008,7 +1008,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   <button
                     onClick={saveEditCover}
                     disabled={updatingCover}
-                    className="px-2 py-1 text-sm text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+                    className="px-2 py-1 text-sm text-accent hover:text-white disabled:opacity-40 cursor-pointer"
                     title="저장"
                     aria-label="저장"
                   >
@@ -1062,7 +1062,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 }}
                 title="vinyl 검색"
                 aria-label={`"${album.title} ${album.artist} vinyl" 구글 검색`}
-                className="inline-flex items-center justify-center p-1 rounded text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center p-1 rounded text-gray-600 hover:text-accent transition-colors cursor-pointer"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1082,7 +1082,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               {user?.isAdmin && (
                 <button
                   onClick={startEditAlbum}
-                  className="text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer text-xs px-1.5 py-0.5 rounded border border-transparent hover:border-white/10"
+                  className="text-gray-600 hover:text-accent transition-colors cursor-pointer text-xs px-1.5 py-0.5 rounded border border-transparent hover:border-white/10"
                   title="앨범 수정"
                   aria-label="앨범 수정"
                 >
@@ -1100,7 +1100,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
           <ArtistCredit
             credit={album.artistCredit}
             fallback={album.artist}
-            className="text-2xl md:text-3xl text-[#e8a020] hover:underline inline-block font-serif cursor-pointer text-left"
+            className="text-2xl md:text-3xl text-accent hover:underline inline-block font-serif cursor-pointer text-left"
           />
           {/* The button-version above replaces the previous single
               `openOverlay(album.artist)` button; openOverlay is now
@@ -1115,7 +1115,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   value={artistKoInput}
                   onChange={(e) => setArtistKoInput(e.target.value)}
                   disabled={savingKo}
-                  className="bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                  className="bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
                 />
                 <label className="text-gray-400">앨범 발음</label>
                 <input
@@ -1123,7 +1123,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   value={titleKoInput}
                   onChange={(e) => setTitleKoInput(e.target.value)}
                   disabled={savingKo}
-                  className="bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                  className="bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
                 />
                 <label className="text-gray-400">앨범 뜻</label>
                 <input
@@ -1131,7 +1131,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   value={titleMeaningInput}
                   onChange={(e) => setTitleMeaningInput(e.target.value)}
                   disabled={savingKo}
-                  className="bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                  className="bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
                 />
               </div>
               <div className="flex justify-end gap-2 mt-3">
@@ -1147,7 +1147,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 <button
                   onClick={saveEditKo}
                   disabled={savingKo}
-                  className="px-2 py-1 text-sm text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+                  className="px-2 py-1 text-sm text-accent hover:text-white disabled:opacity-40 cursor-pointer"
                   title="저장"
                   aria-label="저장"
                 >
@@ -1171,7 +1171,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                     <>
                       <button
                         onClick={startEditKo}
-                        className="text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer"
+                        className="text-gray-600 hover:text-accent transition-colors cursor-pointer"
                         title="한국어 번역 수정"
                         aria-label="한국어 번역 수정"
                       >
@@ -1180,7 +1180,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                       <button
                         onClick={handleRegenerateKo}
                         disabled={regeneratingKo}
-                        className="text-gray-600 hover:text-[#e8a020] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-wait"
+                        className="text-gray-600 hover:text-accent transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-wait"
                         title="한국어 번역 재생성 (외부 API 호출)"
                         aria-label="한국어 번역 재생성"
                       >
@@ -1249,7 +1249,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 value={titleInput}
                 onChange={(e) => setTitleInput(e.target.value)}
                 disabled={savingAlbum}
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">아티스트</label>
               <input
@@ -1257,7 +1257,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 value={artistInput}
                 onChange={(e) => setArtistInput(e.target.value)}
                 disabled={savingAlbum}
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">발매년도</label>
               <input
@@ -1268,7 +1268,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setReleaseYearInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="예: 2025"
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">발매일</label>
               <input
@@ -1277,7 +1277,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setReleaseDateInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="YYYY-MM-DD (선택)"
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">레이블</label>
               <input
@@ -1285,7 +1285,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 value={labelInput}
                 onChange={(e) => setLabelInput(e.target.value)}
                 disabled={savingAlbum}
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <div className="col-span-2 mt-1 mb-0.5 text-[11px] uppercase tracking-wider text-gray-500">외부 링크</div>
               <label className="text-gray-400">Discogs</label>
@@ -1295,7 +1295,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setDiscogsUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://www.discogs.com/master/..."
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">Spotify</label>
               <input
@@ -1304,7 +1304,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setSpotifyUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://open.spotify.com/album/..."
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">Apple Music</label>
               <input
@@ -1313,7 +1313,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setAppleMusicUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://music.apple.com/..."
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">YouTube</label>
               <input
@@ -1322,7 +1322,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setYoutubeUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://youtube.com/..."
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">Bandcamp</label>
               <input
@@ -1331,7 +1331,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setBandcampUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://artist.bandcamp.com/album/..."
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
             </div>
             <p className="text-xs text-gray-500 mt-4">
@@ -1348,7 +1348,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               <button
                 onClick={saveEditAlbum}
                 disabled={savingAlbum}
-                className="px-3 py-1.5 text-sm text-[#e8a020] border border-[#e8a020]/40 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 cursor-pointer transition-colors"
+                className="px-3 py-1.5 text-sm text-accent border border-accent/40 rounded-md hover:bg-accent hover:text-black disabled:opacity-40 cursor-pointer transition-colors"
               >
                 {savingAlbum ? '저장 중...' : '저장'}
               </button>

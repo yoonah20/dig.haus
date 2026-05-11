@@ -17,7 +17,7 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 function SectionLoader({ text }: { text: string }) {
   return (
     <div className="flex items-center gap-3 py-8">
-      <div className="w-5 h-5 border-2 border-gray-700 border-t-[#e8a020] rounded-full animate-spin" />
+      <div className="w-5 h-5 border-2 border-gray-700 border-t-accent rounded-full animate-spin" />
       <span className="text-gray-500 text-sm">{text}</span>
     </div>
   );
@@ -145,7 +145,7 @@ export default function Album() {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-lg">앨범 정보를 불러올 수 없습니다</p>
-          <Link to="/" className="text-[#e8a020] mt-4 inline-block hover:underline">
+          <Link to="/" className="text-accent mt-4 inline-block hover:underline">
             홈으로 돌아가기
           </Link>
         </div>
@@ -229,7 +229,7 @@ export default function Album() {
             className="w-20 sm:w-24 -rotate-6 drop-shadow-[2px_4px_4px_rgba(0,0,0,0.45)] select-none pointer-events-none"
           />
           <span
-            className="text-[#e8a020] pb-2 -rotate-3 leading-none select-none"
+            className="text-accent pb-2 -rotate-3 leading-none select-none"
             style={{
               fontFamily: "'Caveat', cursive",
               fontWeight: 700,
@@ -249,7 +249,7 @@ export default function Album() {
                   to={`/album/${neighbors!.prev!.slug}${neighborLinkSuffix}`}
                   className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${!hasNext ? 'col-span-full max-w-sm mx-auto' : ''}`}
                 >
-                  <span className="text-gray-600 group-hover:text-[#e8a020] transition-colors text-lg shrink-0">←</span>
+                  <span className="text-gray-600 group-hover:text-accent transition-colors text-lg shrink-0">←</span>
                   <CoverArt
                     src={neighbors!.prev!.coverArtUrl}
                     fallbacks={neighbors!.prev!.coverArtFallbacks}
@@ -258,7 +258,7 @@ export default function Album() {
                   />
                   <div className="min-w-0">
                     <div className="text-[11px] text-gray-600 mb-0.5">이전 앨범</div>
-                    <div className="text-sm text-white font-medium truncate group-hover:text-[#e8a020] transition-colors">
+                    <div className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">
                       {neighbors!.prev!.title}
                     </div>
                     <div className="text-xs text-gray-500 truncate">{neighbors!.prev!.artist}</div>
@@ -272,7 +272,7 @@ export default function Album() {
                 >
                   <div className="min-w-0">
                     <div className="text-[11px] text-gray-600 mb-0.5">다음 앨범</div>
-                    <div className="text-sm text-white font-medium truncate group-hover:text-[#e8a020] transition-colors">
+                    <div className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">
                       {neighbors!.next!.title}
                     </div>
                     <div className="text-xs text-gray-500 truncate">{neighbors!.next!.artist}</div>
@@ -283,7 +283,7 @@ export default function Album() {
                     alt={neighbors!.next!.title}
                     className="w-12 h-12 rounded-md object-cover shrink-0"
                   />
-                  <span className="text-gray-600 group-hover:text-[#e8a020] transition-colors text-lg shrink-0">→</span>
+                  <span className="text-gray-600 group-hover:text-accent transition-colors text-lg shrink-0">→</span>
                 </Link>
               )}
             </div>

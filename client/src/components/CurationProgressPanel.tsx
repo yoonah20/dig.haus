@@ -29,7 +29,7 @@ export default function CurationProgressPanel() {
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-50 bg-[#120c05]/95 backdrop-blur-sm border border-[#e8a020]/40 rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.6)] text-xs overflow-hidden"
+      className="fixed bottom-4 right-4 z-50 bg-background/95 backdrop-blur-sm border border-accent/40 rounded-lg shadow-[0_8px_32px_rgba(0,0,0,0.6)] text-xs overflow-hidden"
       style={{
         width: minimized ? 260 : 420,
         // Cap at viewport minus the bottom-4 right-4 padding so the
@@ -42,9 +42,9 @@ export default function CurationProgressPanel() {
       <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-[#1a1108]">
         <div className="flex items-center gap-2 min-w-0">
           {!run.finished && (
-            <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin shrink-0" />
+            <span className="w-3 h-3 border-2 border-gray-500 border-t-accent rounded-full animate-spin shrink-0" />
           )}
-          <span className="text-[#e8a020] font-medium truncate">
+          <span className="text-accent font-medium truncate">
             {run.finished ? '큐레이션 완료' : '큐레이션 진행 중'}
           </span>
           <span className="text-gray-500 tabular-nums shrink-0">
@@ -102,7 +102,7 @@ export default function CurationProgressPanel() {
                   : a.status === 'failed'
                     ? 'text-red-400'
                     : a.status === 'running'
-                      ? 'text-[#e8a020]'
+                      ? 'text-accent'
                       : 'text-gray-600';
               return (
                 <Link

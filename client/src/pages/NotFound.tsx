@@ -31,7 +31,7 @@ export default function NotFound() {
         />
         <Link
           to="/"
-          className="inline-flex items-center text-[#e8a020] text-sm border border-[#e8a020]/60 hover:bg-[#e8a020] hover:text-black transition-colors px-3 py-1.5 rounded-full"
+          className="inline-flex items-center text-accent text-sm border border-accent/60 hover:bg-accent hover:text-black transition-colors px-3 py-1.5 rounded-full"
         >
           홈으로 돌아가서 다시 파기
         </Link>

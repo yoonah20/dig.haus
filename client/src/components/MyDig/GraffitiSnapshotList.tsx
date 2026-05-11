@@ -56,7 +56,7 @@ export default function GraffitiSnapshotList({
       className="group inline-block origin-left text-left mb-4"
     >
       <span className="inline-block origin-left transition-transform duration-200 group-hover:scale-[1.05]">
-        <span className="text-[22px] font-bold leading-[1.15] text-[#1a1208] group-hover:text-[#e8a020] transition-colors duration-200">
+        <span className="text-[22px] font-bold leading-[1.15] text-[#1a1208] group-hover:text-accent transition-colors duration-200">
           ← 현재 마이딕으로…
         </span>
       </span>
@@ -119,8 +119,8 @@ export default function GraffitiSnapshotList({
                 <span
                   className={`text-[20px] font-bold leading-[1.15] transition-colors duration-200 ${
                     isActive
-                      ? 'text-[#e8a020]'
-                      : 'text-[#1a1208] group-hover:text-[#e8a020]'
+                      ? 'text-accent'
+                      : 'text-[#1a1208] group-hover:text-accent'
                   }`}
                 >
                   {snap.name}

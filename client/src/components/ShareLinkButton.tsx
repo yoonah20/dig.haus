@@ -90,7 +90,7 @@ export default function ShareLinkButton({ title, url }: Props) {
       aria-label="이 페이지 공유"
       title={copied ? '링크 복사됨' : '공유'}
       className={`inline-flex items-center justify-center p-1 rounded transition-colors cursor-pointer ${
-        copied ? 'text-[#e8a020]' : 'text-gray-600 hover:text-[#e8a020]'
+        copied ? 'text-accent' : 'text-gray-600 hover:text-accent'
       }`}
     >
       {copied ? CHECK_ICON : SHARE_ICON}
