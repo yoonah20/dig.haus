@@ -41,16 +41,27 @@ async function _searchAlbums(query: string): Promise<
 
     const releases = res.data.releases || [];
 
-    // Deduplicate by release-group, keep only Album/EP (skip Singles, Compilations)
+    // Filter to full-length albums only — strip singles, EPs, broadcasts,
+    // and the noisy secondary types (compilations, live, remix, demo,
+    // DJ-mix, mixtape, interview, spokenword). The previous filter only
+    // dropped Single + Broadcast, so EPs and "Album + Compilation"
+    // groups (greatest-hits packages, B-sides collections) slipped
+    // through and dominated the result list for catalog-heavy artists.
+    // Soundtracks are kept — they're legitimate album-shaped releases.
+    const NOISY_SECONDARY_TYPES = new Set([
+      'Compilation', 'Live', 'Remix', 'Demo', 'DJ-mix',
+      'Mixtape/Street', 'Interview', 'Spokenword',
+    ]);
     const seen = new Set<string>();
     const unique: any[] = [];
     for (const r of releases) {
       const rgid = r['release-group']?.id;
       const key = rgid || `${r.title}::${r['artist-credit']?.[0]?.name}`;
       if (seen.has(key)) continue;
-      // Filter out singles and compilations
       const primaryType = r['release-group']?.['primary-type'] || '';
-      if (primaryType === 'Single' || primaryType === 'Broadcast') continue;
+      if (primaryType !== 'Album') continue;
+      const secondaryTypes: string[] = r['release-group']?.['secondary-types'] || [];
+      if (secondaryTypes.some((t) => NOISY_SECONDARY_TYPES.has(t))) continue;
       seen.add(key);
       unique.push(r);
     }

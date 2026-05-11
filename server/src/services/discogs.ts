@@ -204,10 +204,30 @@ export async function searchDiscogsAlbums(
 
     const results = res.data?.results || [];
 
+    // Filter out singles, EPs, and other non-album formats. type=master
+    // already strips most non-canonical pressings but Discogs masters
+    // still include single/EP-shaped releases — same shape that the
+    // artist-discography helper above filters with this exact pattern.
+    // Without it the registration search surfaces "Soilwork - Steelbath
+    // Suicide (single)" between full albums.
+    const NON_ALBUM_FORMAT_TOKENS = new Set([
+      'single', 'ep', 'maxi-single', 'mini-album',
+      'compilation', 'mixtape',
+      '7"', '10"',
+      'dvd', 'blu-ray', 'vhs',
+    ]);
+    const isAlbumFormat = (raw: string): boolean => {
+      const fmt = (raw || '').toLowerCase().trim();
+      if (!fmt) return true;
+      return !NON_ALBUM_FORMAT_TOKENS.has(fmt);
+    };
+
     // Deduplicate by title (Discogs returns many editions of the same release)
     const seen = new Set<string>();
     const unique: any[] = [];
     for (const r of results) {
+      const formats: string[] = Array.isArray(r.format) ? r.format : [];
+      if (formats.length > 0 && !formats.some(isAlbumFormat)) continue;
       const key = (r.title || '').toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
