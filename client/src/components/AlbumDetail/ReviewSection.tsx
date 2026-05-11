@@ -860,7 +860,7 @@ export default function ReviewSection({
               {needsExpand && !expanded && (
                 <button
                   onClick={() => setExpanded(true)}
-                  className="flex flex-col items-center justify-center gap-2 bg-[#151515] hover:bg-[#1e1e1e] border border-dashed border-gray-700 hover:border-gray-500 rounded-lg p-4 transition-all duration-200 cursor-pointer min-h-[100px]"
+                  className="flex flex-col items-center justify-center gap-2 bg-panel-strong hover:bg-[#1e1e1e] border border-dashed border-gray-700 hover:border-gray-500 rounded-lg p-4 transition-all duration-200 cursor-pointer min-h-[100px]"
                 >
                   <span className="text-accent text-2xl font-bold">+{hiddenCount}</span>
                   <span className="text-gray-400 text-sm">{hiddenCount}개 리뷰 더 보기</span>
@@ -878,7 +878,7 @@ export default function ReviewSection({
                 <button
                   type="button"
                   onClick={startAddReview}
-                  className="flex flex-col items-center justify-center gap-1 bg-[#151515] hover:bg-[#1e1e1e] border border-dashed border-accent/40 hover:border-accent/70 text-accent rounded-lg p-4 transition-all duration-200 cursor-pointer min-h-[100px]"
+                  className="flex flex-col items-center justify-center gap-1 bg-panel-strong hover:bg-[#1e1e1e] border border-dashed border-accent/40 hover:border-accent/70 text-accent rounded-lg p-4 transition-all duration-200 cursor-pointer min-h-[100px]"
                 >
                   <span className="text-2xl leading-none font-bold" aria-hidden>+</span>
                   <span className="text-sm font-medium">리뷰 추가</span>
@@ -1024,8 +1024,8 @@ export default function ReviewSection({
                           each row. The whole block only renders after
                           the first discover call returns. */}
                       {discoveredUrls.length > 0 && (
-                        <div className="border border-white/10 rounded-md bg-[#0a0703] overflow-hidden">
-                          <div className="flex items-center justify-between px-3 py-2 bg-[#141008] border-b border-white/5">
+                        <div className="border border-white/10 rounded-md bg-panel-strong overflow-hidden">
+                          <div className="flex items-center justify-between px-3 py-2 bg-panel-strong border-b border-white/5">
                             <span className="text-[11px] text-gray-400">
                               자동 검색 결과{' '}
                               <span className="text-gray-500">

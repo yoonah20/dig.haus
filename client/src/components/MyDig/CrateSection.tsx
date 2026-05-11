@@ -66,7 +66,7 @@ export default function CrateSection({ username, isOwner }: Props) {
             onClick={() => setOpenId(c.id)}
             className="group text-left cursor-pointer"
           >
-            <div className="relative aspect-square rounded-md overflow-hidden bg-[#0a0703] border border-white/5 group-hover:border-accent/40 transition-colors">
+            <div className="relative aspect-square rounded-md overflow-hidden bg-panel-strong border border-white/5 group-hover:border-accent/40 transition-colors">
               {c.coverThumbs.length > 0 ? (
                 <div className="grid grid-cols-2 grid-rows-2 w-full h-full">
                   {[0, 1, 2, 3].map((i) => {
@@ -115,7 +115,7 @@ export default function CrateSection({ username, isOwner }: Props) {
 
         {isOwner && composing && (
           <div className="flex flex-col gap-1">
-            <div className="aspect-square rounded-md border-2 border-dashed border-accent/40 flex items-center justify-center bg-[#0a0703] px-2">
+            <div className="aspect-square rounded-md border-2 border-dashed border-accent/40 flex items-center justify-center bg-panel-strong px-2">
               <input
                 type="text"
                 autoFocus

@@ -1735,7 +1735,7 @@ function TermReplacementsPanel() {
           <button
             type="submit"
             disabled={create.isPending}
-            className="shrink-0 text-sm bg-accent hover:bg-[#f5b030] disabled:opacity-40 text-[#141008] font-medium px-3 py-1.5 rounded cursor-pointer transition-colors"
+            className="shrink-0 text-sm bg-accent hover:bg-accent-hover disabled:opacity-40 text-panel-strong font-medium px-3 py-1.5 rounded cursor-pointer transition-colors"
           >
             {create.isPending ? '...' : '추가'}
           </button>
@@ -1848,7 +1848,7 @@ function HostList({
 }) {
   return (
     <div className="flex flex-col min-w-0">
-      <div className="px-3 py-2 bg-[#151515] border-b border-white/5">
+      <div className="px-3 py-2 bg-panel-strong border-b border-white/5">
         <div className="text-xs font-semibold text-white">{header}</div>
         <div className="text-[10px] text-gray-500">{subheader}</div>
       </div>
@@ -1924,7 +1924,7 @@ function ManagedHostList({
       : 'border-red-500/30 focus:border-red-400/60 placeholder:text-red-400/30';
   return (
     <div className="flex flex-col min-w-0">
-      <div className="px-3 py-2 bg-[#151515] border-b border-white/5">
+      <div className="px-3 py-2 bg-panel-strong border-b border-white/5">
         <div className="text-xs font-semibold text-white">{header}</div>
         <div className="text-[10px] text-gray-500">{subheader}</div>
       </div>
@@ -1997,7 +1997,7 @@ function RecentUsersList({ users }: { users: AdminStats['recentUsers'] }) {
   }
   return (
     <div className="divide-y divide-white/5 max-h-[420px] overflow-y-auto">
-      <div className="px-4 py-2.5 text-xs uppercase tracking-wider text-gray-500 bg-[#151515]">
+      <div className="px-4 py-2.5 text-xs uppercase tracking-wider text-gray-500 bg-panel-strong">
         최근 가입 유저
       </div>
       {users.map((u) => (
@@ -2773,7 +2773,7 @@ function SignupGatePanel() {
           <button
             type="submit"
             disabled={invite.isPending || !inviteInput.trim()}
-            className="px-3 py-2 rounded-md bg-accent text-[#141008] text-xs font-bold hover:bg-[#f5b030] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="px-3 py-2 rounded-md bg-accent text-panel-strong text-xs font-bold hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             초대
           </button>
@@ -2799,7 +2799,7 @@ function SignupGatePanel() {
                 key={p.email}
                 className="p-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
               >
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-[#252525] flex-shrink-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-panel-hover flex-shrink-0">
                   {p.avatarUrl && (
                     <img
                       src={p.avatarUrl}
@@ -2829,7 +2829,7 @@ function SignupGatePanel() {
                     onClick={() => invite.mutate({ email: p.email })}
                     disabled={invite.isPending}
                     title="초대 (가입 허용)"
-                    className="px-2.5 py-1 rounded-md bg-accent/15 border border-accent/40 text-accent text-xs font-semibold hover:bg-accent hover:text-[#141008] transition-colors cursor-pointer disabled:opacity-40"
+                    className="px-2.5 py-1 rounded-md bg-accent/15 border border-accent/40 text-accent text-xs font-semibold hover:bg-accent hover:text-panel-strong transition-colors cursor-pointer disabled:opacity-40"
                   >
                     초대
                   </button>
@@ -2866,7 +2866,7 @@ function SignupGatePanel() {
                 key={i.email}
                 className="p-3 flex items-center gap-3 hover:bg-white/5 transition-colors"
               >
-                <div className="w-8 h-8 rounded-full overflow-hidden bg-[#252525] flex-shrink-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-panel-hover flex-shrink-0">
                   {i.user?.avatarUrl && (
                     <img
                       src={i.user.avatarUrl}

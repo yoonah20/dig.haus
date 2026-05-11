@@ -517,7 +517,7 @@ function SnapshotChoicePrompt({
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5"
+        className="w-full max-w-md bg-panel-strong border border-white/10 rounded-xl p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg text-white font-serif italic mb-1">
@@ -531,7 +531,7 @@ function SnapshotChoicePrompt({
           <button
             type="button"
             onClick={onCaptureCurrent}
-            className="text-sm text-accent hover:text-[#f5b040] border border-accent/60 hover:border-accent rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
+            className="text-sm text-accent hover:text-accent-hover border border-accent/60 hover:border-accent rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
           >
             📸 지금 그대로 기억하기
             <span className="block text-[12px] text-gray-500 mt-0.5 font-normal">
@@ -541,7 +541,7 @@ function SnapshotChoicePrompt({
           <button
             type="button"
             onClick={onComposeFresh}
-            className="text-sm text-accent hover:text-[#f5b040] border border-accent/60 hover:border-accent rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
+            className="text-sm text-accent hover:text-accent-hover border border-accent/60 hover:border-accent rounded-md px-3 py-2.5 cursor-pointer transition-colors text-left"
           >
             ✨ 처음부터 새 기억 만들기
             <span className="block text-[12px] text-gray-500 mt-0.5 font-normal">
@@ -641,7 +641,7 @@ function ProfileHeader({
           <button
             type="button"
             onClick={onEdit}
-            className="text-[11px] text-gray-200 hover:text-accent bg-[#1a130a]/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            className="text-[11px] text-gray-200 hover:text-accent bg-background/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
             title={
               mode === 'snapshot'
                 ? '스냅샷 이름·설명·앨범 편집'
@@ -655,7 +655,7 @@ function ProfileHeader({
           <button
             type="button"
             onClick={onSaveSnapshot}
-            className="text-[11px] text-gray-200 hover:text-accent bg-[#1a130a]/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+            className="text-[11px] text-gray-200 hover:text-accent bg-background/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
             title="현재 구성을 기억으로 만들기"
           >
             <span className="hidden md:inline">📸 </span>기억<span className="hidden md:inline"> 만들기</span>
@@ -666,7 +666,7 @@ function ProfileHeader({
             type="button"
             onClick={onDeleteSnapshot}
             disabled={deleteSnapshotPending}
-            className="text-[11px] text-gray-500 hover:text-red-400 bg-[#1a130a]/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-[11px] text-gray-500 hover:text-red-400 bg-background/40 border border-white/10 hover:border-red-500/40 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title={isOwner ? '스냅샷 삭제' : '스냅샷 삭제 (관리자)'}
           >
             {deleteSnapshotPending ? (
@@ -832,7 +832,7 @@ function EmptyWallOnboarding({ onStart }: { onStart: () => void }) {
       <button
         type="button"
         onClick={onStart}
-        className="mt-2 inline-flex items-center gap-2 text-base md:text-lg font-bold rounded-md px-6 py-3 bg-accent text-[#141008] hover:bg-[#f5b030] transition-colors cursor-pointer shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
+        className="mt-2 inline-flex items-center gap-2 text-base md:text-lg font-bold rounded-md px-6 py-3 bg-accent text-panel-strong hover:bg-accent-hover transition-colors cursor-pointer shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
       >
         지금 시작하기 →
       </button>
@@ -877,7 +877,7 @@ function MobileSnapshotsDropdown({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-[#1a130a]/60 border border-white/10 text-[13px] text-gray-200 hover:border-accent/40 transition-colors"
+        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-background/60 border border-white/10 text-[13px] text-gray-200 hover:border-accent/40 transition-colors"
       >
         <span className="flex items-center gap-2 min-w-0">
           <span className="text-[10px] uppercase tracking-wider text-gray-500 shrink-0">
@@ -1383,7 +1383,7 @@ function CommentBubble({
           className="px-3.5 py-2.5 rounded-xl text-[13px] leading-snug font-serif italic text-center"
           style={{
             background: '#f5e8c8',
-            color: '#141008',
+            color: 'var(--color-panel-strong)',
             boxShadow:
               '0 8px 20px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(20,14,8,0.2)',
           }}
@@ -1437,7 +1437,7 @@ function CommentBubble({
           className="px-3 py-2 rounded-xl text-[12px] leading-snug font-serif italic"
           style={{
             background: '#f5e8c8',
-            color: '#141008',
+            color: 'var(--color-panel-strong)',
             boxShadow:
               '0 6px 14px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(20,14,8,0.2)',
           }}

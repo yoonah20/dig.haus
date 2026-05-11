@@ -81,7 +81,7 @@ export default function SnapshotSaveModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5"
+        className="w-full max-w-md bg-panel-strong border border-white/10 rounded-xl p-5"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg text-white font-serif italic mb-1">
@@ -100,7 +100,7 @@ export default function SnapshotSaveModal({
           onChange={(e) => setName(e.target.value)}
           maxLength={60}
           autoFocus
-          className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
           placeholder={todayDateLabel()}
         />
         <p className="text-[10px] text-gray-600 mt-1">
@@ -116,7 +116,7 @@ export default function SnapshotSaveModal({
           maxLength={240}
           rows={2}
           placeholder="이 15장의 앨범에 대한 이야기를 짧게 적어보세요."
-          className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent focus:outline-none placeholder-gray-600 resize-none leading-snug"
+          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent focus:outline-none placeholder-gray-600 resize-none leading-snug"
         />
         <p className="text-[10px] text-gray-600 mt-1 text-right">
           {description.length}/240
@@ -155,7 +155,7 @@ export default function SnapshotSaveModal({
             type="button"
             onClick={handleSave}
             disabled={create.isPending}
-            className="text-xs text-accent hover:text-[#f5b040] border border-accent/50 hover:border-accent rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 transition-colors"
+            className="text-xs text-accent hover:text-accent-hover border border-accent/50 hover:border-accent rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 transition-colors"
           >
             {create.isPending ? '저장 중…' : '저장'}
           </button>

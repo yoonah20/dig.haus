@@ -75,7 +75,7 @@ export default function ToasterButton({
     <a
       href={url}
       onClick={handleClick}
-      className="text-[11px] text-gray-200 hover:text-accent bg-[#1a130a]/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+      className="text-[11px] text-gray-200 hover:text-accent bg-background/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
       title="토스터 이미지 (PNG) 저장"
     >
       <span className="hidden md:inline">🖼 </span>토스터

@@ -39,7 +39,7 @@ export default function CurationProgressPanel() {
       }}
     >
       {/* Header bar with status + minimize/close */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-[#1a1108]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-white/5 bg-panel-strong">
         <div className="flex items-center gap-2 min-w-0">
           {!run.finished && (
             <span className="w-3 h-3 border-2 border-gray-500 border-t-accent rounded-full animate-spin shrink-0" />
@@ -75,7 +75,7 @@ export default function CurationProgressPanel() {
         <>
           {/* Current album bar (only while running) */}
           {!run.finished && current && (
-            <div className="px-3 py-2 border-b border-white/5 bg-[#0f0903]">
+            <div className="px-3 py-2 border-b border-white/5 bg-panel-strong">
               <div className="text-gray-400 text-[10px] uppercase tracking-wider mb-0.5">
                 현재 처리 중
               </div>
@@ -130,7 +130,7 @@ export default function CurationProgressPanel() {
               tracks the live tail. Trimmed because long runs spit
               out hundreds of lines and the panel shouldn't balloon. */}
           {run.log.length > 0 && (
-            <div className="max-h-40 overflow-y-auto px-3 py-2 bg-[#0a0703] border-t border-white/5 font-mono text-[10px] leading-5">
+            <div className="max-h-40 overflow-y-auto px-3 py-2 bg-panel-strong border-t border-white/5 font-mono text-[10px] leading-5">
               {run.log.slice(-15).map((l) => (
                 <div
                   key={l.id}

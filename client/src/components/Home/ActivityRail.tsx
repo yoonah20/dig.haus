@@ -30,7 +30,7 @@ export default function ActivityRail({
               onClick={onClose}
               title="활동 레일 접기"
               aria-label="활동 레일 접기"
-              className="hidden lg:inline-flex items-center justify-center w-5 h-5 rounded-md border border-white/15 bg-[#1a130a]/40 hover:border-accent/60 hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors cursor-pointer"
+              className="hidden lg:inline-flex items-center justify-center w-5 h-5 rounded-md border border-white/15 bg-background/40 hover:border-accent/60 hover:bg-accent/10 text-gray-400 hover:text-accent transition-colors cursor-pointer"
             >
               {/* > chevron, styled as a visible pill button so it
                   reads as "this closes the panel" rather than a

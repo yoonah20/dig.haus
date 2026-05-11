@@ -812,7 +812,7 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
               return (
                 <div
                   key={i}
-                  className="bg-[#0a0604] rounded-[2px] overflow-hidden"
+                  className="bg-panel-strong rounded-[2px] overflow-hidden"
                 >
                   {item?.album?.coverArtUrl && (
                     <CoverArt
@@ -829,7 +829,7 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
               return (
                 <div
                   key={i}
-                  className="bg-[#0a0604] rounded-[2px] overflow-hidden flex items-center justify-center text-[12px] font-medium text-[#c9a060] tabular-nums"
+                  className="bg-panel-strong rounded-[2px] overflow-hidden flex items-center justify-center text-[12px] font-medium text-[#c9a060] tabular-nums"
                   aria-label={`${overflow}개 더`}
                 >
                   +{overflow}
@@ -839,7 +839,7 @@ function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
             return (
               <div
                 key={i}
-                className="bg-[#0a0604] rounded-[2px] overflow-hidden"
+                className="bg-panel-strong rounded-[2px] overflow-hidden"
               />
             );
           })}

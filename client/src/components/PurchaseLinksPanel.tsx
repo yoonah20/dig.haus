@@ -203,7 +203,7 @@ function LinkButton({
   const registeredLabel = formatRelativeKo(link.createdAt);
 
   return (
-    <div className="group relative flex items-center gap-3 bg-panel hover:bg-[#252525] rounded-xl px-4 py-3 transition-colors">
+    <div className="group relative flex items-center gap-3 bg-panel hover:bg-panel-hover rounded-xl px-4 py-3 transition-colors">
       <a
         href={link.url}
         target="_blank"

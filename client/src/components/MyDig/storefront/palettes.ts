@@ -59,7 +59,7 @@ export const ROOM = {
   // crateInterior above; the two sets were separated originally
   // because the shelf had a visible front lip in its own wood tone.
   cubbyTop: '#15090a',
-  cubbyBot: '#0a0503',
+  cubbyBot: 'var(--color-panel-strong)',
   cubbyLip: '#3a2513',
 
   // masking tape — cream/beige, warm under the lamp

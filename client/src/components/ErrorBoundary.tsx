@@ -36,7 +36,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="min-h-screen flex items-center justify-center px-6 py-16 bg-[#0a0703] text-gray-100">
+        <div className="min-h-screen flex items-center justify-center px-6 py-16 bg-panel-strong text-gray-100">
           <div className="max-w-md w-full text-center">
             <div className="text-3xl mb-3">😵‍💫</div>
             <h1

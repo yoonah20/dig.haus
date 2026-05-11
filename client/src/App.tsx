@@ -126,7 +126,7 @@ function PendingApprovalModal({ onDismiss }: { onDismiss: () => void }) {
         <button
           type="button"
           onClick={onDismiss}
-          className="mt-5 inline-flex items-center justify-center rounded-md bg-accent hover:bg-[#f5b030] text-[#141008] font-bold px-5 py-2 text-sm cursor-pointer transition-colors"
+          className="mt-5 inline-flex items-center justify-center rounded-md bg-accent hover:bg-accent-hover text-panel-strong font-bold px-5 py-2 text-sm cursor-pointer transition-colors"
         >
           확인
         </button>
@@ -175,7 +175,7 @@ export default function App() {
           <CurationProgressProvider>
             <div
               className={`min-h-screen flex flex-col text-gray-100 relative ${
-                isHome ? 'bg-background' : 'bg-[#0a0703]'
+                isHome ? 'bg-background' : 'bg-panel-strong'
               }`}
               // isolation:isolate creates a fresh stacking context
               // so the z-index:-1 backdrop layer stays behind this
