@@ -157,23 +157,21 @@ async function _getRelease(mbid: string): Promise<any | null> {
     // — its `label-info[0]` is the label of that pressing. For a JP
     // (or other regional) reissue that means we'd surface "Universal
     // Music Japan" or "Avex" instead of the original Western label.
-    // When the release date doesn't match the release-group's
-    // first-release-date, fetch the group's earliest release and use
-    // its label as the canonical answer. The current pressing's
-    // labels stay available as `releaseSpecificLabels` for callers
-    // that genuinely want the per-pressing info.
+    // Whenever the release sits in a release-group, fetch the group's
+    // earliest release and use its label as the canonical answer. The
+    // current pressing's labels stay available as
+    // `releaseSpecificLabels` for callers that genuinely want the
+    // per-pressing info. The previous trigger required both date fields
+    // to be present and to differ, which silently passed through JP
+    // reissues that happened to share the group's first-release-date
+    // (or that had no date metadata on the fetched pressing).
     const releaseSpecificLabels = (r['label-info'] || []).map((li: any) => ({
       name: li.label?.name || '',
       catalogNumber: li['catalog-number'] || '',
     }));
     let labels = releaseSpecificLabels;
     const rgId: string | undefined = r['release-group']?.id;
-    if (
-      rgId &&
-      firstReleaseDate &&
-      r.date &&
-      firstReleaseDate !== r.date
-    ) {
+    if (rgId) {
       try {
         const rgRes = await rateLimitedRequest(`${MB_BASE}/release`, {
           'release-group': rgId,

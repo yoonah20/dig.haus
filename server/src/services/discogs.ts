@@ -43,21 +43,60 @@ export async function getDiscogsMasterMainRelease(masterId: number): Promise<num
 }
 
 /**
- * Fetch a Discogs master's original release year — distinct from the year
- * of any specific release / reissue. Used to override the reissue year that
- * `/releases/{id}` returns when the user registers a remaster.
+ * Fetch a Discogs master's canonical-release facts — original year + the
+ * label of the earliest issued version. The `/releases/{id}` payload only
+ * carries the label of one specific pressing, which is often a regional
+ * licensee (Universal Music Japan, Avex, etc.) when Discogs picked a JP
+ * reissue as `main_release`. The master's version list — sorted by
+ * `released` ascending — surfaces the original-issue label instead, which
+ * is what the Discogs artist-discography UI displays per album.
+ *
+ * One extra API call per registration is acceptable; registration is a
+ * rare event and Discogs auth allows 60 req/min.
  */
-export async function getDiscogsMasterYear(masterId: number): Promise<string | null> {
+export async function getDiscogsMasterSummary(masterId: number): Promise<{
+  year: string | null;
+  originalLabel: string | null;
+}> {
   try {
-    const res = await axios.get(`${DISCOGS_BASE}/masters/${masterId}`, {
-      headers: getHeaders(),
-      httpsAgent,
-    });
-    const y = res.data?.year;
-    return y ? String(y) : null;
+    const [masterRes, versionsRes] = await Promise.all([
+      axios.get(`${DISCOGS_BASE}/masters/${masterId}`, {
+        headers: getHeaders(),
+        httpsAgent,
+      }),
+      axios.get(`${DISCOGS_BASE}/masters/${masterId}/versions`, {
+        headers: getHeaders(),
+        httpsAgent,
+        params: {
+          sort: 'released',
+          sort_order: 'asc',
+          per_page: '100',
+        },
+      }).catch((err) => {
+        console.warn(`[discogs] master versions fetch failed for master=${masterId}:`, (err as Error).message);
+        return null;
+      }),
+    ]);
+
+    const year = masterRes.data?.year ? String(masterRes.data.year) : null;
+
+    let originalLabel: string | null = null;
+    const versions: any[] = versionsRes?.data?.versions || [];
+    // Pick the first version (sorted earliest first) that actually has a
+    // non-empty label. Some pressings are listed with "Not On Label" /
+    // empty string — skip those so we land on the first real-label entry.
+    for (const v of versions) {
+      const candidate = (v.label || '').trim();
+      if (!candidate) continue;
+      if (candidate.toLowerCase() === 'not on label') continue;
+      originalLabel = candidate;
+      break;
+    }
+
+    return { year, originalLabel };
   } catch (err) {
-    console.warn(`[discogs] getDiscogsMasterYear failed for master=${masterId}:`, (err as Error).message);
-    return null;
+    console.warn(`[discogs] getDiscogsMasterSummary failed for master=${masterId}:`, (err as Error).message);
+    return { year: null, originalLabel: null };
   }
 }
 
@@ -88,19 +127,24 @@ export async function getDiscogsReleaseDetail(discogsId: number): Promise<{
     const masterId: number | null = r.master_id || null;
 
     // Discogs releases describe a SPECIFIC pressing — for reissues this is
-    // the reissue year, not the album's original year. If a master exists,
-    // pull its year (the canonical original release year) and prefer that.
+    // the reissue year + the licensee's label, not the album's original
+    // year / original label. If a master exists, pull its canonical summary
+    // (year + earliest-version label) and prefer those.
     let originalYear = r.year?.toString() || '';
     let originalDate = r.released || r.year?.toString() || '';
+    let pressingLabel = r.labels?.[0]?.name || '';
+    let canonicalLabel: string | null = null;
     if (masterId) {
-      const masterYear = await getDiscogsMasterYear(masterId);
-      if (masterYear && masterYear !== originalYear) {
-        originalYear = masterYear;
+      const summary = await getDiscogsMasterSummary(masterId);
+      if (summary.year && summary.year !== originalYear) {
+        originalYear = summary.year;
         // The master only carries a year, not a full date — drop the
         // reissue's specific date so the page shows just the original year.
-        originalDate = masterYear;
+        originalDate = summary.year;
       }
+      canonicalLabel = summary.originalLabel;
     }
+    const finalLabel = canonicalLabel || pressingLabel;
 
     return {
       title: r.title || '',
@@ -108,7 +152,7 @@ export async function getDiscogsReleaseDetail(discogsId: number): Promise<{
       artistId,
       year: originalYear,
       releaseDate: originalDate,
-      label: r.labels?.[0]?.name || '',
+      label: finalLabel,
       genres: [...(r.genres || []), ...(r.styles || [])],
       format: r.formats?.[0]?.name || '',
       coverArtUrl: r.images?.[0]?.uri || r.thumb || '',
