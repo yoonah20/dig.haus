@@ -45,7 +45,7 @@
 
      Pre-lift values kept in commit history for one-line rollback if
      the operator decides this lift went too far. */
-  --color-background: #1a130a;
+  --color-background: #241c10;
   --color-accent: #e8a020;
   --color-accent-hover: #f0b040;
   --color-accent-muted: #e8a02033;
@@ -57,12 +57,16 @@
      base is the default card / dropdown background; panel-hover is
      the +1 tier for elevated / hovered surfaces; panel-strong is
      the recessed / sunken tier used for inputs and dim overlays.
-     All three tinted toward the amber undertone in Step 1 so they
-     feel cohesive against the new background rather than reading
-     as a separate neutral palette. */
-  --color-panel: #241a10;
-  --color-panel-hover: #2e2218;
-  --color-panel-strong: #13100a;
+     Step 1 lifted them all toward amber, which read as "the cards
+     are too warm" against the (still-too-dark) page background.
+     Step 1b pulls panels back toward warm-neutral (much lower
+     saturation) while pushing the background lift further — so
+     the page is the warm canvas and the cards sit on it as
+     near-neutral album-sleeve-style surfaces, like dark cardstock
+     on a manila counter. */
+  --color-panel: #2c2824;
+  --color-panel-hover: #383330;
+  --color-panel-strong: #181410;
 
   /* MyDig storefront vocabulary hoisted into site-wide tokens so the
      album page can reuse the same wood / lamp / tape colors for its
