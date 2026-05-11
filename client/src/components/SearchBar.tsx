@@ -362,6 +362,7 @@ export default function SearchBar({
               loading / error / result branches above and skips this. */}
           {!isUrlMode && !dbLoading && !externalLoading && !anyContent && (
             <DigmanEmpty
+              variant="thinking"
               message={
                 loggedIn
                   ? '검색 결과가 없어요.'

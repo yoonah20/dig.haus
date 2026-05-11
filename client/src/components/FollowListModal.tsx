@@ -62,6 +62,7 @@ export default function FollowListModal({
           )}
           {query.data && query.data.users.length === 0 && (
             <DigmanEmpty
+              variant="sad"
               message={
                 kind === 'followers'
                   ? '아직 팔로워가 없어요.'

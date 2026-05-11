@@ -374,7 +374,7 @@ export default function HomeNext() {
                 className="!mb-3"
                 meta={
                   <img
-                    src="/textures/digman_feed.webp"
+                    src="/textures/digman_excited.webp"
                     alt=""
                     aria-hidden
                     draggable={false}
@@ -437,7 +437,7 @@ export default function HomeNext() {
                 className="!mb-3"
                 meta={
                   <img
-                    src="/textures/digman_feed.webp"
+                    src="/textures/digman_listening.webp"
                     alt=""
                     aria-hidden
                     draggable={false}

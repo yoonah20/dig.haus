@@ -215,7 +215,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
         {/* Cover grid */}
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {items.length === 0 ? (
-            <DigmanEmpty message="아직 담긴 앨범이 없어요." />
+            <DigmanEmpty variant="sleep" message="아직 담긴 앨범이 없어요." />
           ) : (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
               {items.map((it) => (

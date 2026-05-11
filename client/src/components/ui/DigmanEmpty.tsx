@@ -6,18 +6,21 @@
 // rather than a one-off illustration in any single screen.
 //
 // `variant` picks the asset + framing:
-//   - 'default' (digman.webp): full-body portrait source (350×550,
-//     ~7:11). Rendered uncropped via object-contain inside a
-//     portrait-aspect frame so the entire figure stays visible.
-//     Earlier the wrapper was 5:4 + object-cover/object-top, which
-//     clipped the lower body by design — but a re-export bumped the
-//     source from a head-and-shoulders crop to a full-body figure,
-//     and the same cover/top math then sliced through the face
-//     mid-frame. Use for general empties — no snapshots, no
-//     followers, no search hits, 404.
-//   - 'sign'    (digman_sign.webp): digman holding a yellow A-frame
-//     "work in progress" sign with the dig.haus logotype. The sign
-//     is the central element so the asset is rendered uncropped
+//   - 'thinking' (digman_thinking.webp): finger-on-chin question
+//     mark. Use for search-style empties where the user just
+//     issued a query and got nothing back — the mascot reads as
+//     "let me think where that is" rather than "it's not here".
+//   - 'sad'      (digman_sad.webp): teardrop. Use for relational
+//     empties (no followers, no following) where the absence has
+//     a slight emotional charge.
+//   - 'sleep'    (digman_sleep.webp): eyes closed, Z. Use for
+//     dormant content surfaces (no snapshots, empty crate) —
+//     reads as "this is waiting to be filled".
+//   - 'dizzy'    (digman_dizzy.webp): spiral eyes. Use for 404 /
+//     route-not-found — the digger's lost their bearings.
+//   - 'sign'     (digman_signpost.webp): digman holding a yellow
+//     A-frame "dig.haus" sign with a caution glyph. The sign is the
+//     central element so the asset is rendered uncropped
 //     (object-contain) at a slightly larger footprint. Use for
 //     "we're still working on it" empties — review-not-yet-collected,
 //     pipeline-pending content. Reads as "곧 도착", not "비어 있음".
@@ -34,23 +37,32 @@ type DigmanEmptyProps = {
    *  for surfaces that want a follow-up hint. */
   hint?: string;
   size?: 'md' | 'lg';
-  /** 'default' = full-body digman; 'sign' = digman + WIP sign. */
-  variant?: 'default' | 'sign';
+  /** Which expression to render. Each variant maps to one webp under
+   *  /textures/. 'thinking' is the default for surfaces that don't
+   *  pick an emotion explicitly. */
+  variant?: 'thinking' | 'sad' | 'sleep' | 'dizzy' | 'sign';
   className?: string;
+};
+
+const VARIANT_SRC: Record<NonNullable<DigmanEmptyProps['variant']>, string> = {
+  thinking: '/textures/digman_thinking.webp',
+  sad: '/textures/digman_sad.webp',
+  sleep: '/textures/digman_sleep.webp',
+  dizzy: '/textures/digman_dizzy.webp',
+  sign: '/textures/digman_signpost.webp',
 };
 
 const SIZE_CLASSES: Record<
   NonNullable<DigmanEmptyProps['variant']>,
   Record<NonNullable<DigmanEmptyProps['size']>, string>
 > = {
-  // Default: portrait frame matching the source's 7:11 aspect (within
-  // a Tailwind preset). 64×96 (md) for in-page list empties, 128×192
-  // (lg) for full-page empties like 404. object-contain keeps the
-  // whole figure visible — no cropping.
-  default: {
-    md: 'w-16 h-24',
-    lg: 'w-32 h-48',
-  },
+  // Head-and-shoulders mascot frames: ~1:1 aspect, rendered uncropped.
+  // 96×96 (md) for in-page list empties, 160×160 (lg) for full-page
+  // empties like 404 where the mascot can take more vertical budget.
+  thinking: { md: 'w-24 h-24', lg: 'w-40 h-40' },
+  sad: { md: 'w-24 h-24', lg: 'w-40 h-40' },
+  sleep: { md: 'w-24 h-24', lg: 'w-40 h-40' },
+  dizzy: { md: 'w-24 h-24', lg: 'w-40 h-40' },
   // Sign: larger than default because the WIP sign holds a logotype
   // + warning symbol that needs to be legible — shrinking it past a
   // certain point turns the asset into an unreadable yellow blob.
@@ -66,16 +78,11 @@ export default function DigmanEmpty({
   message,
   hint,
   size = 'md',
-  variant = 'default',
+  variant = 'thinking',
   className = '',
 }: DigmanEmptyProps) {
   const isSign = variant === 'sign';
-  const src = isSign ? '/textures/digman_sign.webp' : '/textures/digman.webp';
-  // Both variants render uncropped now — the default used to crop to
-  // the head via object-cover/object-top against a 5:4 frame, but the
-  // re-exported full-body source put the face on the crop seam. Frame
-  // aspect handles framing instead.
-  const imgFit = 'object-contain object-center';
+  const src = VARIANT_SRC[variant];
 
   return (
     <div
@@ -86,13 +93,13 @@ export default function DigmanEmpty({
           src={src}
           alt=""
           aria-hidden
-          className={`block w-full h-full ${imgFit} opacity-80 select-none`}
+          className="block w-full h-full object-contain object-center opacity-80 select-none"
           draggable={false}
         />
       </div>
       {/* Sign variant gets larger type because the asset itself is
-          larger; default keeps the muted/quieter sizing it shipped
-          with so it still reads as background voice on lists. */}
+          larger; expression variants keep the muted/quieter sizing so
+          they still read as background voice on lists. */}
       <div
         className={`${
           isSign
