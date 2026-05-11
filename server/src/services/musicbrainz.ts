@@ -189,7 +189,17 @@ async function _getRelease(mbid: string): Promise<any | null> {
               rel['label-info'][0]?.label?.name
           )
           .sort((a: any, b: any) => a.date.localeCompare(b.date));
-        const canonical = candidates[0];
+        // Prefer non-Japan releases. Strict chronological pick would
+        // surface JP advance pressings (e.g. Soilwork's Chainheart
+        // Machine has a Soundholic JP issue dated a year before the
+        // Listenable Records EU original) as the "canonical" label,
+        // which is the opposite of what the Discogs artist UI shows
+        // and is exactly the licensee-leak the user reported. MB
+        // country codes are ISO 3166 so 'JP' is the exact match.
+        // Falls back to the strict earliest when only JP candidates
+        // carry label info.
+        const nonJpCandidates = candidates.filter((rel: any) => rel.country !== 'JP');
+        const canonical = nonJpCandidates[0] || candidates[0];
         if (canonical) {
           const canonicalLabels = (canonical['label-info'] || []).map(
             (li: any) => ({
