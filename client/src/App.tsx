@@ -36,7 +36,7 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 function RouteFallback() {
   return (
     <div className="min-h-[50vh] flex items-center justify-center">
-      <div className="w-36 h-60 overflow-hidden opacity-70 animate-pulse">
+      <div className="w-64 h-64 overflow-hidden opacity-70 animate-pulse">
         <img
           src="/textures/digman_digging.webp"
           alt=""

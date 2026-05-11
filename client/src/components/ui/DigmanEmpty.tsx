@@ -63,14 +63,16 @@ const SIZE_CLASSES: Record<
   sad: { md: 'w-24 h-24', lg: 'w-40 h-40' },
   sleep: { md: 'w-24 h-24', lg: 'w-40 h-40' },
   dizzy: { md: 'w-24 h-24', lg: 'w-40 h-40' },
-  // Sign: larger than default because the WIP sign holds a logotype
-  // + warning symbol that needs to be legible — shrinking it past a
-  // certain point turns the asset into an unreadable yellow blob.
-  // Sized so the figure reads at glance even on review-section
-  // empty states where it's the main focal point of the area.
+  // Sign: larger than the expression variants because the asset holds
+  // a "dig.haus" A-frame sign with a logotype + warning symbol that
+  // needs to be legible — shrinking it past a certain point turns the
+  // sign text into an unreadable yellow blob. Sized square to match
+  // the source asset (550px square full-body) — earlier rectangular
+  // frames (168×144 md / 288×240 lg) letterboxed the square source
+  // and shrank the effective render to the height dimension.
   sign: {
-    md: 'w-[168px] h-[144px]',
-    lg: 'w-72 h-60',
+    md: 'w-48 h-48',
+    lg: 'w-80 h-80',
   },
 };
 
