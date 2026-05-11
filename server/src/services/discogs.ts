@@ -62,6 +62,45 @@ export async function getDiscogsMasterYear(masterId: number): Promise<string | n
 }
 
 /**
+ * Scan a Discogs master's versions for the earliest non-Japan release with a
+ * real label. Used as an escape hatch when `main_release` points at a JP
+ * licensee pressing (Universal Music Japan, Avex, Soundholic …) — in that
+ * case the pressing label is the local distributor, not the album's origin
+ * label. The Discogs artist-discography UI shows the latter; we replicate
+ * that by preferring any non-JP version's label. JP-only albums fall back
+ * to their pressing label naturally because this function returns null when
+ * no non-JP version with a label exists.
+ *
+ * Versions are sorted by `released` ascending so the chosen label tracks
+ * the original-issue territory rather than a later non-JP reissue.
+ */
+async function getDiscogsMasterEarliestNonJpLabel(masterId: number): Promise<string | null> {
+  try {
+    const res = await axios.get(`${DISCOGS_BASE}/masters/${masterId}/versions`, {
+      headers: getHeaders(),
+      httpsAgent,
+      params: {
+        sort: 'released',
+        sort_order: 'asc',
+        per_page: '100',
+      },
+    });
+    const versions: any[] = res.data?.versions || [];
+    for (const v of versions) {
+      if ((v.country || '') === 'Japan') continue;
+      const candidate = (v.label || '').trim();
+      if (!candidate) continue;
+      if (candidate.toLowerCase() === 'not on label') continue;
+      return candidate;
+    }
+    return null;
+  } catch (err) {
+    console.warn(`[discogs] getDiscogsMasterEarliestNonJpLabel failed for master=${masterId}:`, (err as Error).message);
+    return null;
+  }
+}
+
+/**
  * Fetch full release details from Discogs by release ID.
  */
 export async function getDiscogsReleaseDetail(discogsId: number): Promise<{
@@ -90,15 +129,35 @@ export async function getDiscogsReleaseDetail(discogsId: number): Promise<{
     // Discogs releases describe a SPECIFIC pressing — for reissues this is
     // the reissue year, not the album's original year. If a master exists,
     // pull its year (the canonical original release year) and prefer that.
+    //
+    // Label resolution: trust the main_release's pressing label by default
+    // (Discogs editors curate `main_release` to point at the canonical
+    // issue, which is what the artist-discography UI displays). The
+    // override case is when main_release itself happens to be a Japan
+    // pressing — then `pressingLabel` is the JP licensee (Soundholic,
+    // Universal Music Japan, Avex …) rather than the album's origin
+    // label. Fan out to a versions scan and pick the earliest non-JP
+    // version's label so the registration lands on the origin issuer.
+    // JP-only albums fall through to the JP pressing label naturally.
     let originalYear = r.year?.toString() || '';
     let originalDate = r.released || r.year?.toString() || '';
+    let labelName = r.labels?.[0]?.name || '';
+    const mainReleaseCountry: string = r.country || '';
     if (masterId) {
-      const masterYear = await getDiscogsMasterYear(masterId);
+      const [masterYear, nonJpLabel] = await Promise.all([
+        getDiscogsMasterYear(masterId),
+        mainReleaseCountry === 'Japan'
+          ? getDiscogsMasterEarliestNonJpLabel(masterId)
+          : Promise.resolve(null),
+      ]);
       if (masterYear && masterYear !== originalYear) {
         originalYear = masterYear;
         // The master only carries a year, not a full date — drop the
         // reissue's specific date so the page shows just the original year.
         originalDate = masterYear;
+      }
+      if (nonJpLabel) {
+        labelName = nonJpLabel;
       }
     }
 
@@ -108,7 +167,7 @@ export async function getDiscogsReleaseDetail(discogsId: number): Promise<{
       artistId,
       year: originalYear,
       releaseDate: originalDate,
-      label: r.labels?.[0]?.name || '',
+      label: labelName,
       genres: [...(r.genres || []), ...(r.styles || [])],
       format: r.formats?.[0]?.name || '',
       coverArtUrl: r.images?.[0]?.uri || r.thumb || '',
@@ -204,10 +263,30 @@ export async function searchDiscogsAlbums(
 
     const results = res.data?.results || [];
 
+    // Filter out singles, EPs, and other non-album formats. type=master
+    // already strips most non-canonical pressings but Discogs masters
+    // still include single/EP-shaped releases — same shape that the
+    // artist-discography helper above filters with this exact pattern.
+    // Without it the registration search surfaces "Soilwork - Steelbath
+    // Suicide (single)" between full albums.
+    const NON_ALBUM_FORMAT_TOKENS = new Set([
+      'single', 'ep', 'maxi-single', 'mini-album',
+      'compilation', 'mixtape',
+      '7"', '10"',
+      'dvd', 'blu-ray', 'vhs',
+    ]);
+    const isAlbumFormat = (raw: string): boolean => {
+      const fmt = (raw || '').toLowerCase().trim();
+      if (!fmt) return true;
+      return !NON_ALBUM_FORMAT_TOKENS.has(fmt);
+    };
+
     // Deduplicate by title (Discogs returns many editions of the same release)
     const seen = new Set<string>();
     const unique: any[] = [];
     for (const r of results) {
+      const formats: string[] = Array.isArray(r.format) ? r.format : [];
+      if (formats.length > 0 && !formats.some(isAlbumFormat)) continue;
       const key = (r.title || '').toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);

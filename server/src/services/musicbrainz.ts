@@ -41,16 +41,27 @@ async function _searchAlbums(query: string): Promise<
 
     const releases = res.data.releases || [];
 
-    // Deduplicate by release-group, keep only Album/EP (skip Singles, Compilations)
+    // Filter to full-length albums only — strip singles, EPs, broadcasts,
+    // and the noisy secondary types (compilations, live, remix, demo,
+    // DJ-mix, mixtape, interview, spokenword). The previous filter only
+    // dropped Single + Broadcast, so EPs and "Album + Compilation"
+    // groups (greatest-hits packages, B-sides collections) slipped
+    // through and dominated the result list for catalog-heavy artists.
+    // Soundtracks are kept — they're legitimate album-shaped releases.
+    const NOISY_SECONDARY_TYPES = new Set([
+      'Compilation', 'Live', 'Remix', 'Demo', 'DJ-mix',
+      'Mixtape/Street', 'Interview', 'Spokenword',
+    ]);
     const seen = new Set<string>();
     const unique: any[] = [];
     for (const r of releases) {
       const rgid = r['release-group']?.id;
       const key = rgid || `${r.title}::${r['artist-credit']?.[0]?.name}`;
       if (seen.has(key)) continue;
-      // Filter out singles and compilations
       const primaryType = r['release-group']?.['primary-type'] || '';
-      if (primaryType === 'Single' || primaryType === 'Broadcast') continue;
+      if (primaryType !== 'Album') continue;
+      const secondaryTypes: string[] = r['release-group']?.['secondary-types'] || [];
+      if (secondaryTypes.some((t) => NOISY_SECONDARY_TYPES.has(t))) continue;
       seen.add(key);
       unique.push(r);
     }
@@ -146,23 +157,21 @@ async function _getRelease(mbid: string): Promise<any | null> {
     // — its `label-info[0]` is the label of that pressing. For a JP
     // (or other regional) reissue that means we'd surface "Universal
     // Music Japan" or "Avex" instead of the original Western label.
-    // When the release date doesn't match the release-group's
-    // first-release-date, fetch the group's earliest release and use
-    // its label as the canonical answer. The current pressing's
-    // labels stay available as `releaseSpecificLabels` for callers
-    // that genuinely want the per-pressing info.
+    // Whenever the release sits in a release-group, fetch the group's
+    // earliest release and use its label as the canonical answer. The
+    // current pressing's labels stay available as
+    // `releaseSpecificLabels` for callers that genuinely want the
+    // per-pressing info. The previous trigger required both date fields
+    // to be present and to differ, which silently passed through JP
+    // reissues that happened to share the group's first-release-date
+    // (or that had no date metadata on the fetched pressing).
     const releaseSpecificLabels = (r['label-info'] || []).map((li: any) => ({
       name: li.label?.name || '',
       catalogNumber: li['catalog-number'] || '',
     }));
     let labels = releaseSpecificLabels;
     const rgId: string | undefined = r['release-group']?.id;
-    if (
-      rgId &&
-      firstReleaseDate &&
-      r.date &&
-      firstReleaseDate !== r.date
-    ) {
+    if (rgId) {
       try {
         const rgRes = await rateLimitedRequest(`${MB_BASE}/release`, {
           'release-group': rgId,
@@ -180,7 +189,17 @@ async function _getRelease(mbid: string): Promise<any | null> {
               rel['label-info'][0]?.label?.name
           )
           .sort((a: any, b: any) => a.date.localeCompare(b.date));
-        const canonical = candidates[0];
+        // Prefer non-Japan releases. Strict chronological pick would
+        // surface JP advance pressings (e.g. Soilwork's Chainheart
+        // Machine has a Soundholic JP issue dated a year before the
+        // Listenable Records EU original) as the "canonical" label,
+        // which is the opposite of what the Discogs artist UI shows
+        // and is exactly the licensee-leak the user reported. MB
+        // country codes are ISO 3166 so 'JP' is the exact match.
+        // Falls back to the strict earliest when only JP candidates
+        // carry label info.
+        const nonJpCandidates = candidates.filter((rel: any) => rel.country !== 'JP');
+        const canonical = nonJpCandidates[0] || candidates[0];
         if (canonical) {
           const canonicalLabels = (canonical['label-info'] || []).map(
             (li: any) => ({
