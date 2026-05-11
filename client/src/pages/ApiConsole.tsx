@@ -76,7 +76,7 @@ export default function ApiConsole({ embedded = false }: { embedded?: boolean } 
   const body = (
     <div className="font-mono text-sm">
       <header className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
-        <h1 className="text-lg text-[#e8a020]">API Usage Console</h1>
+        <h1 className="text-lg text-accent">API Usage Console</h1>
         <div className="text-[11px] text-gray-500">
           {isLoading ? 'loading…' : `last update ${formatTime(new Date(dataUpdatedAt))} · polls every 15s`}
         </div>
@@ -115,7 +115,7 @@ export default function ApiConsole({ embedded = false }: { embedded?: boolean } 
               <div className="bg-[#141414] border border-white/5 rounded-md overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-[10px] uppercase tracking-wider text-gray-500 bg-[#0f0f0f]">
+                    <tr className="text-[10px] uppercase tracking-wider text-gray-500 bg-panel-strong">
                       <th className="text-left px-3 py-2">operation</th>
                       <th className="text-right px-3 py-2">calls</th>
                       <th className="text-right px-3 py-2">usd</th>
@@ -159,7 +159,7 @@ export default function ApiConsole({ embedded = false }: { embedded?: boolean } 
               <div className="bg-[#141414] border border-white/5 rounded-md overflow-hidden">
                 <table className="w-full text-xs">
                   <thead>
-                    <tr className="text-[10px] uppercase tracking-wider text-gray-500 bg-[#0f0f0f]">
+                    <tr className="text-[10px] uppercase tracking-wider text-gray-500 bg-panel-strong">
                       <th className="text-left px-3 py-2">time</th>
                       <th className="text-left px-3 py-2">operation</th>
                       <th className="text-left px-3 py-2">model</th>
@@ -184,7 +184,7 @@ export default function ApiConsole({ embedded = false }: { embedded?: boolean } 
                         <td className="text-right px-3 py-1 tabular-nums">
                           {c.outputTokens.toLocaleString()}
                         </td>
-                        <td className="text-right px-3 py-1 tabular-nums text-[#e8a020]/80">
+                        <td className="text-right px-3 py-1 tabular-nums text-accent/80">
                           {c.usd.toFixed(4)}
                         </td>
                       </tr>

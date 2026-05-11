@@ -66,7 +66,7 @@ export default function CrateSection({ username, isOwner }: Props) {
             onClick={() => setOpenId(c.id)}
             className="group text-left cursor-pointer"
           >
-            <div className="relative aspect-square rounded-md overflow-hidden bg-[#0a0703] border border-white/5 group-hover:border-[#e8a020]/40 transition-colors">
+            <div className="relative aspect-square rounded-md overflow-hidden bg-[#0a0703] border border-white/5 group-hover:border-accent/40 transition-colors">
               {c.coverThumbs.length > 0 ? (
                 <div className="grid grid-cols-2 grid-rows-2 w-full h-full">
                   {[0, 1, 2, 3].map((i) => {
@@ -74,7 +74,7 @@ export default function CrateSection({ username, isOwner }: Props) {
                     return (
                       <div
                         key={i}
-                        className="bg-[#1a1a1a] overflow-hidden"
+                        className="bg-panel overflow-hidden"
                       >
                         {t && (
                           <CoverArt
@@ -103,7 +103,7 @@ export default function CrateSection({ username, isOwner }: Props) {
               )}
             </div>
             <div className="mt-1.5 flex items-baseline gap-1">
-              <span className="text-[12px] text-gray-200 truncate group-hover:text-[#e8a020] transition-colors">
+              <span className="text-[12px] text-gray-200 truncate group-hover:text-accent transition-colors">
                 {c.title}
               </span>
               <span className="text-[10px] text-gray-500 tabular-nums">
@@ -115,7 +115,7 @@ export default function CrateSection({ username, isOwner }: Props) {
 
         {isOwner && composing && (
           <div className="flex flex-col gap-1">
-            <div className="aspect-square rounded-md border-2 border-dashed border-[#e8a020]/40 flex items-center justify-center bg-[#0a0703] px-2">
+            <div className="aspect-square rounded-md border-2 border-dashed border-accent/40 flex items-center justify-center bg-[#0a0703] px-2">
               <input
                 type="text"
                 autoFocus
@@ -138,7 +138,7 @@ export default function CrateSection({ username, isOwner }: Props) {
                 }}
                 maxLength={60}
                 placeholder="이름"
-                className="w-full bg-transparent border-b border-[#e8a020]/40 px-0.5 py-0.5 text-[12px] text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 text-center"
+                className="w-full bg-transparent border-b border-accent/40 px-0.5 py-0.5 text-[12px] text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600 text-center"
               />
             </div>
             <div className="text-[10px] text-gray-500 text-center">
@@ -151,7 +151,7 @@ export default function CrateSection({ username, isOwner }: Props) {
           <button
             type="button"
             onClick={() => setComposing(true)}
-            className="aspect-square rounded-md border-2 border-dashed border-white/10 hover:border-[#e8a020]/40 hover:bg-[#e8a020]/5 transition-colors flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-[#e8a020] cursor-pointer"
+            className="aspect-square rounded-md border-2 border-dashed border-white/10 hover:border-accent/40 hover:bg-accent/5 transition-colors flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-accent cursor-pointer"
           >
             <span className="text-xl">＋</span>
             <span className="text-[11px]">새 상자</span>

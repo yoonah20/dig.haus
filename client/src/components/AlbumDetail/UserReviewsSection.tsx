@@ -51,7 +51,7 @@ function Avatar({ src, name, size = 52 }: { src: string | null; name: string | n
   }
   return (
     <div
-      className="rounded-full bg-[#2a1f10] text-[#e8a020] flex items-center justify-center shrink-0 border border-white/10 font-semibold"
+      className="rounded-full bg-[#2a1f10] text-accent flex items-center justify-center shrink-0 border border-white/10 font-semibold"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
       {initial}
@@ -148,7 +148,7 @@ function SpeechBubble({
           </CardOverlayButton>
         </div>
       )}
-      <div className="bg-panel border border-[#e8a020]/15 rounded-2xl px-4 py-3.5 flex flex-col min-w-0 h-full">
+      <div className="bg-panel border border-accent/15 rounded-2xl px-4 py-3.5 flex flex-col min-w-0 h-full">
         {/* Body + emoji stamps. The rating/feeling emojis ride at the
             end of the text (separated by a single space) rather than
             floating as overhanging badges or sitting in the footer — so
@@ -208,10 +208,10 @@ function AddReviewCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 bg-panel/30 hover:bg-panel/70 border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/80 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer w-full h-full"
+      className="group flex flex-col items-center justify-center gap-2 bg-panel/30 hover:bg-panel/70 border border-dashed border-accent/40 hover:border-accent/80 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer w-full h-full"
     >
       <span className="text-3xl group-hover:scale-110 transition-transform" aria-hidden>✍️</span>
-      <span className="text-sm font-medium text-[#e8a020] group-hover:text-[#f0b040]">
+      <span className="text-sm font-medium text-accent group-hover:text-accent-hover">
         50자 평 남기기
       </span>
     </button>
@@ -223,7 +223,7 @@ function LoginPromptCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex flex-col items-center justify-center gap-2 bg-panel/20 hover:bg-panel/50 border border-dashed border-white/15 hover:border-[#e8a020]/40 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer text-center w-full h-full"
+      className="group flex flex-col items-center justify-center gap-2 bg-panel/20 hover:bg-panel/50 border border-dashed border-white/15 hover:border-accent/40 rounded-2xl p-4 py-6 md:py-4 transition-all cursor-pointer text-center w-full h-full"
     >
       <span
         className="text-2xl opacity-70 group-hover:opacity-100 transition-opacity"
@@ -231,7 +231,7 @@ function LoginPromptCard({ onClick }: { onClick: () => void }) {
       >
         🔑
       </span>
-      <span className="text-xs md:text-sm text-gray-400 group-hover:text-[#e8a020] leading-relaxed">
+      <span className="text-xs md:text-sm text-gray-400 group-hover:text-accent leading-relaxed">
         로그인하면
         <br />
         50자 평을 남길 수 있어요
@@ -297,7 +297,7 @@ function Editor({
       onClick={() => !saving && setStep('rating')}
       className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] cursor-pointer transition-colors ${
         rating === 'up'
-          ? 'bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30 hover:bg-[#e8a020]/25'
+          ? 'bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25'
           : 'bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10'
       }`}
       title="수정하려면 클릭"
@@ -327,7 +327,7 @@ function Editor({
           <span
             key={s}
             className={`h-1 rounded-full transition-all ${
-              current ? 'w-3 bg-[#e8a020]' : passed ? 'w-1.5 bg-[#e8a020]/50' : 'w-1.5 bg-white/15'
+              current ? 'w-3 bg-accent' : passed ? 'w-1.5 bg-accent/50' : 'w-1.5 bg-white/15'
             }`}
           />
         );
@@ -346,7 +346,7 @@ function Editor({
   );
 
   return (
-    <div className="bg-panel border border-[#e8a020]/40 rounded-2xl pt-1.5 px-3 pb-3 h-[180px] flex flex-col gap-1">
+    <div className="bg-panel border border-accent/40 rounded-2xl pt-1.5 px-3 pb-3 h-[180px] flex flex-col gap-1">
       {/* Header: summary on left, progress on right. No min-height — when
           no pills are present the row collapses to the progress-dot height
           so the prompt sits close to the card's top edge. */}
@@ -377,7 +377,7 @@ function Editor({
                   const selected = rating === r;
                   const selectedStyle =
                     r === 'up'
-                      ? 'bg-[#e8a020]/20 border-[#e8a020]/60 text-[#e8a020]'
+                      ? 'bg-accent/20 border-accent/60 text-accent'
                       : r === 'down'
                         ? 'bg-white/10 border-white/30 text-white'
                         : 'bg-white/10 border-white/25 text-gray-100';
@@ -431,7 +431,7 @@ function Editor({
               placeholder={`공백 제외 ${MIN_CHARS}~${MAX_CHARS}자`}
               rows={3}
               disabled={saving}
-              className="w-full bg-panel-strong border border-white/10 rounded-lg px-2.5 py-2 text-sm text-gray-100 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-none"
+              className="w-full bg-panel-strong border border-white/10 rounded-lg px-2.5 py-2 text-sm text-gray-100 focus:border-accent focus:outline-none disabled:opacity-60 resize-none"
             />
             <div className="flex items-center justify-between gap-1 text-[11px] mt-auto">
               <span
@@ -455,7 +455,7 @@ function Editor({
                   onClick={goToEmoji}
                   disabled={saving || tooShort || over}
                   title={tooShort ? `최소 ${MIN_CHARS}자 이상 써주세요` : undefined}
-                  className="bg-[#e8a020] text-black hover:bg-[#f0b040] rounded-md px-2.5 py-1 text-[11px] font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  className="bg-accent text-black hover:bg-accent-hover rounded-md px-2.5 py-1 text-[11px] font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   다음
                 </button>
@@ -488,7 +488,7 @@ function Editor({
                     // "buttons with emojis inside".
                     className={`h-8 md:h-9 w-full rounded-lg flex items-center justify-center text-2xl md:text-3xl leading-none transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                       selected
-                        ? 'bg-[#e8a020]/20 border border-[#e8a020]/60 scale-110'
+                        ? 'bg-accent/20 border border-accent/60 scale-110'
                         : 'bg-white/5 border border-transparent hover:bg-white/10 hover:scale-110'
                     }`}
                   >
@@ -681,7 +681,7 @@ export default function UserReviewsSection({
               onClick={() => setPage(i)}
               aria-label={`${i + 1}번째 페이지로 이동`}
               className={`w-1.5 h-1.5 rounded-full transition-colors cursor-pointer ${
-                i === page ? 'bg-[#e8a020]' : 'bg-white/20 hover:bg-white/40'
+                i === page ? 'bg-accent' : 'bg-white/20 hover:bg-white/40'
               }`}
             />
           ))}

@@ -192,7 +192,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
     : {};
 
   return (
-    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-[#e8a020]/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
+    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
       {isAdmin && !editing && (
         <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
           <CardOverlayButton onClick={startEditExcerpt} title="본문 수정">
@@ -229,7 +229,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
             disabled={savingExcerpt}
             rows={4}
             autoFocus
-            className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-y"
+            className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60 resize-y"
           />
           <div className="flex justify-end gap-2">
             <button
@@ -243,7 +243,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
             <button
               onClick={saveEditExcerpt}
               disabled={savingExcerpt}
-              className="px-2 py-0.5 text-xs text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+              className="px-2 py-0.5 text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
               aria-label="저장"
             >
               {savingExcerpt ? '...' : '✓'}
@@ -734,7 +734,7 @@ export default function ReviewSection({
                 rel="noopener noreferrer"
                 title={`"${albumTitle} ${albumArtist} album review" 구글 검색`}
                 aria-label="리뷰 URL 구글 검색"
-                className="inline-flex items-center justify-center w-6 h-6 text-gray-500 hover:text-[#e8a020] transition-colors align-middle translate-y-[-2px] ml-1"
+                className="inline-flex items-center justify-center w-6 h-6 text-gray-500 hover:text-accent transition-colors align-middle translate-y-[-2px] ml-1"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -776,7 +776,7 @@ export default function ReviewSection({
         )}
 
         {koreanSummary && (
-            <div className="relative group/summary bg-panel rounded-panel p-5 border-l-4 border-[#e8a020]">
+            <div className="relative group/summary bg-panel rounded-panel p-5 border-l-4 border-accent">
               {isAdmin && !editingSummary && (
                 <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/summary:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                   <CardOverlayButton onClick={startEditSummary} title="요약 수정">
@@ -807,7 +807,7 @@ export default function ReviewSection({
                     disabled={savingSummary}
                     rows={Math.max(3, Math.ceil(summaryDraft.length / 60))}
                     autoFocus
-                    className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 resize-y leading-relaxed"
+                    className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60 resize-y leading-relaxed"
                   />
                   <div className="flex justify-end gap-2">
                     <button
@@ -821,7 +821,7 @@ export default function ReviewSection({
                     <button
                       onClick={saveEditSummary}
                       disabled={savingSummary}
-                      className="px-2 py-0.5 text-xs text-[#e8a020] hover:text-white disabled:opacity-40 cursor-pointer"
+                      className="px-2 py-0.5 text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
                       aria-label="저장"
                     >
                       {savingSummary ? '...' : '✓'}
@@ -862,7 +862,7 @@ export default function ReviewSection({
                   onClick={() => setExpanded(true)}
                   className="flex flex-col items-center justify-center gap-2 bg-[#151515] hover:bg-[#1e1e1e] border border-dashed border-gray-700 hover:border-gray-500 rounded-lg p-4 transition-all duration-200 cursor-pointer min-h-[100px]"
                 >
-                  <span className="text-[#e8a020] text-2xl font-bold">+{hiddenCount}</span>
+                  <span className="text-accent text-2xl font-bold">+{hiddenCount}</span>
                   <span className="text-gray-400 text-sm">{hiddenCount}개 리뷰 더 보기</span>
                 </button>
               )}
@@ -878,7 +878,7 @@ export default function ReviewSection({
                 <button
                   type="button"
                   onClick={startAddReview}
-                  className="flex flex-col items-center justify-center gap-1 bg-[#151515] hover:bg-[#1e1e1e] border border-dashed border-[#e8a020]/40 hover:border-[#e8a020]/70 text-[#e8a020] rounded-lg p-4 transition-all duration-200 cursor-pointer min-h-[100px]"
+                  className="flex flex-col items-center justify-center gap-1 bg-[#151515] hover:bg-[#1e1e1e] border border-dashed border-accent/40 hover:border-accent/70 text-accent rounded-lg p-4 transition-all duration-200 cursor-pointer min-h-[100px]"
                 >
                   <span className="text-2xl leading-none font-bold" aria-hidden>+</span>
                   <span className="text-sm font-medium">리뷰 추가</span>
@@ -910,7 +910,7 @@ export default function ReviewSection({
                       disabled={savingReview}
                       className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
                         addMode === 'url'
-                          ? 'bg-panel-strong text-[#e8a020] border-t border-x border-white/10'
+                          ? 'bg-panel-strong text-accent border-t border-x border-white/10'
                           : 'text-gray-500 hover:text-gray-300'
                       }`}
                     >
@@ -922,7 +922,7 @@ export default function ReviewSection({
                       disabled={savingReview}
                       className={`px-3 py-1.5 text-xs font-medium rounded-t-md transition-colors cursor-pointer ${
                         addMode === 'manual'
-                          ? 'bg-panel-strong text-[#e8a020] border-t border-x border-white/10'
+                          ? 'bg-panel-strong text-accent border-t border-x border-white/10'
                           : 'text-gray-500 hover:text-gray-300'
                       }`}
                     >
@@ -992,11 +992,11 @@ export default function ReviewSection({
                             }
                           }}
                           disabled={discover.isPending || savingReview}
-                          className="text-[11px] text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1.5"
+                          className="text-[11px] text-accent/80 hover:text-accent border border-accent/40 hover:border-accent/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1.5"
                           title="Serper로 구글 검색 → Haiku가 editorial 리뷰 URL 선별 (~$0.001)"
                         >
                           {discover.isPending && (
-                            <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+                            <span className="w-3 h-3 border-2 border-gray-500 border-t-accent rounded-full animate-spin" />
                           )}
                           {discover.isPending ? '검색 중…' : '🔎 URL 자동 검색'}
                         </button>
@@ -1014,7 +1014,7 @@ export default function ReviewSection({
                         placeholder={'https://angrymetalguy.com/...\nhttps://pitchfork.com/...'}
                         autoFocus
                         rows={4}
-                        className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60 font-mono"
+                        className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60 font-mono"
                       />
                       {/* URL 자동 검색 결과 체크리스트. Each row is an
                           individual URL with a checkbox — admin unticks
@@ -1045,7 +1045,7 @@ export default function ReviewSection({
                                   })
                                 }
                                 disabled={savingReview}
-                                className="text-gray-400 hover:text-[#e8a020] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="text-gray-400 hover:text-accent cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 {discoveredUrls.every((d) => d.selected) ? '전체 해제' : '전체 선택'}
                               </button>
@@ -1079,7 +1079,7 @@ export default function ReviewSection({
                                     );
                                   }}
                                   disabled={savingReview}
-                                  className="accent-[#e8a020] shrink-0 w-3.5 h-3.5 cursor-pointer"
+                                  className="accent-accent shrink-0 w-3.5 h-3.5 cursor-pointer"
                                 />
                                 <label
                                   htmlFor={`discovered-${idx}`}
@@ -1094,7 +1094,7 @@ export default function ReviewSection({
                                   href={item.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="shrink-0 text-gray-500 hover:text-[#e8a020] px-1"
+                                  className="shrink-0 text-gray-500 hover:text-accent px-1"
                                   title="새 탭에서 열기"
                                   onClick={(e) => e.stopPropagation()}
                                 >
@@ -1112,10 +1112,10 @@ export default function ReviewSection({
                           (!addUrl.trim() &&
                             !discoveredUrls.some((d) => d.selected))
                         }
-                        className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
+                        className="w-full py-2 text-sm font-medium text-accent border border-accent/60 rounded-md hover:bg-accent hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-accent transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
                       >
                         {savingReview && (
-                          <span className="w-4 h-4 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+                          <span className="w-4 h-4 border-2 border-gray-500 border-t-accent rounded-full animate-spin" />
                         )}
                         {savingReview
                           ? batchProgress
@@ -1161,7 +1161,7 @@ export default function ReviewSection({
                           }}
                           disabled={savingReview}
                           placeholder="https://... (사이트명은 URL로 자동 입력됨)"
-                          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
                         />
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
@@ -1178,7 +1178,7 @@ export default function ReviewSection({
                             placeholder="AllMusic 등"
                             maxLength={100}
                             list="manual-source-history"
-                            className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                            className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
                           />
                           {/* Browser-native autocomplete dropdown backed
                               by localStorage history — every site admin
@@ -1204,7 +1204,7 @@ export default function ReviewSection({
                             disabled={savingReview}
                             placeholder="0-100"
                             maxLength={3}
-                            className="w-20 bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                            className="w-20 bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
                           />
                         </div>
                       </div>
@@ -1219,16 +1219,16 @@ export default function ReviewSection({
                           disabled={savingReview}
                           rows={8}
                           placeholder="기사 본문을 붙여넣으세요..."
-                          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+                          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
                         />
                       </div>
                       <button
                         onClick={saveManualReview}
                         disabled={savingReview || !manualSource.trim() || manualBody.trim().length < 50}
-                        className="w-full py-2 text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020] hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[#e8a020] transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
+                        className="w-full py-2 text-sm font-medium text-accent border border-accent/60 rounded-md hover:bg-accent hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-accent transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
                       >
                         {savingReview && (
-                          <span className="w-4 h-4 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+                          <span className="w-4 h-4 border-2 border-gray-500 border-t-accent rounded-full animate-spin" />
                         )}
                         {savingReview ? '본문 분석 중...' : '저장'}
                       </button>

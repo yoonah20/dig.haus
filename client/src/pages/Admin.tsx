@@ -153,8 +153,8 @@ function StatGroupCard({
 }) {
   return (
     <div
-      className={`bg-[#1a1a1a] rounded-xl border ${
-        accent ? 'border-[#e8a020]/40' : 'border-white/5'
+      className={`bg-panel rounded-xl border ${
+        accent ? 'border-accent/40' : 'border-white/5'
       }`}
     >
       <div className="px-5 pt-4 pb-2 text-xs uppercase tracking-wider text-gray-500">
@@ -175,7 +175,7 @@ function StatRowView({ row }: { row: StatRow }) {
       <span className="text-sm text-gray-400 truncate">{row.label}</span>
       <span
         className={`text-xl font-bold tabular-nums shrink-0 ${
-          row.accent ? 'text-[#e8a020]' : 'text-white'
+          row.accent ? 'text-accent' : 'text-white'
         }`}
       >
         {row.value}
@@ -186,7 +186,7 @@ function StatRowView({ row }: { row: StatRow }) {
   return (
     <div className="relative group/row">
       <div className="cursor-default">{line}</div>
-      <div className="invisible opacity-0 group-hover/row:visible group-hover/row:opacity-100 transition-opacity absolute left-0 right-0 top-full mt-1 z-20 bg-[#1a1a1a] rounded-xl border border-white/10 shadow-xl overflow-hidden">
+      <div className="invisible opacity-0 group-hover/row:visible group-hover/row:opacity-100 transition-opacity absolute left-0 right-0 top-full mt-1 z-20 bg-panel rounded-xl border border-white/10 shadow-xl overflow-hidden">
         {row.hoverContent}
       </div>
     </div>
@@ -209,7 +209,7 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <div className="bg-[#1a1a1a] rounded-xl border border-white/5 overflow-hidden">
+    <div className="bg-panel rounded-xl border border-white/5 overflow-hidden">
       <div className="px-4 py-3.5 border-b border-white/5 flex items-center gap-2">
         {icon && <span aria-hidden className="text-base">{icon}</span>}
         <h3 className="text-base font-semibold text-white">{title}</h3>
@@ -279,7 +279,7 @@ function PanelSearchInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-40 sm:w-52 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2 py-1 text-[12px] text-gray-200 placeholder:text-gray-600 outline-none"
+      className="w-40 sm:w-52 bg-panel-strong border border-white/10 focus:border-accent/60 rounded px-2 py-1 text-[12px] text-gray-200 placeholder:text-gray-600 outline-none"
     />
   );
 }
@@ -349,7 +349,7 @@ function ClaudeUsageCard({
   };
 
   return (
-    <div className="bg-[#1a1a1a] rounded-xl p-5 border border-white/5 flex flex-col">
+    <div className="bg-panel rounded-xl p-5 border border-white/5 flex flex-col">
       {/* Header: title + reset on the left of the row, big USD figure
           on the right. Reset is a small text button so it doesn't
           fight the dollar number for attention. */}
@@ -361,7 +361,7 @@ function ClaudeUsageCard({
           <button
             type="button"
             onClick={() => setShowRecent((v) => !v)}
-            className="text-[10px] text-gray-500 hover:text-[#e8a020] underline-offset-2 hover:underline cursor-pointer"
+            className="text-[10px] text-gray-500 hover:text-accent underline-offset-2 hover:underline cursor-pointer"
             title="최근 50건의 개별 LLM 호출을 펼쳐서 봅니다."
           >
             {showRecent ? '상세 접기' : '상세'}
@@ -370,7 +370,7 @@ function ClaudeUsageCard({
             to="/admin/api-console"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[10px] text-gray-500 hover:text-[#e8a020] underline-offset-2 hover:underline cursor-pointer"
+            className="text-[10px] text-gray-500 hover:text-accent underline-offset-2 hover:underline cursor-pointer"
             title="별도 탭에서 자동 갱신되는 실시간 콘솔"
           >
             🖥 콘솔
@@ -379,7 +379,7 @@ function ClaudeUsageCard({
             to="/admin/compare"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-[10px] text-gray-500 hover:text-[#e8a020] underline-offset-2 hover:underline cursor-pointer"
+            className="text-[10px] text-gray-500 hover:text-accent underline-offset-2 hover:underline cursor-pointer"
             title="LLM 섀도우 비교: Haiku/Sonnet vs DeepSeek (LLM_COMPARE=1 필요)"
           >
             🔀 비교
@@ -394,7 +394,7 @@ function ClaudeUsageCard({
             {reset.isPending ? '리셋 중…' : '리셋'}
           </button>
         </div>
-        <span className="text-2xl font-bold text-[#e8a020] tabular-nums shrink-0">
+        <span className="text-2xl font-bold text-accent tabular-nums shrink-0">
           ${usage.usd.toFixed(2)}
         </span>
       </div>
@@ -469,7 +469,7 @@ function ClaudeUsageCard({
                     {op.calls}회
                     {op.searches > 0 && ` · ${op.searches}검색`}
                   </span>
-                  <span className="tabular-nums text-[#e8a020] text-right w-14">
+                  <span className="tabular-nums text-accent text-right w-14">
                     ${op.usd.toFixed(2)}
                   </span>
                 </div>
@@ -507,7 +507,7 @@ function ClaudeUsageCard({
                   <span className="text-gray-500 text-[10px] tabular-nums whitespace-nowrap">
                     {formatShortKstDateTime(c.createdAt)}
                   </span>
-                  <span className="tabular-nums text-[#e8a020] text-right w-14">
+                  <span className="tabular-nums text-accent text-right w-14">
                     ${c.usd.toFixed(4)}
                   </span>
                 </div>
@@ -556,7 +556,7 @@ function ReportRow({
           </span>
           <Link
             to={`/album/${report.albumSlug}`}
-            className="text-gray-100 hover:text-[#e8a020] truncate"
+            className="text-gray-100 hover:text-accent truncate"
           >
             {report.albumArtist ? `${report.albumArtist} — ` : ''}
             {report.albumTitle}
@@ -567,7 +567,7 @@ function ReportRow({
             href={report.linkUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-[#e8a020]"
+            className="hover:text-accent"
           >
             {report.linkStore || hostname}
           </a>
@@ -670,7 +670,7 @@ function AdminTabBar({ active }: { active: AdminTab }) {
             to={t.to}
             className={`px-4 py-2 text-sm rounded-t-md -mb-px border-b-2 transition-colors ${
               isActive
-                ? 'text-[#e8a020] border-[#e8a020] font-semibold'
+                ? 'text-accent border-accent font-semibold'
                 : 'text-gray-400 border-transparent hover:text-white hover:border-white/20'
             }`}
             aria-current={isActive ? 'page' : undefined}
@@ -891,7 +891,7 @@ export default function Admin() {
                         to={`/album/${a.mbid}`}
                         className={`p-3 flex items-center gap-3 transition-colors ${
                           isNew
-                            ? 'bg-[#e8a020]/8 hover:bg-[#e8a020]/12 border-l-2 border-[#e8a020]/60 pl-[10px]'
+                            ? 'bg-accent/8 hover:bg-accent/12 border-l-2 border-accent/60 pl-[10px]'
                             : 'hover:bg-white/5'
                         }`}
                       >
@@ -905,7 +905,7 @@ export default function Admin() {
                           <div className="text-sm text-white font-medium truncate">
                             {a.title}
                             {isNew && (
-                              <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-[#e8a020] align-middle">
+                              <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-accent align-middle">
                                 NEW
                               </span>
                             )}
@@ -953,7 +953,7 @@ export default function Admin() {
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <div className="w-10 h-10 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-sm font-bold flex-shrink-0">
+                          <div className="w-10 h-10 rounded-full bg-accent/20 text-accent flex items-center justify-center text-sm font-bold flex-shrink-0">
                             {(r.userName || r.userEmail || '?')[0]?.toUpperCase()}
                           </div>
                         )}
@@ -966,7 +966,7 @@ export default function Admin() {
                               <span
                                 className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border ${
                                   ratingMeta.accent
-                                    ? 'bg-[#e8a020]/15 text-[#e8a020] border-[#e8a020]/30'
+                                    ? 'bg-accent/15 text-accent border-accent/30'
                                     : 'bg-white/5 text-gray-300 border-white/10'
                                 }`}
                               >
@@ -986,7 +986,7 @@ export default function Admin() {
                           {r.albumSlug && (
                             <Link
                               to={`/album/${r.albumSlug}`}
-                              className="mt-1 inline-block text-xs text-gray-500 hover:text-[#e8a020] truncate"
+                              className="mt-1 inline-block text-xs text-gray-500 hover:text-accent truncate"
                             >
                               {r.albumArtist ? `${r.albumArtist} — ` : ''}
                               {r.albumTitle || r.albumSlug}
@@ -1045,12 +1045,12 @@ export default function Admin() {
                               href={pl.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-white font-medium hover:text-[#e8a020] truncate"
+                              className="text-white font-medium hover:text-accent truncate"
                             >
                               {pl.storeName || hostname}
                             </a>
                             {priceLabel && (
-                              <span className="text-[#e8a020] text-xs font-semibold tabular-nums">
+                              <span className="text-accent text-xs font-semibold tabular-nums">
                                 {priceLabel}
                               </span>
                             )}
@@ -1058,7 +1058,7 @@ export default function Admin() {
                           <div className="text-xs text-gray-500 truncate mt-0.5">
                             <Link
                               to={`/album/${pl.albumSlug}`}
-                              className="hover:text-[#e8a020]"
+                              className="hover:text-accent"
                             >
                               {pl.albumArtist ? `${pl.albumArtist} — ` : ''}
                               {pl.albumTitle}
@@ -1253,7 +1253,7 @@ function ScrapeFailuresPanel() {
                   <span className="text-xs text-gray-500 tabular-nums">
                     ×{h.attempts}
                   </span>
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-[#e8a020]/80 bg-[#e8a020]/10 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-accent/80 bg-accent/10 px-1.5 py-0.5 rounded">
                     {h.last_reason}
                   </span>
                   <span className="text-xs text-gray-600">
@@ -1264,7 +1264,7 @@ function ScrapeFailuresPanel() {
                   href={h.last_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-xs text-gray-500 hover:text-[#e8a020] truncate mt-1"
+                  className="block text-xs text-gray-500 hover:text-accent truncate mt-1"
                   title={h.last_url}
                 >
                   {h.last_url}
@@ -1287,7 +1287,7 @@ function ScrapeFailuresPanel() {
                 {retryHref && (
                   <Link
                     to={retryHref}
-                    className="text-xs text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded px-2 py-0.5 cursor-pointer transition-colors"
+                    className="text-xs text-accent/80 hover:text-accent border border-accent/40 hover:border-accent/70 rounded px-2 py-0.5 cursor-pointer transition-colors"
                     title="이 앨범의 수동 입력 폼 열기 (URL/사이트 자동 프리필)"
                   >
                     ✏️ 수동 등록
@@ -1718,7 +1718,7 @@ function TermReplacementsPanel() {
                 ? '정규식 (예: 죽음의?\\s*금속)'
                 : '찾을 단어 (예: 금속 사운드)'
             }
-            className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none font-mono"
+            className="flex-1 min-w-0 bg-panel-strong border border-white/10 focus:border-accent/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none font-mono"
             maxLength={500}
           />
           <span className="text-gray-500 text-sm shrink-0 px-1">→</span>
@@ -1729,13 +1729,13 @@ function TermReplacementsPanel() {
             placeholder={
               isRegex ? '치환문 (capture group: $1)' : '바꿀 단어 (예: 메탈 사운드)'
             }
-            className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none font-mono"
+            className="flex-1 min-w-0 bg-panel-strong border border-white/10 focus:border-accent/60 rounded px-2.5 py-1.5 text-sm text-gray-100 outline-none font-mono"
             maxLength={500}
           />
           <button
             type="submit"
             disabled={create.isPending}
-            className="shrink-0 text-sm bg-[#e8a020] hover:bg-[#f5b030] disabled:opacity-40 text-[#141008] font-medium px-3 py-1.5 rounded cursor-pointer transition-colors"
+            className="shrink-0 text-sm bg-accent hover:bg-[#f5b030] disabled:opacity-40 text-[#141008] font-medium px-3 py-1.5 rounded cursor-pointer transition-colors"
           >
             {create.isPending ? '...' : '추가'}
           </button>
@@ -1755,7 +1755,7 @@ function TermReplacementsPanel() {
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="메모 (선택, 예: '금속'이 metal로 직역됨)"
-            className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 focus:border-[#e8a020]/60 rounded px-2.5 py-1 text-[12px] text-gray-300 outline-none"
+            className="flex-1 min-w-0 bg-panel-strong border border-white/10 focus:border-accent/60 rounded px-2.5 py-1 text-[12px] text-gray-300 outline-none"
             maxLength={200}
           />
         </div>
@@ -1781,7 +1781,7 @@ function TermReplacementsPanel() {
                 <div className="flex items-center gap-2 text-[13px] text-white">
                   {r.is_regex ? (
                     <span
-                      className="shrink-0 px-1 py-0 text-[9px] font-bold tracking-wider rounded bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/30"
+                      className="shrink-0 px-1 py-0 text-[9px] font-bold tracking-wider rounded bg-accent/15 text-accent border border-accent/30"
                       title="정규식 룰"
                     >
                       RE
@@ -1792,7 +1792,7 @@ function TermReplacementsPanel() {
                   </span>
                   <span className="text-gray-500 shrink-0">→</span>
                   <span
-                    className="truncate font-mono text-[#e8a020]"
+                    className="truncate font-mono text-accent"
                     title={r.replacement}
                   >
                     {r.replacement}
@@ -1864,7 +1864,7 @@ function HostList({
                     href={`https://${it.host}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-xs text-white truncate hover:text-[#e8a020] transition-colors"
+                    className="text-xs text-white truncate hover:text-accent transition-colors"
                     title={it.title ?? `${it.host} 열기`}
                   >
                     {it.host}
@@ -1940,7 +1940,7 @@ function ManagedHostList({
             }
           }}
           placeholder={placeholder}
-          className={`flex-1 min-w-0 bg-[#0f0f0f] text-xs text-white px-2 py-1 rounded border outline-none transition-colors ${accentClasses}`}
+          className={`flex-1 min-w-0 bg-panel-strong text-xs text-white px-2 py-1 rounded border outline-none transition-colors ${accentClasses}`}
         />
         <button
           type="button"
@@ -1962,7 +1962,7 @@ function ManagedHostList({
                   href={`https://${it.host}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-white truncate block hover:text-[#e8a020] transition-colors"
+                  className="text-xs text-white truncate block hover:text-accent transition-colors"
                   title={it.title ?? `${it.host} 열기`}
                 >
                   {it.host}
@@ -2011,7 +2011,7 @@ function RecentUsersList({ users }: { users: AdminStats['recentUsers'] }) {
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-[#e8a020]/20 text-[#e8a020] flex items-center justify-center text-xs font-bold shrink-0">
+            <div className="w-8 h-8 rounded-full bg-accent/20 text-accent flex items-center justify-center text-xs font-bold shrink-0">
               {(u.name || u.email)[0]?.toUpperCase()}
             </div>
           )}
@@ -2019,7 +2019,7 @@ function RecentUsersList({ users }: { users: AdminStats['recentUsers'] }) {
             <div className="text-sm text-white font-medium truncate">
               {u.name || u.email}
               {u.isAdmin && (
-                <span className="ml-1.5 text-[10px] bg-[#e8a020]/20 text-[#e8a020] px-1.5 py-0.5 rounded-full">
+                <span className="ml-1.5 text-[10px] bg-accent/20 text-accent px-1.5 py-0.5 rounded-full">
                   ADMIN
                 </span>
               )}
@@ -2103,7 +2103,7 @@ function IncompletePanel({
             </button>
             <button
               onClick={startBatch}
-              className="text-[11px] text-[#e8a020]/90 hover:text-[#e8a020] border border-[#e8a020]/50 hover:border-[#e8a020]/80 rounded-md px-2 py-0.5 cursor-pointer transition-colors inline-flex items-center gap-1.5"
+              className="text-[11px] text-accent/90 hover:text-accent border border-accent/50 hover:border-accent/80 rounded-md px-2 py-0.5 cursor-pointer transition-colors inline-flex items-center gap-1.5"
               title={
                 curation.isRunning
                   ? '현재 큐레이션 실행 중 — 클릭하면 대기열 뒤에 추가됩니다'
@@ -2184,7 +2184,7 @@ function IncompleteSubsection({
           </span>
           <span className="text-gray-300">{label}</span>
           {selectedInBucket > 0 && (
-            <span className="text-[10px] text-[#e8a020] tabular-nums">
+            <span className="text-[10px] text-accent tabular-nums">
               ({selectedInBucket} 선택)
             </span>
           )}
@@ -2204,12 +2204,12 @@ function IncompleteSubsection({
                     type="checkbox"
                     checked={isChecked}
                     onChange={() => onToggle(a)}
-                    className="w-3 h-3 accent-[#e8a020] cursor-pointer flex-shrink-0"
+                    className="w-3 h-3 accent-accent cursor-pointer flex-shrink-0"
                     aria-label={`${a.title} 선택`}
                   />
                   <Link
                     to={`/album/${a.mbid}`}
-                    className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#e8a020] truncate py-0.5 flex-1 min-w-0"
+                    className="flex items-center gap-2 text-xs text-gray-400 hover:text-accent truncate py-0.5 flex-1 min-w-0"
                   >
                     <CoverArt
                       src={a.coverArtUrl}
@@ -2229,7 +2229,7 @@ function IncompleteSubsection({
               <li key={a.id}>
                 <Link
                   to={`/album/${a.mbid}`}
-                  className="flex items-center gap-2 text-xs text-gray-400 hover:text-[#e8a020] truncate py-0.5"
+                  className="flex items-center gap-2 text-xs text-gray-400 hover:text-accent truncate py-0.5"
                 >
                   <CoverArt
                     src={a.coverArtUrl}
@@ -2331,7 +2331,7 @@ function TrackedLabelsPanel() {
         }
       }}
       disabled={pollAll.isPending}
-      className="text-xs text-[#e8a020]/80 hover:text-[#e8a020] border border-[#e8a020]/40 hover:border-[#e8a020]/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+      className="text-xs text-accent/80 hover:text-accent border border-accent/40 hover:border-accent/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
       title="모든 활성 레이블의 최근 2년 신보 다시 긁어오기"
     >
       {pollAll.isPending ? '새로고침 중…' : '🔄 전체 새로고침'}
@@ -2355,14 +2355,14 @@ function TrackedLabelsPanel() {
           }}
           placeholder="Spotify 레이블명 (예: Profound Lore Records)"
           disabled={add.isPending || preview.isPending}
-          className="flex-1 bg-[#0f0f0f] border border-white/10 rounded-md px-2.5 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none disabled:opacity-60"
+          className="flex-1 bg-panel-strong border border-white/10 rounded-md px-2.5 py-1.5 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
           maxLength={120}
         />
         <button
           type="button"
           onClick={handleAdd}
           disabled={!name.trim() || add.isPending || preview.isPending}
-          className="px-3 py-1.5 text-xs font-medium text-[#e8a020] border border-[#e8a020]/60 rounded-md hover:bg-[#e8a020]/10 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          className="px-3 py-1.5 text-xs font-medium text-accent border border-accent/60 rounded-md hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
         >
           {preview.isPending ? '미리보기…' : add.isPending ? '추가 중…' : '추가'}
         </button>
@@ -2384,7 +2384,7 @@ function TrackedLabelsPanel() {
                   {l.spotify_label_name}
                 </span>
                 {l.pending_count > 0 && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#e8a020] bg-[#e8a020]/10 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-accent bg-accent/10 px-1.5 py-0.5 rounded">
                     +{l.pending_count}
                   </span>
                 )}
@@ -2403,7 +2403,7 @@ function TrackedLabelsPanel() {
                 poll.mutate(l.id);
               }}
               disabled={poll.isPending}
-              className="text-xs text-gray-500 hover:text-[#e8a020] disabled:opacity-40 px-1 py-0.5 cursor-pointer"
+              className="text-xs text-gray-500 hover:text-accent disabled:opacity-40 px-1 py-0.5 cursor-pointer"
               title="지금 폴링"
               aria-label="지금 폴링"
             >
@@ -2471,7 +2471,7 @@ function LabelFeedPanel() {
                     className={`text-[9px] font-mono uppercase tracking-wider px-1 py-0.5 rounded shrink-0 ${
                       item.album_type === 'single'
                         ? 'text-gray-500 bg-gray-500/10'
-                        : 'text-[#e8a020]/70 bg-[#e8a020]/10'
+                        : 'text-accent/70 bg-accent/10'
                     }`}
                   >
                     {item.album_type}
@@ -2483,7 +2483,7 @@ function LabelFeedPanel() {
                 <span className="text-gray-600 mx-1.5">·</span>
                 {item.release_date || '—'}
                 <span className="text-gray-600 mx-1.5">·</span>
-                <span className="text-[#e8a020]/70">
+                <span className="text-accent/70">
                   {item.display_name || item.spotify_label_name}
                 </span>
               </div>
@@ -2515,7 +2515,7 @@ function LabelFeedPanel() {
                   }
                 }}
                 disabled={register.isPending || dismiss.isPending}
-                className="text-xs text-[#e8a020] hover:text-black hover:bg-[#e8a020] border border-[#e8a020]/60 rounded px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                className="text-xs text-accent hover:text-black hover:bg-accent border border-accent/60 rounded px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                 title="메인 DB에 등록 (MB 매칭 자동 시도, 없으면 sp-* 임시 mbid)"
               >
                 ➕ 등록
@@ -2647,7 +2647,7 @@ function CurationRunsPanel() {
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="text-[11px] text-[#e8a020] tabular-nums">
+                  <div className="text-[11px] text-accent tabular-nums">
                     ${r.cost_usd.toFixed(4)}
                   </div>
                   <div className="text-[10px] text-gray-500 tabular-nums">
@@ -2754,7 +2754,7 @@ function SignupGatePanel() {
         <button
           type="button"
           onClick={() => setShowInvited((v) => !v)}
-          className="text-xs text-gray-400 hover:text-[#e8a020] transition-colors"
+          className="text-xs text-gray-400 hover:text-accent transition-colors"
         >
           {showInvited ? '신청만 보기' : `초대 목록 (${invited.length})`}
         </button>
@@ -2768,12 +2768,12 @@ function SignupGatePanel() {
             placeholder="email@example.com"
             value={inviteInput}
             onChange={(e) => setInviteInput(e.target.value)}
-            className="flex-1 bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600"
+            className="flex-1 bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600"
           />
           <button
             type="submit"
             disabled={invite.isPending || !inviteInput.trim()}
-            className="px-3 py-2 rounded-md bg-[#e8a020] text-[#141008] text-xs font-bold hover:bg-[#f5b030] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            className="px-3 py-2 rounded-md bg-accent text-[#141008] text-xs font-bold hover:bg-[#f5b030] disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           >
             초대
           </button>
@@ -2829,7 +2829,7 @@ function SignupGatePanel() {
                     onClick={() => invite.mutate({ email: p.email })}
                     disabled={invite.isPending}
                     title="초대 (가입 허용)"
-                    className="px-2.5 py-1 rounded-md bg-[#e8a020]/15 border border-[#e8a020]/40 text-[#e8a020] text-xs font-semibold hover:bg-[#e8a020] hover:text-[#141008] transition-colors cursor-pointer disabled:opacity-40"
+                    className="px-2.5 py-1 rounded-md bg-accent/15 border border-accent/40 text-accent text-xs font-semibold hover:bg-accent hover:text-[#141008] transition-colors cursor-pointer disabled:opacity-40"
                   >
                     초대
                   </button>

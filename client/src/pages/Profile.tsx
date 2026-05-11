@@ -76,7 +76,7 @@ function StatPill({
 }) {
   const valueClass =
     accent === 'brand'
-      ? 'text-[#e8a020]'
+      ? 'text-accent'
       : accent === 'blue'
         ? 'text-[#88a2bf]'
         : accent === 'red'
@@ -154,7 +154,7 @@ function AvatarEditor({
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="px-3 py-1.5 text-sm rounded-md border border-[#e8a020]/50 text-[#e8a020] hover:bg-[#e8a020] hover:text-black disabled:opacity-40 transition-colors cursor-pointer text-left"
+          className="px-3 py-1.5 text-sm rounded-md border border-accent/50 text-accent hover:bg-accent hover:text-black disabled:opacity-40 transition-colors cursor-pointer text-left"
         >
           {uploading ? '업로드 중…' : '새 아바타 올리기'}
         </button>
@@ -208,7 +208,7 @@ function ProfileFields({
         maxLength={DISPLAY_NAME_MAX}
         onChange={(e) => setName(e.target.value)}
         placeholder="비우면 Google 이름"
-        className="w-full min-w-0 bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none"
+        className="w-full min-w-0 bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none"
       />
       <label className="text-gray-400 truncate">Instagram</label>
       <div className="flex items-center gap-1 w-full min-w-0">
@@ -219,7 +219,7 @@ function ProfileFields({
           maxLength={INSTAGRAM_MAX}
           onChange={(e) => setIg(e.target.value.replace(/^@+/, ''))}
           placeholder="yourhandle (선택)"
-          className="flex-1 min-w-0 bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-[#e8a020] focus:outline-none"
+          className="flex-1 min-w-0 bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none"
         />
       </div>
       <div className="col-span-2 flex justify-end">
@@ -227,7 +227,7 @@ function ProfileFields({
           type="button"
           disabled={!dirty || saving}
           onClick={() => onSave(name.trim(), ig.trim().replace(/^@+/, ''))}
-          className="px-3 py-1.5 text-sm rounded-md border border-[#e8a020]/50 text-[#e8a020] hover:bg-[#e8a020] hover:text-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          className="px-3 py-1.5 text-sm rounded-md border border-accent/50 text-accent hover:bg-accent hover:text-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           {saving ? '저장 중…' : '저장'}
         </button>
@@ -356,7 +356,7 @@ export default function Profile() {
               card's min-content (driven by long unbroken strings like
               an email address), which on a phone overflows past the
               right edge and drags the inputs off-screen with it. */}
-          <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-5 border border-white/5 space-y-4 min-w-0">
+          <div className="bg-panel rounded-2xl p-4 sm:p-5 border border-white/5 space-y-4 min-w-0">
             <AvatarEditor
               avatarUrl={effectiveAvatar}
               isCustom={isCustomAvatar}
@@ -392,7 +392,7 @@ export default function Profile() {
               dashboard would otherwise have to scroll to learn.
               Same `min-w-0` reason as the identity card above. */}
           {stats && (
-            <div className="bg-[#1a1a1a] rounded-2xl p-4 sm:p-5 border border-white/5 min-w-0">
+            <div className="bg-panel rounded-2xl p-4 sm:p-5 border border-white/5 min-w-0">
               <div className="text-[11px] uppercase tracking-wider text-gray-500 mb-3">
                 내 활동
               </div>
@@ -431,7 +431,7 @@ export default function Profile() {
           {reviews.isLoading ? (
             <div className="text-sm text-gray-500">불러오는 중…</div>
           ) : myReviews.length > 0 ? (
-            <div className="bg-[#1a1a1a] rounded-xl border border-white/5 overflow-hidden">
+            <div className="bg-panel rounded-xl border border-white/5 overflow-hidden">
               <div className="divide-y divide-white/5 max-h-[480px] overflow-y-auto">
                 {myReviews.map((r) => {
                   const ratingMeta = r.rating ? RATING_META[r.rating] : null;
@@ -452,7 +452,7 @@ export default function Profile() {
                         <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                           <Link
                             to={`/album/${r.albumSlug}`}
-                            className="text-sm text-white font-medium truncate hover:text-[#e8a020] transition-colors"
+                            className="text-sm text-white font-medium truncate hover:text-accent transition-colors"
                             title={`${r.albumTitle} — ${r.albumArtist ?? ''}`}
                           >
                             {r.albumTitle}
@@ -521,7 +521,7 @@ export default function Profile() {
                 const meta = REQUEST_STATUS_META[r.status];
                 return (
                   <li key={r.id}>
-                    <div className="flex items-center gap-3 p-3 bg-[#1a1a1a] rounded-xl border border-white/5 hover:brightness-110 transition">
+                    <div className="flex items-center gap-3 p-3 bg-panel rounded-xl border border-white/5 hover:brightness-110 transition">
                       <Link
                         to={`/album/${r.mbid}`}
                         className="flex items-center gap-3 flex-1 min-w-0"

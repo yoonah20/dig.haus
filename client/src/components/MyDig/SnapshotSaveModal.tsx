@@ -100,7 +100,7 @@ export default function SnapshotSaveModal({
           onChange={(e) => setName(e.target.value)}
           maxLength={60}
           autoFocus
-          className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-[#e8a020] focus:outline-none"
+          className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
           placeholder={todayDateLabel()}
         />
         <p className="text-[10px] text-gray-600 mt-1">
@@ -116,7 +116,7 @@ export default function SnapshotSaveModal({
           maxLength={240}
           rows={2}
           placeholder="이 15장의 앨범에 대한 이야기를 짧게 적어보세요."
-          className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none leading-snug"
+          className="w-full bg-[#0a0503] border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent focus:outline-none placeholder-gray-600 resize-none leading-snug"
         />
         <p className="text-[10px] text-gray-600 mt-1 text-right">
           {description.length}/240
@@ -127,7 +127,7 @@ export default function SnapshotSaveModal({
             type="checkbox"
             checked={isPublic}
             onChange={(e) => setIsPublic(e.target.checked)}
-            className="w-3.5 h-3.5 accent-[#e8a020] cursor-pointer"
+            className="w-3.5 h-3.5 accent-accent cursor-pointer"
           />
           <span className="text-xs text-gray-300">
             공개로 저장 (방문자도 볼 수 있어요)
@@ -155,7 +155,7 @@ export default function SnapshotSaveModal({
             type="button"
             onClick={handleSave}
             disabled={create.isPending}
-            className="text-xs text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/50 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 transition-colors"
+            className="text-xs text-accent hover:text-[#f5b040] border border-accent/50 hover:border-accent rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 transition-colors"
           >
             {create.isPending ? '저장 중…' : '저장'}
           </button>

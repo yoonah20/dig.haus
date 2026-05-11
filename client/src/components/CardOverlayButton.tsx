@@ -48,8 +48,8 @@ export default function CardOverlayButton({
       disabled={disabled}
       className={`w-6 h-6 rounded-full border flex items-center justify-center text-[13px] leading-none shadow-[0_2px_4px_rgba(0,0,0,0.4)] cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
         variant === 'danger'
-          ? 'bg-[#1a1a1a] border-white/10 text-red-500 hover:text-red-300 hover:border-red-500/40'
-          : 'bg-[#1a1a1a] border-white/10 text-gray-300 hover:text-[#e8a020] hover:border-[#e8a020]/50'
+          ? 'bg-panel border-white/10 text-red-500 hover:text-red-300 hover:border-red-500/40'
+          : 'bg-panel border-white/10 text-gray-300 hover:text-accent hover:border-accent/50'
       }`}
     >
       {children}

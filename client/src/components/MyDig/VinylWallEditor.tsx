@@ -651,7 +651,7 @@ export default function VinylWallEditor({
           that flow so there's one obvious "I'm done" action. */}
       <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/5 bg-[#12100d]">
         <div className="flex items-center gap-3">
-          <span className="text-sm text-[#e8a020]">
+          <span className="text-sm text-accent">
             {editorTitle(target.kind, initialTheme, initialSnapshotDate)}
           </span>
           {dirty && (
@@ -694,7 +694,7 @@ export default function VinylWallEditor({
               homeMetaUpdate.isPending ||
               !dirty
             }
-            className="text-sm font-medium text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="text-sm font-medium text-accent border border-accent/60 hover:bg-accent/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             {save.isPending ||
             themeUpdate.isPending ||
@@ -737,7 +737,7 @@ export default function VinylWallEditor({
                       ? '예: dig.haus / 이번 달 픽'
                       : '예: 2026년 4월의 최애'
                 }
-                className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600"
+                className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600"
               />
               <label className="block text-[12px] uppercase tracking-wider text-gray-500 mt-1">
                 {isSnapshotTarget
@@ -758,7 +758,7 @@ export default function VinylWallEditor({
                       ? '예: 운영자가 한 달 동안 발굴한 15장'
                       : '예: 4월 내내 열심히 듣고 있는 앨범들입니다.'
                 }
-                className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600 resize-none leading-snug"
+                className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600 resize-none leading-snug"
               />
               <p className="text-[12px] text-gray-600 text-right">
                 {descriptionInput.length}/240
@@ -769,7 +769,7 @@ export default function VinylWallEditor({
                     type="checkbox"
                     checked={isPublicInput}
                     onChange={(e) => setIsPublicInput(e.target.checked)}
-                    className="w-3.5 h-3.5 accent-[#e8a020] cursor-pointer"
+                    className="w-3.5 h-3.5 accent-accent cursor-pointer"
                   />
                   공개 (방문자도 볼 수 있어요)
                 </label>
@@ -791,7 +791,7 @@ export default function VinylWallEditor({
                         min={-800}
                         max={800}
                         step={4}
-                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
+                        className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-accent focus:outline-none"
                       />
                     </label>
                     <label className="flex flex-col gap-1">
@@ -805,7 +805,7 @@ export default function VinylWallEditor({
                         min={-800}
                         max={1200}
                         step={4}
-                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
+                        className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-accent focus:outline-none"
                       />
                     </label>
                     <label className="flex flex-col gap-1">
@@ -819,7 +819,7 @@ export default function VinylWallEditor({
                         min={-45}
                         max={45}
                         step={1}
-                        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
+                        className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-accent focus:outline-none"
                       />
                     </label>
                   </div>
@@ -882,7 +882,7 @@ export default function VinylWallEditor({
                   onClick={() => setSource(t.key)}
                   className={`flex-1 px-2 py-2 transition-colors cursor-pointer ${
                     source === t.key
-                      ? 'text-[#e8a020] border-b-2 border-[#e8a020]'
+                      ? 'text-accent border-b-2 border-accent'
                       : 'text-gray-500 hover:text-gray-300'
                   }`}
                 >
@@ -905,10 +905,10 @@ export default function VinylWallEditor({
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="아티스트 / 앨범 검색"
-              className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none"
+              className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none"
             />
             {selectedAlbum ? (
-              <div className="mt-2 text-[13px] text-[#e8a020]">
+              <div className="mt-2 text-[13px] text-accent">
                 선택됨: {selectedAlbum.title}
                 {selectedSource !== null
                   ? ' — 다른 슬롯 탭으로 교환'
@@ -1028,7 +1028,7 @@ function SaveChoicePrompt({
             type="button"
             onClick={onWithSnapshot}
             disabled={pending}
-            className="text-sm text-[#e8a020] hover:text-[#f5b040] border border-[#e8a020]/60 hover:border-[#e8a020] rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="text-sm text-accent hover:text-[#f5b040] border border-accent/60 hover:border-accent rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             📸 기억하며 저장
           </button>
@@ -1149,13 +1149,13 @@ function EditWallSlot({
   // dims the slot so the picked-up album visually "lifts off" the wall
   // while the user decides where to drop it.
   const stateClass = dragOver
-    ? 'ring-2 ring-[#e8a020] ring-offset-2 ring-offset-[#0a0703]'
+    ? 'ring-2 ring-accent ring-offset-2 ring-offset-[#0a0703]'
     : isSelectedSource
-      ? 'ring-2 ring-[#e8a020] ring-offset-2 ring-offset-[#0a0703] opacity-60'
+      ? 'ring-2 ring-accent ring-offset-2 ring-offset-[#0a0703] opacity-60'
       : album
-        ? 'bg-[#1a1a1a]'
+        ? 'bg-panel'
         : `border border-dashed bg-white/[0.02] ${
-            isSelecting ? 'border-[#e8a020]/60 hover:border-[#e8a020]' : 'border-white/10'
+            isSelecting ? 'border-accent/60 hover:border-accent' : 'border-white/10'
           }`;
 
   // Single element handles both drag source (when the slot holds an
@@ -1347,7 +1347,7 @@ function CandidateRow({
       // cursor-grab signals the row is draggable; it flips to
       // grabbing while the drag is in flight via active:cursor.
       className={`p-2 flex items-center gap-2 cursor-grab active:cursor-grabbing transition-colors ${
-        isSelected ? 'bg-[#e8a020]/15' : 'hover:bg-white/5'
+        isSelected ? 'bg-accent/15' : 'hover:bg-white/5'
       }`}
     >
       <CoverArt

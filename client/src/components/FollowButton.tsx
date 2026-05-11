@@ -48,8 +48,8 @@ export default function FollowButton({
       ? 'px-2 py-[1px] text-[10px] rounded-full'
       : 'px-3 py-1 text-[11px] rounded-full';
   const classes = following
-    ? `${base} bg-[#e8a020]/15 text-[#e8a020] border border-[#e8a020]/40 hover:bg-[#e8a020]/5 hover:text-[#c98820] cursor-pointer transition-colors group/follow`
-    : `${base} bg-transparent text-gray-200 border border-white/15 hover:border-[#e8a020]/60 hover:text-[#e8a020] cursor-pointer transition-colors`;
+    ? `${base} bg-accent/15 text-accent border border-accent/40 hover:bg-accent/5 hover:text-[#c98820] cursor-pointer transition-colors group/follow`
+    : `${base} bg-transparent text-gray-200 border border-white/15 hover:border-accent/60 hover:text-accent cursor-pointer transition-colors`;
 
   return (
     <button

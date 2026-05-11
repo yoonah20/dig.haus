@@ -133,7 +133,7 @@ function ReportPopover({
       ref={rootRef}
       role="dialog"
       aria-label="구매처 신고"
-      className="absolute top-full right-0 mt-2 z-30 w-52 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-xl p-2.5 text-xs"
+      className="absolute top-full right-0 mt-2 z-30 w-52 bg-panel border border-white/10 rounded-lg shadow-xl p-2.5 text-xs"
       onClick={(e) => e.stopPropagation()}
     >
       <div className="text-gray-400 text-[11px] uppercase tracking-wider mb-1.5">
@@ -151,7 +151,7 @@ function ReportPopover({
               value={r.value}
               checked={reason === r.value}
               onChange={() => setReason(r.value)}
-              className="accent-[#e8a020]"
+              className="accent-accent"
             />
             {r.label}
           </label>
@@ -172,7 +172,7 @@ function ReportPopover({
           type="button"
           onClick={submit}
           disabled={report.isPending}
-          className="bg-[#e8a020] text-black font-semibold rounded-md px-2.5 py-1 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
+          className="bg-accent text-black font-semibold rounded-md px-2.5 py-1 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
         >
           {report.isPending ? '…' : '신고'}
         </button>
@@ -203,7 +203,7 @@ function LinkButton({
   const registeredLabel = formatRelativeKo(link.createdAt);
 
   return (
-    <div className="group relative flex items-center gap-3 bg-[#1a1a1a] hover:bg-[#252525] rounded-xl px-4 py-3 transition-colors">
+    <div className="group relative flex items-center gap-3 bg-panel hover:bg-[#252525] rounded-xl px-4 py-3 transition-colors">
       <a
         href={link.url}
         target="_blank"
@@ -223,11 +223,11 @@ function LinkButton({
         )}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-white text-sm font-medium group-hover:text-[#e8a020] transition-colors">
+            <span className="text-white text-sm font-medium group-hover:text-accent transition-colors">
               {link.storeName}
             </span>
             {link.price !== null && (
-              <span className="text-[#e8a020] text-sm font-bold tabular-nums">
+              <span className="text-accent text-sm font-bold tabular-nums">
                 {formatPrice(link.price, link.currency)}
               </span>
             )}
@@ -322,11 +322,11 @@ function DiscogsFormatCard({ fmt }: { fmt: FormatPrice }) {
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="text-white text-sm font-medium truncate group-hover:text-[#e8a020] transition-colors">
+          <span className="text-white text-sm font-medium truncate group-hover:text-accent transition-colors">
             Discogs
           </span>
           {fmt.lowestPrice !== null && (
-            <span className="text-[#e8a020] text-sm font-bold tabular-nums">
+            <span className="text-accent text-sm font-bold tabular-nums">
               ${fmt.lowestPrice.toFixed(2)}
             </span>
           )}
@@ -354,7 +354,7 @@ function AddPurchaseLinkCard({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group flex items-center gap-3 bg-transparent hover:bg-[#1a1a1a] border border-dashed border-white/15 hover:border-white/30 rounded-xl px-4 py-3 transition-colors cursor-pointer"
+      className="group flex items-center gap-3 bg-transparent hover:bg-panel border border-dashed border-white/15 hover:border-white/30 rounded-xl px-4 py-3 transition-colors cursor-pointer"
     >
       <span className="w-5 h-5 rounded-sm border border-dashed border-white/25 group-hover:border-white/50 flex items-center justify-center text-gray-400 group-hover:text-gray-200 text-sm flex-shrink-0">
         +
@@ -410,10 +410,10 @@ function PasteUrlButton({ onPaste }: { onPaste: (url: string) => void }) {
       tabIndex={-1}
       className={`sm:hidden absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-8 h-7 rounded-md transition-colors cursor-pointer ${
         flash === 'ok'
-          ? 'text-[#e8a020]'
+          ? 'text-accent'
           : flash === 'reject'
             ? 'text-red-400'
-            : 'text-gray-500 hover:text-[#e8a020] hover:bg-white/5'
+            : 'text-gray-500 hover:text-accent hover:bg-white/5'
       }`}
     >
       {flash === 'ok' ? (
@@ -455,7 +455,7 @@ function SegButton({
       title={title}
       className={`${grow ? 'flex-1 flex items-center justify-center' : ''} px-2.5 text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
         active
-          ? 'bg-[#e8a020] text-black'
+          ? 'bg-accent text-black'
           : 'text-gray-400 hover:text-white hover:bg-white/5'
       }`}
     >
@@ -539,7 +539,7 @@ function LinkForm({
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://..."
-              className="w-full bg-black/30 text-white text-sm rounded-md pl-3 pr-12 sm:pr-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60"
+              className="w-full bg-black/30 text-white text-sm rounded-md pl-3 pr-12 sm:pr-3 h-9 outline-none border border-white/10 focus:border-accent/60"
               required
             />
             <PasteUrlButton onPaste={(pasted) => setUrl(pasted)} />
@@ -554,7 +554,7 @@ function LinkForm({
             <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
               가격 (선택)
             </span>
-            <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 focus-within:border-[#e8a020]/60 divide-x divide-white/10">
+            <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 focus-within:border-accent/60 divide-x divide-white/10">
               <input
                 type="number"
                 step="0.01"
@@ -633,7 +633,7 @@ function LinkForm({
               value={note}
               onChange={(e) => setNote(e.target.value.slice(0, 200))}
               placeholder="black, 180g, red/blue split..."
-              className="w-full bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-[#e8a020]/60"
+              className="w-full bg-black/30 text-white text-sm rounded-md px-3 h-9 outline-none border border-white/10 focus:border-accent/60"
             />
           </label>
         </div>
@@ -649,7 +649,7 @@ function LinkForm({
           <button
             type="submit"
             disabled={!canSubmit || submitting}
-            className="bg-[#e8a020] text-black font-semibold text-sm rounded-md px-4 h-9 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
+            className="bg-accent text-black font-semibold text-sm rounded-md px-4 h-9 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
           >
             {submitting ? '...' : submitLabel}
           </button>

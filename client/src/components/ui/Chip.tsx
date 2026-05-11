@@ -34,7 +34,7 @@ const VARIANT_CLASSES: Record<ChipVariant, string> = {
   default:
     'bg-white/5 text-gray-300 border border-white/10 hover:bg-white/10 hover:border-white/20',
   accent:
-    'bg-[#e8a020]/10 text-[#e8a020] border border-[#e8a020]/40 hover:bg-[#e8a020]/15 hover:border-[#e8a020]/60',
+    'bg-accent/10 text-accent border border-accent/40 hover:bg-accent/15 hover:border-accent/60',
   danger:
     'bg-red-500/10 text-red-400 border border-red-500/40 hover:bg-red-500/15 hover:border-red-500/60',
 };

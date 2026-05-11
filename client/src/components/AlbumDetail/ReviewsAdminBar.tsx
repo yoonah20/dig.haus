@@ -27,7 +27,7 @@ type Props = {
 
 const BUTTON_BASE =
   'text-xs font-medium rounded-input px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5';
-const BUTTON_AMBER = `${BUTTON_BASE} text-[#e8a020] border border-[#e8a020]/60 hover:bg-[#e8a020]/15`;
+const BUTTON_AMBER = `${BUTTON_BASE} text-accent border border-accent/60 hover:bg-accent/15`;
 const BUTTON_NEUTRAL = `${BUTTON_BASE} text-gray-400 bg-white/5 hover:bg-white/10 border border-white/10`;
 const BUTTON_DANGER = `${BUTTON_BASE} text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40`;
 
@@ -102,7 +102,7 @@ export default function ReviewsAdminBar({ slug, albumTitle, reviewCount }: Props
   };
 
   return (
-    <div className="rounded-panel border border-[#e8a020]/25 bg-panel/80 px-4 sm:px-5 py-3">
+    <div className="rounded-panel border border-accent/25 bg-panel/80 px-4 sm:px-5 py-3">
       <div className="flex items-center justify-center gap-2 flex-wrap">
         <button
           type="button"
@@ -116,7 +116,7 @@ export default function ReviewsAdminBar({ slug, albumTitle, reviewCount }: Props
           }
         >
           {thisInQueue && (
-            <span className="w-3 h-3 border-2 border-gray-500 border-t-[#e8a020] rounded-full animate-spin" />
+            <span className="w-3 h-3 border-2 border-gray-500 border-t-accent rounded-full animate-spin" />
           )}
           {curationLabel}
         </button>

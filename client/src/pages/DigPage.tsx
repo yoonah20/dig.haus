@@ -520,7 +520,7 @@ export default function DigPage() {
                 <button
                   onClick={() => goToPage(page - 1)}
                   disabled={page <= 1}
-                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-[#e8a020] disabled:text-gray-700 disabled:cursor-not-allowed cursor-pointer"
+                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-accent disabled:text-gray-700 disabled:cursor-not-allowed cursor-pointer"
                   aria-label="이전 페이지"
                 >
                   ←
@@ -532,7 +532,7 @@ export default function DigPage() {
                       onClick={() => goToPage(it)}
                       className={`min-w-[2rem] px-2.5 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${
                         it === page
-                          ? 'text-[#e8a020] font-semibold'
+                          ? 'text-accent font-semibold'
                           : 'text-gray-400 hover:text-gray-100 hover:bg-white/5'
                       }`}
                       aria-current={it === page ? 'page' : undefined}
@@ -551,7 +551,7 @@ export default function DigPage() {
                 <button
                   onClick={() => goToPage(page + 1)}
                   disabled={page >= totalPages}
-                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-[#e8a020] disabled:text-gray-700 disabled:cursor-not-allowed cursor-pointer"
+                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-accent disabled:text-gray-700 disabled:cursor-not-allowed cursor-pointer"
                   aria-label="다음 페이지"
                 >
                   →
@@ -634,7 +634,7 @@ function SortTrigger({
       {open && (
         <div
           role="menu"
-          className="absolute left-0 mt-1 w-44 bg-[#1a1a1a] border border-white/10 rounded-lg shadow-2xl py-1 z-50"
+          className="absolute left-0 mt-1 w-44 bg-panel border border-white/10 rounded-lg shadow-2xl py-1 z-50"
         >
           {visibleOptions.map((opt) => {
             const isCurrent = opt.value === sort;
@@ -649,9 +649,9 @@ function SortTrigger({
                 }}
                 className={`block w-full text-left px-4 py-2 text-sm cursor-pointer hover:bg-white/5 transition-colors ${
                   isCurrent
-                    ? 'text-[#e8a020] font-semibold'
+                    ? 'text-accent font-semibold'
                     : opt.adminOnly
-                      ? 'text-[#e8a020]/80 italic'
+                      ? 'text-accent/80 italic'
                       : 'text-gray-300'
                 }`}
               >
@@ -700,7 +700,7 @@ function DensityGlyph({ dots, active }: { dots: number; active: boolean }) {
         <span
           key={i}
           className={`w-[3px] h-[3px] rounded-sm ${
-            active ? 'bg-[#e8a020]' : 'bg-gray-500'
+            active ? 'bg-accent' : 'bg-gray-500'
           }`}
         />
       ))}
@@ -745,7 +745,7 @@ function DensitySwitcher({
               key={s}
               aria-hidden
               className={`w-[2px] h-[2px] rounded-full ${
-                s === density ? 'bg-[#e8a020]' : 'bg-gray-700'
+                s === density ? 'bg-accent' : 'bg-gray-700'
               }`}
             />
           ))}

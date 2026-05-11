@@ -84,7 +84,7 @@ export default function QuickRegister() {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         placeholder="아티스트 / 앨범 검색 후 등록"
-        className="w-full bg-[#0f0f0f] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-[#e8a020] focus:outline-none placeholder-gray-600"
+        className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600"
       />
 
       {errorMsg && (
@@ -130,7 +130,7 @@ export default function QuickRegister() {
                     disabled={isPending || submit.isPending}
                     aria-label={`${album.title} 등록`}
                     title="등록"
-                    className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full border border-[#e8a020]/60 text-[#e8a020] hover:bg-[#e8a020] hover:text-black transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="shrink-0 w-6 h-6 flex items-center justify-center rounded-full border border-accent/60 text-accent hover:bg-accent hover:text-black transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {isPending ? (
                       <span className="inline-block w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
