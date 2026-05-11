@@ -439,7 +439,7 @@ export default function Profile() {
                     <div key={r.id} className="p-3 flex items-start gap-3">
                       <Link
                         to={`/album/${r.albumSlug}`}
-                        className="shrink-0 w-10 h-10 rounded-md overflow-hidden bg-[#252525]"
+                        className="shrink-0 w-10 h-10 rounded-md overflow-hidden bg-panel-hover"
                       >
                         <CoverArt
                           src={r.albumCoverUrl}
@@ -526,7 +526,7 @@ export default function Profile() {
                         to={`/album/${r.mbid}`}
                         className="flex items-center gap-3 flex-1 min-w-0"
                       >
-                        <div className="shrink-0 w-12 h-12 bg-[#252525] rounded-md overflow-hidden">
+                        <div className="shrink-0 w-12 h-12 bg-panel-hover rounded-md overflow-hidden">
                           {r.coverArtUrl ? (
                             <img
                               src={r.coverArtUrl}

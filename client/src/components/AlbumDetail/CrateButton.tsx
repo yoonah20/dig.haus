@@ -155,7 +155,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
         aria-label="담기"
         className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[13px] font-semibold border transition-colors cursor-pointer ${
           isInAnyCrate
-            ? 'bg-accent border-accent text-[#141008] hover:bg-accent-hover'
+            ? 'bg-accent border-accent text-panel-strong hover:bg-accent-hover'
             : 'bg-transparent border-accent/60 text-accent hover:bg-accent/10 hover:border-accent'
         }`}
       >
@@ -174,7 +174,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
           clicks meant for the chip mid-fade. */}
       {toast && (
         <div
-          className="absolute z-40 left-0 top-full mt-2 px-3 py-1.5 rounded-md text-[12px] text-[#141008] bg-accent shadow-[0_4px_12px_rgba(0,0,0,0.45)] pointer-events-none whitespace-nowrap animate-[fadeInUp_220ms_ease-out]"
+          className="absolute z-40 left-0 top-full mt-2 px-3 py-1.5 rounded-md text-[12px] text-panel-strong bg-accent shadow-[0_4px_12px_rgba(0,0,0,0.45)] pointer-events-none whitespace-nowrap animate-[fadeInUp_220ms_ease-out]"
           role="status"
           aria-live="polite"
         >
@@ -185,7 +185,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
       {open && (
         <div
           role="menu"
-          className="absolute z-30 mt-1.5 left-0 min-w-[220px] max-w-[280px] rounded-md border border-white/15 bg-[#141008] shadow-[0_8px_24px_rgba(0,0,0,0.55)] py-1"
+          className="absolute z-30 mt-1.5 left-0 min-w-[220px] max-w-[280px] rounded-md border border-white/15 bg-panel-strong shadow-[0_8px_24px_rgba(0,0,0,0.55)] py-1"
         >
           {/* Inline create row — top of the list so it's the natural
               starting point for a fresh crate without leaving the
@@ -217,7 +217,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
                 }}
                 placeholder="상자 이름"
                 maxLength={60}
-                className="flex-1 min-w-0 bg-[#0a0703] border border-white/10 rounded px-2 py-1 text-sm text-gray-100 focus:border-accent focus:outline-none"
+                className="flex-1 min-w-0 bg-panel-strong border border-white/10 rounded px-2 py-1 text-sm text-gray-100 focus:border-accent focus:outline-none"
               />
               <button
                 type="button"
@@ -254,7 +254,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
                   <span
                     className={`inline-flex items-center justify-center w-4 h-4 rounded text-[10px] ${
                       inCrate
-                        ? 'bg-accent text-[#141008]'
+                        ? 'bg-accent text-panel-strong'
                         : 'border border-white/20'
                     }`}
                   >

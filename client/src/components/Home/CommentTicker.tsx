@@ -185,7 +185,7 @@ export function TickerItem({
             viewer can almost-but-not-quite guess. scale(1.12) keeps the
             blur's soft edge from leaking past the card's rounded
             corners. */}
-        <div className="shrink-0 w-12 h-12 rounded-md overflow-hidden bg-[#252525] ring-1 ring-white/10">
+        <div className="shrink-0 w-12 h-12 rounded-md overflow-hidden bg-panel-hover ring-1 ring-white/10">
           <div
             className="w-full h-full scale-[1.12] blur-[4px] saturate-[1.3] group-hover:blur-[1.5px] transition-[filter] duration-300"
             aria-hidden

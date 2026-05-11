@@ -118,7 +118,7 @@ export default function PlayChip({
         bottom: '6%',
         ...style,
       }}
-      className={`absolute z-20 rounded-full bg-[#141008]/85 border-2 border-accent text-accent hover:bg-accent hover:text-[#141008] flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.55)] transition-all duration-200 cursor-pointer ${visibility} ${className}`}
+      className={`absolute z-20 rounded-full bg-panel-strong/85 border-2 border-accent text-accent hover:bg-accent hover:text-panel-strong flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.55)] transition-all duration-200 cursor-pointer ${visibility} ${className}`}
     >
       {isPlaying ? (
         <svg

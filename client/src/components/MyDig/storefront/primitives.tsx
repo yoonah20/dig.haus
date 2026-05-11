@@ -408,14 +408,14 @@ export function VinylDisc({
           fontWeight: 600,
           fontStyle: 'italic',
           fontSize: '10px',
-          fill: '#141008',
+          fill: 'var(--color-panel-strong)',
         }}
       >
         dig
       </text>
 
       {/* Spindle hole */}
-      <circle cx="50" cy="50" r="1.6" fill="#0a0503" />
+      <circle cx="50" cy="50" r="1.6" fill="var(--color-panel-strong)" />
     </svg>
   );
 }
@@ -1523,7 +1523,7 @@ function Turntable({
               cy={cy}
               rx={platterR * 0.95}
               ry={platterR * 0.82 * 0.95}
-              fill="#0a0503"
+              fill="var(--color-panel-strong)"
             />
             {/* Concentric grooves */}
             {[0.85, 0.72, 0.58, 0.44].map((r, i) => (

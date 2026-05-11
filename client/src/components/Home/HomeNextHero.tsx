@@ -477,7 +477,7 @@ export default function HomeNextHero() {
   return (
     <div
       ref={containerRef}
-      className="group/hero relative w-full bg-[#0a0703]"
+      className="group/hero relative w-full bg-panel-strong"
       style={{
         height:
           sceneH ||

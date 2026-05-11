@@ -36,7 +36,7 @@ export default function FollowListModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5 max-h-[70vh] flex flex-col"
+        className="w-full max-w-md bg-panel-strong border border-white/10 rounded-xl p-5 max-h-[70vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">

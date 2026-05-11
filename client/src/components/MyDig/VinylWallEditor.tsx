@@ -642,7 +642,7 @@ export default function VinylWallEditor({
   });
 
   return (
-    <div className="fixed inset-0 z-40 bg-[#0a0703] flex flex-col">
+    <div className="fixed inset-0 z-40 bg-panel-strong flex flex-col">
       {/* Header bar — title + dirty indicator on the left, build
           tools (🧹 다 지우기) in the middle, exit actions (취소,
           저장) on the right. 저장 opens a "also save as snapshot?"
@@ -999,7 +999,7 @@ function SaveChoicePrompt({
       role="dialog"
       aria-modal
     >
-      <div className="w-full max-w-md bg-[#141008] border border-white/10 rounded-xl p-5">
+      <div className="w-full max-w-md bg-panel-strong border border-white/10 rounded-xl p-5">
         <h2 className="text-lg text-white font-serif italic mb-1">
           저장하기
         </h2>
@@ -1028,7 +1028,7 @@ function SaveChoicePrompt({
             type="button"
             onClick={onWithSnapshot}
             disabled={pending}
-            className="text-sm text-accent hover:text-[#f5b040] border border-accent/60 hover:border-accent rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="text-sm text-accent hover:text-accent-hover border border-accent/60 hover:border-accent rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             📸 기억하며 저장
           </button>
@@ -1149,9 +1149,9 @@ function EditWallSlot({
   // dims the slot so the picked-up album visually "lifts off" the wall
   // while the user decides where to drop it.
   const stateClass = dragOver
-    ? 'ring-2 ring-accent ring-offset-2 ring-offset-[#0a0703]'
+    ? 'ring-2 ring-accent ring-offset-2 ring-offset-panel-strong'
     : isSelectedSource
-      ? 'ring-2 ring-accent ring-offset-2 ring-offset-[#0a0703] opacity-60'
+      ? 'ring-2 ring-accent ring-offset-2 ring-offset-panel-strong opacity-60'
       : album
         ? 'bg-panel'
         : `border border-dashed bg-white/[0.02] ${

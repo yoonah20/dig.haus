@@ -218,8 +218,8 @@ export default function SearchBar({
     ? 'relative w-full'
     : 'relative w-full max-w-2xl mx-auto';
   const inputCls = compact
-    ? 'w-full bg-[#1a1108] border border-accent/25 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:border-accent focus:outline-none transition'
-    : 'w-full bg-[#1a1108] border border-accent/30 rounded-xl pl-12 pr-5 py-3 text-base text-white placeholder-gray-500 focus:border-accent focus:outline-none transition';
+    ? 'w-full bg-panel-strong border border-accent/25 rounded-lg pl-9 pr-3 py-1.5 text-sm text-white placeholder-gray-500 focus:border-accent focus:outline-none transition'
+    : 'w-full bg-panel-strong border border-accent/30 rounded-xl pl-12 pr-5 py-3 text-base text-white placeholder-gray-500 focus:border-accent focus:outline-none transition';
   const iconCls = compact
     ? 'absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none'
     : 'absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 pointer-events-none';
@@ -383,7 +383,7 @@ export default function SearchBar({
               because manual entry is the escape hatch, not the primary
               path. Expanding swaps the prompt for an inline form. */}
           {!isUrlMode && loggedIn && (
-            <section className="border-t border-accent/15 bg-[#1a1108]">
+            <section className="border-t border-accent/15 bg-panel-strong">
               {!manualOpen ? (
                 <button
                   type="button"
@@ -432,7 +432,7 @@ export default function SearchBar({
 
 function SectionHeader({ label }: { label: string }) {
   return (
-    <div className="px-4 pt-3 pb-1.5 text-[10px] uppercase tracking-wider text-accent/70 bg-[#1a1108] border-b border-accent/10">
+    <div className="px-4 pt-3 pb-1.5 text-[10px] uppercase tracking-wider text-accent/70 bg-panel-strong border-b border-accent/10">
       {label}
     </div>
   );
@@ -530,7 +530,7 @@ function ExternalRow({
 
 function Thumb({ album }: { album: AlbumSearchResult }) {
   return (
-    <div className="w-8 h-8 flex-shrink-0 bg-[#1a1108] rounded overflow-hidden">
+    <div className="w-8 h-8 flex-shrink-0 bg-panel-strong rounded overflow-hidden">
       {album.coverArtUrl ? (
         <img
           src={album.coverArtUrl}
@@ -607,7 +607,7 @@ function ManualAlbumForm({
           value={artist}
           onChange={(e) => setArtist(e.target.value)}
           placeholder="아티스트 *"
-          className="bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
+          className="bg-panel-strong border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
           autoFocus
         />
         <input
@@ -615,7 +615,7 @@ function ManualAlbumForm({
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="앨범 제목 *"
-          className="bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
+          className="bg-panel-strong border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
         />
         <input
           type="text"
@@ -624,12 +624,12 @@ function ManualAlbumForm({
           placeholder="발매 연도 (YYYY)"
           maxLength={4}
           inputMode="numeric"
-          className="bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
+          className="bg-panel-strong border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
         />
         <select
           value={format}
           onChange={(e) => setFormat(e.target.value as typeof format)}
-          className="bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 focus:border-accent focus:outline-none"
+          className="bg-panel-strong border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 focus:border-accent focus:outline-none"
         >
           <option value="">포맷 선택</option>
           <option value="Vinyl">Vinyl</option>
@@ -641,14 +641,14 @@ function ManualAlbumForm({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="레이블 (선택)"
-          className="col-span-2 bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
+          className="col-span-2 bg-panel-strong border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
         />
         <input
           type="url"
           value={coverArtUrl}
           onChange={(e) => setCoverArtUrl(e.target.value)}
           placeholder="커버 이미지 URL (선택, https://…)"
-          className="col-span-2 bg-[#0f0903] border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
+          className="col-span-2 bg-panel-strong border border-accent/20 rounded px-2.5 py-1.5 text-xs text-gray-100 placeholder-gray-500 focus:border-accent focus:outline-none"
         />
       </div>
       <p className="text-[10px] text-gray-500 leading-snug">

@@ -131,7 +131,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
       aria-modal
     >
       <div
-        className="w-full max-w-3xl max-h-[90vh] flex flex-col bg-[#141008] border border-white/10 rounded-xl"
+        className="w-full max-w-3xl max-h-[90vh] flex flex-col bg-panel-strong border border-white/10 rounded-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header — title (editable for owner) + meta + close */}
@@ -202,7 +202,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
                 placeholder="이 상자가 어떤 모음인지 짧게 적어보세요. (선택)"
                 maxLength={240}
                 rows={2}
-                className="w-full bg-[#0a0703] border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600 resize-none"
+                className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600 resize-none"
               />
             ) : (
               <p className="text-sm text-gray-300 leading-relaxed">

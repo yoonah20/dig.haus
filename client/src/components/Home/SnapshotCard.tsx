@@ -84,7 +84,7 @@ export default function SnapshotCard({
               return (
                 <div
                   key={i}
-                  className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden flex items-center justify-center text-[11px] font-medium text-[#c9a060] tabular-nums"
+                  className="aspect-square bg-panel-strong rounded-[2px] overflow-hidden flex items-center justify-center text-[11px] font-medium text-[#c9a060] tabular-nums"
                   aria-label={`${overflow}개 더`}
                 >
                   +{overflow}
@@ -94,7 +94,7 @@ export default function SnapshotCard({
             return (
               <div
                 key={i}
-                className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden"
+                className="aspect-square bg-panel-strong rounded-[2px] overflow-hidden"
               />
             );
           }
@@ -102,7 +102,7 @@ export default function SnapshotCard({
           return (
             <div
               key={i}
-              className="aspect-square bg-[#0a0604] rounded-[2px] overflow-hidden"
+              className="aspect-square bg-panel-strong rounded-[2px] overflow-hidden"
             >
               {item?.album?.coverArtUrl && (
                 <CoverArt
