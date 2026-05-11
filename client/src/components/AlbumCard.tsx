@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { AlbumSearchResult } from '../types';
 import CoverArt from './CoverArt';
@@ -269,6 +269,7 @@ export default function AlbumCard({
   bigDateSticker = false,
   showPickSticker = false,
   linkSearch,
+  topRightChip,
 }: {
   album: AlbumSearchResult;
   /** Strip all corner chrome — SOON/HOT/date stickers, price tag,
@@ -296,6 +297,15 @@ export default function AlbumCard({
    *  registered-order feed" so the album page picks neighbors in
    *  that order instead of the default release-date sort. */
   linkSearch?: string;
+  /** Optional content slot pinned to the top-right corner of the card,
+   *  sitting OUTSIDE the .album-flip wrapper so it stays static while
+   *  the inner faces rotate. Renders inside the .album-card-outer link
+   *  so hovering the chip still counts as hovering the card — that's
+   *  what makes the flip trigger from the chip area too (otherwise a
+   *  sibling chip overlay would visually cover the corner but be
+   *  excluded from the hover region). Used by the home feed for the
+   *  "몇 시간 전" relative-time chip. */
+  topRightChip?: ReactNode;
 }) {
   const up = album.upvotes ?? 0;
   const down = album.downvotes ?? 0;
@@ -495,6 +505,10 @@ export default function AlbumCard({
         className="relative aspect-square"
         style={{ perspective: '1000px' }}
       >
+        {/* topRightChip lives OUTSIDE .album-flip so it stays still while
+            the card rotates 180°. Sits inside .album-card-outer so the
+            chip's hover region counts toward the card's :hover state. */}
+        {topRightChip}
         <div className="album-flip relative w-full h-full">
           {/* Front — cover art + price stickers + optional NEW / HOT flags */}
           <div

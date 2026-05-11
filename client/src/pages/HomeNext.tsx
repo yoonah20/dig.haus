@@ -103,10 +103,16 @@ function renderFeedCell(item: FeedItem) {
     // sort — the user expects in-feed-order neighbours when they
     // came in via this surface.
     return (
-      <div key={item.key} className="relative">
-        <AlbumCard album={item.album} hidePendingBadge showPickSticker linkSearch="n=feed" />
-        {item.album.createdAt && <TimeChip iso={item.album.createdAt} />}
-      </div>
+      <AlbumCard
+        key={item.key}
+        album={item.album}
+        hidePendingBadge
+        showPickSticker
+        linkSearch="n=feed"
+        topRightChip={
+          item.album.createdAt ? <TimeChip iso={item.album.createdAt} /> : null
+        }
+      />
     );
   }
   if (item.kind === 'snapshot') {
