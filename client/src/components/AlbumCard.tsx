@@ -298,13 +298,11 @@ export default function AlbumCard({
    *  that order instead of the default release-date sort. */
   linkSearch?: string;
   /** Optional content slot pinned to the top-right corner of the card,
-   *  sitting OUTSIDE the .album-flip wrapper so it stays static while
-   *  the inner faces rotate. Renders inside the .album-card-outer link
-   *  so hovering the chip still counts as hovering the card — that's
-   *  what makes the flip trigger from the chip area too (otherwise a
-   *  sibling chip overlay would visually cover the corner but be
-   *  excluded from the hover region). Used by the home feed for the
-   *  "몇 시간 전" relative-time chip. */
+   *  rendered inside the front face of the flip so it rotates with the
+   *  card on hover and is hidden by backface-visibility once the back
+   *  face is showing. Used by the home feed for the "몇 시간 전"
+   *  relative-time chip — operator wanted the chip to participate in
+   *  the flip rather than sit as a static overlay. */
   topRightChip?: ReactNode;
 }) {
   const up = album.upvotes ?? 0;
@@ -505,10 +503,6 @@ export default function AlbumCard({
         className="relative aspect-square"
         style={{ perspective: '1000px' }}
       >
-        {/* topRightChip lives OUTSIDE .album-flip so it stays still while
-            the card rotates 180°. Sits inside .album-card-outer so the
-            chip's hover region counts toward the card's :hover state. */}
-        {topRightChip}
         <div className="album-flip relative w-full h-full">
           {/* Front — cover art + price stickers + optional NEW / HOT flags */}
           <div
@@ -518,6 +512,13 @@ export default function AlbumCard({
               WebkitBackfaceVisibility: 'hidden',
             }}
           >
+            {/* topRightChip rides the front face: rotates with the card
+                on flip and ends up behind the back face when the card
+                is hovered (backface-visibility:hidden on this parent
+                hides it). Sits inside the flip wrapper rather than the
+                outer link so the chip is part of the front composition
+                rather than a static overlay. */}
+            {topRightChip}
             <CoverArt
               src={album.coverArtUrl}
               fallbacks={album.coverArtFallbacks}
