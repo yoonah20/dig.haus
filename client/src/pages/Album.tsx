@@ -223,7 +223,7 @@ export default function Album() {
             yet. */}
         <div className="flex items-end justify-center gap-3 pt-2">
           <img
-            src="/textures/digman_wink.webp"
+            src="/textures/digman_eureka.webp"
             alt=""
             aria-hidden
             className="w-20 sm:w-24 -rotate-6 drop-shadow-[2px_4px_4px_rgba(0,0,0,0.45)] select-none pointer-events-none"

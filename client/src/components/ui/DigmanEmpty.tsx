@@ -18,9 +18,9 @@
 //     reads as "this is waiting to be filled".
 //   - 'dizzy'    (digman_dizzy.webp): spiral eyes. Use for 404 /
 //     route-not-found — the digger's lost their bearings.
-//   - 'sign'     (digman_sign.webp): digman holding a yellow A-frame
-//     "work in progress" sign with the dig.haus logotype. The sign
-//     is the central element so the asset is rendered uncropped
+//   - 'sign'     (digman_signpost.webp): digman holding a yellow
+//     A-frame "dig.haus" sign with a caution glyph. The sign is the
+//     central element so the asset is rendered uncropped
 //     (object-contain) at a slightly larger footprint. Use for
 //     "we're still working on it" empties — review-not-yet-collected,
 //     pipeline-pending content. Reads as "곧 도착", not "비어 있음".
@@ -49,7 +49,7 @@ const VARIANT_SRC: Record<NonNullable<DigmanEmptyProps['variant']>, string> = {
   sad: '/textures/digman_sad.webp',
   sleep: '/textures/digman_sleep.webp',
   dizzy: '/textures/digman_dizzy.webp',
-  sign: '/textures/digman_sign.webp',
+  sign: '/textures/digman_signpost.webp',
 };
 
 const SIZE_CLASSES: Record<
