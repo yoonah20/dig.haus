@@ -513,12 +513,29 @@ export default function AlbumCard({
             }}
           >
             {/* topRightChip rides the front face: rotates with the card
-                on flip and ends up behind the back face when the card
-                is hovered (backface-visibility:hidden on this parent
-                hides it). Sits inside the flip wrapper rather than the
-                outer link so the chip is part of the front composition
-                rather than a static overlay. */}
-            {topRightChip}
+                on flip and ends up behind the back face when flipped
+                (backface-visibility:hidden on this wrapper hides it).
+                The wrapper is dedicated because mobile Safari sometimes
+                promotes z-indexed absolute children to their own
+                compositor layer, which breaks the backface-visibility
+                cascade from the front-face div alone — applying it to
+                a wrapper that contains only the slot pins the property
+                on the same compositor layer as the chip and stops the
+                chip from showing through on the back face. The wrapper
+                is pointer-events-none so hover/touch still passes to
+                the .album-card-outer link beneath and the chip's
+                hover-triggers-flip behavior is preserved. */}
+            {topRightChip && (
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                }}
+              >
+                {topRightChip}
+              </div>
+            )}
             <CoverArt
               src={album.coverArtUrl}
               fallbacks={album.coverArtFallbacks}
