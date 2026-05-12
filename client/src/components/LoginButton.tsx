@@ -5,7 +5,7 @@ import { useAlbumRequests } from '../hooks/useAlbumRequests';
 import { parseServerTimestamp } from '../utils/relativeTime';
 import { ADMIN_SEEN_PENDING_KEY } from '../lib/adminSeen';
 import { resolveApiUrl } from '../utils/apiUrl';
-import { Button } from './ui';
+import { Button, Popover } from './ui';
 
 // Top-right nav affordance. Absorbs the admin pending-requests badge
 // (previously a separate bell) so the nav stays clean — count shows
@@ -99,10 +99,13 @@ export default function LoginButton() {
           입장하기
         </Button>
         {consentOpen && (
-          <div
+          <Popover
             role="dialog"
             aria-label="로그인 동의"
-            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-panel-strong border border-white/10 rounded-2xl p-5 shadow-2xl z-50"
+            radius="2xl"
+            pad="lg"
+            shadow="2xl"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] z-50"
           >
             <h2 className="text-base font-semibold text-white mb-3">
               로그인하기 전에
@@ -147,7 +150,7 @@ export default function LoginButton() {
                 동의하고 계속
               </Button>
             </div>
-          </div>
+          </Popover>
         )}
       </div>
     );
@@ -190,7 +193,13 @@ export default function LoginButton() {
       </button>
 
       {menuOpen && (
-        <div className="absolute right-0 mt-2 w-56 bg-panel border border-white/10 rounded-lg shadow-2xl py-1 z-50">
+        <Popover
+          strong={false}
+          radius="lg"
+          pad="none"
+          shadow="2xl"
+          className="absolute right-0 mt-2 w-56 py-1 z-50"
+        >
           <Link
             to="/profile"
             onClick={() => setMenuOpen(false)}
@@ -229,7 +238,7 @@ export default function LoginButton() {
           >
             퇴장하기 (로그아웃)
           </button>
-        </div>
+        </Popover>
       )}
     </div>
   );

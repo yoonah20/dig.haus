@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { Popover } from './ui';
 
 /**
  * Wraps a child that requires login. If the user is not logged in, clicks
@@ -28,9 +29,15 @@ export default function LoginRequiredTooltip({
         {children}
       </div>
       {show && (
-        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap bg-panel border border-accent/40 text-accent text-xs rounded-md px-3 py-1.5 shadow-lg z-50 pointer-events-none">
+        <Popover
+          strong={false}
+          tone="accent"
+          radius="md"
+          shadow="lg"
+          className="absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap !py-1.5 !px-3 text-accent text-xs z-50 pointer-events-none"
+        >
           입장하기(로그인)가 필요합니다
-        </div>
+        </Popover>
       )}
     </div>
   );

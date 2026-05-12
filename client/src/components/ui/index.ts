@@ -9,3 +9,4 @@ export { default as SectionTitle } from './SectionTitle';
 export { default as Field, FIELD_CHROME } from './Field';
 export { default as DigmanEmpty } from './DigmanEmpty';
 export { default as Button } from './Button';
+export { default as Popover } from './Popover';
