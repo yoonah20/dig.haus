@@ -576,12 +576,26 @@ const RATING_THUMB: Record<'up' | 'down' | 'soso', string> = {
 // Small dark pill anchored top-right of every feed card's cover
 // area. Reads as "X분 전" / "어제" — the visible signal that the
 // grid is a chronological feed, not a random shuffle.
+//
+// backface-visibility is set directly on this element (not just on
+// an enclosing wrapper) because absolute + z-index gets promoted to
+// its own compositor layer on iOS Safari, and backface-visibility
+// is a per-layer property — applying it to an outer wrapper alone
+// leaves this layer rotating into a visible mirrored chip on the
+// back face when the flip card rotates 180°. translateZ(0) makes
+// the layer-isation explicit so the property lands consistently
+// across browsers rather than being a layer-promotion accident.
 function TimeChip({ iso }: { iso: string }) {
   const label = formatRelativeKo(iso);
   if (!label) return null;
   return (
     <span
       className="absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 text-[10px] font-medium text-gray-200 bg-black/60 backdrop-blur-sm rounded-md leading-none pointer-events-none"
+      style={{
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden',
+        transform: 'translateZ(0)',
+      }}
       aria-hidden
     >
       {label}
