@@ -5,6 +5,7 @@ import { useAlbumRequests } from '../hooks/useAlbumRequests';
 import { parseServerTimestamp } from '../utils/relativeTime';
 import { ADMIN_SEEN_PENDING_KEY } from '../lib/adminSeen';
 import { resolveApiUrl } from '../utils/apiUrl';
+import { Button } from './ui';
 
 // Top-right nav affordance. Absorbs the admin pending-requests badge
 // (previously a separate bell) so the nav stays clean — count shows
@@ -133,15 +134,16 @@ export default function LoginButton() {
               >
                 취소
               </button>
-              <button
+              <Button
+                variant="primary"
+                size="md"
                 onClick={() => {
                   setConsentOpen(false);
                   login();
                 }}
-                className="px-3 py-1.5 text-sm bg-accent text-black rounded-md hover:bg-accent-hover cursor-pointer font-medium"
               >
                 동의하고 계속
-              </button>
+              </Button>
             </div>
           </div>
         )}
