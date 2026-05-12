@@ -703,7 +703,7 @@ function ProfileHeader({
   const signatureNode =
     userId != null ? (
       <UserHoverCard userId={userId}>
-        <span className="inline-block cursor-help hover:text-[#1a1208] transition-colors">
+        <span className="inline-block cursor-help hover:text-ink transition-colors">
           {signatureText}
         </span>
       </UserHoverCard>
@@ -737,7 +737,7 @@ function ProfileHeader({
         </div>
         <div
           className={`text-[30px] leading-[1.15] ${
-            themePlaceholder ? 'text-[#5a4838]' : 'text-[#1a1208]'
+            themePlaceholder ? 'text-[#5a4838]' : 'text-ink'
           }`}
           title={displayThemeText}
         >
@@ -757,13 +757,13 @@ function ProfileHeader({
             className="flex items-center gap-2 flex-wrap text-[11px] pt-1 font-semibold"
             style={{ fontFamily: 'sans-serif' }}
           >
-            <span className="uppercase tracking-[0.22em] text-[#1a1208]">
+            <span className="uppercase tracking-[0.22em] text-ink">
               {formatKoreanMemoryDate(snapshotMeta.createdAt)}
             </span>
             <span
               className={
                 snapshotMeta.isPublic
-                  ? 'uppercase tracking-[0.22em] text-[#1a1208]'
+                  ? 'uppercase tracking-[0.22em] text-ink'
                   : 'uppercase tracking-[0.22em] text-[#4a2810]'
               }
             >
@@ -819,7 +819,7 @@ function EmptyWallOnboarding({ onStart }: { onStart: () => void }) {
         className="font-bold"
         style={{ fontFamily: GRAFFITI_FONT_STACK }}
       >
-        <div className="text-[38px] md:text-[48px] leading-[1.08] text-[#1a1208]">
+        <div className="text-[38px] md:text-[48px] leading-[1.08] text-ink">
           첫 마이딕을
           <br />꾸며보세요
         </div>

@@ -679,7 +679,7 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
   });
 
   return (
-    <div className="review-card-outer group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-accent/25 hover:border-accent/60 transition-colors bg-[#1a1208]">
+    <div className="review-card-outer group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-accent/25 hover:border-accent/60 transition-colors bg-ink">
       <TimeChip iso={item.createdAt} />
       <Link
         to={albumHref}
@@ -712,7 +712,7 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
             }}
           >
             <div
-              className="absolute inset-0 flex items-center justify-center bg-[#1a1208]"
+              className="absolute inset-0 flex items-center justify-center bg-ink"
               style={{ filter: 'blur(8px) saturate(1.1) brightness(0.55)' }}
               aria-hidden
             >
@@ -724,7 +724,7 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
                   className="max-w-full max-h-full w-auto h-auto object-contain"
                 />
               ) : (
-                <div className="w-full h-full bg-[#1a1208]" />
+                <div className="w-full h-full bg-ink" />
               )}
             </div>
             <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/15 to-black/55" />
@@ -754,7 +754,7 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
               "comment fades, cover surfaces" — not "album
               revealed". */}
           <div
-            className="absolute inset-0 overflow-hidden bg-[#1a1208] flex items-center justify-center"
+            className="absolute inset-0 overflow-hidden bg-ink flex items-center justify-center"
             style={{
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',

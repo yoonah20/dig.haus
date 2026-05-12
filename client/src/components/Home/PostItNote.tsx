@@ -234,7 +234,7 @@ export default function PostItNote({
             fontFamily: GRAFFITI_FONT_STACK,
             fontSize,
             lineHeight: 1.25,
-            color: '#1a1208',
+            color: 'var(--color-ink)',
             letterSpacing: '0.005em',
             // Korean syllable-block break — splitting mid-word reads
             // fine in Hangul (자소 단위) and lets the small square
