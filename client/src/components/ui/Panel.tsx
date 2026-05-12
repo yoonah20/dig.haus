@@ -26,6 +26,7 @@ import type { ComponentPropsWithoutRef, ElementType, ReactNode } from 'react';
 
 type PanelPad = 'none' | 'sm' | 'md' | 'lg';
 type PanelRadius = 'panel' | 'lg' | 'xl' | '2xl';
+type PanelBorder = 'default' | 'accent' | 'accent-faint' | 'dashed' | 'none';
 
 type PanelProps = ComponentPropsWithoutRef<'div'> & {
   children: ReactNode;
@@ -34,6 +35,13 @@ type PanelProps = ComponentPropsWithoutRef<'div'> & {
   strong?: boolean;
   pad?: PanelPad;
   radius?: PanelRadius;
+  /** Border tone:
+   *  - `default` — neutral white/10 (section cards, modal shells)
+   *  - `accent` — accent/40 (themed dig.haus section cards)
+   *  - `accent-faint` — accent/15 (subtle accent affordance)
+   *  - `dashed` — accent/40 dashed (placeholder / add-here surfaces)
+   *  - `none` — no border (when caller's design omits it entirely) */
+  borderTone?: PanelBorder;
 };
 
 const PAD: Record<PanelPad, string> = {
@@ -50,6 +58,14 @@ const RADIUS: Record<PanelRadius, string> = {
   '2xl': 'rounded-2xl',
 };
 
+const BORDER: Record<PanelBorder, string> = {
+  default: 'border border-white/10',
+  accent: 'border border-accent/40',
+  'accent-faint': 'border border-accent/15',
+  dashed: 'border border-dashed border-accent/40',
+  none: '',
+};
+
 export default function Panel({
   children,
   className = '',
@@ -57,13 +73,14 @@ export default function Panel({
   strong = false,
   pad = 'md',
   radius = 'panel',
+  borderTone = 'default',
   ...rest
 }: PanelProps) {
   const bg = strong ? 'bg-panel-strong' : 'bg-panel';
   return (
     <Component
       {...rest}
-      className={`${bg} ${RADIUS[radius]} border border-white/10 ${PAD[pad]} ${className}`.trim()}
+      className={`${bg} ${RADIUS[radius]} ${BORDER[borderTone]} ${PAD[pad]} ${className}`.trim()}
     >
       {children}
     </Component>

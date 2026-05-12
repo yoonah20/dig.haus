@@ -7,7 +7,7 @@ import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import CardOverlayButton from '../CardOverlayButton';
 import PlayChip from '../PlayChip';
-import { SectionTitle, Field } from '../ui';
+import { SectionTitle, Field, Panel } from '../ui';
 
 function SpotifyIcon() {
   return (
@@ -185,7 +185,7 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
 
   if (editing) {
     return (
-      <div className="bg-panel rounded-panel overflow-hidden border border-accent/40 p-3 flex flex-col gap-2">
+      <Panel borderTone="accent" pad="sm" className="overflow-hidden flex flex-col gap-2">
         <div className="text-xs text-gray-400 truncate" title={`${album.artist} — ${album.title}`}>
           {album.artist} — {album.title}
         </div>
@@ -237,7 +237,7 @@ function AlbumCard({ album, index, albumId }: AlbumCardProps) {
             {saving ? '...' : '✓'}
           </button>
         </div>
-      </div>
+      </Panel>
     );
   }
 
@@ -382,7 +382,7 @@ function AddSlot({ albumId }: { albumId: string }) {
 
   if (open) {
     return (
-      <div className="bg-panel rounded-panel overflow-hidden border border-dashed border-accent/40 p-3 flex flex-col gap-2">
+      <Panel borderTone="dashed" pad="sm" className="overflow-hidden flex flex-col gap-2">
         <div className="text-xs text-gray-400">비슷한 앨범 수동 추가</div>
         <Field
           type="text"
@@ -416,7 +416,7 @@ function AddSlot({ albumId }: { albumId: string }) {
             {saving ? '추가 중...' : '✓ 추가'}
           </button>
         </div>
-      </div>
+      </Panel>
     );
   }
 
