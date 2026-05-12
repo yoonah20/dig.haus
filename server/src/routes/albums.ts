@@ -10,7 +10,8 @@ import { searchVideo } from '../services/youtube.js';
 import { searchBandcamp } from '../services/bandcamp.js';
 import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases, getDiscogsMasterMainRelease } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
-import { generateSimilarDescriptions, generatePronunciation, getClient as getAnthropicClient, HAIKU, logClaudeUsage } from '../services/claude.js';
+import { generateSimilarDescriptions, generatePronunciation, HAIKU } from '../services/claude.js';
+import { invokeLlm } from '../services/llmRouter.js';
 import { hostCustomCover, CustomCoverError } from '../services/customCoverHost.js';
 import {
   getCachedAlbum,
@@ -2200,29 +2201,28 @@ router.post('/:id/similar', adminClaudeLimiter, requireAdmin, async (req, res) =
     const discogsUrl = masterUrl || releaseUrl
       || `https://www.discogs.com/search/?q=${encodeURIComponent(`${artist} ${title}`)}&type=master`;
 
-    // Claude: generate reason
+    // Route through invokeLlm so the env-driven model router can swap
+    // this onto DeepSeek (default hot path) instead of pinning Anthropic
+    // directly. HAIKU stays as the safety-net default if no override.
     let reason = '';
     try {
-      const client = getAnthropicClient();
-      const message = await client.messages.create({
-        model: HAIKU,
-        max_tokens: 200,
-        messages: [{
-          role: 'user',
-          content: `"${baseTitle}" by ${baseArtist} 팬을 위한 비슷한 앨범 설명 1-2문장 한국어.\n앨범: "${title}" by ${artist}\nJSON only: {"reason":"한국어 설명"}`,
-        }],
+      const result = await invokeLlm({
+        operation: 'similar_manual_reason',
+        prompt: `"${baseTitle}" by ${baseArtist} 팬을 위한 비슷한 앨범 설명 1-2문장 한국어.\n앨범: "${title}" by ${artist}\nJSON only: {"reason":"한국어 설명"}`,
+        maxTokens: 200,
+        defaultModel: HAIKU,
+        jsonMode: true,
+        albumTitle: `${artist} - ${title}`,
       });
-      logClaudeUsage('similar_manual_reason', message);
-      const textBlock = message.content.find((b) => b.type === 'text');
-      if (textBlock && textBlock.type === 'text') {
-        const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
+      if (result.text) {
+        const jsonMatch = result.text.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
           reason = parsed.reason || '';
         }
       }
     } catch (err) {
-      console.warn('[similar-manual] Claude reason generation failed:', (err as Error).message);
+      console.warn('[similar-manual] reason generation failed:', (err as Error).message);
     }
 
     const entry = {
