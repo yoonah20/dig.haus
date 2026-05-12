@@ -39,6 +39,19 @@ export function searchAlbumsInDb(rawQuery: string, limit = 25): DbSearchResult[]
   if (!query) return [];
 
   const like = `%${query}%`;
+  // Ranking tiers, in priority order:
+  //   1. Exact title or artist match
+  //   2. Prefix title or artist match
+  //   3. Canonical studio LP — primary_type='Album' AND no secondary
+  //      types (Live / Compilation / Soundtrack / Remix / Demo /
+  //      DJ-mix / Mixtape / Interview / Spokenword pull the album
+  //      OUT of this tier). NULL primary_type is treated as canonical
+  //      so legacy rows that pre-date the column aren't penalised;
+  //      admin backfill (/admin/albums/backfill-release-types) writes
+  //      the truthful value once it runs. Empty `'[]'` and NULL on
+  //      secondary_types both behave as "no secondary qualifier".
+  //   4. Recency — release_date DESC. Operator-requested tiebreaker
+  //      so newer releases within the same tier surface first.
   const rows = queryAll(
     `SELECT slug, mbid, title, artist_name, release_date, release_year,
             label_name, cover_art_url, cover_art_fallbacks
@@ -48,6 +61,9 @@ export function searchAlbumsInDb(rawQuery: string, limit = 25): DbSearchResult[]
      ORDER BY
        CASE WHEN LOWER(title) = LOWER(?) OR LOWER(artist_name) = LOWER(?) THEN 0 ELSE 1 END,
        CASE WHEN LOWER(title) LIKE LOWER(?) OR LOWER(artist_name) LIKE LOWER(?) THEN 0 ELSE 1 END,
+       CASE WHEN (primary_type = 'Album' OR primary_type IS NULL)
+                 AND (secondary_types IS NULL OR secondary_types = '' OR secondary_types = '[]')
+            THEN 0 ELSE 1 END,
        COALESCE(release_date, release_year || '-01-01') DESC
      LIMIT ?`,
     [like, like, query, query, `${query}%`, `${query}%`, limit]

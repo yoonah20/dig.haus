@@ -249,6 +249,15 @@ async function _getRelease(mbid: string): Promise<any | null> {
             mbid: r['release-group'].id,
             title: r['release-group'].title,
             primaryType: r['release-group']['primary-type'] || '',
+            // Secondary types qualify the primary — Live, Compilation,
+            // Soundtrack, Remix, Demo, DJ-mix, Mixtape/Street,
+            // Interview, Spokenword, etc. Empty array means "plain
+            // studio LP" which is the canonical tier in search
+            // ranking. Stored verbatim from MB so we can re-classify
+            // without re-fetching if the ranking rule changes.
+            secondaryTypes: Array.isArray(r['release-group']['secondary-types'])
+              ? (r['release-group']['secondary-types'] as string[])
+              : [],
             firstReleaseDate,
           }
         : null,

@@ -17,6 +17,15 @@ export function cacheAlbum(data: Record<string, any>): void {
   const artistCreditJson = Array.isArray(data.artist_credit)
     ? JSON.stringify(data.artist_credit)
     : (data.artist_credit_json ?? null);
+  // secondary_types is stored as a JSON-encoded string array even
+  // when empty (`'[]'`) so the search ORDER BY can test against a
+  // single canonical "no secondary qualifier" representation. NULL
+  // means "we never resolved this album's release-group type"
+  // (legacy / Discogs-only registration) — ranked alongside non-
+  // canonical until the admin backfill fills it in.
+  const secondaryTypes = Array.isArray(data.secondary_types)
+    ? JSON.stringify(data.secondary_types)
+    : (data.secondary_types ?? null);
 
   execute(`
     INSERT INTO albums (
@@ -28,6 +37,7 @@ export function cacheAlbum(data: Record<string, any>): void {
       discogs_formats_json, discogs_formats_updated_at,
       korean_summary, korean_summary_generated_at,
       similar_albums_ai, similar_albums_ai_generated_at,
+      primary_type, secondary_types,
       updated_at
     ) VALUES (
       ?, ?, ?, ?, ?, ?,
@@ -35,6 +45,7 @@ export function cacheAlbum(data: Record<string, any>): void {
       ?, ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?, ?,
+      ?, ?,
       ?, ?,
       ?, ?,
       ?, ?,
@@ -71,6 +82,8 @@ export function cacheAlbum(data: Record<string, any>): void {
       korean_summary_generated_at = COALESCE(excluded.korean_summary_generated_at, korean_summary_generated_at),
       similar_albums_ai = COALESCE(excluded.similar_albums_ai, similar_albums_ai),
       similar_albums_ai_generated_at = COALESCE(excluded.similar_albums_ai_generated_at, similar_albums_ai_generated_at),
+      primary_type = COALESCE(excluded.primary_type, primary_type),
+      secondary_types = COALESCE(excluded.secondary_types, secondary_types),
       updated_at = datetime('now')
   `, [
     data.mbid ?? null, data.slug ?? null, data.title ?? null, data.artist_name ?? null, data.artist_mbid ?? null, artistCreditJson,
@@ -84,6 +97,7 @@ export function cacheAlbum(data: Record<string, any>): void {
     data.discogs_formats_json ?? null, data.discogs_formats_json ? new Date().toISOString() : null,
     data.korean_summary ?? null, data.korean_summary_generated_at ?? null,
     similarAi, data.similar_albums_ai_generated_at ?? null,
+    data.primary_type ?? null, secondaryTypes,
   ]);
 }
 

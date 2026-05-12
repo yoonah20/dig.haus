@@ -380,6 +380,14 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
   // Discogs only gives us a single string so we synthesise a 1-
   // element credit so the cache + response shape is uniform.
   let artistCredit: Array<{ name: string; mbid: string | null }> = [];
+  // MusicBrainz release-group classification — copied through so the
+  // search ranker can treat plain studio LPs as a tier above live /
+  // compilation / remix groups. NULL on the Discogs path because
+  // Discogs doesn't carry the release-group "secondary types"
+  // vocabulary; admin can backfill those rows by re-resolving them
+  // through MusicBrainz via /admin/albums/backfill-release-types.
+  let primaryType: string | null = null;
+  let secondaryTypes: string[] | null = null;
 
   if (isDiscogs) {
     // Two shapes accepted:
@@ -435,6 +443,8 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     if (artistCredit.length === 0 && artistName) {
       artistCredit = [{ name: artistName, mbid: artistMbid }];
     }
+    primaryType = mbRelease.releaseGroup?.primaryType || null;
+    secondaryTypes = mbRelease.releaseGroup?.secondaryTypes ?? null;
   }
 
   // Fetch links + metadata in parallel
@@ -564,6 +574,8 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     artist_ko: artistKo,
     title_ko: titleKo,
     title_meaning: titleMeaning,
+    primary_type: primaryType,
+    secondary_types: secondaryTypes,
   });
 
   // Stamp the user-submission marker. reviews_crawled_at stays NULL

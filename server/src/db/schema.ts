@@ -667,6 +667,19 @@ export function initializeDatabase(db: Database.Database): void {
     // of all credit names so list endpoints that don't return the
     // structured array still surface the full collab text.
     'artist_credit_json TEXT',
+    // MusicBrainz release-group classification, copied through at
+    // registration so search ranking can deprioritise live albums
+    // and compilations against canonical studio LPs. `primary_type`
+    // is one of: 'Album' / 'EP' / 'Single' / 'Broadcast' / 'Other'
+    // (NULL on legacy rows until backfilled). `secondary_types` is
+    // a JSON-encoded string array — `null` / `'[]'` means "no
+    // secondary qualifier" (i.e. a plain studio LP); populated
+    // values include `["Live"]`, `["Compilation"]`, `["Soundtrack"]`,
+    // `["Remix"]`, `["Demo"]`, etc. Search ORDER BY treats
+    // `primary_type='Album'` AND empty secondary_types as the
+    // canonical tier above everything else.
+    'primary_type TEXT',
+    'secondary_types TEXT',
   ]);
 
   // One-time backfill: every album that existed BEFORE we split the
