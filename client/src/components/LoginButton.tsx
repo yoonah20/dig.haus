@@ -89,13 +89,15 @@ export default function LoginButton() {
   if (!user) {
     return (
       <div className="relative" ref={consentRef}>
-        <button
+        <Button
+          variant="ghost"
+          size="md"
           onClick={() => setConsentOpen((v) => !v)}
-          className="px-4 py-1.5 border border-accent/60 text-accent hover:bg-accent hover:text-black rounded-full text-sm font-medium tracking-wide transition-colors cursor-pointer"
           title="Google 계정으로 입장하기"
+          className="!rounded-full tracking-wide"
         >
           입장하기
-        </button>
+        </Button>
         {consentOpen && (
           <div
             role="dialog"

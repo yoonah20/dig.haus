@@ -12,6 +12,7 @@ import {
 import type { PurchaseLink, FormatPrice, PurchaseLinkStatus } from '../types';
 import { formatRelativeKo } from '../utils/relativeTime';
 import CardOverlayButton from './CardOverlayButton';
+import { Button } from './ui';
 
 const CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'KRW'] as const;
 type Currency = (typeof CURRENCIES)[number];
@@ -168,14 +169,14 @@ function ReportPopover({
         >
           취소
         </button>
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           onClick={submit}
           disabled={report.isPending}
-          className="bg-accent text-black font-semibold rounded-md px-2.5 py-1 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
         >
           {report.isPending ? '…' : '신고'}
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -646,13 +647,14 @@ function LinkForm({
           >
             취소
           </button>
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            size="md"
             disabled={!canSubmit || submitting}
-            className="bg-accent text-black font-semibold text-sm rounded-md px-4 h-9 hover:bg-[#f3b438] disabled:opacity-50 cursor-pointer"
           >
             {submitting ? '...' : submitLabel}
-          </button>
+          </Button>
         </div>
       </form>
       {errorMessage && (

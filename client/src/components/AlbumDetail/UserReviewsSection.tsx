@@ -9,7 +9,7 @@ import {
 import { resolveApiUrl } from '../../utils/apiUrl';
 import UserHoverCard from '../UserHoverCard';
 import CardOverlayButton from '../CardOverlayButton';
-import { SectionTitle } from '../ui';
+import { SectionTitle, Button } from '../ui';
 
 const MAX_CHARS = 50;
 const MIN_CHARS = 5;
@@ -451,14 +451,15 @@ function Editor({
                 >
                   ←
                 </button>
-                <button
+                <Button
+                  variant="primary"
+                  size="sm"
                   onClick={goToEmoji}
                   disabled={saving || tooShort || over}
                   title={tooShort ? `최소 ${MIN_CHARS}자 이상 써주세요` : undefined}
-                  className="bg-accent text-black hover:bg-accent-hover rounded-md px-2.5 py-1 text-[11px] font-medium disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
                   다음
-                </button>
+                </Button>
               </div>
             </div>
           </>
