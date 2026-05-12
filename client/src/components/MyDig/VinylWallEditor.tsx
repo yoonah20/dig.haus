@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import CoverArt from '../CoverArt';
 import QuickRegister from './QuickRegister';
 import SnapshotSaveModal from './SnapshotSaveModal';
-import { Button } from '../ui';
+import { Button, Field } from '../ui';
 import {
   useMyDigCandidates,
   useSaveVinylWall,
@@ -727,7 +727,7 @@ export default function VinylWallEditor({
                     ? '시그니처 제목'
                     : '제목'}
               </label>
-              <input
+              <Field
                 type="text"
                 value={themeInput}
                 onChange={(e) => setThemeInput(e.target.value)}
@@ -739,7 +739,7 @@ export default function VinylWallEditor({
                       ? '예: dig.haus / 이번 달 픽'
                       : '예: 2026년 4월의 최애'
                 }
-                className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600"
+                className="w-full"
               />
               <label className="block text-[12px] uppercase tracking-wider text-gray-500 mt-1">
                 {isSnapshotTarget
@@ -748,7 +748,8 @@ export default function VinylWallEditor({
                     ? '시그니처 설명'
                     : '설명'}
               </label>
-              <textarea
+              <Field
+                as="textarea"
                 value={descriptionInput}
                 onChange={(e) => setDescriptionInput(e.target.value)}
                 maxLength={240}
@@ -760,7 +761,7 @@ export default function VinylWallEditor({
                       ? '예: 운영자가 한 달 동안 발굴한 15장'
                       : '예: 4월 내내 열심히 듣고 있는 앨범들입니다.'
                 }
-                className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600 resize-none leading-snug"
+                className="w-full resize-none leading-snug"
               />
               <p className="text-[12px] text-gray-600 text-right">
                 {descriptionInput.length}/240
@@ -784,7 +785,7 @@ export default function VinylWallEditor({
                   <div className="grid grid-cols-3 gap-2">
                     <label className="flex flex-col gap-1">
                       <span className="text-[12px] text-gray-500">위 (px)</span>
-                      <input
+                      <Field
                         type="number"
                         value={headerTopInput}
                         onChange={(e) =>
@@ -793,7 +794,7 @@ export default function VinylWallEditor({
                         min={-800}
                         max={800}
                         step={4}
-                        className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-sm text-gray-200 focus:border-accent focus:outline-none"
+                        className="w-full"
                       />
                     </label>
                     <label className="flex flex-col gap-1">
