@@ -7,6 +7,10 @@ dist/
 server/data/
 db-dump/
 
+# TypeScript incremental build cache (regenerated every build,
+# shouldn't be tracked).
+*.tsbuildinfo
+
 # Seed DB ships with the repo so fresh boots / empty volumes have schema + data
 !server/seed/
 !server/seed/*.db
