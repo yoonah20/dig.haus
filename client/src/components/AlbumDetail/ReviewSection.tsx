@@ -9,7 +9,7 @@ import { AiSummaryBadge } from './SimilarAlbums';
 import { useGenerateReviewSummary, useDiscoverReviewUrls } from '../../hooks/useAlbum';
 import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 import CardOverlayButton from '../CardOverlayButton';
-import { SectionTitle, Field, DigmanEmpty } from '../ui';
+import { SectionTitle, Field, DigmanEmpty, Button } from '../ui';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -1105,14 +1105,16 @@ export default function ReviewSection({
                           </ul>
                         </div>
                       )}
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="md"
                         onClick={saveAddReview}
                         disabled={
                           savingReview ||
                           (!addUrl.trim() &&
                             !discoveredUrls.some((d) => d.selected))
                         }
-                        className="w-full py-2 text-sm font-medium text-accent border border-accent/60 rounded-md hover:bg-accent hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-accent transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
+                        className="w-full gap-2 font-medium"
                       >
                         {savingReview && (
                           <span className="w-4 h-4 border-2 border-gray-500 border-t-accent rounded-full animate-spin" />
@@ -1122,7 +1124,7 @@ export default function ReviewSection({
                             ? `페이지 분석 중... ${batchProgress.current}/${batchProgress.total}`
                             : '페이지 분석 중...'
                           : '저장'}
-                      </button>
+                      </Button>
                     </>
                   ) : (
                     <>
@@ -1222,16 +1224,18 @@ export default function ReviewSection({
                           className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
                         />
                       </div>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="md"
                         onClick={saveManualReview}
                         disabled={savingReview || !manualSource.trim() || manualBody.trim().length < 50}
-                        className="w-full py-2 text-sm font-medium text-accent border border-accent/60 rounded-md hover:bg-accent hover:text-black disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-accent transition-colors cursor-pointer inline-flex items-center justify-center gap-2"
+                        className="w-full gap-2 font-medium"
                       >
                         {savingReview && (
                           <span className="w-4 h-4 border-2 border-gray-500 border-t-accent rounded-full animate-spin" />
                         )}
                         {savingReview ? '본문 분석 중...' : '저장'}
-                      </button>
+                      </Button>
                     </>
                   )}
                 </div>

@@ -47,13 +47,20 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 // Variant tokens — kept here as the single source of truth. Other
 // surfaces that want the same look can pull these classes via the
 // Button component rather than retyping the soup.
+// Disabled rules — `disabled:opacity-50` is the universal fade.
+// Ghost / danger variants additionally cancel their hover fills
+// while disabled, otherwise a disabled-and-hovered button would
+// flash the active hover state at 50% opacity which reads as a
+// confusing "is this clickable?" affordance. Primary keeps its
+// hover fill at 50% since accent → accent-hover is a small enough
+// shift not to mislead.
 const VARIANT: Record<ButtonVariant, string> = {
   primary:
     'bg-accent text-panel-strong font-semibold hover:bg-accent-hover disabled:opacity-50',
   ghost:
-    'bg-transparent border border-accent/60 text-accent hover:bg-accent hover:text-panel-strong disabled:opacity-50',
+    'bg-transparent border border-accent/60 text-accent hover:bg-accent hover:text-panel-strong disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-accent',
   danger:
-    'bg-transparent border border-red-500/40 text-red-400 hover:bg-red-500/90 hover:text-white disabled:opacity-50',
+    'bg-transparent border border-red-500/40 text-red-400 hover:bg-red-500/90 hover:text-white disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-red-400',
 };
 
 // Rectangular sizes — text + horizontal padding tuned so the two

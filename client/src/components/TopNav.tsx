@@ -169,15 +169,18 @@ export default function TopNav() {
                 on MB/Discogs candidates, so search and registration
                 share a single nav slot. The shovel is the next
                 button over and means "go digging" (link to /dig). */}
-            <button
+            <Button
+              variant="ghost"
+              size="md"
+              iconOnly
               onClick={() => (searchOpen ? closeOverlay() : openOverlay())}
-              className="md:hidden group w-8 h-8 flex items-center justify-center rounded-full border border-accent/60 hover:border-accent hover:bg-accent transition-colors cursor-pointer"
               title="검색 / 앨범 등록"
               aria-label="검색 / 앨범 등록"
+              className="md:hidden"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-[18px] h-[18px] text-accent group-hover:text-black transition-colors"
+                className="w-[18px] h-[18px]"
                 fill="none"
                 viewBox="0 0 24 24"
                 strokeWidth={2}
@@ -190,7 +193,7 @@ export default function TopNav() {
                   d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
                 />
               </svg>
-            </button>
+            </Button>
             {/* Digging — the shovel glyph (flaticon shovel-dig.png,
                 masked to amber). Links to /dig, the dense album-grid
                 browse page that used to live at /. The active verb

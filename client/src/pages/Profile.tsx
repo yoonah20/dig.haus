@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import CoverArt from '../components/CoverArt';
+import { Button } from '../components/ui';
 import { resolveApiUrl } from '../utils/apiUrl';
 import {
   useMyProfile,
@@ -150,14 +151,14 @@ function AvatarEditor({
             if (fileRef.current) fileRef.current.value = '';
           }}
         />
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="md"
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="px-3 py-1.5 text-sm rounded-md border border-accent/50 text-accent hover:bg-accent hover:text-black disabled:opacity-40 transition-colors cursor-pointer text-left"
         >
           {uploading ? '업로드 중…' : '새 아바타 올리기'}
-        </button>
+        </Button>
         {isCustom && (
           <button
             type="button"
@@ -223,14 +224,14 @@ function ProfileFields({
         />
       </div>
       <div className="col-span-2 flex justify-end">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="md"
           disabled={!dirty || saving}
           onClick={() => onSave(name.trim(), ig.trim().replace(/^@+/, ''))}
-          className="px-3 py-1.5 text-sm rounded-md border border-accent/50 text-accent hover:bg-accent hover:text-black disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           {saving ? '저장 중…' : '저장'}
-        </button>
+        </Button>
       </div>
     </div>
   );

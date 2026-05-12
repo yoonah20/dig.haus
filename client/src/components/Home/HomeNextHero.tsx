@@ -30,6 +30,7 @@ import WallHoverCard from '../MyDig/storefront/WallHoverCard';
 import VinylWallEditor from '../MyDig/VinylWallEditor';
 import type { MyDigWallItem } from '../../hooks/useMyDig';
 import HomeFeatureSticker from './HomeFeatureSticker';
+import { Button } from '../ui';
 import PostItNote from './PostItNote';
 import { GRAFFITI_FONT_STACK } from '../MyDig/GraffitiSnapshotList';
 // HERO_BACKDROP_URL / HERO_THEME singletons used to drive the whole
@@ -1208,14 +1209,14 @@ function HeroTunerPanel({
         >
           되돌리기
         </button>
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="sm"
           onClick={onSave}
           disabled={!isDirty}
-          className="text-[11px] px-2.5 py-1 rounded bg-accent text-[#1a1208] font-semibold hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           저장
-        </button>
+        </Button>
       </div>
     </div>
   );
