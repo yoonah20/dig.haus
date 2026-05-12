@@ -1034,7 +1034,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               // headers at visibly different scales. Long titles now
               // wrap to a second / third line instead — the page
               // header's vertical rhythm stays stable.
-              className="font-bold text-white font-serif text-3xl md:text-4xl break-words min-w-0"
+              className="font-bold text-white font-serif text-editorial-lg md:text-editorial-xl break-words min-w-0"
             >
               {album.title}
             </h1>
@@ -1100,7 +1100,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
           <ArtistCredit
             credit={album.artistCredit}
             fallback={album.artist}
-            className="text-2xl md:text-3xl text-accent hover:underline inline-block font-serif cursor-pointer text-left"
+            className="text-editorial-md md:text-editorial-lg text-accent hover:underline inline-block font-serif cursor-pointer text-left"
           />
           {/* The button-version above replaces the previous single
               `openOverlay(album.artist)` button; openOverlay is now

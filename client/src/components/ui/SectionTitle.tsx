@@ -72,7 +72,7 @@ export default function SectionTitle({
 
   return (
     <h2
-      className={`text-2xl font-bold text-white mb-6 font-serif inline-flex items-center gap-3 ${className}`}
+      className={`text-editorial-md font-bold text-white mb-6 font-serif inline-flex items-center gap-3 ${className}`}
     >
       <span>{children}</span>
       {meta && (
