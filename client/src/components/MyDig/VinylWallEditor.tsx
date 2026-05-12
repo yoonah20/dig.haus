@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import CoverArt from '../CoverArt';
 import QuickRegister from './QuickRegister';
 import SnapshotSaveModal from './SnapshotSaveModal';
+import { Button } from '../ui';
 import {
   useMyDigCandidates,
   useSaveVinylWall,
@@ -684,8 +685,9 @@ export default function VinylWallEditor({
           >
             취소
           </button>
-          <button
-            type="button"
+          <Button
+            variant="ghost-soft"
+            size="md"
             onClick={handleSave}
             disabled={
               save.isPending ||
@@ -694,7 +696,7 @@ export default function VinylWallEditor({
               homeMetaUpdate.isPending ||
               !dirty
             }
-            className="text-sm font-medium text-accent border border-accent/60 hover:bg-accent/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="font-medium"
           >
             {save.isPending ||
             themeUpdate.isPending ||
@@ -702,7 +704,7 @@ export default function VinylWallEditor({
             homeMetaUpdate.isPending
               ? '저장 중…'
               : '저장'}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -1024,14 +1026,14 @@ function SaveChoicePrompt({
           >
             {pending ? '저장 중…' : '그냥 저장'}
           </button>
-          <button
-            type="button"
+          <Button
+            variant="ghost-soft"
+            size="md"
             onClick={onWithSnapshot}
             disabled={pending}
-            className="text-sm text-accent hover:text-accent-hover border border-accent/60 hover:border-accent rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             📸 기억하며 저장
-          </button>
+          </Button>
         </div>
       </div>
     </div>
