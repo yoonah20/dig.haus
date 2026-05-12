@@ -12,6 +12,7 @@ import {
 } from '../hooks/useMyDig';
 import CoverArt from '../components/CoverArt';
 import LoadingSkeleton from '../components/LoadingSkeleton';
+import { Button } from '../components/ui';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import VinylWallEditor from '../components/MyDig/VinylWallEditor';
 import SnapshotSaveModal from '../components/MyDig/SnapshotSaveModal';
@@ -829,13 +830,14 @@ function EmptyWallOnboarding({ onStart }: { onStart: () => void }) {
           {' '}벽을 채워요.
         </div>
       </div>
-      <button
-        type="button"
+      <Button
+        variant="primary"
+        size="lg"
         onClick={onStart}
-        className="mt-2 inline-flex items-center gap-2 text-base md:text-lg font-bold rounded-md px-6 py-3 bg-accent text-panel-strong hover:bg-accent-hover transition-colors cursor-pointer shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
+        className="mt-2 gap-2 font-bold shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
       >
         지금 시작하기 →
-      </button>
+      </Button>
     </div>
   );
 }

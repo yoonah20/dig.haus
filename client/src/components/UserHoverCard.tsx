@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
+import { Popover } from './ui';
 import { useUserPublic, type UserPublic } from '../hooks/useMe';
 import FollowButton from './FollowButton';
 import { resolveApiUrl } from '../utils/apiUrl';
@@ -197,14 +198,19 @@ export default function UserHoverCard({
   const popover =
     open && pos
       ? createPortal(
-          <div
+          <Popover
             ref={popoverRef}
             role="tooltip"
+            tone="accent-faint"
+            radius="xl"
+            pad="md"
+            shadow="xl"
+            animate
             // Wider (w-72) than the old w-64 because the layout is
             // [big avatar | info column] side-by-side. Fixed-positioned
             // via the measured rect so this lives outside any ancestor
             // overflow-hidden (e.g. the marquee) and never clips.
-            className="fixed z-[60] w-72 bg-panel-strong border border-accent/25 rounded-xl shadow-xl p-3 text-xs text-gray-200 animate-[fadeInUp_150ms_ease-out] pointer-events-auto"
+            className="fixed z-[60] w-72 text-xs text-gray-200 pointer-events-auto"
             style={{ top: pos.top, left: pos.left }}
             onMouseEnter={scheduleShow}
             onMouseLeave={scheduleHide}
@@ -367,7 +373,7 @@ export default function UserHoverCard({
               </div>
             </div>
           )}
-          </div>,
+          </Popover>,
           document.body
         )
       : null;
