@@ -53,6 +53,15 @@
   --color-foreground-muted: #a89c84;
   --color-border: #3a2a18;
 
+  /* Dark ink for text on light / amber surfaces — primary button
+     labels, post-it / sticky-note text, graffiti on tape, anything
+     that needs a warm dark on a pale or amber bg. Distinct from
+     panel-strong (which is the deepest dark *surface* tier, used
+     as a card background, not a text color). Slightly darker than
+     tape-ink so contrast on the amber accent passes the eye-test
+     consistently across the button surfaces it covers. */
+  --color-ink: #1a1208;
+
   /* Panel chrome — surface tiers for cards / panels / inputs. Panel
      base is the default card / dropdown background; panel-hover is
      the +1 tier for elevated / hovered surfaces; panel-strong is
