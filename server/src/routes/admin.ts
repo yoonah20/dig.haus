@@ -1672,6 +1672,29 @@ router.delete('/signups/pending/:email', (req, res) => {
   }
 });
 
+// Count helper shared by the GET stats endpoint + the POST batch
+// runner so both reflect the exact same "needs backfill" predicate
+// (mbid-shaped row, primary_type still NULL). Discogs-only mbids
+// are excluded because MB can't resolve them.
+function countAlbumsNeedingTypeBackfill(): number {
+  return (
+    queryGet(
+      `SELECT COUNT(*) AS c FROM albums
+       WHERE primary_type IS NULL
+         AND mbid NOT LIKE 'discogs-%'
+         AND mbid IS NOT NULL`
+    ) as { c: number } | null
+  )?.c ?? 0;
+}
+
+// Stats endpoint for the admin UI backfill panel — returns just the
+// `remaining` count so the panel can auto-hide when work is done
+// (returns 0) without triggering an MB request. Refetched after
+// each POST so the count drains as batches complete.
+router.get('/albums/backfill-release-types', (_req, res) => {
+  res.json({ remaining: countAlbumsNeedingTypeBackfill() });
+});
+
 // Backfill `primary_type` + `secondary_types` for albums registered
 // before the release-type columns landed. MusicBrainz fetch is rate-
 // limited internally (~1.1s between requests), so each batch of N
@@ -1691,14 +1714,7 @@ router.post('/albums/backfill-release-types', async (req, res) => {
     Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1),
     500
   );
-  const remainingBefore = (
-    queryGet(
-      `SELECT COUNT(*) AS c FROM albums
-       WHERE primary_type IS NULL
-         AND mbid NOT LIKE 'discogs-%'
-         AND mbid IS NOT NULL`
-    ) as { c: number } | null
-  )?.c ?? 0;
+  const remainingBefore = countAlbumsNeedingTypeBackfill();
 
   if (remainingBefore === 0) {
     return res.json({ processed: 0, updated: 0, failed: 0, remaining: 0 });
