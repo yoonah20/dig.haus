@@ -8,3 +8,4 @@ export { default as Chip } from './Chip';
 export { default as SectionTitle } from './SectionTitle';
 export { default as Field, FIELD_CHROME } from './Field';
 export { default as DigmanEmpty } from './DigmanEmpty';
+export { default as Button } from './Button';

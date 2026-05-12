@@ -10,7 +10,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useCurationProgress } from '../contexts/CurationProgressContext';
 import type { AlbumSearchResult } from '../types';
-import { DigmanEmpty } from './ui';
+import { DigmanEmpty, Button } from './ui';
 
 // URL paste branch — when the input string looks like an http(s) URL we
 // route through the Discogs / OG-scrape extractor instead of running a
@@ -497,31 +497,35 @@ function ExternalRow({
         </p>
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
           onClick={onRegister}
           disabled={disabled || pending}
           title="이 앨범을 dig.haus에 등록"
           aria-label="등록"
-          className="w-7 h-7 flex items-center justify-center rounded-full border border-accent/60 text-accent text-base leading-none hover:bg-accent hover:text-black transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          className="text-base leading-none disabled:opacity-40"
         >
           {pending ? (
             <span className="w-3 h-3 border-2 border-gray-500 border-t-accent rounded-full animate-spin" />
           ) : (
             '+'
           )}
-        </button>
+        </Button>
         {isAdmin && (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
+            iconOnly
             onClick={onRegisterCurate}
             disabled={disabled || pending}
             title="등록 후 자동 큐레이션까지 실행"
             aria-label="등록 + 큐레이션"
-            className="w-7 h-7 flex items-center justify-center rounded-full border border-accent/60 text-accent text-base leading-none hover:bg-accent hover:text-black transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="text-base leading-none disabled:opacity-40"
           >
             ⚡
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -662,13 +666,14 @@ function ManualAlbumForm({
         >
           취소
         </button>
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          size="sm"
           disabled={!canSubmit}
-          className="px-3 py-1.5 text-xs font-semibold rounded bg-accent text-black hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {pending ? '등록 중…' : '등록하기'}
-        </button>
+        </Button>
       </div>
     </form>
   );
