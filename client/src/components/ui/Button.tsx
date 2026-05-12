@@ -30,7 +30,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 // hatch is `className` which appends to (rather than replaces)
 // the variant's class list.
 
-type ButtonVariant = 'primary' | 'ghost' | 'danger';
+type ButtonVariant = 'primary' | 'ghost' | 'ghost-soft' | 'danger';
 type ButtonSize = 'sm' | 'md';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -56,9 +56,16 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 // shift not to mislead.
 const VARIANT: Record<ButtonVariant, string> = {
   primary:
-    'bg-accent text-panel-strong font-semibold hover:bg-accent-hover disabled:opacity-50',
+    'bg-accent text-ink font-semibold hover:bg-accent-hover disabled:opacity-50',
   ghost:
-    'bg-transparent border border-accent/60 text-accent hover:bg-accent hover:text-panel-strong disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-accent',
+    'bg-transparent border border-accent/60 text-accent hover:bg-accent hover:text-ink disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-accent',
+  // ghost-soft — same amber border/text language as ghost but with a
+  // gentler hover that only tints the surface (bg-accent/10) rather
+  // than filling it solid. Used inside modals where the bolder ghost
+  // fill reads as too loud against the quieter dialog tone (Username
+  // Modal, Snapshot save dialog, VinylWallEditor confirm bar).
+  'ghost-soft':
+    'bg-transparent border border-accent/60 text-accent hover:bg-accent/10 hover:border-accent disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:border-accent/60',
   danger:
     'bg-transparent border border-red-500/40 text-red-400 hover:bg-red-500/90 hover:text-white disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-red-400',
 };

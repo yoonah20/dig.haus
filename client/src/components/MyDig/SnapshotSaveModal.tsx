@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCreateVinylWallSnapshot } from '../../hooks/useMyDig';
+import { Button } from '../ui';
 
 // Save-snapshot modal. Owner triggers it from the /my/:username
 // header. Form captures two fields:
@@ -151,14 +152,14 @@ export default function SnapshotSaveModal({
           >
             취소
           </button>
-          <button
-            type="button"
+          <Button
+            variant="ghost-soft"
+            size="sm"
             onClick={handleSave}
             disabled={create.isPending}
-            className="text-xs text-accent hover:text-accent-hover border border-accent/50 hover:border-accent rounded-md px-3 py-1.5 cursor-pointer disabled:opacity-50 transition-colors"
           >
             {create.isPending ? '저장 중…' : '저장'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

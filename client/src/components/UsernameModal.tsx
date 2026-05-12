@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
+import { Button } from './ui';
 
 interface Props {
   open: boolean;
@@ -106,14 +107,15 @@ export default function UsernameModal({ open, onClose, onSaved, initialValue }: 
           >
             취소
           </button>
-          <button
-            type="button"
+          <Button
+            variant="ghost-soft"
+            size="sm"
             onClick={handleSave}
             disabled={!localValid || saving}
-            className="text-xs font-medium text-accent border border-accent/60 hover:bg-accent/10 rounded-md px-3 py-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="font-medium"
           >
             {saving ? '저장 중…' : '저장'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
