@@ -7,6 +7,7 @@ import {
 import { useSearchParams } from 'react-router-dom';
 import axios from '../lib/axios';
 import AlbumCard from '../components/AlbumCard';
+import { Popover } from '../components/ui';
 import { useSearchOverlay } from '../contexts/SearchOverlayContext';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import { useHomeState, type DensityValue } from '../contexts/HomeStateContext';
@@ -632,9 +633,13 @@ function SortTrigger({
         </svg>
       </button>
       {open && (
-        <div
+        <Popover
           role="menu"
-          className="absolute left-0 mt-1 w-44 bg-panel border border-white/10 rounded-lg shadow-2xl py-1 z-50"
+          strong={false}
+          radius="lg"
+          pad="none"
+          shadow="2xl"
+          className="absolute left-0 mt-1 w-44 py-1 z-50"
         >
           {visibleOptions.map((opt) => {
             const isCurrent = opt.value === sort;
@@ -659,7 +664,7 @@ function SortTrigger({
               </button>
             );
           })}
-        </div>
+        </Popover>
       )}
     </div>
   );
