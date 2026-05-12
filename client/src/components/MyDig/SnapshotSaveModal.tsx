@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCreateVinylWallSnapshot } from '../../hooks/useMyDig';
-import { Button } from '../ui';
+import { Button, Field } from '../ui';
 
 // Save-snapshot modal. Owner triggers it from the /my/:username
 // header. Form captures two fields:
@@ -95,13 +95,13 @@ export default function SnapshotSaveModal({
         <label className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
           이름
         </label>
-        <input
+        <Field
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={60}
           autoFocus
-          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent focus:outline-none"
+          className="w-full"
           placeholder={todayDateLabel()}
         />
         <p className="text-[10px] text-gray-600 mt-1">
@@ -111,13 +111,14 @@ export default function SnapshotSaveModal({
         <label className="block text-[11px] uppercase tracking-wider text-gray-500 mt-4 mb-1">
           설명 (선택)
         </label>
-        <textarea
+        <Field
+          as="textarea"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={240}
           rows={2}
           placeholder="이 15장의 앨범에 대한 이야기를 짧게 적어보세요."
-          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-white focus:border-accent focus:outline-none placeholder-gray-600 resize-none leading-snug"
+          className="w-full resize-none leading-snug"
         />
         <p className="text-[10px] text-gray-600 mt-1 text-right">
           {description.length}/240

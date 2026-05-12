@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
-import { Button } from './ui';
+import { Button, Field } from './ui';
 
 interface Props {
   open: boolean;
@@ -78,7 +78,7 @@ export default function UsernameModal({ open, onClose, onSaved, initialValue }: 
             dig.haus/my/<span className="text-gray-500">{trimmed || 'your_name'}</span>
           </code>
         </p>
-        <input
+        <Field
           type="text"
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -90,7 +90,7 @@ export default function UsernameModal({ open, onClose, onSaved, initialValue }: 
           autoFocus
           placeholder="예: dustylp"
           maxLength={30}
-          className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60 mb-2"
+          className="w-full mb-2"
         />
         {!localValid && trimmed.length > 0 && (
           <p className="text-xs text-gray-500 mb-2">

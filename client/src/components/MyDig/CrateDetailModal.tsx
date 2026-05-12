@@ -7,7 +7,7 @@ import {
   useUpdateCrate,
 } from '../../hooks/useCrates';
 import CoverArt from '../CoverArt';
-import { DigmanEmpty } from '../ui';
+import { DigmanEmpty, Field } from '../ui';
 
 // Detail view for a single crate. Owner sees full management surface
 // (rename / describe / public toggle / delete crate / remove items);
@@ -192,7 +192,8 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
         {(isOwner || crate.description) && (
           <div className="px-5 pt-3">
             {isOwner ? (
-              <textarea
+              <Field
+                as="textarea"
                 value={description}
                 onChange={(e) => {
                   setDescription(e.target.value);
@@ -202,7 +203,7 @@ export default function CrateDetailModal({ crateId, onClose }: Props) {
                 placeholder="이 상자가 어떤 모음인지 짧게 적어보세요. (선택)"
                 maxLength={240}
                 rows={2}
-                className="w-full bg-panel-strong border border-white/10 rounded-md px-3 py-2 text-sm text-gray-200 focus:border-accent focus:outline-none placeholder-gray-600 resize-none"
+                className="w-full resize-none"
               />
             ) : (
               <p className="text-sm text-gray-300 leading-relaxed">
