@@ -62,37 +62,48 @@ const Field = forwardRef<
   HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement,
   FieldProps
 >(function Field(props, ref) {
+  // Pull our owned props out — className for merging, size for the
+  // chrome scale, as for the element selector. Everything else
+  // (`rest`) flows to the underlying element unchanged. The cast to
+  // `any` on the rest spread sidesteps the strict tsc -b check that
+  // refuses to spread a union with FieldSize-typed `size` into an
+  // <input> whose native `size` expects number — we own that prop
+  // by destructuring it out before the spread, so the runtime is
+  // safe even though the type system can't follow that through the
+  // discriminated union.
   const {
     className = '',
     size = 'md',
+    as = 'input',
     ...rest
-  } = props as FieldProps & { className?: string; size?: FieldSize };
+  } = props as {
+    className?: string;
+    size?: FieldSize;
+    as?: 'input' | 'textarea' | 'select';
+  } & Record<string, unknown>;
   const merged = `${CHROME_BASE} ${CHROME_SIZE[size]} ${className}`.trim();
 
-  if ('as' in rest && rest.as === 'textarea') {
-    const { as: _as, ...textareaProps } = rest;
+  if (as === 'textarea') {
     return (
       <textarea
-        {...textareaProps}
+        {...(rest as TextareaHTMLAttributes<HTMLTextAreaElement>)}
         ref={ref as Ref<HTMLTextAreaElement>}
         className={merged}
       />
     );
   }
-  if ('as' in rest && rest.as === 'select') {
-    const { as: _as, ...selectProps } = rest;
+  if (as === 'select') {
     return (
       <select
-        {...selectProps}
+        {...(rest as SelectHTMLAttributes<HTMLSelectElement>)}
         ref={ref as Ref<HTMLSelectElement>}
         className={merged}
       />
     );
   }
-  const { as: _as, ...inputProps } = rest as InputProps;
   return (
     <input
-      {...inputProps}
+      {...(rest as InputHTMLAttributes<HTMLInputElement>)}
       ref={ref as Ref<HTMLInputElement>}
       className={merged}
     />
