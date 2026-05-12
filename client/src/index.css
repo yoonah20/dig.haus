@@ -123,6 +123,20 @@ body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+  /* Korean web typography defaults — word-break: keep-all is the
+     single biggest improvement for Korean text. Without it, mixed
+     Korean / English / number text wraps by breaking Korean
+     characters at arbitrary positions mid-어절, which reads as
+     broken. keep-all keeps Korean syllabic blocks together and
+     wraps at spaces / Latin word boundaries instead. line-height
+     bumps from the browser default 1.5 to 1.6 so Korean lines
+     breathe — Korean characters are visually taller than Latin,
+     and 1.5 feels cramped at body sizes. Subpixel rendering hints
+     already in place. */
+  word-break: keep-all;
+  line-height: 1.6;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'kern' 1, 'liga' 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
