@@ -24,15 +24,10 @@ const NotFound = lazy(() => import('./pages/NotFound'));
 // the placeholder while every chunk in the app was small — once the
 // MyDig + Admin chunks grew this fallback became visible long enough
 // that a faceless spinner felt cold. Swapped to the digman mascot
-// with a slow pulse so the in-between state stays on-brand instead.
-//
-// digman.webp was resized from a head-and-shoulders source to a full-
-// body portrait, which broke the original landscape crop (the old
-// w-24 h-[76px] + object-top combo clipped to helmet-only with the
-// new asset). Wrapper now matches the source's portrait aspect with
-// object-contain so the entire figure renders, and total footprint
-// is bumped ~+50% so the loading state has visual presence rather
-// than reading as a tiny mascot vignette.
+// (digging pose — the "I'm working on it" expression for an
+// in-flight chunk load) with a slow pulse so the in-between state
+// stays on-brand. Wrapper is square + object-contain so the full
+// portrait renders at any breakpoint.
 function RouteFallback() {
   return (
     <div className="min-h-[50vh] flex items-center justify-center">

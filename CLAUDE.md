@@ -62,8 +62,6 @@ Bundle into the roadmap item that touches the same surface — don't fix purely 
 
 - `shelf_slots.genre_id` references `genres` (still seeded with 16 entries via `seed-genres-initial-2026-04-20`). Decisions log entry 2 said freeform masking-tape labels per slot replaced this. Either migrate to a `label TEXT` column or codify the genre design — pick one explicitly when roadmap item 2 (Crate) lands.
 - `shelf_slots` + separate `shelf_items` is non-polymorphic. The original plan was `target_type` + `target_id` letting one slot point at either an album or a crate. Functionally similar today; revisit if and when polymorphism becomes useful.
-- `crate_boxes.position` exists for floor placement and is currently dormant. Wiring the column to whichever semantic wins under roadmap item 2 closes the loop.
-- `users.mydig_public` column declared, never read or written. Drop in the next schema batch or wire it to a real privacy gate when per-layer privacy work happens.
 
 ### Core principles (still apply)
 
@@ -129,6 +127,10 @@ Current per-album cost is **~$0.01** for a typical 9-15 review pull (per-review 
 - **Timestamps**: server stores UTC via SQLite `datetime('now')`. Client-side `parseServerTimestamp` (in `utils/relativeTime.ts`) normalises to ISO UTC before display so KST users don't see a 9-hour offset.
 - **Similar albums**: `isAdmin || albums.length >= 1` gate. Admin only sees it if no picks exist yet. `similar_albums_lastfm IS NULL` is the auto-regen gate (so admin clearing picks doesn't re-fire the call).
 - **Voting + ownership**: split-pill buttons — 굿굿/별루 (blue/red halves, muted palette) and 샀음/살거 (amber/purple halves) share the pill shape. Format selection for 샀음/살거 is intentionally removed at the UI layer; data defaults to Vinyl.
+- **Digman mascot — pose-specific assets**: the yellow-hardhat character (see [[project_hardhat_character]]) lives in `client/public/textures/` as one webp per expressive pose. Use the pose that matches the surface's emotional role:
+  - **Empty-state poses surfaced via `DigmanEmpty` (`client/src/components/ui/DigmanEmpty.tsx`)** — the canonical empty-state primitive. Variants: `thinking` (question / "no results"), `sad` (relational void — no followers, no comments), `sleep` (paused / inactive), `dizzy` (404 / error), `sign` (digman holding a signpost for "go here" empty states; uses `digman_signpost.webp` + larger framing). Add a new empty-state pose by extending `DigmanEmpty`'s variant enum + `VARIANT_SRC` map rather than spawning a new component.
+  - **Direct-use poses (no enum, imported by name)** — `digman_digging.webp` (in-flight / working, e.g. the `RouteFallback` in `App.tsx`), `digman_listening.webp`, `digman_excited.webp`, `digman_sweat.webp`, `digman_feed.webp`. Used where the surface owns its own framing (loading spinner, feed badge, etc.) rather than reaching for the DigmanEmpty layout.
+  - The original generic `digman.webp` (head-and-shoulders crop) was retired after the pose split — pose-specific webps are the only path forward. Do **not** add a surface that reaches for a generic mascot; pick a pose. New poses land as `digman_<pose>.webp` next to the existing ones; if the pose is for an empty state, wire it into `DigmanEmpty`'s variant enum + `VARIANT_SRC`.
 
 ---
 
@@ -142,7 +144,6 @@ Known-but-deliberately-deferred items. Each is functional today — don't fix ju
 - **Wall reorder is last-write-wins** (`PUT /api/mydig/vinyl-wall/items` in `server/src/routes/mydig.ts`): the bulk-replace transaction can clobber a concurrent edit from another tab/device. Fine for the single-owner-single-tab default; add ETag/version CAS if multi-device editing becomes a real complaint.
 - **Concurrent external-API fan-out** in similar-album enrichment (`server/src/routes/albums.ts:1501-1598`): each similar album gets searchTrack + searchVideo + searchBandcamp + searchMasterUrl in parallel, no rate limiter. Worth wrapping in `p-limit` before the Phase 4 nightly pipeline lands a second fan-out path on the same external services.
 - **`port-kill` via `execSync(lsof | xargs kill)`** in `server/src/index.ts`: works, PORT comes from env so no real injection vector, but the shell glob style is unsafe-looking and doesn't belong on the boot path. Replace with native `net.Server` probe + `process.kill` when something else in that file needs work.
-- **`users.mydig_public` vestigial column**: declared but never read or written. Either drop it in the next schema batch or wire it to a real privacy gate when the per-layer privacy work happens.
 ---
 
 ## File map (where things live)
