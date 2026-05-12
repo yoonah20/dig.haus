@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useFollowers, useFollowing } from '../hooks/useFollow';
 import FollowButton from './FollowButton';
 import { resolveApiUrl } from '../utils/apiUrl';
-import { DigmanEmpty } from './ui';
+import { DigmanEmpty, Panel } from './ui';
 
 // Modal that lists a user's followers or followings. Two columns
 // aren't needed — it's a single column of rows, each row carrying
@@ -35,9 +35,11 @@ export default function FollowListModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
-      <div
-        className="w-full max-w-md bg-panel-strong border border-white/10 rounded-xl p-5 max-h-[70vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+      <Panel
+        strong
+        radius="xl"
+        className="w-full max-w-md max-h-[70vh] flex flex-col"
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg text-white font-serif italic">{title}</h2>
@@ -125,7 +127,7 @@ export default function FollowListModal({
             })}
           </div>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }
