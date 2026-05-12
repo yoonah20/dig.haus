@@ -230,7 +230,7 @@ export default function UserHoverCard({
                   referrerPolicy="no-referrer"
                 />
               ) : (
-                <div className="w-[72px] h-[72px] rounded-full bg-[#2a1f10] border border-white/10 shrink-0 flex items-center justify-center text-accent font-semibold text-2xl">
+                <div className="w-[72px] h-[72px] rounded-full bg-avatar-bg border border-white/10 shrink-0 flex items-center justify-center text-accent font-semibold text-2xl">
                   {(data.user.name || '?').trim().charAt(0).toUpperCase()}
                 </div>
               )}

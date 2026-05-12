@@ -93,6 +93,17 @@
   --color-tape-ink: #2a1a0d;
   --color-lamp-warm: rgba(255, 200, 130, 0.42);
 
+  /* Avatar fallback bg — warm dark behind the accent-tinted initial
+     letter shown when a user has no uploaded avatar. Repeats across
+     home ticker, profile card, snapshot card, follow modal, hover
+     card, user review row, etc. — all paired with the same
+     `text-accent + border-white/10` chrome, so the bg gets its own
+     token. Distinct from rail/panel-strong: slightly warmer than
+     panel-strong (#181410) and slightly less saturated than rail
+     (#2a1a0c) so the circle reads as a small object on either
+     surface tier without blending in. */
+  --color-avatar-bg: #2a1f10;
+
   /* Radius scale — pin three values for the chrome system so cards
      / inputs / pills stop inventing their own. Album page audit
      found rounded-md/lg/xl/2xl/full all in use across sections

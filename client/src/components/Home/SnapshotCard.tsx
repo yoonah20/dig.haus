@@ -130,7 +130,7 @@ export default function SnapshotCard({
           />
         ) : (
           <div
-            className="w-5 h-5 rounded-full bg-[#2a1f10] text-accent flex items-center justify-center shrink-0 border border-white/10 text-[10px] font-semibold"
+            className="w-5 h-5 rounded-full bg-avatar-bg text-accent flex items-center justify-center shrink-0 border border-white/10 text-[10px] font-semibold"
             aria-hidden
           >
             {(displayName || '?').trim().charAt(0).toUpperCase()}

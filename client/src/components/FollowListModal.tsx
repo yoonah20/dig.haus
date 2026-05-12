@@ -150,7 +150,7 @@ function AvatarCell({
     );
   }
   return (
-    <div className="w-10 h-10 rounded-full bg-[#2a1f10] border border-white/10 shrink-0 flex items-center justify-center text-accent font-semibold">
+    <div className="w-10 h-10 rounded-full bg-avatar-bg border border-white/10 shrink-0 flex items-center justify-center text-accent font-semibold">
       {initial}
     </div>
   );

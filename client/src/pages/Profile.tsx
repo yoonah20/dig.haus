@@ -136,7 +136,7 @@ function AvatarEditor({
           referrerPolicy="no-referrer"
         />
       ) : (
-        <div className="w-20 h-20 rounded-full bg-[#2a1f10] border border-white/10 shrink-0" />
+        <div className="w-20 h-20 rounded-full bg-avatar-bg border border-white/10 shrink-0" />
       )}
       <div className="flex flex-col gap-2 items-start min-w-0">
         <input

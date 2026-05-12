@@ -51,7 +51,7 @@ function Avatar({ src, name, size = 52 }: { src: string | null; name: string | n
   }
   return (
     <div
-      className="rounded-full bg-[#2a1f10] text-accent flex items-center justify-center shrink-0 border border-white/10 font-semibold"
+      className="rounded-full bg-avatar-bg text-accent flex items-center justify-center shrink-0 border border-white/10 font-semibold"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
       {initial}
