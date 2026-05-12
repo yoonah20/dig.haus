@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import type { ComponentPropsWithoutRef, ReactNode } from 'react';
 
 // Floating-UI surface — tooltips, dropdowns, menus, hover cards.
@@ -69,22 +70,26 @@ const SHADOW: Record<PopoverShadow, string> = {
   '2xl': 'shadow-2xl',
 };
 
-export default function Popover({
-  children,
-  className = '',
-  strong = true,
-  tone = 'default',
-  radius = 'lg',
-  pad = 'md',
-  shadow = 'xl',
-  animate = false,
-  ...rest
-}: PopoverProps) {
+const Popover = forwardRef<HTMLDivElement, PopoverProps>(function Popover(
+  {
+    children,
+    className = '',
+    strong = true,
+    tone = 'default',
+    radius = 'lg',
+    pad = 'md',
+    shadow = 'xl',
+    animate = false,
+    ...rest
+  },
+  ref
+) {
   const bg = strong ? 'bg-panel-strong' : 'bg-panel';
   const motion = animate ? 'animate-[fadeInUp_150ms_ease-out]' : '';
   return (
     <div
       {...rest}
+      ref={ref}
       className={`${bg} ${TONE[tone]} ${RADIUS[radius]} ${PAD[pad]} ${SHADOW[shadow]} ${motion} ${className}`
         .replace(/\s+/g, ' ')
         .trim()}
@@ -92,4 +97,6 @@ export default function Popover({
       {children}
     </div>
   );
-}
+});
+
+export default Popover;

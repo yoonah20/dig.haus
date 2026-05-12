@@ -31,7 +31,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 // the variant's class list.
 
 type ButtonVariant = 'primary' | 'ghost' | 'ghost-soft' | 'danger';
-type ButtonSize = 'sm' | 'md';
+type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -70,23 +70,25 @@ const VARIANT: Record<ButtonVariant, string> = {
     'bg-transparent border border-red-500/40 text-red-400 hover:bg-red-500/90 hover:text-white disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-red-400',
 };
 
-// Rectangular sizes — text + horizontal padding tuned so the two
-// sizes feel distinct without becoming an explicit "small / large"
-// pair (we don't have a lg yet; add if a third size earns its
-// place).
+// Rectangular sizes — text + horizontal padding tuned to a three-
+// tier scale: sm for inline / form chrome, md for standard CTAs,
+// lg for hero-scale CTAs that need their own visual weight ("지금
+// 시작하기" on MyDig, page-level primary actions).
 const SIZE: Record<ButtonSize, string> = {
   sm: 'text-xs px-2.5 py-1',
   md: 'text-sm px-4 py-1.5',
+  lg: 'text-base md:text-lg px-6 py-3',
 };
 
 // Icon-only — square + rounded-full so nav glyphs sit in a circle.
 // sm matches the inline corner-action chips (SearchBar +/⚡, etc).
 // md matches the existing nav-button footprint (w-8 h-8) so swapping
 // nav buttons over to <Button iconOnly size="md"> doesn't shift any
-// nav layout px.
+// nav layout px. lg is the rare floating-action footprint.
 const ICON_SIZE: Record<ButtonSize, string> = {
   sm: 'w-7 h-7 p-0',
   md: 'w-8 h-8 p-0',
+  lg: 'w-12 h-12 p-0',
 };
 
 export default function Button({

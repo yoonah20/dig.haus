@@ -12,7 +12,7 @@ import {
 import type { PurchaseLink, FormatPrice, PurchaseLinkStatus } from '../types';
 import { formatRelativeKo } from '../utils/relativeTime';
 import CardOverlayButton from './CardOverlayButton';
-import { Button } from './ui';
+import { Button, Popover } from './ui';
 
 const CURRENCIES = ['USD', 'EUR', 'JPY', 'GBP', 'KRW'] as const;
 type Currency = (typeof CURRENCIES)[number];
@@ -130,12 +130,16 @@ function ReportPopover({
   };
 
   return (
-    <div
+    <Popover
       ref={rootRef}
       role="dialog"
       aria-label="구매처 신고"
-      className="absolute top-full right-0 mt-2 z-30 w-52 bg-panel border border-white/10 rounded-lg shadow-xl p-2.5 text-xs"
-      onClick={(e) => e.stopPropagation()}
+      strong={false}
+      radius="lg"
+      pad="sm"
+      shadow="xl"
+      className="absolute top-full right-0 mt-2 z-30 w-52 text-xs"
+      onClick={(e: React.MouseEvent) => e.stopPropagation()}
     >
       <div className="text-gray-400 text-[11px] uppercase tracking-wider mb-1.5">
         신고 사유
@@ -178,7 +182,7 @@ function ReportPopover({
           {report.isPending ? '…' : '신고'}
         </Button>
       </div>
-    </div>
+    </Popover>
   );
 }
 
