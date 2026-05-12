@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import CoverArt from '../CoverArt';
 import QuickRegister from './QuickRegister';
 import SnapshotSaveModal from './SnapshotSaveModal';
-import { Button, Field } from '../ui';
+import { Button, Field, Panel } from '../ui';
 import {
   useMyDigCandidates,
   useSaveVinylWall,
@@ -1002,7 +1002,7 @@ function SaveChoicePrompt({
       role="dialog"
       aria-modal
     >
-      <div className="w-full max-w-md bg-panel-strong border border-white/10 rounded-xl p-5">
+      <Panel strong radius="xl" className="w-full max-w-md">
         <h2 className="text-lg text-white font-serif italic mb-1">
           저장하기
         </h2>
@@ -1036,7 +1036,7 @@ function SaveChoicePrompt({
             📸 기억하며 저장
           </Button>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

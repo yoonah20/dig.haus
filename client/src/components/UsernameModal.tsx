@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
-import { Button, Field } from './ui';
+import { Button, Field, Panel } from './ui';
 
 interface Props {
   open: boolean;
@@ -67,7 +67,7 @@ export default function UsernameModal({ open, onClose, onSaved, initialValue }: 
         if (e.target === e.currentTarget && !saving) onClose();
       }}
     >
-      <div className="bg-panel rounded-xl border border-white/10 max-w-md w-full p-6">
+      <Panel radius="xl" className="max-w-md w-full">
         <h2 className="text-lg font-bold text-white mb-2">
           {initialValue ? '사용자명 변경' : '내 가게 이름 정하기'}
         </h2>
@@ -117,7 +117,7 @@ export default function UsernameModal({ open, onClose, onSaved, initialValue }: 
             {saving ? '저장 중…' : '저장'}
           </Button>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

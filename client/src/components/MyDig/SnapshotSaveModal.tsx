@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCreateVinylWallSnapshot } from '../../hooks/useMyDig';
-import { Button, Field } from '../ui';
+import { Button, Field, Panel } from '../ui';
 
 // Save-snapshot modal. Owner triggers it from the /my/:username
 // header. Form captures two fields:
@@ -81,9 +81,11 @@ export default function SnapshotSaveModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       onClick={onClose}
     >
-      <div
-        className="w-full max-w-md bg-panel-strong border border-white/10 rounded-xl p-5"
-        onClick={(e) => e.stopPropagation()}
+      <Panel
+        strong
+        radius="xl"
+        className="w-full max-w-md"
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
       >
         <h2 className="text-lg text-white font-serif italic mb-1">
           현재 구성을 '기억'하기
@@ -162,7 +164,7 @@ export default function SnapshotSaveModal({
             {create.isPending ? '저장 중…' : '저장'}
           </Button>
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }
