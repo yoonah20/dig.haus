@@ -38,13 +38,12 @@ async function extractFromDiscogsUrl(url: URL): Promise<ExtractResult | null> {
   return {
     artist: detail.artist,
     title: detail.title,
-    // Always emit a release-prefixed MBID — even if the user pasted a
-    // /master URL, we already resolved it to its main_release above,
-    // and getOrFetchAlbumBase routes both `discogs-master-{id}` and
-    // `discogs-release-{id}` through the same release-detail call.
-    // Pinning to release- here keeps the cache key stable across the
-    // master/release re-paste case.
-    mbid: `discogs-release-${releaseId}`,
+    // getOrFetchAlbumBase accepts discogs-{id} (release) and
+    // discogs-master-{id} (master). Use the plain discogs-{id} form here
+    // because we already resolved the master to its main_release above,
+    // making the cache key stable regardless of whether the user pasted
+    // a /master or /release URL.
+    mbid: `discogs-${releaseId}`,
     year: detail.year || null,
     coverArtUrl: detail.coverArtUrl || null,
   };
