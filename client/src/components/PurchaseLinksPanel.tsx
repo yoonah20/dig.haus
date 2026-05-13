@@ -310,43 +310,46 @@ function LinkButton({
 
 const DISCOGS_FAVICON = 'https://www.google.com/s2/favicons?domain=discogs.com&sz=64';
 
-function DiscogsFormatCard({ fmt }: { fmt: FormatPrice }) {
+function DiscogsSection({ formats }: { formats: FormatPrice[] }) {
   return (
-    <a
-      href={fmt.sellUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group flex items-center gap-3 bg-[#161b2a] hover:bg-[#1d2336] rounded-xl pl-4 pr-4 py-3 transition-colors min-w-0"
-    >
-      <img
-        src={DISCOGS_FAVICON}
-        alt=""
-        aria-hidden
-        className="w-5 h-5 rounded-sm flex-shrink-0"
-        referrerPolicy="no-referrer"
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="text-white text-sm font-medium truncate group-hover:text-accent transition-colors">
-            Discogs
+    <div className="bg-[#161b2a] rounded-xl overflow-hidden min-w-0">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-1.5">
+        <img
+          src={DISCOGS_FAVICON}
+          alt=""
+          aria-hidden
+          className="w-4 h-4 rounded-sm flex-shrink-0"
+          referrerPolicy="no-referrer"
+        />
+        <span className="text-gray-400 text-xs font-medium">Discogs</span>
+      </div>
+      {formats.map((fmt, i) => (
+        <a
+          key={fmt.format}
+          href={fmt.sellUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`group flex items-center gap-2 px-4 py-2 hover:bg-[#1d2336] transition-colors min-w-0${i < formats.length - 1 ? ' border-b border-white/5' : ' pb-3'}`}
+        >
+          <span className="text-gray-300 text-xs truncate flex-1 group-hover:text-accent transition-colors">
+            {fmt.format}
           </span>
           {fmt.lowestPrice !== null && (
-            <span className="text-accent text-sm font-bold tabular-nums">
+            <span className="text-accent text-sm font-bold tabular-nums flex-shrink-0">
               ${fmt.lowestPrice.toFixed(2)}
             </span>
           )}
-          <span className="text-gray-500 text-xs tabular-nums">
-            ({fmt.copiesForSale}개{fmt.copiesForSale > 1 ? ' 중 최저가' : ''})
+          {fmt.lowestPriceKrw != null && (
+            <span className="text-gray-500 text-xs tabular-nums flex-shrink-0 hidden sm:inline">
+              {formatKrw(fmt.lowestPriceKrw)}
+            </span>
+          )}
+          <span className="text-gray-500 text-xs tabular-nums flex-shrink-0">
+            {fmt.copiesForSale}개{fmt.copiesForSale > 1 ? ' 중' : ''}
           </span>
-        </div>
-        <Subline
-          parts={[
-            fmt.format,
-            fmt.lowestPriceKrw != null ? formatKrw(fmt.lowestPriceKrw) : null,
-          ]}
-        />
-      </div>
-    </a>
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -805,9 +808,9 @@ export default function PurchaseLinksPanel({
             <AddPurchaseLinkCard onClick={() => setAdding(true)} />
           )}
 
-          {discogsCards.map((fmt) => (
-            <DiscogsFormatCard key={fmt.format} fmt={fmt} />
-          ))}
+          {discogsCards.length > 0 && (
+            <DiscogsSection formats={discogsCards} />
+          )}
         </div>
       )}
     </div>

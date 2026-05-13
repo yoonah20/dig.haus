@@ -829,7 +829,7 @@ export default function ReviewSection({
                   </div>
                 </div>
               ) : (
-                <p className="text-gray-200 leading-relaxed">
+                <p className="text-gray-200 text-sm md:text-base leading-relaxed">
                   {koreanSummary || <span className="italic text-gray-600">요약 없음</span>}
                 </p>
               )}
