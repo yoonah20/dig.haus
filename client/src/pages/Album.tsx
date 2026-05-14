@@ -166,7 +166,7 @@ export default function Album() {
             right (narrow) = 구매처 + 50자 평. */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
 
-        <div className="mt-10 lg:grid lg:grid-cols-[1fr_340px] lg:gap-10 lg:items-start">
+        <div className="mt-10 lg:grid lg:grid-cols-[1fr_280px] lg:gap-8 lg:items-start">
           <div>
             {reviewsLoading ? (
               <SectionLoader text="리뷰를 불러오고 있습니다..." />
