@@ -793,7 +793,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   }
 
   return (
-    <div className="relative flex flex-col md:flex-row gap-8">
+    <div className="relative flex flex-col md:flex-row gap-6 bg-panel rounded-panel p-6">
       {user?.isAdmin && (
         <div ref={adminMenuRef} className="absolute top-0 right-0">
           <button
@@ -1034,7 +1034,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               // headers at visibly different scales. Long titles now
               // wrap to a second / third line instead — the page
               // header's vertical rhythm stays stable.
-              className="font-bold text-white font-serif text-editorial-md md:text-editorial-xl break-words min-w-0"
+              className="font-bold text-white font-serif text-editorial-sm md:text-editorial-lg break-words min-w-0 leading-tight"
             >
               {album.title}
             </h1>
@@ -1100,7 +1100,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
           <ArtistCredit
             credit={album.artistCredit}
             fallback={album.artist}
-            className="text-editorial-sm md:text-editorial-lg text-accent hover:underline inline-block font-serif cursor-pointer text-left"
+            className="text-editorial-sm md:text-editorial-md text-accent hover:underline inline-block font-serif cursor-pointer text-left"
           />
           {/* The button-version above replaces the previous single
               `openOverlay(album.artist)` button; openOverlay is now
@@ -1165,7 +1165,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               const hasContent = segments.length > 0;
               if (!hasContent && !user?.isAdmin) return null;
               return (
-                <div className="flex items-center gap-2 text-gray-500 text-sm font-normal mt-4 mb-5">
+                <div className="flex items-center gap-2 text-gray-500 text-sm font-normal mt-1 mb-3">
                   {hasContent ? <span>[{segments.join(' ~ ')}]</span> : <span className="italic text-gray-600">한국어 번역 없음</span>}
                   {user?.isAdmin && (
                     <>
@@ -1193,7 +1193,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             })()
           )}
 
-          <div className="flex items-center gap-2 text-gray-400 text-sm mb-4 flex-wrap">
+          <div className="flex items-center gap-2 text-gray-400 text-sm mb-3 flex-wrap">
             {album.releaseDate && <span>{formatReleaseDate(album.releaseDate)}</span>}
             {album.label && (
               <>
