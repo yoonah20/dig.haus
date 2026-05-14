@@ -1022,7 +1022,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       </div>
 
       {/* Info + Streaming */}
-      <div className="flex flex-col justify-between flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-0">
         <div>
           <div className="flex items-start gap-2 mb-1">
             <h1
@@ -1100,7 +1100,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
           <ArtistCredit
             credit={album.artistCredit}
             fallback={album.artist}
-            className="text-editorial-sm md:text-editorial-md text-accent hover:underline inline-block font-serif cursor-pointer text-left"
+            className="text-editorial-sm md:text-editorial-lg text-accent hover:underline inline-block font-serif cursor-pointer text-left"
           />
           {/* The button-version above replaces the previous single
               `openOverlay(album.artist)` button; openOverlay is now
@@ -1193,7 +1193,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             })()
           )}
 
-          <div className="flex items-center gap-2 text-gray-400 text-sm mb-3 flex-wrap">
+          <div className="flex items-center gap-2 text-gray-400 text-sm mb-6 flex-wrap">
             {album.releaseDate && <span>{formatReleaseDate(album.releaseDate)}</span>}
             {album.label && (
               <>
