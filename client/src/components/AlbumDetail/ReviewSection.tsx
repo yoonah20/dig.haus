@@ -5,11 +5,10 @@ import axios from '../../lib/axios';
 import type { Review } from '../../types';
 import { getScoreColor as scoreColor, getScoreBgColor as scoreBgColor } from '../../utils/score';
 import { useAuth } from '../../contexts/AuthContext';
-import { AiSummaryBadge } from './SimilarAlbums';
 import { useGenerateReviewSummary, useDiscoverReviewUrls } from '../../hooks/useAlbum';
 import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 import CardOverlayButton from '../CardOverlayButton';
-import { SectionTitle, Field, DigmanEmpty, Button } from '../ui';
+import { Field, DigmanEmpty, Button } from '../ui';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -124,7 +123,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
     e.stopPropagation();
     // 원문 페이지를 Jina로 다시 받아서 LLM에 전체 페이지를 다시
     // 보여주고 발쳐 + 한국어 요약을 새로 추출하는 흐름. 저장된
-    // excerpt만 다시 번역하던 옵 동작은 매 클릭마다 거의 같은
+    // excerpt만 다시 번역하던 옷 동작은 매 클릭마다 거의 같은
     // 결과를 내놓는 문제가 있어서 폐기됨.
     if (!confirm('원문 페이지를 다시 읽고 발쳐 + 요약을 새로 추출할까요? (외부 API 호출됩니다)')) return;
     setRetranslating(true);
@@ -649,13 +648,6 @@ export default function ReviewSection({
     }
   };
 
-  const googleSearchHref =
-    albumTitle && albumArtist
-      ? `https://www.google.com/search?q=${encodeURIComponent(
-          `${albumTitle} ${albumArtist} album review`
-        )}`
-      : null;
-
   const cancelEditSummary = () => {
     if (savingSummary) return;
     setEditingSummary(false);
@@ -716,48 +708,6 @@ export default function ReviewSection({
 
   return (
     <section>
-      <SectionTitle
-        variant="tape"
-        meta={
-          <>
-            <AiSummaryBadge />
-            {/* Admin-only shortcut — opens a Google search for the album
-                + artist + "album review" in a new tab. Used for quickly
-                finding review URLs to paste back into + 리뷰 추가.
-                The "album review" phrase (rather than just "review")
-                mirrors services/serper.ts so this manual shortcut and the
-                automated discover flow surface the same SERP. */}
-            {isAdmin && googleSearchHref && (
-              <a
-                href={googleSearchHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`"${albumTitle} ${albumArtist} album review" 구글 검색`}
-                aria-label="리뷰 URL 구글 검색"
-                className="inline-flex items-center justify-center w-6 h-6 text-gray-500 hover:text-accent transition-colors align-middle translate-y-[-2px] ml-1"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="w-[14px] h-[14px]"
-                  aria-hidden
-                >
-                  <circle cx="11" cy="11" r="7" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-              </a>
-            )}
-          </>
-        }
-      >
-        리뷰 모음집
-      </SectionTitle>
-
       <div className="space-y-6">
         {pendingNotice}
 
