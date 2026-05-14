@@ -740,15 +740,6 @@ export default function ReviewSection({
                   </CardOverlayButton>
                 </div>
               )}
-              {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
-                <div className="flex items-baseline gap-2 mb-3">
-                  <span className={`text-4xl font-bold ${scoreColor(averageScore)}`}>
-                    {Math.round(averageScore)}
-                  </span>
-                  <span className="text-gray-500 text-base">/ 100</span>
-                  <span className="text-gray-600 text-xs ml-1">({scoredCount}개 사이트 평균)</span>
-                </div>
-              )}
               {editingSummary ? (
                 <div className="space-y-2">
                   <textarea
@@ -778,11 +769,26 @@ export default function ReviewSection({
                     </button>
                   </div>
                 </div>
-              ) : koreanSummary ? (
-                <p className="text-gray-200 text-sm leading-relaxed">
-                  {koreanSummary}
-                </p>
-              ) : null}
+              ) : (
+                <div className="flex items-start gap-5">
+                  {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
+                    <div className="flex-shrink-0 text-center">
+                      <div className="flex items-baseline gap-1 justify-center">
+                        <span className={`text-6xl font-bold leading-none ${scoreColor(averageScore)}`}>
+                          {Math.round(averageScore)}
+                        </span>
+                        <span className="text-gray-500 text-lg">/100</span>
+                      </div>
+                      <div className="text-gray-600 text-[11px] mt-1.5">({scoredCount}개 사이트 평균)</div>
+                    </div>
+                  )}
+                  {koreanSummary && (
+                    <p className="text-gray-200 text-sm leading-relaxed flex-1 min-w-0">
+                      {koreanSummary}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
