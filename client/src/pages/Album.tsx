@@ -159,136 +159,128 @@ export default function Album() {
 
   return (
     <div className="flex-1 px-4">
-      <main className="max-w-[1120px] mx-auto py-8 space-y-10">
-        {/* Stage 1: instant */}
-        <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
-        <BuySection buy={base.buy} albumId={albumId} />
-        <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
+      <main className="max-w-[1120px] mx-auto py-8">
 
-        {/* Review section always renders — ReviewSection handles
-            admin empty-state (+ 리뷰 추가, score/excerpt edit) and
-            now accepts a pendingNotice slot for the "리뷰 수집
-            대기" banner that shows under the title when
-            reviews_crawled_at IS NULL. Admin gets the three-button
-            action bar; guest gets a friendly wait-notice. */}
-        {reviewsLoading ? (
-          <SectionLoader text="리뷰를 불러오고 있습니다..." />
-        ) : reviewsData ? (
-          <ReviewSection
-            reviews={reviewsData.reviews}
-            koreanSummary={reviewsData.koreanSummary}
-            averageScore={reviewsData.averageScore}
-            albumTitle={album.title}
-            albumArtist={album.artist}
-            prefillManualUrl={prefillManualUrl}
-            pendingNotice={
-              base.album.reviewsCrawledAt === null && isAdmin ? (
-                <ReviewsAdminBar
-                  slug={slug!}
-                  albumTitle={album.title}
-                  reviewCount={reviewsData.reviews.length}
-                />
-              ) : null
-            }
-          />
-        ) : null}
+        {/* Two-column layout on large screens: left = album info (sticky),
+            right = reviews. Stacks to single column below lg. */}
+        <div className="lg:grid lg:grid-cols-[460px_1fr] lg:gap-12 lg:items-start">
 
-        {/* Similar albums — the descriptions cost ~$0.005 per album
-            (first view only, cached afterward), so this runs
-            regardless of the review-crawl state now. Non-admins see
-            it only when at least one pick exists; admins always
-            see it (with the + add slot) per the component's own
-            gate. */}
-        <div ref={similarRef} className="min-h-[280px]">
-          {!similarVisible ? null : similarLoading ? (
-            <SectionLoader text="비슷한 앨범을 찾고 있습니다..." />
-          ) : similarData ? (
-            // Component gates itself: hidden for non-admins when the
-            // list is empty, always rendered for admins so the "추가"
-            // slot is reachable even before any pick exists.
-            <SimilarAlbums
-              albums={similarData.similarAlbums ?? []}
-              albumId={albumId}
+          {/* Left column: cover + metadata + purchase links */}
+          <div className="lg:sticky lg:top-[72px] space-y-10">
+            <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
+            <BuySection buy={base.buy} albumId={albumId} />
+          </div>
+
+          {/* Right column: user reactions + critic reviews */}
+          <div className="mt-10 lg:mt-0 space-y-10">
+            <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
+
+            {reviewsLoading ? (
+              <SectionLoader text="리뷰를 불러오고 있습니다..." />
+            ) : reviewsData ? (
+              <ReviewSection
+                reviews={reviewsData.reviews}
+                koreanSummary={reviewsData.koreanSummary}
+                averageScore={reviewsData.averageScore}
+                albumTitle={album.title}
+                albumArtist={album.artist}
+                prefillManualUrl={prefillManualUrl}
+                pendingNotice={
+                  base.album.reviewsCrawledAt === null && isAdmin ? (
+                    <ReviewsAdminBar
+                      slug={slug!}
+                      albumTitle={album.title}
+                      reviewCount={reviewsData.reviews.length}
+                    />
+                  ) : null
+                }
+              />
+            ) : null}
+          </div>
+        </div>
+
+        {/* Full-width sections below the two-column area */}
+        <div className="mt-10 space-y-10">
+          <div ref={similarRef} className="min-h-[280px]">
+            {!similarVisible ? null : similarLoading ? (
+              <SectionLoader text="비슷한 앨범을 찾고 있습니다..." />
+            ) : similarData ? (
+              <SimilarAlbums
+                albums={similarData.similarAlbums ?? []}
+                albumId={albumId}
+              />
+            ) : null}
+          </div>
+
+          <div className="flex items-end justify-center gap-3 pt-2">
+            <img
+              src="/textures/digman_sweat.webp"
+              alt=""
+              aria-hidden
+              className="w-20 sm:w-24 -rotate-6 drop-shadow-[2px_4px_4px_rgba(0,0,0,0.45)] select-none pointer-events-none"
             />
-          ) : null}
+            <span
+              className="text-accent pb-2 -rotate-3 leading-none select-none"
+              style={{
+                fontFamily: "'Caveat', cursive",
+                fontWeight: 700,
+                fontSize: '36px',
+              }}
+            >
+              Every Time I Dig
+            </span>
+          </div>
+
+          {showNav && (
+            <nav className="border-t border-white/5 pt-8 max-w-2xl mx-auto">
+              <div className={`grid gap-4 ${hasPrev && hasNext ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {hasPrev && (
+                  <Link
+                    to={`/album/${neighbors!.prev!.slug}${neighborLinkSuffix}`}
+                    className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${!hasNext ? 'col-span-full max-w-sm mx-auto' : ''}`}
+                  >
+                    <span className="text-gray-600 group-hover:text-accent transition-colors text-lg shrink-0">←</span>
+                    <CoverArt
+                      src={neighbors!.prev!.coverArtUrl}
+                      fallbacks={neighbors!.prev!.coverArtFallbacks}
+                      alt={neighbors!.prev!.title}
+                      className="w-12 h-12 rounded-md object-cover shrink-0"
+                    />
+                    <div className="min-w-0">
+                      <div className="text-[11px] text-gray-600 mb-0.5">이전 앨범</div>
+                      <div className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">
+                        {neighbors!.prev!.title}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">{neighbors!.prev!.artist}</div>
+                    </div>
+                  </Link>
+                )}
+                {hasNext && (
+                  <Link
+                    to={`/album/${neighbors!.next!.slug}${neighborLinkSuffix}`}
+                    className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${hasPrev ? 'justify-end text-right' : 'col-span-full max-w-sm mx-auto'}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-[11px] text-gray-600 mb-0.5">다음 앨범</div>
+                      <div className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">
+                        {neighbors!.next!.title}
+                      </div>
+                      <div className="text-xs text-gray-500 truncate">{neighbors!.next!.artist}</div>
+                    </div>
+                    <CoverArt
+                      src={neighbors!.next!.coverArtUrl}
+                      fallbacks={neighbors!.next!.coverArtFallbacks}
+                      alt={neighbors!.next!.title}
+                      className="w-12 h-12 rounded-md object-cover shrink-0"
+                    />
+                    <span className="text-gray-600 group-hover:text-accent transition-colors text-lg shrink-0">→</span>
+                  </Link>
+                )}
+              </div>
+            </nav>
+          )}
         </div>
 
-        {/* Issue closer — hardhat mascot + "Every Day I Dig" signature
-            sits between similar-albums and the prev/next nav as a
-            small page-end flourish. Caveat-set tagline in the amber
-            brand colour reads as the operator's marker scribble at
-            the bottom of the page. Not gated on showNav — every
-            album page closes with this so the sign-off is consistent
-            even on early-catalog albums that don't have neighbours
-            yet. */}
-        <div className="flex items-end justify-center gap-3 pt-2">
-          <img
-            src="/textures/digman_sweat.webp"
-            alt=""
-            aria-hidden
-            className="w-20 sm:w-24 -rotate-6 drop-shadow-[2px_4px_4px_rgba(0,0,0,0.45)] select-none pointer-events-none"
-          />
-          <span
-            className="text-accent pb-2 -rotate-3 leading-none select-none"
-            style={{
-              fontFamily: "'Caveat', cursive",
-              fontWeight: 700,
-              fontSize: '36px',
-            }}
-          >
-            Every Time I Dig
-          </span>
-        </div>
-
-        {/* Prev / Next album navigation */}
-        {showNav && (
-          <nav className="border-t border-white/5 pt-8 max-w-2xl mx-auto">
-            <div className={`grid gap-4 ${hasPrev && hasNext ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {hasPrev && (
-                <Link
-                  to={`/album/${neighbors!.prev!.slug}${neighborLinkSuffix}`}
-                  className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${!hasNext ? 'col-span-full max-w-sm mx-auto' : ''}`}
-                >
-                  <span className="text-gray-600 group-hover:text-accent transition-colors text-lg shrink-0">←</span>
-                  <CoverArt
-                    src={neighbors!.prev!.coverArtUrl}
-                    fallbacks={neighbors!.prev!.coverArtFallbacks}
-                    alt={neighbors!.prev!.title}
-                    className="w-12 h-12 rounded-md object-cover shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <div className="text-[11px] text-gray-600 mb-0.5">이전 앨범</div>
-                    <div className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">
-                      {neighbors!.prev!.title}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">{neighbors!.prev!.artist}</div>
-                  </div>
-                </Link>
-              )}
-              {hasNext && (
-                <Link
-                  to={`/album/${neighbors!.next!.slug}${neighborLinkSuffix}`}
-                  className={`group flex items-center gap-3 p-3 rounded-xl bg-white/[0.02] hover:bg-white/5 transition-colors ${hasPrev ? 'justify-end text-right' : 'col-span-full max-w-sm mx-auto'}`}
-                >
-                  <div className="min-w-0">
-                    <div className="text-[11px] text-gray-600 mb-0.5">다음 앨범</div>
-                    <div className="text-sm text-white font-medium truncate group-hover:text-accent transition-colors">
-                      {neighbors!.next!.title}
-                    </div>
-                    <div className="text-xs text-gray-500 truncate">{neighbors!.next!.artist}</div>
-                  </div>
-                  <CoverArt
-                    src={neighbors!.next!.coverArtUrl}
-                    fallbacks={neighbors!.next!.coverArtFallbacks}
-                    alt={neighbors!.next!.title}
-                    className="w-12 h-12 rounded-md object-cover shrink-0"
-                  />
-                  <span className="text-gray-600 group-hover:text-accent transition-colors text-lg shrink-0">→</span>
-                </Link>
-              )}
-            </div>
-          </nav>
-        )}
       </main>
     </div>
   );
