@@ -161,20 +161,18 @@ export default function Album() {
     <div className="flex-1 px-4">
       <main className="max-w-[1120px] mx-auto py-8">
 
-        {/* Two-column layout on large screens: left = album info (sticky),
-            right = reviews. Stacks to single column below lg. */}
-        <div className="lg:grid lg:grid-cols-[460px_1fr] lg:gap-12 lg:items-start">
+        {/* Header is full-width so cover + title/buttons fit above the fold.
+            Below splits into 2 cols on lg: left = purchase + 50자 평,
+            right = critic reviews. */}
+        <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
 
-          {/* Left column: cover + metadata + purchase links */}
-          <div className="lg:sticky lg:top-[72px] space-y-10">
-            <HeaderSection album={album} streaming={base.streaming} buy={base.buy} stacked />
+        <div className="mt-10 lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
+          <div className="space-y-10">
             <BuySection buy={base.buy} albumId={albumId} />
+            <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
           </div>
 
-          {/* Right column: user reactions + critic reviews */}
-          <div className="mt-10 lg:mt-0 space-y-10">
-            <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
-
+          <div className="mt-10 lg:mt-0">
             {reviewsLoading ? (
               <SectionLoader text="리뷰를 불러오고 있습니다..." />
             ) : reviewsData ? (
@@ -199,7 +197,6 @@ export default function Album() {
           </div>
         </div>
 
-        {/* Full-width sections below the two-column area */}
         <div className="mt-10 space-y-10">
           <div ref={similarRef} className="min-h-[280px]">
             {!similarVisible ? null : similarLoading ? (
