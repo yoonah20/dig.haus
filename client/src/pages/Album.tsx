@@ -167,7 +167,7 @@ export default function Album() {
 
           {/* Left column: cover + metadata + purchase links */}
           <div className="lg:sticky lg:top-[72px] space-y-10">
-            <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
+            <HeaderSection album={album} streaming={base.streaming} buy={base.buy} stacked />
             <BuySection buy={base.buy} albumId={albumId} />
           </div>
 
