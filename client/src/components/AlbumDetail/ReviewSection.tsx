@@ -711,23 +711,14 @@ export default function ReviewSection({
       <div className="space-y-6">
         {pendingNotice}
 
-        {/* Average hidden when fewer than MIN_SCORED_FOR_AVG scored
-            reviews — with 1 or 2, the "average" is really just one
-            opinion and the big headline number misleads. Individual
-            review scores still show in their cards below. */}
-        {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
-          <div className="flex items-baseline gap-2">
-            <span className={`text-5xl font-bold ${scoreColor(averageScore)}`}>
-              {Math.round(averageScore)}
-            </span>
-            <span className="text-gray-500 text-lg">/ 100</span>
-            <span className="text-gray-600 text-sm ml-1">({scoredCount}개 사이트 평균)</span>
-          </div>
-        )}
-
-        {koreanSummary && (
+        {/* Score + Korean summary share one card. Average hidden when
+            fewer than MIN_SCORED_FOR_AVG scored reviews — with 1 or 2,
+            the "average" is really just one opinion and the big
+            headline number misleads. Card still renders for the
+            summary alone when the score doesn't qualify. */}
+        {(koreanSummary || (averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG)) && (
             <div className="relative group/summary bg-panel rounded-panel p-5 border-l-4 border-accent">
-              {isAdmin && !editingSummary && (
+              {isAdmin && !editingSummary && koreanSummary && (
                 <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/summary:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                   <CardOverlayButton onClick={startEditSummary} title="요약 수정">
                     ✎
@@ -747,6 +738,15 @@ export default function ReviewSection({
                   >
                     ×
                   </CardOverlayButton>
+                </div>
+              )}
+              {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
+                <div className="flex items-baseline gap-2 mb-3">
+                  <span className={`text-4xl font-bold ${scoreColor(averageScore)}`}>
+                    {Math.round(averageScore)}
+                  </span>
+                  <span className="text-gray-500 text-base">/ 100</span>
+                  <span className="text-gray-600 text-xs ml-1">({scoredCount}개 사이트 평균)</span>
                 </div>
               )}
               {editingSummary ? (
@@ -778,11 +778,11 @@ export default function ReviewSection({
                     </button>
                   </div>
                 </div>
-              ) : (
+              ) : koreanSummary ? (
                 <p className="text-gray-200 text-sm leading-relaxed">
-                  {koreanSummary || <span className="italic text-gray-600">요약 없음</span>}
+                  {koreanSummary}
                 </p>
-              )}
+              ) : null}
             </div>
           )}
 
