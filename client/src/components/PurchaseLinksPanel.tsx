@@ -765,7 +765,7 @@ export default function PurchaseLinksPanel({
       )}
 
       {hasAnyCard && (
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col gap-3">
           {sortedLinks.map((link) => {
             const isOwner = !!user && user.id === link.userId;
             const canEdit = !!user && (isOwner || user.isAdmin);

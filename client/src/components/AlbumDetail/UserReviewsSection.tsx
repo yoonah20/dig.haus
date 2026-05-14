@@ -9,7 +9,7 @@ import {
 import { resolveApiUrl } from '../../utils/apiUrl';
 import UserHoverCard from '../UserHoverCard';
 import CardOverlayButton from '../CardOverlayButton';
-import { SectionTitle, Button } from '../ui';
+import { Button } from '../ui';
 
 const MAX_CHARS = 50;
 const MIN_CHARS = 5;
@@ -62,7 +62,7 @@ function Avatar({ src, name, size = 52 }: { src: string | null; name: string | n
 const RATING_META: Record<'up' | 'down' | 'soso', { emoji: string; label: string }> = {
   up: { emoji: '👍', label: '굿굿' },
   down: { emoji: '👎', label: '별루' },
-  soso: { emoji: '🤷', label: '쏘쏘' },
+  soso: { emoji: '🤷', label: '윌윌' },
 };
 const RATING_ORDER: Array<'up' | 'soso' | 'down'> = ['up', 'soso', 'down'];
 
@@ -370,7 +370,7 @@ function Editor({
                 the wrapper's flex-1 eats the remaining space. */}
             <div className="flex-1 flex flex-col justify-center gap-2">
               <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
-                “이 앨범 어땠어요?”
+                “이 앨범 어뗠어요?”
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 {RATING_ORDER.map((r) => {
@@ -617,12 +617,6 @@ export default function UserReviewsSection({
     }
   };
 
-  const heading = (
-    <SectionTitle variant="tape" meta={reviews.length > 0 ? reviews.length : undefined}>
-      고객 50자 평
-    </SectionTitle>
-  );
-
   return (
     <section
       onMouseEnter={() => setPaused(true)}
@@ -630,12 +624,11 @@ export default function UserReviewsSection({
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
-      {heading}
       {/* Up to 3 cards per row (stacks on mobile). The trailing slot holds
           either the "add review" card or the inline editor. */}
       <div
         key={page}
-        className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch animate-[fadeInUp_200ms_ease-out]"
+        className="grid grid-cols-1 gap-3 items-stretch animate-[fadeInUp_200ms_ease-out]"
       >
         {visibleItems.map((item, i) => {
           if (item.kind === 'review') {
