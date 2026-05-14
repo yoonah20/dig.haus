@@ -391,10 +391,9 @@ interface HeaderSectionProps {
   album: AlbumDetail['album'];
   streaming: StreamingLinks;
   buy: BuyInfo;
-  stacked?: boolean;
 }
 
-export default function HeaderSection({ album, streaming, buy, stacked = false }: HeaderSectionProps) {
+export default function HeaderSection({ album, streaming, buy }: HeaderSectionProps) {
   const [deleting, setDeleting] = useState(false);
   const [editingCover, setEditingCover] = useState(false);
   const [coverInput, setCoverInput] = useState('');
@@ -794,7 +793,7 @@ export default function HeaderSection({ album, streaming, buy, stacked = false }
   }
 
   return (
-    <div className={`relative flex flex-col gap-8 ${stacked ? '' : 'md:flex-row'}`}>
+    <div className="relative flex flex-col md:flex-row gap-8">
       {user?.isAdmin && (
         <div ref={adminMenuRef} className="absolute top-0 right-0">
           <button
@@ -848,7 +847,7 @@ export default function HeaderSection({ album, streaming, buy, stacked = false }
       )}
 
       {/* Cover Art */}
-      <div className={`flex-shrink-0 ${stacked ? 'w-full' : 'w-full md:w-80'}`}>
+      <div className="w-full md:w-80 flex-shrink-0">
         <div className="relative group/cover aspect-square bg-panel rounded-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
           <CoverArt
             src={album.coverArtUrl}
@@ -1035,7 +1034,7 @@ export default function HeaderSection({ album, streaming, buy, stacked = false }
               // headers at visibly different scales. Long titles now
               // wrap to a second / third line instead — the page
               // header's vertical rhythm stays stable.
-              className={`font-bold text-white font-serif break-words min-w-0 ${stacked ? 'text-editorial-md md:text-editorial-lg' : 'text-editorial-md md:text-editorial-xl'}`}
+              className="font-bold text-white font-serif text-editorial-md md:text-editorial-xl break-words min-w-0"
             >
               {album.title}
             </h1>
