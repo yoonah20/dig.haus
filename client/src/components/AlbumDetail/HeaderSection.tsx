@@ -793,7 +793,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   }
 
   return (
-    <div className="relative flex flex-col md:flex-row gap-6 bg-panel rounded-panel p-6">
+    <div className="relative flex flex-col md:flex-row md:gap-6 bg-panel rounded-panel overflow-hidden">
       {user?.isAdmin && (
         <div ref={adminMenuRef} className="absolute top-0 right-0">
           <button
@@ -848,7 +848,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
 
       {/* Cover Art */}
       <div className="w-full md:w-80 flex-shrink-0">
-        <div className="relative group/cover aspect-square bg-panel rounded-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
+        <div className="relative group/cover aspect-square bg-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
           <CoverArt
             src={album.coverArtUrl}
             fallbacks={album.coverArtFallbacks}
@@ -1022,9 +1022,9 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       </div>
 
       {/* Info + Streaming */}
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex flex-col flex-1 min-w-0 p-6 md:pl-0">
         <div>
-          <div className="flex items-start gap-2 mb-1">
+          <div className="flex items-start gap-2">
             <h1
               // Single responsive size. The previous logic switched
               // between text-2xl / text-3xl / text-5xl depending on
