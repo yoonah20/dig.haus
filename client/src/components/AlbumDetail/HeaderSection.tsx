@@ -221,7 +221,7 @@ function TagEditor({
                 onClick={() => removeTagFromAlbum(g)}
                 disabled={saving}
                 className="text-gray-500 hover:text-gray-200 disabled:opacity-40 cursor-pointer leading-none text-sm"
-                title={`"${g}" 이 앨범에서만 빼기 (블랙리스트 X)`}
+                title={`"${g}" 이 앨범에서만 빵기 (블랙리스트 X)`}
                 aria-label={`"${g}" 태그 이 앨범에서만 제거`}
               >
                 −
@@ -391,9 +391,10 @@ interface HeaderSectionProps {
   album: AlbumDetail['album'];
   streaming: StreamingLinks;
   buy: BuyInfo;
+  stacked?: boolean;
 }
 
-export default function HeaderSection({ album, streaming, buy }: HeaderSectionProps) {
+export default function HeaderSection({ album, streaming, buy, stacked = false }: HeaderSectionProps) {
   const [deleting, setDeleting] = useState(false);
   const [editingCover, setEditingCover] = useState(false);
   const [coverInput, setCoverInput] = useState('');
@@ -793,7 +794,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   }
 
   return (
-    <div className="relative flex flex-col md:flex-row gap-8">
+    <div className={`relative flex flex-col gap-8 ${stacked ? '' : 'md:flex-row'}`}>
       {user?.isAdmin && (
         <div ref={adminMenuRef} className="absolute top-0 right-0">
           <button
@@ -847,7 +848,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       )}
 
       {/* Cover Art */}
-      <div className="w-full md:w-80 flex-shrink-0">
+      <div className={`flex-shrink-0 ${stacked ? 'w-full' : 'w-full md:w-80'}`}>
         <div className="relative group/cover aspect-square bg-panel rounded-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
           <CoverArt
             src={album.coverArtUrl}
@@ -1034,7 +1035,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               // headers at visibly different scales. Long titles now
               // wrap to a second / third line instead — the page
               // header's vertical rhythm stays stable.
-              className="font-bold text-white font-serif text-editorial-md md:text-editorial-xl break-words min-w-0"
+              className={`font-bold text-white font-serif break-words min-w-0 ${stacked ? 'text-editorial-md md:text-editorial-lg' : 'text-editorial-md md:text-editorial-xl'}`}
             >
               {album.title}
             </h1>
