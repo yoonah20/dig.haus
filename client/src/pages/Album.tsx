@@ -162,17 +162,12 @@ export default function Album() {
       <main className="max-w-[1120px] mx-auto py-8">
 
         {/* Header is full-width so cover + title/buttons fit above the fold.
-            Below splits into 2 cols on lg: left = purchase + 50자 평,
-            right = critic reviews. */}
+            Below splits into 2 cols on lg: left (wide) = critic reviews,
+            right (narrow) = 구매처 + 50자 평. */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
 
-        <div className="mt-10 lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
-          <div className="space-y-10">
-            <BuySection buy={base.buy} albumId={albumId} />
-            <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
-          </div>
-
-          <div className="mt-10 lg:mt-0">
+        <div className="mt-10 lg:grid lg:grid-cols-[1fr_340px] lg:gap-10 lg:items-start">
+          <div>
             {reviewsLoading ? (
               <SectionLoader text="리뷰를 불러오고 있습니다..." />
             ) : reviewsData ? (
@@ -194,6 +189,11 @@ export default function Album() {
                 }
               />
             ) : null}
+          </div>
+
+          <div className="mt-10 lg:mt-0 space-y-10">
+            <BuySection buy={base.buy} albumId={albumId} />
+            <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
           </div>
         </div>
 
