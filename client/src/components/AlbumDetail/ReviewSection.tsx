@@ -123,10 +123,10 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
     e.preventDefault();
     e.stopPropagation();
     // 원문 페이지를 Jina로 다시 받아서 LLM에 전체 페이지를 다시
-    // 보여주고 발췌 + 한국어 요약을 새로 추출하는 흐름. 저장된
-    // excerpt만 다시 번역하던 옛 동작은 매 클릭마다 거의 같은
+    // 보여주고 발쳐 + 한국어 요약을 새로 추출하는 흐름. 저장된
+    // excerpt만 다시 번역하던 옵 동작은 매 클릭마다 거의 같은
     // 결과를 내놓는 문제가 있어서 폐기됨.
-    if (!confirm('원문 페이지를 다시 읽고 발췌 + 요약을 새로 추출할까요? (외부 API 호출됩니다)')) return;
+    if (!confirm('원문 페이지를 다시 읽고 발쳐 + 요약을 새로 추출할까요? (외부 API 호출됩니다)')) return;
     setRetranslating(true);
     try {
       await axios.post(`/api/albums/reviews/${review.id}/rescrape`);
@@ -829,7 +829,7 @@ export default function ReviewSection({
                   </div>
                 </div>
               ) : (
-                <p className="text-gray-200 text-sm md:text-base leading-relaxed">
+                <p className="text-gray-200 text-sm leading-relaxed">
                   {koreanSummary || <span className="italic text-gray-600">요약 없음</span>}
                 </p>
               )}
@@ -852,7 +852,7 @@ export default function ReviewSection({
           )}
 
           {(sortedReviews.length > 0 || isAdmin) && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {visibleReviews.map((review) => (
                 <ReviewCard key={review.id} review={review} onScoreSaved={handleScoreSaved} onRetranslated={handleScoreSaved} onDeleted={handleDeleted} justAdded={justAddedIds.has(review.id)} />
               ))}
