@@ -605,16 +605,15 @@ export default function HomeNextHero() {
       )}
 
       {/* Admin chip pair — 편집 and 보정 anchored to the hero's top-
-          left corner. Both chips target the currently-centred wall
+          right corner. Both chips target the currently-centred wall
           so swiping the carousel changes which wall the next click
           edits. Tooltip echoes the active position (1번째 / 2번째 /
           3번째) so the admin can confirm which wall is about to be
-          touched before clicking. Lives at top-left so the always-
-          visible 접기 chip at top-right has the corner to itself —
-          the wall title is pointer-events-none so admin chips can
-          overlap it on hover without blocking anything underneath. */}
+          touched before clicking. Lives at top-right now that the
+          always-visible 접기 chip moved to top-center — the corner
+          is free for admin chips again. */}
       {isAdmin && !editing && !tunerOpen && (
-        <div className="absolute top-3 left-3 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-2 opacity-0 group-hover/hero:opacity-100 focus-within:opacity-100 transition-opacity">
           <button
             type="button"
             onClick={() => setEditing(true)}
