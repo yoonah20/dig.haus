@@ -62,7 +62,7 @@ function Avatar({ src, name, size = 52 }: { src: string | null; name: string | n
 const RATING_META: Record<'up' | 'down' | 'soso', { emoji: string; label: string }> = {
   up: { emoji: '👍', label: '굿굿' },
   down: { emoji: '👎', label: '별루' },
-  soso: { emoji: '🤷', label: '윌윌' },
+  soso: { emoji: '🤷', label: '쏘쏘' },
 };
 const RATING_ORDER: Array<'up' | 'soso' | 'down'> = ['up', 'soso', 'down'];
 
