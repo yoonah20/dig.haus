@@ -896,10 +896,10 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             hoverGroup="group-hover/cover"
           />
           {user?.isAdmin && !editingCover && (
-            <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 opacity-0 group-hover/cover:opacity-100 transition-opacity">
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1.5 opacity-100 md:opacity-0 md:group-hover/cover:opacity-100 transition-opacity">
               {coverSize && (
                 <span
-                  className="px-1.5 py-1 rounded-md bg-black/60 backdrop-blur-sm border border-white/10 text-[11px] tabular-nums text-gray-300"
+                  className="hidden md:inline px-1.5 py-1 rounded-md bg-black/60 backdrop-blur-sm border border-white/10 text-[11px] tabular-nums text-gray-300"
                   title="현재 이미지 해상도"
                 >
                   {coverSize.w}×{coverSize.h}
