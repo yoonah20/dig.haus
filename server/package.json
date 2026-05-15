@@ -10,8 +10,7 @@
   "scripts": {
     "dev": "nodemon",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "extract-hero-theme": "tsx scripts/extract-hero-theme.ts"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",

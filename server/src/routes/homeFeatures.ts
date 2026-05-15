@@ -2,16 +2,17 @@ import { Router } from 'express';
 import { getDb, queryAll } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { convertToKrwSync, getRates } from '../services/exchangeRates.js';
+import { getWallVisual } from '../utils/heroWalls.js';
 
 // Admin-curated 15-album home wall (5-5-5 to match mydig). Mirrors
 // the mydig vinyl-wall data shape (album_id, position) minus the
 // user_id — this is a global wall, not per-user.
 //
 // Multi-wall carousel: schema keys home_features rows by wall_id and
-// stores per-wall meta (theme + description + tuner cols + ink /
-// shadow / wall_color tokens) on home_walls. The endpoint returns
-// the full walls array so the client carousel can render each track
-// with its own backdrop + ink palette.
+// stores per-wall meta (theme + description + tuner cols) on
+// home_walls. Backdrop + ink/shadow/wall_color come from the
+// HERO_WALL_VISUALS code constant (utils/heroWalls.ts), not DB —
+// they're operator-edited via commit, not via admin UI.
 
 const router = Router();
 
@@ -22,11 +23,8 @@ router.get('/home/features', async (_req, res) => {
   // run once across all featured albums regardless of how many walls
   // they're spread over.
   const wallRows = queryAll(
-    `SELECT id, position, backdrop_file AS backdropFile,
+    `SELECT id, position,
             theme, description,
-            ink_color AS inkColor,
-            shadow_css AS shadowCss,
-            wall_color AS wallColor,
             header_top_px AS headerTopPx,
             header_left_px AS headerLeftPx,
             header_rotation_deg AS headerRotationDeg,
@@ -177,15 +175,17 @@ router.get('/home/features', async (_req, res) => {
     else itemsByWallId.set(row.wallId, [item]);
   }
 
-  const walls = wallRows.map((w: any) => ({
+  const walls = wallRows.map((w: any) => {
+    const visual = getWallVisual(w.id);
+    return {
     id: w.id,
     position: w.position,
-    backdropFile: w.backdropFile,
+    backdropFile: visual.backdropFile,
     theme: w.theme ?? null,
     description: w.description ?? null,
-    inkColor: w.inkColor,
-    shadowCss: w.shadowCss,
-    wallColor: w.wallColor,
+    inkColor: visual.inkColor,
+    shadowCss: visual.shadowCss,
+    wallColor: visual.wallColor,
     headerTopPx: w.headerTopPx ?? 102,
     headerLeftPx: w.headerLeftPx ?? 305,
     headerRotationDeg: w.headerRotationDeg ?? -1,
@@ -203,7 +203,8 @@ router.get('/home/features', async (_req, res) => {
     titleRotationDeg: w.titleRotationDeg ?? -1,
     contentUpdatedAt: w.contentUpdatedAt ?? null,
     items: itemsByWallId.get(w.id) ?? [],
-  }));
+    };
+  });
 
   // lastContentUpdateAt — MAX(content_updated_at) across all walls.
   // Drives the NEW badge on the collapsed hero bar: clients compare

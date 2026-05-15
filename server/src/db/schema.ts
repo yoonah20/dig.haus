@@ -1571,6 +1571,13 @@ export function initializeDatabase(db: Database.Database): void {
   // are stored on the row rather than in the heroTheme.ts singleton,
   // because basement5 is a light surface that needs dark ink while
   // basement_purple needs cream — one global token can't serve both.
+  // backdrop_file / ink_color / shadow_css / wall_color are dead
+  // columns post-2026-05-16 — the route reads them from the
+  // HERO_WALL_VISUALS code constant in utils/heroWalls.ts instead.
+  // Kept here so existing DBs (which have NOT NULL on the four
+  // columns) can still satisfy the constraint on insert; nothing
+  // reads the values. Drop in a future cleanup pass if SQLite drop-
+  // column ever feels worth the prod migration.
   db.exec(`
     CREATE TABLE IF NOT EXISTS home_walls (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1600,21 +1607,17 @@ export function initializeDatabase(db: Database.Database): void {
       content_updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
-  // Seed 3 walls with the three shipped hero_*.avif backdrops + sampled
-  // HERO_THEME tokens (the dominant-color + luminance-flip logic
-  // server/scripts/extract-hero-theme.ts uses). The hero_* set
-  // replaced the earlier basement_* generation after the operator
-  // judged the third wall (the plant variant) too murky and decided
-  // to swap the whole carousel onto a coordinated set of three
-  // afternoon / purple / basement walls at the same source
-  // dimensions (2912×1464). INSERT OR IGNORE makes this idempotent
-  // — admin tweaks survive re-runs of schema init.
+  // Seed 3 walls. Only id/position/theme/description matter at runtime
+  // — backdrop/ink/shadow/wall_color values below satisfy the legacy
+  // NOT NULL columns but are ignored in favour of HERO_WALL_VISUALS.
+  // INSERT OR IGNORE makes this idempotent so admin tweaks to theme/
+  // description survive re-runs of schema init.
   db.exec(
     `INSERT OR IGNORE INTO home_walls (id, position, backdrop_file, theme, description, ink_color, shadow_css, wall_color)
      VALUES
-       (1, 0, 'hero_afternoon.avif', 'dig.haus / 이번 달 픽', '운영자가 한 달 동안 발굴한 15장', '#1a1208', '0 1px 2px rgba(255, 245, 220, 0.55)', '#cc9c74'),
-       (2, 1, 'hero_purple.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#4c3c54'),
-       (3, 2, 'hero_basement.avif', NULL, NULL, '#f5e6c8', '0 1px 2px rgba(0, 0, 0, 0.45)', '#242424')`
+       (1, 0, 'unused', 'dig.haus / 이번 달 픽', '운영자가 한 달 동안 발굴한 15장', 'unused', 'unused', 'unused'),
+       (2, 1, 'unused', NULL, NULL, 'unused', 'unused', 'unused'),
+       (3, 2, 'unused', NULL, NULL, 'unused', 'unused', 'unused')`
   );
   // home_features now keys per (wall_id, position) — same 15-slot
   // shape as before but multiplied across walls. Fresh DBs get this
