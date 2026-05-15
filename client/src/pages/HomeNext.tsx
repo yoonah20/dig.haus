@@ -607,8 +607,17 @@ function CollapsedHeroBar({ onExpand }: { onExpand: () => void }) {
       type="button"
       onClick={onExpand}
       aria-label="히어로 펼치기"
-      className="w-full bg-panel-strong border-b border-white/10 hover:bg-panel-strong/80 transition-colors flex items-center justify-center gap-3 py-2.5 group/herobar"
+      className="relative w-full bg-panel-strong border-b border-white/10 hover:bg-panel-strong/80 transition-colors flex items-center justify-center py-2.5 group/herobar"
     >
+      {/* Chip pinned to the left edge so it shares an X anchor with
+          the expanded-state 접기 chip at top-left. Both controls
+          read as the same toggle, just in different states. Theme
+          name stays centred — the bar's own click target covers the
+          whole row so the off-centre chevron doesn't need to be
+          aimed at. */}
+      <span className="absolute left-3 text-xs text-gray-400 group-hover/herobar:text-accent transition-colors">
+        ▼ 펼치기
+      </span>
       {theme && (
         <span
           className="text-base text-gray-200"
@@ -620,9 +629,6 @@ function CollapsedHeroBar({ onExpand }: { onExpand: () => void }) {
           {theme}
         </span>
       )}
-      <span className="text-xs text-gray-400 group-hover/herobar:text-accent transition-colors">
-        ▼ 펼치기
-      </span>
     </button>
   );
 }
