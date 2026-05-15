@@ -1651,8 +1651,8 @@ Return ONLY JSON, no prose:
   "sourceName": "Publication name (e.g. Pitchfork, Angry Metal Guy). Derive from the page or the domain '${hostname}' if unclear.",
   "score": 85,
   "scoreMax": 100,
-  "excerpt": "Exactly three sentences quoted or paraphrased from the review body, in the original language. Do NOT compress to one or two — the card needs enough prose to feel substantive. Do NOT exceed three — anything more bloats the card.",
-  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** 오직 '~다 / ~한다' 문어체 평서문으로 작성. 존댓말('~합니다', '~입니다', '~네요') 절대 금지, 반말('~해', '~어', '~아') 절대 금지. '리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지. **정확히 3문장 / 총 길이 180-240자 권장**. 한 문장이나 두 문장으로 줄이지 말 것(너무 빈약해 보임), 4문장 이상으로 늘리지도 말 것(카드가 부풀어 보임). 원문에 평가 문장이 충분하면 3문장으로 충실히 풀어쓰고, 평가 문장이 부족하면 묘사적 문장(밴드 맥락, 트랙 인상, 사운드 디테일)을 섞어서라도 3문장은 만든다. 단, 같은 내용을 늘려 쓰지는 말 것."
+  "excerpt": "Two or three short sentences quoted or paraphrased from the review body, in the original language. Keep each sentence tight — total length ~120-170 chars / ~25-35 words.",
+  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** 오직 '~다 / ~한다' 문어체 평서문으로 작성. 존댓말('~합니다', '~입니다', '~네요') 절대 금지, 반말('~해', '~어', '~아') 절대 금지. '리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지. **2~3문장 / 총 길이 120-170자**. 한 문장으로 끝내지 말 것(너무 빈약해 보임), 4문장 이상으로 늘리지도 말 것(카드가 부풀어 보임). 한 문장 한 문장 짧고 단단하게. 같은 내용 늘려 쓰거나 부연 설명 붙이지 말 것."
 }
 
 Score: find the review's explicit rating and convert to a /100 integer. Follow these rules in order:
@@ -1946,12 +1946,12 @@ Return ONLY JSON, no prose:
 {
   "score": 85,
   "scoreMax": 100,
-  "excerpt": "Exactly three sentences quoted or paraphrased from the article body, original language. Do NOT compress to one or two — the card needs enough prose to feel substantive. Do NOT exceed three — anything more bloats the card.",
-  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** 오직 '~다 / ~한다' 문어체 평서문으로 작성. 존댓말('~합니다', '~입니다', '~네요') 절대 금지, 반말('~해', '~어', '~아') 절대 금지. '리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지. **정확히 3문장 / 총 길이 180-240자 권장**. 한 문장이나 두 문장으로 줄이지 말 것(너무 빈약해 보임), 4문장 이상으로 늘리지도 말 것(카드가 부풀어 보임). 원문에 평가 문장이 충분하면 3문장으로 충실히 풀어쓰고, 평가 문장이 부족하면 묘사적 문장(밴드 맥락, 트랙 인상, 사운드 디테일)을 섞어서라도 3문장은 만든다. 단, 같은 내용을 늘려 쓰지는 말 것."
+  "excerpt": "Two or three short sentences quoted or paraphrased from the article body, original language. Keep each sentence tight — total length ~120-170 chars / ~25-35 words.",
+  "excerptKo": "한국어 요약. 매체명 언급 금지. **리뷰어 본인이 1인칭으로 직접 말하는 것처럼** 오직 '~다 / ~한다' 문어체 평서문으로 작성. 존댓말('~합니다', '~입니다', '~네요') 절대 금지, 반말('~해', '~어', '~아') 절대 금지. '리뷰어는/평론가는/필자는' 등 3인칭 주어 금지, '~라고 평가한다/말한다/지적한다' 같은 전달체도 금지. **2~3문장 / 총 길이 120-170자**. 한 문장으로 끝내지 말 것(너무 빈약해 보임), 4문장 이상으로 늘리지도 말 것(카드가 부풀어 보임). 한 문장 한 문장 짧고 단단하게. 같은 내용 늘려 쓰거나 부연 설명 붙이지 말 것."
 }
 
 Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+→97 A→93 A-→90 B+→87 B→83 ...). If no explicit score in the text, set null.
-Excerpt: pick the most evaluative sentences from the body (exactly 3 sentences).
+Excerpt: pick the most evaluative sentences from the body (2-3 sentences).
 If the text is clearly NOT a review (shop listing, track list only, marketing copy), return {"error":"not a review"} instead.`;
 
   try {
