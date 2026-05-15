@@ -298,7 +298,7 @@ export default function SearchBar({
               <div className="px-4 py-3 text-xs text-gray-300 leading-relaxed space-y-1.5">
                 <p>
                   <span className="text-gray-400">아티스트, 앨범 제목, 발매 연도</span>
-                  로 검색할 수 있어요. 예) "radiohead 2007", "kid a"
+                  로 검색할 수 있어요.
                 </p>
                 {loggedIn && (
                   <p>
