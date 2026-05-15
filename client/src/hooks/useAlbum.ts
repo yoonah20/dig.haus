@@ -1,6 +1,73 @@
+import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import type { ArtistCreditEntry } from '../types';
+
+export type AutoCurationPhase =
+  | 'queued'
+  | 'discovering'
+  | 'scraping'
+  | 'summarizing';
+
+export interface AutoCurationProgress {
+  mbid: string;
+  phase: AutoCurationPhase;
+  urlsFound: number;
+  urlsSaved: number;
+  startedAt: string;
+}
+
+// Poll auto-curation progress for an album whose reviews are still
+// pending. Returns the live progress snapshot (phase + counters) or
+// null when nothing is in flight for this mbid. Enabled is controlled
+// by the caller (Album.tsx) so polling only runs while it's relevant
+// — once reviews_crawled_at flips to non-null the caller drops out.
+//
+// Refresh behaviour: when the response transitions from a non-null
+// progress to null, we invalidate the album + reviews queries so the
+// page picks up the freshly-stamped reviews_crawled_at and the
+// collected reviews without the user having to reload. The transition
+// is detected via a ref tracking the previous response — invalidating
+// inside refetchInterval would race with React Query's own cache write.
+export function useAutoCurationStatus(id: string, enabled: boolean) {
+  const qc = useQueryClient();
+  const previousRef = useRef<AutoCurationProgress | null>(null);
+  const query = useQuery<{ progress: AutoCurationProgress | null }>({
+    queryKey: ['auto-curation-status', id],
+    queryFn: async () => {
+      const { data } = await axios.get(
+        `/api/albums/${encodeURIComponent(id)}/auto-curation-status`
+      );
+      return data;
+    },
+    enabled: !!id && enabled,
+    // 3s matches the rate at which urlsSaved meaningfully ticks during
+    // a scrape — chunk size 12 with ~3-6s per chunk means at most one
+    // increment per poll interval, which is what the UI needs to feel
+    // alive without flickering numbers.
+    refetchInterval: enabled ? 3000 : false,
+    // Skip the standard staleTime so each interval call hits the
+    // network instead of returning cached state.
+    staleTime: 0,
+  });
+  useEffect(() => {
+    const current = query.data?.progress ?? null;
+    const prev = previousRef.current;
+    // Edge detection: we just observed the curation finish. Invalidate
+    // the family of album-keyed queries the same way Curation
+    // ProgressContext does on the admin side, so the page picks up
+    // the new reviews + cleared pending state on its next render.
+    if (prev && !current) {
+      qc.invalidateQueries({ queryKey: ['album'] });
+      qc.invalidateQueries({ queryKey: ['album-reviews'] });
+      qc.invalidateQueries({ queryKey: ['album-similar'] });
+      qc.invalidateQueries({ queryKey: ['album-list'] });
+      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+    }
+    previousRef.current = current;
+  }, [query.data, qc]);
+  return query.data?.progress ?? null;
+}
 
 interface AlbumBase {
   album: {

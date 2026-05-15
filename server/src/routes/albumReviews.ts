@@ -13,6 +13,7 @@ import {
   generateKoreanSummary,
   selectEditorialReviewUrls,
 } from '../services/claude.js';
+import { getAutoCurationProgress } from '../services/autoCuration.js';
 import {
   getCachedAlbum,
   updateAlbumFields,
@@ -504,6 +505,25 @@ router.post(
     res.json({ ok: true, summary, stamped: true });
   }
 );
+
+// ─── GET /api/albums/:id/auto-curation-status — poll for in-flight runs ──
+//
+// Public read endpoint so the album page can show "리뷰 발굴 중 N/15"
+// while a user-triggered auto-curation is running, and refetch when it
+// finishes. Returns `{ progress: null }` when nothing is in flight for
+// this mbid — either the album was registered by admin (no auto-trigger),
+// or the user's auto-curation already finished, or the album is fully
+// curated. The client uses the null transition as its refresh signal.
+//
+// No rate limiter — the polling pattern (one client, every ~3s, only
+// while reviews_crawled_at IS NULL) is bounded and the handler does no
+// DB work, just an in-memory Map lookup.
+router.get('/:id/auto-curation-status', (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+  const progress = getAutoCurationProgress(mbid);
+  res.json({ progress });
+});
 
 // ─── POST /api/albums/:id/reviews/mark-none — admin "no reviews exist" ─
 //
