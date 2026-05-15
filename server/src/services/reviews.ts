@@ -1847,6 +1847,32 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       // way of describing this when it doesn't refuse cleanly.
       /(?:리뷰|평론)\s*링크만?\s*(?:포함|수록|있|싣|모아)/,
       /(?:only|just)\s+(?:contains?|has|provides?)\s+(?:links?|hyperlinks?)\s+to\s+reviews?/i,
+      // Tag-archive / author-archive landing pages — wordpress-style
+      // sites at /tag/<artist>/ or /author/<critic>/ render a list of
+      // post excerpts that link to the actual posts but don't contain
+      // the target album's review prose. The LLM correctly notes the
+      // mismatch in the summary (a real case: "이 페이지는 Machine
+      // Head 태그 아카이브로, 여러 게시물을 나열하며 'The Blackening'
+      // 앨범 리뷰가 포함되어 있지 않다"). We catch the two strongest
+      // markers separately so a future variant where the LLM phrases
+      // one but not the other still trips the rejection.
+      /(?:태그|작가|저자|카테고리|아티스트)\s*아카이브/,
+      /(?:tag|author|category|artist)\s+archive/i,
+      // "[any] 앨범 리뷰가 포함/수록/존재되어 있지 않" — generic
+      // form of "the requested album's review is not on this page".
+      // Covers the tag-archive case above plus future variants where
+      // the LLM only emits this single phrase (e.g., a sidebar quote
+      // page, a roundup that mentions the album in passing). Anchored
+      // on "앨범 리뷰" + a negation about presence so a review which
+      // happens to use the word "포함" in praise doesn't trip.
+      /앨범\s*리뷰[가는]?\s*(?:포함|수록|존재)되어?\s*있지\s*않/,
+      // "여러/다양한/많은 (게시물|글|포스트|기사)(을/를) 나열" — the
+      // archive/index shape: the page is a list, not a review. Paired
+      // with the tag-archive rule so a post that happens to mention
+      // "여러 게시물" in prose without being an archive doesn't
+      // false-positive (real reviews very rarely use this phrasing
+      // about themselves).
+      /(?:여러|다양한|많은)\s*(?:게시물|글|포스트|기사)[을를]?\s*나열/,
     ];
     const prose = `${parsed.excerpt ?? ''}\n${parsed.excerptKo ?? ''}`;
     if (rejectionPatterns.some((re) => re.test(prose))) {
