@@ -1596,7 +1596,8 @@ export function initializeDatabase(db: Database.Database): void {
       ink_color TEXT NOT NULL DEFAULT '#f5e6c8',
       shadow_css TEXT NOT NULL DEFAULT '0 1px 2px rgba(0, 0, 0, 0.45)',
       wall_color TEXT NOT NULL DEFAULT '#4c3c54',
-      updated_at TEXT DEFAULT (datetime('now'))
+      updated_at TEXT DEFAULT (datetime('now')),
+      content_updated_at TEXT DEFAULT (datetime('now'))
     )
   `);
   // Seed 3 walls with the three shipped hero_*.avif backdrops + sampled
@@ -2059,6 +2060,30 @@ export function initializeDatabase(db: Database.Database): void {
     console.log(
       `[migration] re-unified tuner values from wall 1 onto walls 2+3 (${result.changes} rows)`
     );
+  });
+
+  // content_updated_at — separate timestamp from updated_at that
+  // only bumps on visitor-visible content changes (theme,
+  // description, or items replaced) and stays put on pure tuner /
+  // position adjustments. Powers the "NEW" badge on the collapsed
+  // hero bar in HomeNext: clients compare MAX(content_updated_at)
+  // across walls against a per-visitor seenAt in localStorage and
+  // surface a badge when there's been a real curation change since
+  // the last view. Backfill copies updated_at so existing walls
+  // start with a sane baseline rather than NULL.
+  runOnce(db, 'home_walls_content_updated_at_2026_05_15', () => {
+    const cols = db
+      .prepare(`PRAGMA table_info(home_walls)`)
+      .all() as Array<{ name: string }>;
+    if (!cols.some((c) => c.name === 'content_updated_at')) {
+      db.exec(
+        `ALTER TABLE home_walls ADD COLUMN content_updated_at TEXT`
+      );
+      db.exec(
+        `UPDATE home_walls SET content_updated_at = COALESCE(updated_at, datetime('now'))`
+      );
+      console.log('[migration] added home_walls.content_updated_at');
+    }
   });
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_user_follows_followee_created
