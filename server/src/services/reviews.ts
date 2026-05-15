@@ -1677,7 +1677,7 @@ Score: find the review's explicit rating and convert to a /100 integer. Follow t
 
 Language: the review may be in English, Dutch, German, French, Spanish, Italian, Portuguese, Swedish, Korean, Japanese, or any other language. Non-English reviews are valid. Extract the excerpt in the review's original language; still produce a Korean excerptKo regardless of the source language.
 
-Excerpt: pick whatever prose about the album you can find. Evaluative sentences first, but if the page only has descriptive prose (release context, band history, track-by-track discussion) include that instead. Skip pure navigation text, ads, and tracklists-only pages. "[Read more...]" preview links or aggregator-style listings with a short paragraph still count — extract what's there.
+Excerpt: pick whatever prose about the album you can find from the main review body. Evaluative sentences first, but if the page only has descriptive prose (release context, band history, track-by-track discussion) include that instead. Skip pure navigation text, ads, and tracklists-only pages. "[Read more...]" preview links or aggregator-style listings with a short paragraph still count — extract what's there. If the page has a short highlighted pull-quote, teaser, or summary blurb that appears before the main review body, ignore it and extract from the main body instead.
 
 Be AGGRESSIVE about extracting when the page IS an album review. The cost of refusing a genuine review is higher than saving a weak excerpt.
 
