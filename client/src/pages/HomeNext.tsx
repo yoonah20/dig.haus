@@ -458,7 +458,7 @@ export default function HomeNext() {
             onClick={() => setHeroCollapsed(true)}
             aria-label="히어로 접기"
             title="히어로 접기"
-            className="absolute top-3 left-3 z-30 text-[11px] text-gray-200 bg-black/60 hover:bg-black/80 hover:text-white border border-white/15 rounded-full px-2.5 py-1 transition-colors flex items-center gap-1"
+            className="absolute top-3 right-3 z-30 text-[11px] text-gray-200 bg-black/60 hover:bg-black/80 hover:text-white border border-white/15 rounded-full px-2.5 py-1 transition-colors flex items-center gap-1"
           >
             <span aria-hidden>▲</span>
             <span>접기</span>
@@ -683,13 +683,17 @@ function CollapsedHeroBar({
       aria-label="히어로 펼치기"
       className="relative w-full bg-panel-strong border-b border-white/10 hover:bg-panel-strong/80 transition-colors flex items-center justify-center py-2.5 group/herobar"
     >
-      {/* Chip pinned to the left edge so it shares an X anchor with
-          the expanded-state 접기 chip at top-left. Both controls
-          read as the same toggle, just in different states. Theme
-          name stays centred — the bar's own click target covers the
-          whole row so the off-centre chevron doesn't need to be
-          aimed at. */}
-      <span className="absolute left-3 text-xs text-gray-400 group-hover/herobar:text-accent transition-colors">
+      {/* Chip pinned to the right edge so it shares an X anchor
+          with the expanded-state 접기 chip at top-right. Both
+          controls read as the same toggle, just in different
+          states. The 접기 chip lives on the right because the
+          mobile hero's wall theme spans most of the left side of
+          the painted band, and a left-anchored chip overlaps with
+          the title — admin chips on desktop are hover-only so the
+          shared corner is a near-zero collision risk there. The
+          bar's own click target covers the whole row so the
+          off-centre chevron doesn't need to be aimed at. */}
+      <span className="absolute right-3 text-xs text-gray-400 group-hover/herobar:text-accent transition-colors">
         ▼ 펼치기
       </span>
       {theme && (
@@ -704,7 +708,7 @@ function CollapsedHeroBar({
         </span>
       )}
       {hasUpdate && lastContentUpdateAt && (
-        <span className="absolute right-3 flex items-center gap-1.5 text-[11px]">
+        <span className="absolute left-3 flex items-center gap-1.5 text-[11px]">
           <span className="bg-accent text-black font-bold px-1.5 py-0.5 rounded">
             NEW
           </span>
