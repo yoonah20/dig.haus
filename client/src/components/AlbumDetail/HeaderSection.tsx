@@ -7,6 +7,8 @@ import { useGenerateReviewSummary } from '../../hooks/useAlbum';
 import type { AlbumDetail, StreamingLinks, BuyInfo } from '../../types';
 import CoverArt from '../CoverArt';
 import PlayChip from '../PlayChip';
+import VoteButtons from '../VoteButtons';
+import CrateButton from './CrateButton';
 import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import CopyTitleButton from '../CopyTitleButton';
@@ -787,7 +789,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   }
 
   return (
-    <div className="relative flex flex-col md:flex-row md:gap-6 bg-panel rounded-panel overflow-hidden">
+    <div className="relative flex flex-col md:flex-row md:gap-6">
       {user?.isAdmin && (
         <div ref={adminMenuRef} className="absolute top-0 right-0">
           <button
@@ -841,8 +843,8 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       )}
 
       {/* Cover Art */}
-      <div className="w-full md:w-72 flex-shrink-0">
-        <div className="relative group/cover aspect-square md:aspect-auto md:h-full bg-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
+      <div className="w-full md:w-[22rem] flex-shrink-0">
+        <div className="relative group/cover aspect-square md:aspect-auto md:h-full bg-panel rounded-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
           <CoverArt
             src={album.coverArtUrl}
             fallbacks={album.coverArtFallbacks}
@@ -1178,6 +1180,24 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 <span>{album.label}</span>
               </>
             )}
+          </div>
+
+          {/* Action bar — was previously sitting between the header
+              and the body grid, which created a hard horizontal break
+              and a floating-in-the-middle feel. Inside the header it
+              reads as a per-album action group, and a tag row below
+              still acts as the separator from the metadata above. */}
+          <div className="flex items-stretch gap-2 mb-4">
+            <VoteButtons
+              albumId={albumId}
+              upvotes={album.upvotes ?? 0}
+              downvotes={album.downvotes ?? 0}
+              userVote={album.userVote ?? null}
+            />
+            <CrateButton
+              albumId={album.id ?? null}
+              crateCount={album.crateCount ?? 0}
+            />
           </div>
 
           <TagEditor tags={album.genres} albumId={albumId} isAdmin={!!user?.isAdmin} />
