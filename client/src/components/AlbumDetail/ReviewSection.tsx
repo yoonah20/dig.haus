@@ -770,9 +770,9 @@ export default function ReviewSection({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-start gap-5">
+                <div className="overflow-hidden">
                   {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
-                    <div className="flex-shrink-0 text-center">
+                    <div className="float-left mr-4 mb-1 text-center">
                       <div className="flex items-baseline gap-1 justify-center">
                         <span className={`text-6xl font-bold leading-none ${scoreColor(averageScore)}`}>
                           {Math.round(averageScore)}
@@ -783,7 +783,7 @@ export default function ReviewSection({
                     </div>
                   )}
                   {koreanSummary && (
-                    <p className="text-gray-200 text-sm leading-relaxed flex-1 min-w-0">
+                    <p className="text-gray-200 text-sm leading-relaxed">
                       {koreanSummary}
                     </p>
                   )}
