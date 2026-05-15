@@ -6,6 +6,7 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { getCachedAlbum, cacheAlbum, updateAlbumFields } from '../utils/cache.js';
 import { searchExternalMerged } from '../utils/externalSearch.js';
 import { extractAlbumFromUrl } from '../services/albumUrlExtract.js';
+import { enqueueAutoCuration } from '../services/autoCuration.js';
 import { generateSlug } from '../utils/slug.js';
 import type { AppUser } from '../auth/passport.js';
 
@@ -163,6 +164,16 @@ router.post(
       mbid,
       slug: cached?.slug || mbid,
     });
+    // Fire-and-forget auto-curation for non-admin submissions only.
+    // Admin keeps the explicit opt-in via the ⚡ search-result button
+    // (the search UI's "등록 + 큐레이션") and the album-page 🔍 자동
+    // 큐레이션 — there are still cases where admin registers an album
+    // without wanting immediate review collection (batch processing,
+    // metadata-only inspection, holding for label-feed reconciliation).
+    // Serial queue + skip-unreleased guards live inside enqueueAutoCuration.
+    if (!user.is_admin) {
+      enqueueAutoCuration(mbid);
+    }
   } catch (err) {
     console.error('[album-requests] submission failed:', err);
     res.status(500).json({ error: '앨범 등록에 실패했어요. 잠시 뒤 다시 시도해주세요.' });
