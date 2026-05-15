@@ -116,7 +116,7 @@ const REVIEW_REPORT_REASONS: ReadonlyArray<{
 }> = [
   { value: 'wrong-album', label: '이 앨범 리뷰가 아니에요' },
   { value: 'bad-translation', label: '번역이 이상해요' },
-  { value: 'not-a-review', label: '리뷰가 아닌 것 같아요' },
+  { value: 'not-a-review', label: '링크에 다른 내용이 있어요' },
 ];
 
 // Non-admin review-card flag. Mirrors PurchaseLinksPanel.ReportPopover —
