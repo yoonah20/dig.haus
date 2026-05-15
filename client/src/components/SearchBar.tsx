@@ -173,15 +173,6 @@ export default function SearchBar({
       // after we navigate away.
       if (opts.autoCurate && isAdmin) {
         curation.startRun([{ mbid: album.mbid, title: album.title }]);
-      } else if (result?.autoCurationEnqueued) {
-        // Non-admin server-side auto-curation kicked off by the
-        // /album-requests handler. Surface it through the same
-        // floating panel admin uses so the user sees URLs found,
-        // reviews saved, etc. live across the navigate(). The server
-        // tells us whether the enqueue actually happened (false for
-        // unreleased pre-orders, existing-album short-circuit, etc.)
-        // so we don't spawn a watcher that has nothing to watch.
-        curation.watchServerRun([{ mbid: album.mbid, title: album.title }]);
       }
       navigate(`/album/${target}`);
     } catch (err: any) {

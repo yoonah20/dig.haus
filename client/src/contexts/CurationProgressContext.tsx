@@ -2,7 +2,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -112,13 +111,6 @@ interface CurationProgressAPI {
     albums: Array<{ mbid: string; title: string }>,
     triggerKind?: 'oneclick' | 'batch'
   ) => Promise<void>;
-  /** Server-driven variant: kicks off no HTTP curation calls itself
-   *  (the server already enqueued the run when the album was
-   *  registered). Polls /auto-curation-status for each watched album
-   *  and translates phase + counter transitions into log lines and
-   *  album-state updates so the existing panel UI surfaces server-
-   *  side runs the same as admin's client-driven runs. */
-  watchServerRun: (albums: Array<{ mbid: string; title: string }>) => void;
   clearRun: () => void;
 }
 
@@ -135,10 +127,6 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
   // already in flight) get picked up without having to race React's
   // state updates. Kept in sync with run.albums but read synchronously.
   const queueRef = useRef<CurationAlbumResult[]>([]);
-  // Mirror of run state for async pollers — useCallback closures
-  // capture state at definition time, so a long-running poller needs
-  // a ref to see appends/clears that happened after it started.
-  const runRef = useRef<CurationRunState | null>(null);
 
   const appendLog = useCallback(
     (albumMbid: string, albumTitle: string, message: string, kind: CurationLogLine['kind'] = 'info') => {
@@ -494,20 +482,9 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
           i++;
         }
       } finally {
+        setRun((prev) => (prev ? { ...prev, finished: true } : prev));
         isRunningRef.current = false;
         queueRef.current = [];
-        // Only flip finished if no server-watch albums joined mid-run
-        // and are still resolving. If they are, the allDone useEffect
-        // below catches the final transition once they complete. The
-        // common case (no server-watches active) sees allDone=true
-        // here and we flip immediately.
-        setRun((prev) => {
-          if (!prev) return prev;
-          const allDone = prev.albums.every(
-            (a) => a.status === 'done' || a.status === 'failed'
-          );
-          return allDone ? { ...prev, finished: true } : prev;
-        });
         // Admin-facing stats refresh so the 데이터 미완 panel reflects
         // the albums that just got summaries, and the new curation-run
         // rows show in the 큐레이션 이력 panel.
@@ -517,243 +494,6 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
     },
     [processAlbum, qc]
   );
-
-  // Server-watch flow: distinct from startRun (which drives the pipeline
-  // from the client via three HTTP calls). For user submissions the
-  // server already runs the pipeline in its own queue, so the client's
-  // job is purely to surface the progress. We poll each watched mbid's
-  // /auto-curation-status, derive log lines from phase + counter
-  // transitions, and update the same RunState shape startRun produces
-  // so the existing panel renders both flows identically.
-  //
-  // Concurrency: server-watch entries don't go through queueRef.current
-  // (the admin-side serial loop). Each watched album spawns its own
-  // poller; the server-side queue paces the actual work. Multiple
-  // parallel pollers are fine — they each hit a cheap in-memory
-  // endpoint, and a non-admin user can only have one auto-curation
-  // active at a time anyway (USER_DAILY_ALBUM_CAP + serial server queue).
-  //
-  // Stale-pollers cleanup: each poller checks the run state on each
-  // tick and bails if the album was cleared (clearRun) or the context
-  // unmounted. A 5-minute hard cap protects against a server that
-  // never clears the entry (e.g., crash mid-run).
-  const POLL_INTERVAL_MS = 2500;
-  const POLL_MAX_ATTEMPTS = 120; // ~5 min
-  const POLL_GRACE_BEFORE_GIVEUP = 8; // ~20s of "no progress" before assuming done
-
-  const pollOneAlbum = useCallback(
-    async (mbid: string, title: string) => {
-      let prevPhase: string | null = null;
-      let prevFound = 0;
-      let prevSaved = 0;
-      let neverSeenProgress = true;
-      // Read the live run via the ref each tick — useCallback's
-      // closure would otherwise hold a snapshot from when the poller
-      // was spawned, so a later append-branch update wouldn't shift
-      // our index lookup. The ref is kept in sync by the useEffect
-      // below.
-      const findAlbumIndex = (): number => {
-        const r = runRef.current;
-        if (!r) return -1;
-        return r.albums.findIndex((a) => a.albumMbid === mbid);
-      };
-
-      for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt++) {
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-        let progress: {
-          phase: 'queued' | 'discovering' | 'scraping' | 'summarizing';
-          urlsFound: number;
-          urlsSaved: number;
-        } | null = null;
-        try {
-          const { data } = await axios.get(
-            `/api/albums/${encodeURIComponent(mbid)}/auto-curation-status`
-          );
-          progress = data?.progress ?? null;
-        } catch {
-          continue;
-        }
-
-        // Look up the index fresh each tick — append-branch additions
-        // shift indices, and findIndex is cheap on a run with at most
-        // a handful of albums.
-        const idx = findAlbumIndex();
-        if (idx === -1) {
-          // Album was cleared from the run — caller dismissed; stop.
-          return;
-        }
-
-        if (!progress) {
-          if (neverSeenProgress) {
-            // Server might not have set the entry yet (race between
-            // submission and our first poll). Give it a short grace
-            // window before assuming the run was never enqueued.
-            if (attempt < POLL_GRACE_BEFORE_GIVEUP) continue;
-            updateAlbum(idx, { status: 'done' });
-            appendLog(
-              mbid,
-              title,
-              '리뷰 수집이 시작되지 않았습니다',
-              'warn'
-            );
-            return;
-          }
-          // Progress went from non-null → null: curation finished.
-          updateAlbum(idx, { status: 'done' });
-          appendLog(mbid, title, '완료', 'success');
-          qc.invalidateQueries({ queryKey: ['album'] });
-          qc.invalidateQueries({ queryKey: ['album-reviews'] });
-          qc.invalidateQueries({ queryKey: ['album-similar'] });
-          qc.invalidateQueries({ queryKey: ['album-list'] });
-          qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
-          return;
-        }
-
-        neverSeenProgress = false;
-
-        // Phase transitions → log lines that match the rough cadence
-        // admin's startRun emits. Translations are intentionally close
-        // to the admin pipeline copy so users + admin see the same
-        // vocabulary.
-        if (progress.phase !== prevPhase) {
-          if (prevPhase === null && progress.phase === 'queued') {
-            appendLog(mbid, title, '리뷰 수집 대기 중', 'info');
-          } else if (progress.phase === 'discovering') {
-            appendLog(mbid, title, 'URL 자동 검색 시작', 'info');
-            updateAlbum(idx, { status: 'running' });
-          } else if (progress.phase === 'scraping') {
-            appendLog(
-              mbid,
-              title,
-              `URL ${progress.urlsFound}개 발견 — 큐레이션 시작`,
-              'info'
-            );
-            updateAlbum(idx, { status: 'running' });
-          } else if (progress.phase === 'summarizing') {
-            appendLog(mbid, title, '한국어 요약 생성 중', 'info');
-          }
-          prevPhase = progress.phase;
-        }
-
-        if (progress.urlsFound !== prevFound) {
-          updateAlbum(idx, { urlsFound: progress.urlsFound });
-          prevFound = progress.urlsFound;
-        }
-        if (progress.urlsSaved !== prevSaved) {
-          const delta = progress.urlsSaved - prevSaved;
-          if (delta > 0) {
-            appendLog(
-              mbid,
-              title,
-              `리뷰 ${progress.urlsSaved}개 저장됨`,
-              'success'
-            );
-          }
-          updateAlbum(idx, { urlsSaved: progress.urlsSaved });
-          prevSaved = progress.urlsSaved;
-        }
-      }
-      // Hit the attempt cap without resolution — mark failed.
-      const idx = findAlbumIndex();
-      if (idx !== -1) {
-        updateAlbum(idx, { status: 'failed' });
-        appendLog(mbid, title, '타임아웃 (5분 초과)', 'error');
-      }
-    },
-    [appendLog, qc, updateAlbum]
-  );
-
-  const watchServerRun = useCallback(
-    (albums: Array<{ mbid: string; title: string }>) => {
-      if (albums.length === 0) return;
-
-      const newItems: CurationAlbumResult[] = albums.map((a) => ({
-        albumMbid: a.mbid,
-        albumTitle: a.title,
-        urlsFound: 0,
-        urlsSaved: 0,
-        duplicates: 0,
-        failures: 0,
-        summaryGenerated: false,
-        status: 'pending',
-      }));
-
-      setRun((prev) => {
-        if (prev) {
-          // Dedupe against albums already tracked in this run state.
-          const existing = new Set(prev.albums.map((a) => a.albumMbid));
-          const dedup = newItems.filter((a) => !existing.has(a.albumMbid));
-          if (dedup.length === 0) return prev;
-          const newLogs: CurationLogLine[] = dedup.map((a) => ({
-            id: `l-${nextLogId++}`,
-            albumMbid: a.albumMbid,
-            albumTitle: a.albumTitle,
-            message: '리뷰 수집 시작',
-            kind: 'info',
-            at: Date.now(),
-          }));
-          return {
-            ...prev,
-            albums: [...prev.albums, ...dedup],
-            log: [...prev.log, ...newLogs],
-            // Re-open a finished panel if a new server-watch lands
-            // after a previous run completed — user just registered
-            // another album.
-            finished: false,
-          };
-        }
-        const startLogs: CurationLogLine[] = newItems.map((a) => ({
-          id: `l-${nextLogId++}`,
-          albumMbid: a.albumMbid,
-          albumTitle: a.albumTitle,
-          message: '리뷰 수집 시작',
-          kind: 'info',
-          at: Date.now(),
-        }));
-        return {
-          runId: `r-${Date.now()}`,
-          albums: newItems,
-          currentIndex: 0,
-          log: startLogs,
-          startedAt: Date.now(),
-          finished: false,
-        };
-      });
-
-      // Spawn pollers AFTER setRun so the first findAlbumIndex hit
-      // sees the album in run.albums. State updates flush async so a
-      // tiny tick yield isn't strictly necessary, but pollOneAlbum's
-      // first iteration sleeps POLL_INTERVAL_MS first anyway, which
-      // is more than enough.
-      for (const item of newItems) {
-        pollOneAlbum(item.albumMbid, item.albumTitle).catch((err) => {
-          console.error('[curation-watch] poll error for', item.albumMbid, err);
-        });
-      }
-    },
-    [pollOneAlbum]
-  );
-
-  // Keep the ref mirror in sync so async pollers see the latest run.
-  useEffect(() => {
-    runRef.current = run;
-  }, [run]);
-
-  // Mark the run finished when every watched album reaches a terminal
-  // state. The admin-side startRun's own loop manages this via its
-  // try/finally; server-watch albums each resolve independently, so
-  // we observe their statuses and flip finished here.
-  useEffect(() => {
-    if (!run || run.finished) return;
-    const allDone = run.albums.every(
-      (a) => a.status === 'done' || a.status === 'failed'
-    );
-    if (allDone && !isRunningRef.current) {
-      setRun((prev) => (prev ? { ...prev, finished: true } : prev));
-      qc.invalidateQueries({ queryKey: ['admin-stats'] });
-      qc.invalidateQueries({ queryKey: ['curation-runs'] });
-    }
-  }, [run, qc]);
 
   const clearRun = useCallback(() => {
     if (isRunningRef.current) return;
@@ -766,8 +506,8 @@ export function CurationProgressProvider({ children }: { children: ReactNode }) 
   const isRunning = run !== null && !run.finished;
 
   const value = useMemo<CurationProgressAPI>(
-    () => ({ run, isRunning, startRun, watchServerRun, clearRun }),
-    [run, isRunning, startRun, watchServerRun, clearRun]
+    () => ({ run, isRunning, startRun, clearRun }),
+    [run, isRunning, startRun, clearRun]
   );
 
   return (
