@@ -843,8 +843,8 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       )}
 
       {/* Cover Art */}
-      <div className="w-full md:w-72 md:self-start flex-shrink-0">
-        <div className="relative group/cover aspect-square bg-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
+      <div className="w-full md:w-72 flex-shrink-0">
+        <div className="relative group/cover aspect-square md:aspect-auto md:h-full bg-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
           <CoverArt
             src={album.coverArtUrl}
             fallbacks={album.coverArtFallbacks}
