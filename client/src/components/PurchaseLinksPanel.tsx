@@ -342,7 +342,7 @@ function DiscogsSection({ formats }: { formats: FormatPrice[] }) {
               {formatKrw(fmt.lowestPriceKrw)}
             </span>
           )}
-          <span className="text-gray-500 text-xs tabular-nums w-10 text-right flex-shrink-0">
+          <span className="text-gray-500 text-xs tabular-nums w-14 text-right flex-shrink-0 whitespace-nowrap">
             {fmt.copiesForSale}개{fmt.copiesForSale > 1 ? ' 중' : ''}
           </span>
         </a>
@@ -796,18 +796,20 @@ export default function PurchaseLinksPanel({
             );
           })}
 
-          {/* Add-card sits between user-registered links and Discogs
-              price cards so the CTA is visible before the eye reaches
-              the (often long) Discogs list — hiding the button behind
-              those cards made it easy to miss. Any logged-in user can
-              trigger it; the server caps at 3 per user per album and
-              surfaces the 409 as a form error if they overshoot. */}
-          {!!user && !adding && (
-            <AddPurchaseLinkCard onClick={() => setAdding(true)} />
-          )}
-
           {discogsCards.length > 0 && (
             <DiscogsSection formats={discogsCards} />
+          )}
+
+          {/* Add-card sits below Discogs price cards. Any logged-in
+              user can trigger it; the server caps at 3 per user per
+              album and surfaces the 409 as a form error if they
+              overshoot. Below-Discogs placement was the user's call:
+              the dotted-outline placeholder above the live commercial
+              data felt like leftover space, and tucking it under the
+              market reference reads more naturally as "didn't find
+              what you wanted? add yours". */}
+          {!!user && !adding && (
+            <AddPurchaseLinkCard onClick={() => setAdding(true)} />
           )}
         </div>
       )}
