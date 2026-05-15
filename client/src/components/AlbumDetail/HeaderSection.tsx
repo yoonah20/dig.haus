@@ -1186,8 +1186,13 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               and the body grid, which created a hard horizontal break
               and a floating-in-the-middle feel. Inside the header it
               reads as a per-album action group, and a tag row below
-              still acts as the separator from the metadata above. */}
-          <div className="flex items-stretch gap-2 mb-4">
+              still acts as the separator from the metadata above.
+              py-3 + mb-6 gives the chip cluster symmetric ~36px gaps
+              above and below (24px from the release-date row's mb-6
+              plus 12px of inner padding on top; 12px inner + 24px
+              mb-6 on bottom), so the bar reads as a deliberate
+              separator instead of being squeezed between siblings. */}
+          <div className="flex items-stretch gap-2 py-3 mb-6">
             <VoteButtons
               albumId={albumId}
               upvotes={album.upvotes ?? 0}
