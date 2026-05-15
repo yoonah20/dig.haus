@@ -7,6 +7,7 @@ import { useGenerateReviewSummary } from '../../hooks/useAlbum';
 import type { AlbumDetail, StreamingLinks, BuyInfo } from '../../types';
 import CoverArt from '../CoverArt';
 import PlayChip from '../PlayChip';
+import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import VoteButtons from '../VoteButtons';
 import CrateButton from './CrateButton';
@@ -289,6 +290,89 @@ function TagEditor({
         ))}
       </div>
     </div>
+  );
+}
+
+const linkServices = [
+  {
+    key: 'discogs' as const,
+    name: 'Discogs',
+    color: '#333',
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+        <path d="M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0zm0 21.6A9.6 9.6 0 1 1 12 2.4a9.6 9.6 0 0 1 0 19.2zm0-16.8a7.2 7.2 0 1 0 0 14.4 7.2 7.2 0 0 0 0-14.4zm0 12a4.8 4.8 0 1 1 0-9.6 4.8 4.8 0 0 1 0 9.6zm0-7.2a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'spotify' as const,
+    name: 'Spotify',
+    color: '#1DB954',
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+        <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'youtube' as const,
+    name: 'YouTube',
+    color: '#FF0000',
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+        <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'bandcamp' as const,
+    name: 'Bandcamp',
+    color: '#1DA0C3',
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+        <path d="M0 18.75l7.437-13.5H24l-7.438 13.5H0z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'appleMusic' as const,
+    name: 'Apple Music',
+    color: '#FC3C44',
+    icon: (
+      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
+        <path d="M23.994 6.124a9.23 9.23 0 00-.24-2.19c-.317-1.31-1.062-2.31-2.18-3.043A5.022 5.022 0 0019.7.165a10.18 10.18 0 00-1.564-.12C17.596.01 17.052 0 15.62 0H8.382c-1.434 0-1.978.01-2.518.045A10.18 10.18 0 004.3.165a5.02 5.02 0 00-1.874.716C1.31 1.597.565 2.597.248 3.908a9.23 9.23 0 00-.24 2.19C-.004 6.636 0 7.18 0 8.612v6.776c0 1.434-.004 1.978.008 2.518.02.74.08 1.468.24 2.19.317 1.31 1.062 2.31 2.18 3.043A5.02 5.02 0 004.3 23.835c.516.07 1.04.112 1.564.12.54.034 1.084.045 2.518.045h7.236c1.434 0 1.978-.01 2.518-.045a10.18 10.18 0 001.564-.12 5.022 5.022 0 001.874-.716c1.118-.733 1.863-1.733 2.18-3.043a9.23 9.23 0 00.24-2.19c.012-.54.008-1.084.008-2.518V8.612c0-1.434.004-1.978-.008-2.518zM17.02 17.61c0 .54-.18.96-.54 1.26s-.78.42-1.26.36a1.58 1.58 0 01-1.02-.54c-.24-.3-.36-.66-.36-1.08V9.87l-6.96 1.5v7.23c0 .54-.18.96-.54 1.26s-.78.42-1.26.36a1.58 1.58 0 01-1.02-.54c-.24-.3-.36-.66-.36-1.08 0-.54.18-.96.54-1.26s.78-.42 1.26-.36c.36.06.66.24.9.48V8.04c0-.36.12-.66.36-.9.24-.24.54-.42.9-.48l7.44-1.62c.36-.06.66 0 .9.18s.36.42.36.72v11.67z" />
+      </svg>
+    ),
+  },
+];
+
+function LinkButton({ link }: { link: { key: string; name: string; color: string; icon: React.ReactNode; url: string } }) {
+  if (link.key === 'spotify') {
+    return (
+      <button
+        onClick={() => openSpotifyAlbum(link.url)}
+        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2 transition-colors group cursor-pointer"
+      >
+        <span style={{ color: link.color }}>{link.icon}</span>
+        <span className="text-xs text-gray-400 group-hover:text-white transition-colors">
+          {link.name}
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <a
+      href={link.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2 transition-colors group"
+    >
+      <span style={{ color: link.color }}>{link.icon}</span>
+      <span className="text-xs text-gray-400 group-hover:text-white transition-colors">
+        {link.name}
+      </span>
+    </a>
   );
 }
 
@@ -691,6 +775,19 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     }
   }, [albumId, titleInput, artistInput, releaseYearInput, releaseDateInput, labelInput, discogsUrlInput, spotifyUrlInput, appleMusicUrlInput, youtubeUrlInput, bandcampUrlInput, queryClient]);
 
+  const allLinks: Array<{ key: string; name: string; color: string; icon: React.ReactNode; url: string }> = [];
+  if (buy.discogsUrl) {
+    const discogsDef = linkServices.find((s) => s.key === 'discogs')!;
+    allLinks.push({ ...discogsDef, url: buy.discogsUrl });
+  }
+  for (const s of linkServices) {
+    if (s.key === 'discogs') continue;
+    const url = streaming[s.key as keyof StreamingLinks];
+    if (url && typeof url === 'string') {
+      allLinks.push({ ...s, url });
+    }
+  }
+
   return (
     <div className="relative flex flex-col md:flex-row md:gap-6 bg-panel rounded-panel overflow-hidden">
       {user?.isAdmin && (
@@ -923,21 +1020,18 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       {/* Info + Streaming */}
       <div className="flex flex-col flex-1 min-w-0 p-6 md:pl-0">
         <div>
-          <div className="flex items-start gap-2">
-            <h1
-              // Single responsive size. The previous logic switched
-              // between text-2xl / text-3xl / text-5xl depending on
-              // album.title.length thresholds, which made the layout
-              // jump every time the title crossed 15 / 25 chars and
-              // forced two adjacent album pages to render their
-              // headers at visibly different scales. Long titles now
-              // wrap to a second / third line instead — the page
-              // header's vertical rhythm stays stable.
-              className="font-bold text-white font-serif text-editorial-sm md:text-editorial-lg break-words min-w-0 leading-tight"
-            >
+          {/* Artist — Title on one line, icon buttons trailing */}
+          <div className="flex items-baseline gap-2 flex-wrap min-w-0 mb-1">
+            <ArtistCredit
+              credit={album.artistCredit}
+              fallback={album.artist}
+              className="text-editorial-sm md:text-editorial-lg text-accent hover:underline font-serif cursor-pointer text-left leading-tight flex-shrink-0"
+            />
+            <span className="text-gray-500 font-serif text-editorial-sm md:text-editorial-lg leading-tight flex-shrink-0">—</span>
+            <h1 className="font-bold text-white font-serif text-editorial-sm md:text-editorial-lg break-words min-w-0 leading-tight">
               {album.title}
             </h1>
-            <div className="pt-2 md:pt-3 flex-shrink-0 flex items-center gap-1.5">
+            <div className="flex-shrink-0 flex items-center gap-1.5 self-center">
               <CopyTitleButton
                 text={`${album.title} ${album.artist}`}
                 label={`"${album.title} ${album.artist}" 복사`}
@@ -990,20 +1084,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               )}
             </div>
           </div>
-
-          {/* Multi-artist collabs (e.g. Nine Inch Nails, Boys Noize)
-              render each name as its own clickable element so a
-              reader can jump to either artist's catalog. Single-
-              artist albums collapse to one button visually identical
-              to the prior single-button render. */}
-          <ArtistCredit
-            credit={album.artistCredit}
-            fallback={album.artist}
-            className="text-editorial-sm md:text-editorial-lg text-accent hover:underline inline-block font-serif cursor-pointer text-left"
-          />
-          {/* The button-version above replaces the previous single
-              `openOverlay(album.artist)` button; openOverlay is now
-              fired per-artist from inside ArtistCredit. */}
 
           {editingKo ? (
             <div className="mt-4 mb-5 bg-white/5 border border-white/10 rounded-lg p-3 max-w-md">
@@ -1117,6 +1197,14 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
 
           <TagEditor tags={album.genres} albumId={albumId} isAdmin={!!user?.isAdmin} />
         </div>
+
+        {allLinks.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {allLinks.map((link) => (
+              <LinkButton key={link.key} link={link} />
+            ))}
+          </div>
+        )}
       </div>
 
       {user?.isAdmin && editingAlbum && (
