@@ -1,26 +1,25 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCurationProgress } from '../contexts/CurationProgressContext';
-import { useAuth } from '../contexts/AuthContext';
 
-// Floating progress panel for the admin curation pipeline. Renders at
-// the app root so it survives route changes — admin can start a batch
+// Floating progress panel for the curation pipeline. Renders at the
+// app root so it survives route changes — admin can start a batch
 // from /admin, navigate to an album page to watch one review come in
 // live, then go somewhere else, and the panel stays pinned bottom-right
-// the whole time. Auto-hides when there's no active run or when the
-// logged-in user isn't admin.
+// the whole time. Auto-hides when there's no active run. Used by both
+// the admin client-driven pipeline (startRun) and the user-submission
+// server-watch flow (watchServerRun) so both audiences get the same
+// progress UX.
 //
 // Minimize collapses to a compact pill showing "N/total · 리뷰 M개"
 // which is the rough answer to "is it still running?" without eating
 // half the screen. Close button only works when the run is finished
-// — we don't let admin dismiss the panel mid-run (would strand the
+// — we don't let users dismiss the panel mid-run (would strand the
 // state without a way to reopen it).
 export default function CurationProgressPanel() {
-  const { user } = useAuth();
   const { run, clearRun } = useCurationProgress();
   const [minimized, setMinimized] = useState(false);
 
-  if (!user?.isAdmin) return null;
   if (!run) return null;
 
   const current = run.albums[run.currentIndex];

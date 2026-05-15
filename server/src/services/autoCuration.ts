@@ -363,13 +363,19 @@ const queue: string[] = [];
 const queuedSet = new Set<string>(); // dedup against same-mbid double-enqueue
 let working = false;
 
-export function enqueueAutoCuration(mbid: string): void {
+// Returns true if the album actually got onto the queue, false on any
+// short-circuit (env disabled, duplicate, unreleased). The caller
+// (route handler) surfaces this so the client knows whether to spawn
+// a progress watcher — sparing the user a 20s "리뷰 수집 시작" panel
+// that resolves to "시작되지 않았습니다" for albums we intentionally
+// skipped.
+export function enqueueAutoCuration(mbid: string): boolean {
   if (!ENABLED) {
     console.log(`[auto-curation] disabled by env, skipping ${mbid}`);
-    return;
+    return false;
   }
   if (queuedSet.has(mbid)) {
-    return;
+    return false;
   }
   // Unreleased albums: pre-orders / future-dated rows have no reviews
   // out there yet, so Serper would burn a query for zero return and
@@ -383,7 +389,7 @@ export function enqueueAutoCuration(mbid: string): void {
     console.log(
       `[auto-curation] skipping ${mbid} — unreleased (release_date=${album.release_date})`
     );
-    return;
+    return false;
   }
   queuedSet.add(mbid);
   queue.push(mbid);
@@ -409,6 +415,7 @@ export function enqueueAutoCuration(mbid: string): void {
       );
     });
   }
+  return true;
 }
 
 async function drain(): Promise<void> {
