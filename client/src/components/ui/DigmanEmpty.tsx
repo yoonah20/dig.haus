@@ -24,6 +24,12 @@
 //     (object-contain) at a slightly larger footprint. Use for
 //     "we're still working on it" empties — review-not-yet-collected,
 //     pipeline-pending content. Reads as "곧 도착", not "비어 있음".
+//   - 'digging'  (digman_digging.webp): digman mid-swing with a
+//     shovel. Use for in-flight pipeline state where work is
+//     actively happening right now — auto-curation polling, batch
+//     jobs in progress. Renders at full opacity (vs the muted 80%
+//     the rest get) and slightly larger because the energy of the
+//     pose is the point; a faded swing reads as static.
 //
 // `size` toggles between two presets — `md` for in-page feed empties
 // (snapshot rail, modal lists), `lg` for full-page empties like the
@@ -40,7 +46,7 @@ type DigmanEmptyProps = {
   /** Which expression to render. Each variant maps to one webp under
    *  /textures/. 'thinking' is the default for surfaces that don't
    *  pick an emotion explicitly. */
-  variant?: 'thinking' | 'sad' | 'sleep' | 'dizzy' | 'sign';
+  variant?: 'thinking' | 'sad' | 'sleep' | 'dizzy' | 'sign' | 'digging';
   className?: string;
 };
 
@@ -50,6 +56,7 @@ const VARIANT_SRC: Record<NonNullable<DigmanEmptyProps['variant']>, string> = {
   sleep: '/textures/digman_sleep.webp',
   dizzy: '/textures/digman_dizzy.webp',
   sign: '/textures/digman_signpost.webp',
+  digging: '/textures/digman_digging.webp',
 };
 
 const SIZE_CLASSES: Record<
@@ -74,6 +81,13 @@ const SIZE_CLASSES: Record<
     md: 'w-48 h-48',
     lg: 'w-80 h-80',
   },
+  // Digging: same square footprint as sign — the asset is full-body
+  // with the shovel swing taking up the diagonal, so it needs the
+  // larger frame to read clearly.
+  digging: {
+    md: 'w-48 h-48',
+    lg: 'w-80 h-80',
+  },
 };
 
 export default function DigmanEmpty({
@@ -84,6 +98,8 @@ export default function DigmanEmpty({
   className = '',
 }: DigmanEmptyProps) {
   const isSign = variant === 'sign';
+  const isDigging = variant === 'digging';
+  const isLarge = isSign || isDigging;
   const src = VARIANT_SRC[variant];
 
   return (
@@ -95,16 +111,22 @@ export default function DigmanEmpty({
           src={src}
           alt=""
           aria-hidden
-          className="block w-full h-full object-contain object-center opacity-80 select-none"
+          // Digging renders at full opacity — the muted treatment that
+          // works for "nothing here" expressions reads as a broken /
+          // blurry image when the pose is conveying "actively working".
+          className={`block w-full h-full object-contain object-center ${
+            isDigging ? 'opacity-100' : 'opacity-80'
+          } select-none`}
           draggable={false}
         />
       </div>
-      {/* Sign variant gets larger type because the asset itself is
-          larger; expression variants keep the muted/quieter sizing so
-          they still read as background voice on lists. */}
+      {/* Larger asset variants (sign, digging) get larger type because
+          the mascot itself is larger; expression variants keep the
+          muted/quieter sizing so they still read as background voice
+          on lists. */}
       <div
         className={`${
-          isSign
+          isLarge
             ? size === 'lg'
               ? 'text-lg'
               : 'text-base'
@@ -116,7 +138,7 @@ export default function DigmanEmpty({
         {message}
       </div>
       {hint && (
-        <div className={`${isSign ? 'text-sm' : 'text-xs'} text-gray-600`}>
+        <div className={`${isLarge ? 'text-sm' : 'text-xs'} text-gray-600`}>
           {hint}
         </div>
       )}

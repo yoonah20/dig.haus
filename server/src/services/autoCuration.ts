@@ -47,6 +47,32 @@ export interface AutoCurationResult {
   error?: string;
 }
 
+// Per-mbid progress snapshot exposed via GET /api/albums/:id/auto-
+// curation-status. The album page polls this while reviews_crawled_at
+// IS NULL so a user who just registered can see "리뷰 발굴 중 5/15"
+// instead of the static digman + 답답한 침묵 the previous rev gave them.
+// Pure in-memory — a server restart clears state, same as the queue
+// itself, so the polling client just stops seeing in-flight progress.
+export type CurationPhase =
+  | 'queued'
+  | 'discovering'
+  | 'scraping'
+  | 'summarizing';
+
+export interface CurationProgress {
+  mbid: string;
+  phase: CurationPhase;
+  urlsFound: number;
+  urlsSaved: number;
+  startedAt: string;
+}
+
+const progressByMbid = new Map<string, CurationProgress>();
+
+export function getAutoCurationProgress(mbid: string): CurationProgress | null {
+  return progressByMbid.get(mbid) ?? null;
+}
+
 export async function runAutoCuration(mbid: string): Promise<AutoCurationResult> {
   const album = getCachedAlbum(mbid);
   if (!album) {
@@ -63,6 +89,18 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
   const artist: string = album.artist_name;
   const title: string = album.title;
   console.log(`[auto-curation] start ${artist} / ${title} (${mbid})`);
+
+  // Initialise progress; transitions update phase + counters in place
+  // so the polling client always sees the latest snapshot. drain() is
+  // responsible for clearing the entry on completion, regardless of
+  // outcome (done / failed / no-urls).
+  progressByMbid.set(mbid, {
+    mbid,
+    phase: 'discovering',
+    urlsFound: 0,
+    urlsSaved: 0,
+    startedAt: new Date().toISOString(),
+  });
 
   // Step 1: discover. Mirrors /api/albums/:id/reviews/discover.
   let candidates: string[] = [];
@@ -122,6 +160,13 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
     console.error(`[auto-curation] discover failed for ${mbid}:`, (err as Error).message);
     return emptyResult(mbid, 'failed', 'discover-failed');
   }
+
+  // Transition into scraping phase. urlsFound is fixed for the run;
+  // urlsSaved ticks up as each scrape commits a row.
+  updateProgress(mbid, {
+    phase: 'scraping',
+    urlsFound: candidates.length,
+  });
 
   // Step 2: chunked scrape with backfill + per-host serialisation.
   // See CurationProgressContext for the reasoning on CHUNK_SIZE,
@@ -184,6 +229,7 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
             // — undercounting saves slightly in that rare case but
             // matches the client pipeline's behaviour.
             saved++;
+            updateProgress(mbid, { urlsSaved: saved });
           } catch (err) {
             console.error(
               `[auto-curation] scrape ${url} failed:`,
@@ -200,6 +246,7 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
   let summaryOk = false;
   const existing = getCachedReviews(mbid) || [];
   if (existing.length >= 2) {
+    updateProgress(mbid, { phase: 'summarizing' });
     for (let attempt = 0; attempt < SUMMARY_MAX_ATTEMPTS; attempt++) {
       if (attempt > 0) {
         const backoff = SUMMARY_BACKOFF_MS[attempt] ?? 0;
@@ -263,6 +310,12 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
     summaryGenerated: summaryOk,
     status: 'done',
   };
+}
+
+function updateProgress(mbid: string, patch: Partial<CurationProgress>): void {
+  const current = progressByMbid.get(mbid);
+  if (!current) return;
+  progressByMbid.set(mbid, { ...current, ...patch });
 }
 
 function isUnreleased(releaseDate: string | null | undefined): boolean {
@@ -334,6 +387,17 @@ export function enqueueAutoCuration(mbid: string): void {
   }
   queuedSet.add(mbid);
   queue.push(mbid);
+  // Seed a 'queued' progress entry immediately so the polling client
+  // can show "리뷰 수집 대기 중..." between submission and the moment
+  // drain() picks the album up. runAutoCuration overwrites this with
+  // the live phase on entry.
+  progressByMbid.set(mbid, {
+    mbid,
+    phase: 'queued',
+    urlsFound: 0,
+    urlsSaved: 0,
+    startedAt: new Date().toISOString(),
+  });
   if (!working) {
     // Detach from the caller (the album-requests POST) so it can
     // respond immediately. setImmediate yields the event loop once
@@ -358,6 +422,12 @@ async function drain(): Promise<void> {
         await runAutoCuration(mbid);
       } catch (err) {
         console.error(`[auto-curation] run threw for ${mbid}:`, err);
+      } finally {
+        // Always clear progress state — the polling client transitions
+        // from "in-flight" → null on this exact step and uses that
+        // edge to refetch the album. Holding stale state past a run
+        // would block the refresh signal.
+        progressByMbid.delete(mbid);
       }
     }
   } finally {

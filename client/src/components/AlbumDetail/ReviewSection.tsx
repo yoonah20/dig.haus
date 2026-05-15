@@ -282,6 +282,12 @@ interface ReviewSectionProps {
    *  link), auto-open the + 리뷰 추가 form on the 수동 입력 tab with
    *  URL + derived source name pre-filled. */
   prefillManualUrl?: string | null;
+  /** Live progress for a user-triggered auto-curation, polled by the
+   *  parent page. Non-null only while a run is in flight for this
+   *  album; we swap the static "pending" digman for the digging
+   *  variant with N/15 counters so the user sees the pipeline working
+   *  instead of guessing. */
+  autoCurationProgress?: import('../../hooks/useAlbum').AutoCurationProgress | null;
 }
 
 // localStorage keyed store of (hostname → source name) pairs admin has
@@ -339,6 +345,42 @@ function parseHostname(url: string): string {
   }
 }
 
+// Phase → user-facing copy for the digging-state digman. The text
+// updates as the run advances through queued → discovering → scraping
+// (with N/15 counter) → summarizing. Kept short so the digman + label
+// pair stays compact in the section's empty slot.
+function curationPhaseLabel(
+  p: import('../../hooks/useAlbum').AutoCurationProgress
+): string {
+  switch (p.phase) {
+    case 'queued':
+      return '리뷰 수집 대기 중';
+    case 'discovering':
+      return '리뷰 출처 검색 중';
+    case 'scraping':
+      return p.urlsFound > 0
+        ? `리뷰 발굴 중 ${p.urlsSaved}/${Math.min(p.urlsFound, 15)}`
+        : '리뷰 발굴 중';
+    case 'summarizing':
+      return '한국어 요약 생성 중';
+  }
+}
+
+function curationPhaseHint(
+  p: import('../../hooks/useAlbum').AutoCurationProgress
+): string {
+  switch (p.phase) {
+    case 'queued':
+      return '곧 시작합니다';
+    case 'discovering':
+      return '구글에서 리뷰 페이지를 찾고 있어요';
+    case 'scraping':
+      return '리뷰 본문을 읽고 한국어로 옮기는 중이에요';
+    case 'summarizing':
+      return '거의 다 됐어요';
+  }
+}
+
 export default function ReviewSection({
   reviews,
   koreanSummary,
@@ -347,6 +389,7 @@ export default function ReviewSection({
   albumTitle,
   albumArtist,
   prefillManualUrl,
+  autoCurationProgress,
 }: ReviewSectionProps) {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
@@ -800,19 +843,31 @@ export default function ReviewSection({
             </div>
           )}
 
-          {/* Non-admin empty state — digman + WIP sign reads as
-              "still being collected" rather than "this album has
-              nothing". The guest path no longer distinguishes
-              between "pending crawl" and "crawled but empty"
-              because the distinction is an admin-operational detail
-              that doesn't help visitors. Admin's own empty state is
-              the "+ 리뷰 추가" slot below. */}
+          {/* Non-admin empty state — splits two ways based on whether
+              auto-curation is actively running for this album:
+                - In flight (autoCurationProgress non-null): digging
+                  variant with phase-specific message + N/15 counter
+                  during the scrape step. Page auto-refreshes on
+                  completion via useAutoCurationStatus, no reload.
+                - Idle (null): static signpost reading "곧 도착" — the
+                  same WIP state as before for albums admin registered
+                  or whose curation already finished empty.
+              Admin's own empty state is the "+ 리뷰 추가" slot below
+              regardless. */}
           {sortedReviews.length === 0 && !koreanSummary && !isAdmin && (
-            <DigmanEmpty
-              variant="sign"
-              message="아직 리뷰를 파고 있습니다"
-              hint="굴착이 끝나면 확인하실 수 있습니다"
-            />
+            autoCurationProgress ? (
+              <DigmanEmpty
+                variant="digging"
+                message={curationPhaseLabel(autoCurationProgress)}
+                hint={curationPhaseHint(autoCurationProgress)}
+              />
+            ) : (
+              <DigmanEmpty
+                variant="sign"
+                message="아직 리뷰를 파고 있습니다"
+                hint="굴착이 끝나면 확인하실 수 있습니다"
+              />
+            )
           )}
 
           {(sortedReviews.length > 0 || isAdmin) && (

@@ -1,6 +1,12 @@
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useEffect } from 'react';
-import { useAlbumBase, useAlbumReviews, useAlbumSimilar, useAlbumNeighbors } from '../hooks/useAlbum';
+import {
+  useAlbumBase,
+  useAlbumReviews,
+  useAlbumSimilar,
+  useAlbumNeighbors,
+  useAutoCurationStatus,
+} from '../hooks/useAlbum';
 import { useHomeState } from '../contexts/HomeStateContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useInView } from '../hooks/useInView';
@@ -50,6 +56,15 @@ export default function Album() {
   // Use slug for sub-endpoints (server resolves slug→mbid)
   const albumId = base?.album?.slug || slug!;
   const { data: reviewsData, isLoading: reviewsLoading } = useAlbumReviews(albumId, baseReady);
+  // Poll auto-curation progress whenever the album is still pending —
+  // a non-admin user who registered this album sees the progress live,
+  // and queries auto-invalidate when the run finishes so the reviews
+  // appear without a manual reload. Disabled once the album has a
+  // crawled-at timestamp so we're not polling on every album page.
+  const autoCurationProgress = useAutoCurationStatus(
+    albumId,
+    baseReady && base?.album?.reviewsCrawledAt == null
+  );
   // Only fetch similar albums when the section enters the viewport — avoids
   // a slow Claude+Last.fm round trip when users only skim the header.
   const { ref: similarRef, inView: similarVisible } = useInView<HTMLDivElement>();
@@ -193,6 +208,7 @@ export default function Album() {
                 albumTitle={album.title}
                 albumArtist={album.artist}
                 prefillManualUrl={prefillManualUrl}
+                autoCurationProgress={autoCurationProgress}
                 pendingNotice={
                   base.album.reviewsCrawledAt === null && isAdmin ? (
                     <ReviewsAdminBar
