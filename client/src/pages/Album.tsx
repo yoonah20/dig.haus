@@ -8,6 +8,8 @@ import { useDocumentHead } from '../hooks/useDocumentHead';
 import HeaderSection from '../components/AlbumDetail/HeaderSection';
 import BuySection from '../components/AlbumDetail/BuySection';
 import UserReviewsSection from '../components/AlbumDetail/UserReviewsSection';
+import VoteButtons from '../components/VoteButtons';
+import CrateButton from '../components/AlbumDetail/CrateButton';
 import ReviewSection from '../components/AlbumDetail/ReviewSection';
 import SimilarAlbums from '../components/AlbumDetail/SimilarAlbums';
 import ReviewsAdminBar from '../components/AlbumDetail/ReviewsAdminBar';
@@ -191,7 +193,19 @@ export default function Album() {
             ) : null}
           </div>
 
-          <div className="mt-10 lg:mt-0 space-y-10">
+          <div className="mt-10 lg:mt-0 space-y-6">
+            <div className="flex items-center gap-2 flex-wrap">
+              <VoteButtons
+                albumId={albumId}
+                upvotes={album.upvotes ?? 0}
+                downvotes={album.downvotes ?? 0}
+                userVote={album.userVote ?? null}
+              />
+              <CrateButton
+                albumId={album.id ?? null}
+                crateCount={album.crateCount ?? 0}
+              />
+            </div>
             <BuySection buy={base.buy} albumId={albumId} />
             <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
           </div>

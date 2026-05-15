@@ -9,8 +9,6 @@ import CoverArt from '../CoverArt';
 import PlayChip from '../PlayChip';
 import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
-import VoteButtons from '../VoteButtons';
-import CrateButton from './CrateButton';
 import CopyTitleButton from '../CopyTitleButton';
 
 import ArtistCredit from '../ArtistCredit';
@@ -1180,19 +1178,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 <span>{album.label}</span>
               </>
             )}
-          </div>
-
-          <div className="mb-6 flex items-center gap-2 flex-wrap">
-            <VoteButtons
-              albumId={albumId}
-              upvotes={album.upvotes ?? 0}
-              downvotes={album.downvotes ?? 0}
-              userVote={album.userVote ?? null}
-            />
-            <CrateButton
-              albumId={album.id ?? null}
-              crateCount={album.crateCount ?? 0}
-            />
           </div>
 
           <TagEditor tags={album.genres} albumId={albumId} isAdmin={!!user?.isAdmin} />

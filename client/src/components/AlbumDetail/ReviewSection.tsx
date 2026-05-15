@@ -191,7 +191,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
     : {};
 
   return (
-    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
+    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-3 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
       {isAdmin && !editing && (
         <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
           <CardOverlayButton onClick={startEditExcerpt} title="본문 수정">
@@ -717,7 +717,7 @@ export default function ReviewSection({
             headline number misleads. Card still renders for the
             summary alone when the score doesn't qualify. */}
         {(koreanSummary || (averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG)) && (
-            <div className="relative group/summary bg-panel rounded-panel p-5 border-l-4 border-accent">
+            <div className="relative group/summary bg-panel rounded-panel p-4 border-l-4 border-accent">
               {isAdmin && !editingSummary && koreanSummary && (
                 <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/summary:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                   <CardOverlayButton onClick={startEditSummary} title="요약 수정">
