@@ -1,37 +1,23 @@
 import { useState } from 'react';
 
-const COPY_ICON = (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="w-4 h-4"
-  >
-    <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
-    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
-  </svg>
-);
+function CopyIcon({ className }: { className: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </svg>
+  );
+}
 
-const CHECK_ICON = (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className="w-4 h-4"
-  >
-    <polyline points="20 6 9 17 4 12" />
-  </svg>
-);
+function CheckIcon({ className }: { className: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
 
-export default function CopyTitleButton({ text, label }: { text: string; label?: string }) {
+export default function CopyTitleButton({ text, label, iconClassName = 'w-4 h-4' }: { text: string; label?: string; iconClassName?: string }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async (e: React.MouseEvent) => {
@@ -54,7 +40,7 @@ export default function CopyTitleButton({ text, label }: { text: string; label?:
         copied ? 'text-accent' : 'text-gray-600 hover:text-accent'
       }`}
     >
-      {copied ? CHECK_ICON : COPY_ICON}
+      {copied ? <CheckIcon className={iconClassName} /> : <CopyIcon className={iconClassName} />}
     </button>
   );
 }

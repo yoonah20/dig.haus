@@ -1020,24 +1020,26 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       {/* Info + Streaming */}
       <div className="flex flex-col flex-1 min-w-0 p-4 md:pl-0">
         <div>
-          {/* Artist — Title on one line, icon buttons trailing */}
+          {/* Artist – Title, with compact action icons inline after the title */}
           <div className="flex items-baseline gap-1 flex-wrap min-w-0 mb-1">
             <ArtistCredit
               credit={album.artistCredit}
               fallback={album.artist}
-              className="text-editorial-sm md:text-editorial-lg text-accent hover:underline font-serif cursor-pointer text-left leading-tight flex-shrink-0"
+              className="text-editorial-md md:text-editorial-lg text-accent hover:underline font-serif cursor-pointer text-left leading-tight flex-shrink-0"
             />
-            <span className="text-gray-500 font-serif text-editorial-sm md:text-editorial-lg leading-tight flex-shrink-0">–</span>
-            <h1 className="font-bold text-white font-serif text-editorial-sm md:text-editorial-lg break-words min-w-0 leading-tight">
+            <span className="text-gray-500 font-serif text-editorial-md md:text-editorial-lg leading-tight flex-shrink-0">–</span>
+            <h1 className="font-bold text-white font-serif text-editorial-md md:text-editorial-lg break-words min-w-0 leading-tight">
               {album.title}
             </h1>
-            <div className="flex-shrink-0 flex items-center gap-1.5 self-center">
+            <div className="flex-shrink-0 flex items-center gap-1 self-center">
               <CopyTitleButton
                 text={`${album.title} ${album.artist}`}
                 label={`"${album.title} ${album.artist}" 복사`}
+                iconClassName="w-3 h-3"
               />
               <ShareLinkButton
                 title={`${album.title} — ${album.artist}`}
+                iconClassName="w-3 h-3"
               />
               <button
                 type="button"
@@ -1055,7 +1057,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 }}
                 title="vinyl 검색"
                 aria-label={`"${album.title} ${album.artist} vinyl" 구글 검색`}
-                className="inline-flex items-center justify-center p-1 rounded text-gray-600 hover:text-accent transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center p-0.5 rounded text-gray-600 hover:text-accent transition-colors cursor-pointer"
               >
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
@@ -1065,7 +1067,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="w-4 h-4"
+                  className="w-3 h-3"
                   aria-hidden
                 >
                   <circle cx="11" cy="11" r="7" />
@@ -1075,7 +1077,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               {user?.isAdmin && (
                 <button
                   onClick={startEditAlbum}
-                  className="text-gray-600 hover:text-accent transition-colors cursor-pointer text-xs px-1.5 py-0.5 rounded border border-transparent hover:border-white/10"
+                  className="text-gray-600 hover:text-accent transition-colors cursor-pointer text-xs px-1 py-0.5 rounded border border-transparent hover:border-white/10"
                   title="앨범 수정"
                   aria-label="앨범 수정"
                 >
