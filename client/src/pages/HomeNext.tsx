@@ -108,7 +108,7 @@ function useHeroSeenUpdate(lastContentUpdateAt: string | null | undefined) {
   }, [lastContentUpdateAt]);
   const hasUpdate =
     !!lastContentUpdateAt && !!seenAt && lastContentUpdateAt > seenAt;
-  return { hasUpdate, markSeen };
+  return { hasUpdate, markSeen, seenAt };
 }
 
 // HomeNext is the canonical home composition. Hero on top, then a
@@ -206,7 +206,7 @@ export default function HomeNext() {
   const [heroCollapsed, setHeroCollapsed] = useHeroCollapsed();
   const { data: homeFeatures } = useHomeFeatures();
   const lastContentUpdateAt = homeFeatures?.lastContentUpdateAt ?? null;
-  const { hasUpdate, markSeen } = useHeroSeenUpdate(lastContentUpdateAt);
+  const { markSeen, seenAt } = useHeroSeenUpdate(lastContentUpdateAt);
   // While the hero is expanded the visitor is looking at the
   // carousel directly — keep their seenAt baseline current so
   // collapsing later doesn't surface a stale NEW badge for content
@@ -443,8 +443,7 @@ export default function HomeNext() {
       {heroCollapsed ? (
         <CollapsedHeroBar
           walls={homeFeatures?.walls ?? []}
-          hasUpdate={hasUpdate}
-          lastContentUpdateAt={lastContentUpdateAt}
+          seenAt={seenAt}
           onExpand={() => {
             markSeen();
             setHeroCollapsed(false);
@@ -641,46 +640,73 @@ export default function HomeNext() {
   );
 }
 
-// Collapsed-hero replacement — a single-line strip showing the
-// last-active wall's theme so the carousel stays referenced even
-// when the visitor has hidden it. Reads the active idx from
-// sessionStorage written by the hero modules; falls back to wall
-// 0 when storage is empty (fresh tab or the visitor never paged
-// the carousel before collapsing). The whole strip is the click
-// target so the affordance reads as "the bar is the button",
-// not "find the small button in the corner". The last update
-// date sits inline next to the wall theme as a permanent subtitle
-// — visitor sees how fresh the curation is without expanding —
-// and a NEW badge prefixes the date only when the server reports
-// a change since the visitor's seenAt watermark, giving them a
-// reason to actually expand.
+// Collapsed-hero replacement — a single-line strip that rotates
+// through the same walls the expanded carousel shows, advancing
+// every COLLAPSED_BAR_ADVANCE_MS so the section keeps signalling
+// "there's more than one wall here" even when collapsed. Init
+// idx comes from sessionStorage written by the carousel (or the
+// previous rotation) so opening the page lands on the wall the
+// visitor was last looking at; each advance writes back so
+// expanding picks up wherever the rotation is. The whole strip
+// is the click target — affordance reads as "the bar is the
+// button". Per-wall contentUpdatedAt drives the M/D 업데이트
+// subtitle; NEW prefixes the date only when that specific wall's
+// content has changed since the visitor's seenAt watermark.
+//
+// Pauses on hover / touch so a visitor reading the current wall's
+// theme doesn't get snapped to the next one mid-glance; respects
+// prefers-reduced-motion (inert when the OS asks for it).
+const COLLAPSED_BAR_ADVANCE_MS = 7500;
 function CollapsedHeroBar({
   walls,
-  hasUpdate,
-  lastContentUpdateAt,
+  seenAt,
   onExpand,
 }: {
   walls: HomeWall[];
-  hasUpdate: boolean;
-  lastContentUpdateAt: string | null;
+  seenAt: string | null;
   onExpand: () => void;
 }) {
-  let activeIdx = 0;
-  if (typeof window !== 'undefined') {
+  const [idx, setIdx] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0;
     const raw = window.sessionStorage.getItem(ACTIVE_WALL_STORAGE_KEY);
-    if (raw) {
-      const parsed = Number.parseInt(raw, 10);
-      if (Number.isFinite(parsed) && parsed >= 0 && parsed < walls.length) {
-        activeIdx = parsed;
-      }
-    }
-  }
-  const wall = walls[activeIdx] ?? walls[0];
+    if (!raw) return 0;
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  });
+  // Clamp the stored idx whenever walls.length shrinks (or starts
+  // at 0 while data is loading) — keeps the array access below safe
+  // without forcing a setIdx render-loop.
+  const safeIdx = walls.length > 0 ? idx % walls.length : 0;
+  const [paused, setPaused] = useState(false);
+  const reducedMotion =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  useEffect(() => {
+    if (reducedMotion) return;
+    if (paused) return;
+    if (walls.length <= 1) return;
+    const id = window.setInterval(() => {
+      setIdx((prev) => (prev + 1) % walls.length);
+    }, COLLAPSED_BAR_ADVANCE_MS);
+    return () => window.clearInterval(id);
+  }, [paused, reducedMotion, walls.length]);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(ACTIVE_WALL_STORAGE_KEY, String(safeIdx));
+  }, [safeIdx]);
+  const wall = walls[safeIdx] ?? walls[0];
   const theme = wall?.theme?.trim() || null;
+  const wallUpdate = wall?.contentUpdatedAt ?? null;
+  const hasUpdate = !!wallUpdate && !!seenAt && wallUpdate > seenAt;
   return (
     <button
       type="button"
       onClick={onExpand}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onTouchStart={() => setPaused(true)}
+      onTouchEnd={() => setPaused(false)}
       aria-label="히어로 펼치기"
       className="relative w-full bg-panel-strong border-b border-white/10 hover:bg-panel-strong/80 transition-colors flex items-center justify-center py-2.5 group/herobar"
     >
@@ -701,7 +727,7 @@ function CollapsedHeroBar({
           group so the update label reads as a subtitle to the wall
           theme rather than floating off on its own. NEW prefixes
           the date when applicable. */}
-      <span className="flex items-center gap-3">
+      <span key={wall?.id ?? 0} className="flex items-center gap-3">
         {theme && (
           <span
             className="text-base text-gray-200"
@@ -713,7 +739,7 @@ function CollapsedHeroBar({
             {theme}
           </span>
         )}
-        {lastContentUpdateAt && (
+        {wallUpdate && (
           <span className="flex items-center gap-1.5 text-[11px]">
             {hasUpdate && (
               <span className="bg-accent text-black font-bold px-1.5 py-0.5 rounded">
@@ -721,7 +747,7 @@ function CollapsedHeroBar({
               </span>
             )}
             <span className="text-gray-400">
-              {formatHeroUpdateDate(lastContentUpdateAt)} 업데이트
+              {formatHeroUpdateDate(wallUpdate)} 업데이트
             </span>
           </span>
         )}

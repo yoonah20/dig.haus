@@ -201,6 +201,7 @@ router.get('/home/features', async (_req, res) => {
     lowerLpY: w.lowerLpY ?? 752,
     titleFontSize: w.titleFontSize ?? 67,
     titleRotationDeg: w.titleRotationDeg ?? -1,
+    contentUpdatedAt: w.contentUpdatedAt ?? null,
     items: itemsByWallId.get(w.id) ?? [],
   }));
 
