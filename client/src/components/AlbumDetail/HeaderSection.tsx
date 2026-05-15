@@ -1025,10 +1025,10 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             <ArtistCredit
               credit={album.artistCredit}
               fallback={album.artist}
-              className="text-editorial-md md:text-editorial-lg text-accent hover:underline font-serif cursor-pointer text-left leading-tight flex-shrink-0"
+              className="text-editorial-md md:text-editorial-lg text-accent hover:underline font-syne font-bold cursor-pointer text-left leading-tight flex-shrink-0"
             />
-            <span className="text-gray-500 font-serif text-editorial-md md:text-editorial-lg leading-tight flex-shrink-0">–</span>
-            <h1 className="font-bold text-white font-serif text-editorial-md md:text-editorial-lg break-words min-w-0 leading-tight">
+            <span className="text-gray-500 font-syne font-bold text-editorial-md md:text-editorial-lg leading-tight flex-shrink-0">–</span>
+            <h1 className="font-bold text-white font-syne text-editorial-md md:text-editorial-lg break-words min-w-0 leading-tight">
               {album.title}
             </h1>
             <div className="flex-shrink-0 flex items-center gap-1 self-center">
