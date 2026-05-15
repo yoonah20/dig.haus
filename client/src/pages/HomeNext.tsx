@@ -717,6 +717,20 @@ function CollapsedHeroBar({
           bar's own click target covers the whole row so the off-
           centre date / chevron don't need to be aimed at. */}
       <span key={wall?.id ?? 0} className="flex items-center gap-3">
+        {/* Chevron sits before the theme so it leads the cluster
+            the same way the expanded-state 접기 chip leads with ▲,
+            and the row reads as a disclosure widget ("▼ tap to
+            open more below"). The whole row is the click target,
+            so the chevron is a label rather than the aim. The
+            "펼치기" word is gone — the bar itself communicates
+            "this is a button", and the chevron alone is enough
+            to signal direction. */}
+        <span
+          aria-hidden
+          className="text-xs text-gray-400 group-hover/herobar:text-accent transition-colors"
+        >
+          ▼
+        </span>
         {theme && (
           <span
             className="text-base text-gray-200"
@@ -740,9 +754,6 @@ function CollapsedHeroBar({
             </span>
           </span>
         )}
-        <span className="text-xs text-gray-400 group-hover/herobar:text-accent transition-colors">
-          ▼ 펼치기
-        </span>
       </span>
     </button>
   );
