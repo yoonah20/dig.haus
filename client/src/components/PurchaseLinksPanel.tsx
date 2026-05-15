@@ -331,20 +331,18 @@ function DiscogsSection({ formats }: { formats: FormatPrice[] }) {
           rel="noopener noreferrer"
           className={`group flex items-center gap-2 px-4 py-2 hover:bg-[#1d2336] transition-colors min-w-0${i < formats.length - 1 ? ' border-b border-white/5' : ' pb-3'}`}
         >
-          <span className="text-gray-300 text-xs truncate flex-1 group-hover:text-accent transition-colors">
+          <span className="text-gray-300 text-xs truncate flex-1 min-w-0 group-hover:text-accent transition-colors">
             {fmt.format}
           </span>
-          {fmt.lowestPrice !== null && (
-            <span className="text-accent text-sm font-bold tabular-nums flex-shrink-0">
-              ${fmt.lowestPrice.toFixed(2)}
-            </span>
-          )}
+          <span className="text-accent text-sm font-bold tabular-nums w-14 text-right flex-shrink-0">
+            {fmt.lowestPrice !== null ? `$${fmt.lowestPrice.toFixed(2)}` : ''}
+          </span>
           {fmt.lowestPriceKrw != null && (
-            <span className="text-gray-500 text-xs tabular-nums flex-shrink-0 hidden sm:inline">
+            <span className="text-gray-500 text-xs tabular-nums w-[68px] text-right flex-shrink-0 hidden sm:inline">
               {formatKrw(fmt.lowestPriceKrw)}
             </span>
           )}
-          <span className="text-gray-500 text-xs tabular-nums flex-shrink-0">
+          <span className="text-gray-500 text-xs tabular-nums w-10 text-right flex-shrink-0">
             {fmt.copiesForSale}개{fmt.copiesForSale > 1 ? ' 중' : ''}
           </span>
         </a>
