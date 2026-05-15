@@ -500,6 +500,29 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_link_reports_link ON purchase_link_reports(link_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_link_reports_created ON purchase_link_reports(created_at DESC)');
 
+  // ── review_reports ────────────────────────────────────────────
+  // User-facing flag for review cards that came in wrong (different
+  // album), poorly translated, or were never actually a review (the
+  // scrape pipeline occasionally lets through interviews / news /
+  // feature articles that look review-shaped on the page). Mirrors
+  // the purchase_link_reports pattern: three fixed reasons, UNIQUE
+  // (review_id, user_id) so a single user can't spam the same review
+  // with multiple reports, ON DELETE CASCADE so admin-deleted reviews
+  // clean up their reports automatically. Admin polls these from the
+  // dashboard panel; non-admin users see a ⚑ overlay on each review.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS review_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL CHECK(reason IN ('wrong-album','bad-translation','not-a-review')),
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(review_id, user_id)
+    )
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_review_reports_review ON review_reports(review_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_review_reports_created ON review_reports(created_at DESC)');
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS album_votes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

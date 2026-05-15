@@ -1,9 +1,16 @@
 import { Router } from 'express';
 import { execute, queryGet } from '../db/index.js';
-import { requireAdmin } from '../middleware/auth.js';
+import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import { resolveAlbumId } from '../utils/slug.js';
+import type { AppUser } from '../auth/passport.js';
 
 const router = Router();
+
+const REVIEW_REPORT_REASONS = new Set([
+  'wrong-album',
+  'bad-translation',
+  'not-a-review',
+]);
 
 // ─── DELETE /api/reviews/:reviewId — admin delete a single review ───────
 
@@ -24,6 +31,50 @@ router.delete('/:reviewId', requireAdmin, (req, res) => {
   } catch (error) {
     console.error('Delete review error:', error);
     res.status(500).json({ error: 'Failed to delete review' });
+  }
+});
+
+// ─── POST /api/reviews/:reviewId/report — user flag a bad review ────────
+//
+// Non-admin escape hatch for review cards that came in wrong: the
+// scrape pipeline occasionally lands an interview / news piece / a
+// review of a different album / a poorly machine-translated excerpt.
+// Three fixed reasons mirror the purchase-link report pattern. Admin
+// is allowed to call this too (no harm, dashboard handles dedup),
+// but the client UI only exposes the affordance to non-admins —
+// admin has direct delete / rescrape / edit-excerpt controls on the
+// same card and doesn't need the report queue indirection.
+router.post('/:reviewId/report', requireAuth, (req, res) => {
+  const user = req.user as AppUser;
+  const reviewId = parseInt(req.params.reviewId as string, 10);
+  if (isNaN(reviewId)) {
+    return res.status(400).json({ error: 'Invalid review ID' });
+  }
+
+  const exists = queryGet('SELECT id FROM reviews WHERE id = ?', [reviewId]);
+  if (!exists) return res.status(404).json({ error: 'Review not found' });
+
+  const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+  if (!REVIEW_REPORT_REASONS.has(reason)) {
+    return res.status(400).json({ error: 'Invalid reason' });
+  }
+
+  try {
+    execute(
+      `INSERT INTO review_reports (review_id, user_id, reason)
+       VALUES (?, ?, ?)`,
+      [reviewId, user.id, reason]
+    );
+    res.json({ ok: true });
+  } catch (err: any) {
+    // UNIQUE(review_id, user_id) — treat as idempotent. Matches the
+    // purchase_link_reports pattern: the first report is already on
+    // file, the second click is a no-op from the user's perspective.
+    if (err?.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      return res.status(409).json({ error: '이미 신고한 리뷰입니다.' });
+    }
+    console.error('[reviews/report] insert failed:', err);
+    res.status(500).json({ error: 'Failed to save report' });
   }
 });
 

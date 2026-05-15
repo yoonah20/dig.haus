@@ -8,7 +8,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useGenerateReviewSummary, useDiscoverReviewUrls } from '../../hooks/useAlbum';
 import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 import CardOverlayButton from '../CardOverlayButton';
-import { Field, DigmanEmpty, Button } from '../ui';
+import { Field, DigmanEmpty, Button, Popover } from '../ui';
+import { useReportReview, type ReviewReportReason } from '../../hooks/useAlbum';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -109,14 +110,144 @@ function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }
   );
 }
 
+const REVIEW_REPORT_REASONS: ReadonlyArray<{
+  value: ReviewReportReason;
+  label: string;
+}> = [
+  { value: 'wrong-album', label: '이 앨범 리뷰가 아니에요' },
+  { value: 'bad-translation', label: '번역이 이상해요' },
+  { value: 'not-a-review', label: '리뷰가 아닌 것 같아요' },
+];
+
+// Non-admin review-card flag. Mirrors PurchaseLinksPanel.ReportPopover —
+// radio-selected reason, single submit, closes on outside click or
+// Escape. Submitting is idempotent server-side, so we close the popover
+// even on the "이미 신고한" 409 path so the user doesn't get stuck
+// poking the button.
+function ReviewReportPopover({
+  reviewId,
+  onClose,
+}: {
+  reviewId: number;
+  onClose: () => void;
+}) {
+  const [reason, setReason] = useState<ReviewReportReason>('wrong-album');
+  const [err, setErr] = useState<string | null>(null);
+  const report = useReportReview();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    const onDocClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    // Same rationale as the purchase-link popover — `click` (not
+    // `pointerdown`) avoids the trigger's own click event also being
+    // treated as an outside-click.
+    document.addEventListener('click', onDocClick);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.removeEventListener('click', onDocClick);
+    };
+  }, [onClose]);
+
+  const submit = async () => {
+    setErr(null);
+    try {
+      await report.mutateAsync({ reviewId, reason });
+      onClose();
+    } catch (e: any) {
+      const status = e?.response?.status;
+      // 409 = UNIQUE collision (already reported). From the user's
+      // perspective the report exists, so treat it as success.
+      if (status === 409) {
+        onClose();
+        return;
+      }
+      setErr(e?.response?.data?.error ?? '신고에 실패했습니다.');
+    }
+  };
+
+  return (
+    <Popover
+      ref={rootRef}
+      role="dialog"
+      aria-label="리뷰 신고"
+      strong={false}
+      radius="lg"
+      pad="sm"
+      shadow="xl"
+      className="absolute top-full right-0 mt-2 z-30 w-56 text-xs"
+      onClick={(e: React.MouseEvent) => {
+        // Stop the parent <a> from navigating when the popover is
+        // clicked — stopPropagation alone is enough; preventDefault
+        // here would block the radio inputs' native toggle behaviour.
+        e.stopPropagation();
+      }}
+    >
+      <div className="text-gray-400 text-[11px] uppercase tracking-wider mb-1.5">
+        신고 사유
+      </div>
+      <div className="flex flex-col gap-0.5">
+        {REVIEW_REPORT_REASONS.map((r) => (
+          <label
+            key={r.value}
+            className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-white/5 cursor-pointer text-gray-200"
+          >
+            <input
+              type="radio"
+              name={`review-report-${reviewId}`}
+              value={r.value}
+              checked={reason === r.value}
+              onChange={() => setReason(r.value)}
+              className="accent-accent"
+            />
+            {r.label}
+          </label>
+        ))}
+      </div>
+      {err && (
+        <div className="text-red-400 text-[11px] mt-1.5 px-1">{err}</div>
+      )}
+      <div className="flex items-center justify-end gap-1.5 mt-2">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            onClose();
+          }}
+          className="text-gray-500 hover:text-gray-300 px-2 py-1 cursor-pointer"
+        >
+          취소
+        </button>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={submit}
+          disabled={report.isPending}
+        >
+          {report.isPending ? '…' : '신고'}
+        </Button>
+      </div>
+    </Popover>
+  );
+}
+
 function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded }: { review: Review; onScoreSaved: () => void; onRetranslated: () => void; onDeleted: () => void; justAdded?: boolean }) {
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
+  const loggedIn = !!user;
   const [retranslating, setRetranslating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editing, setEditing] = useState(false);
   const [savingExcerpt, setSavingExcerpt] = useState(false);
   const [excerptDraft, setExcerptDraft] = useState('');
+  const [reporting, setReporting] = useState(false);
 
   const handleRetranslate = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -192,6 +323,32 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
 
   return (
     <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
+      {loggedIn && !isAdmin && !editing && (
+        // Non-admin can't delete/rescrape/edit, but they can flag a
+        // card that came in wrong. ⚑ matches the purchase-link report
+        // affordance so the gesture transfers. Popover sits below the
+        // button (top-full) instead of replacing the overlay; the
+        // overlay button retains its raised-pill style for visual
+        // consistency with admin's row.
+        <div className="absolute -top-3 right-2 z-20 flex items-center gap-1 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
+          <CardOverlayButton
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setReporting((v) => !v);
+            }}
+            title="잘못된 리뷰 신고"
+          >
+            ⚑
+          </CardOverlayButton>
+          {reporting && (
+            <ReviewReportPopover
+              reviewId={review.id}
+              onClose={() => setReporting(false)}
+            />
+          )}
+        </div>
+      )}
       {isAdmin && !editing && (
         <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
           <CardOverlayButton onClick={startEditExcerpt} title="본문 수정">
