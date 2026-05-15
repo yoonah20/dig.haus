@@ -843,7 +843,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       )}
 
       {/* Cover Art */}
-      <div className="w-full md:w-80 flex-shrink-0">
+      <div className="w-full md:w-72 flex-shrink-0">
         <div className="relative group/cover aspect-square md:aspect-auto md:h-full bg-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
           <CoverArt
             src={album.coverArtUrl}
@@ -1018,10 +1018,10 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       </div>
 
       {/* Info + Streaming */}
-      <div className="flex flex-col flex-1 min-w-0 p-6 md:pl-0">
+      <div className="flex flex-col flex-1 min-w-0 p-4 md:pl-0">
         <div>
           {/* Artist — Title on one line, icon buttons trailing */}
-          <div className="flex items-baseline gap-2 flex-wrap min-w-0 mb-1">
+          <div className="flex items-baseline gap-1 flex-wrap min-w-0 mb-1">
             <ArtistCredit
               credit={album.artistCredit}
               fallback={album.artist}
