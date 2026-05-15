@@ -251,7 +251,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
         </div>
       ) : (
         (review.excerptKo || review.excerpt) && (
-          <p className="text-gray-300 text-sm leading-relaxed">
+          <p className="text-gray-300 text-sm leading-normal tracking-tight">
             {retranslating ? '원문 다시 읽는 중...' : (review.excerptKo || review.excerpt)}
           </p>
         )
