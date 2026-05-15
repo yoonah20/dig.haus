@@ -6,6 +6,7 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { getCachedAlbum, cacheAlbum, updateAlbumFields } from '../utils/cache.js';
 import { searchExternalMerged } from '../utils/externalSearch.js';
 import { extractAlbumFromUrl } from '../services/albumUrlExtract.js';
+import { enqueueAutoCuration } from '../services/autoCuration.js';
 import { generateSlug } from '../utils/slug.js';
 import type { AppUser } from '../auth/passport.js';
 
@@ -163,6 +164,12 @@ router.post(
       mbid,
       slug: cached?.slug || mbid,
     });
+    // Fire-and-forget auto-curation. enqueueAutoCuration appends to a
+    // global serial queue; one album at a time, so a burst of user
+    // submissions doesn't multiply external-API pressure. Skipped
+    // entirely for the manual-entry route — synthetic mbid albums
+    // are unlikely to have Serper-discoverable review coverage.
+    enqueueAutoCuration(mbid);
   } catch (err) {
     console.error('[album-requests] submission failed:', err);
     res.status(500).json({ error: '앨범 등록에 실패했어요. 잠시 뒤 다시 시도해주세요.' });
