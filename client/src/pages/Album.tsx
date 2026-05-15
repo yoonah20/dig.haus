@@ -181,7 +181,7 @@ export default function Album() {
           />
         </div>
 
-        <div className="mt-8 lg:grid lg:grid-cols-[1fr_280px] lg:gap-8 lg:items-start">
+        <div className="mt-5 lg:grid lg:grid-cols-[1fr_280px] lg:gap-8 lg:items-start">
           <div>
             {reviewsLoading ? (
               <SectionLoader text="리뷰를 불러오고 있습니다..." />

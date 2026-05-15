@@ -791,7 +791,7 @@ export default function ReviewSection({
                     </div>
                   )}
                   {koreanSummary && (
-                    <p className="text-gray-300 text-sm leading-relaxed">
+                    <p className="text-gray-300 text-sm leading-normal tracking-tight">
                       {koreanSummary}
                     </p>
                   )}
