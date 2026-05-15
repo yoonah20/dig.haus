@@ -370,7 +370,7 @@ function Editor({
                 the wrapper's flex-1 eats the remaining space. */}
             <div className="flex-1 flex flex-col justify-center gap-2">
               <div className="font-serif italic text-sm text-gray-100 leading-snug text-center">
-                “이 앨범 어뗠어요?”
+                “이 앨범 어땠어요?”
               </div>
               <div className="grid grid-cols-3 gap-1.5">
                 {RATING_ORDER.map((r) => {
