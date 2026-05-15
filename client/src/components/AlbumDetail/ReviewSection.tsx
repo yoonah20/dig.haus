@@ -780,7 +780,7 @@ export default function ReviewSection({
               ) : (
                 <div className="overflow-hidden">
                   {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
-                    <div className="float-left mr-4 mb-1 text-center min-h-[112px]">
+                    <div className="float-left mr-4 mb-1 text-center">
                       <div className="flex items-baseline gap-1 justify-center">
                         <span className={`text-6xl font-bold leading-none ${scoreColor(averageScore)}`}>
                           {Math.round(averageScore)}
