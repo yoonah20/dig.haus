@@ -1027,7 +1027,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               fallback={album.artist}
               className="text-editorial-sm md:text-editorial-lg text-accent hover:underline font-serif cursor-pointer text-left leading-tight flex-shrink-0"
             />
-            <span className="text-gray-500 font-serif text-editorial-sm md:text-editorial-lg leading-tight flex-shrink-0">—</span>
+            <span className="text-gray-500 font-serif text-editorial-sm md:text-editorial-lg leading-tight flex-shrink-0">–</span>
             <h1 className="font-bold text-white font-serif text-editorial-sm md:text-editorial-lg break-words min-w-0 leading-tight">
               {album.title}
             </h1>
