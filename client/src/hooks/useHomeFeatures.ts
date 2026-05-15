@@ -96,8 +96,18 @@ export interface HomeWall {
   items: HomeFeatureItem[];
 }
 
+// MAX(content_updated_at) across walls. Bumps only on visitor-
+// visible curation changes (theme / description / items replaced)
+// — pure tuner adjustments are excluded. The collapsed hero bar
+// pairs this with a localStorage seenAt to decide whether to show
+// the NEW badge.
+export interface HomeFeaturesResponse {
+  walls: HomeWall[];
+  lastContentUpdateAt: string | null;
+}
+
 export function useHomeFeatures() {
-  return useQuery<{ walls: HomeWall[] }>({
+  return useQuery<HomeFeaturesResponse>({
     queryKey: ['home-features'],
     queryFn: async () => {
       const { data } = await axios.get('/api/home/features');

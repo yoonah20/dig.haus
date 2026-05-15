@@ -41,7 +41,8 @@ router.get('/home/features', async (_req, res) => {
             upper_lp_y AS upperLpY,
             lower_lp_y AS lowerLpY,
             title_font_size AS titleFontSize,
-            title_rotation_deg AS titleRotationDeg
+            title_rotation_deg AS titleRotationDeg,
+            content_updated_at AS contentUpdatedAt
      FROM home_walls ORDER BY position ASC`
   ) as Array<any>;
 
@@ -203,7 +204,22 @@ router.get('/home/features', async (_req, res) => {
     items: itemsByWallId.get(w.id) ?? [],
   }));
 
-  res.json({ walls });
+  // lastContentUpdateAt — MAX(content_updated_at) across all walls.
+  // Drives the NEW badge on the collapsed hero bar: clients compare
+  // against a per-visitor seenAt in localStorage and show the badge
+  // when there's been a curation change since the visitor last
+  // viewed the carousel. Null when no walls have a recorded
+  // content timestamp (shouldn't happen post-migration, but kept
+  // explicit so a malformed DB doesn't surface as undefined).
+  let lastContentUpdateAt: string | null = null;
+  for (const w of wallRows as Array<{ contentUpdatedAt?: string | null }>) {
+    const t = w.contentUpdatedAt;
+    if (t && (!lastContentUpdateAt || t > lastContentUpdateAt)) {
+      lastContentUpdateAt = t;
+    }
+  }
+
+  res.json({ walls, lastContentUpdateAt });
 });
 
 // Allowed mix-blend-mode values for the plastic overlay. Trimmed to
@@ -417,9 +433,18 @@ router.patch('/home/meta', requireAdmin, (req, res) => {
       wallArgs.push(args[i]);
     }
   }
+  // content_updated_at only bumps when a visitor-visible field
+  // changes — theme or description. Tuner + position fields are
+  // pixel-tweaks that don't warrant the NEW badge on the collapsed
+  // hero, so they touch updated_at alone. Items-replace handles its
+  // own bump in PUT /home/features/items.
+  const isContentChange = 'theme' in body || 'description' in body;
   const db = getDb();
   if (wallSets.length > 0) {
     wallSets.push("updated_at = datetime('now')");
+    if (isContentChange) {
+      wallSets.push("content_updated_at = datetime('now')");
+    }
     db.prepare(
       `UPDATE home_walls SET ${wallSets.join(', ')} WHERE id = ?`
     ).run(...wallArgs, wallId);
@@ -545,6 +570,11 @@ router.put('/home/features/items', requireAdmin, (req, res) => {
        VALUES (?, ?, ?, ?)`
     );
     for (const it of items) insert.run(wallId, it.albumId, it.position, it.note);
+    // Items-replace is a visitor-visible curation change — bump the
+    // content timestamp so the collapsed-hero NEW badge fires.
+    db.prepare(
+      `UPDATE home_walls SET content_updated_at = datetime('now') WHERE id = ?`
+    ).run(wallId);
   });
 
   try {

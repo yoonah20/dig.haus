@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import HomeNextHero from '../components/Home/HomeNextHero';
 import HomeNextHeroMobile from '../components/Home/HomeNextHeroMobile';
-import { useHomeFeatures } from '../hooks/useHomeFeatures';
+import { useHomeFeatures, type HomeWall } from '../hooks/useHomeFeatures';
 import { GRAFFITI_FONT_STACK } from '../components/MyDig/GraffitiSnapshotList';
 import {
   useHomeSnapshots,
@@ -76,6 +76,39 @@ function useHeroCollapsed() {
     }
   }, [collapsed]);
   return [collapsed, setCollapsed] as const;
+}
+
+// Per-visitor watermark of the last hero curation update the
+// visitor has already seen. Compared against the server's
+// lastContentUpdateAt so the collapsed bar can show a NEW badge
+// only when a real curation change has landed since the visitor's
+// last view. First-time visitors (seenAt = null) get the current
+// server timestamp written as their baseline so the badge doesn't
+// fire on initial arrival — NEW means "different from before",
+// not "never seen".
+const HERO_SEEN_UPDATE_KEY = 'dig.haus:hero-seen-update-at';
+
+function useHeroSeenUpdate(lastContentUpdateAt: string | null | undefined) {
+  const [seenAt, setSeenAt] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return window.localStorage.getItem(HERO_SEEN_UPDATE_KEY);
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (seenAt === null && lastContentUpdateAt) {
+      window.localStorage.setItem(HERO_SEEN_UPDATE_KEY, lastContentUpdateAt);
+      setSeenAt(lastContentUpdateAt);
+    }
+  }, [seenAt, lastContentUpdateAt]);
+  const markSeen = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (!lastContentUpdateAt) return;
+    window.localStorage.setItem(HERO_SEEN_UPDATE_KEY, lastContentUpdateAt);
+    setSeenAt(lastContentUpdateAt);
+  }, [lastContentUpdateAt]);
+  const hasUpdate =
+    !!lastContentUpdateAt && !!seenAt && lastContentUpdateAt > seenAt;
+  return { hasUpdate, markSeen };
 }
 
 // HomeNext is the canonical home composition. Hero on top, then a
@@ -171,6 +204,18 @@ export default function HomeNext() {
   const recentReleases = useRecentReleases(true, 60);
   const isMobile = useIsMobileHero();
   const [heroCollapsed, setHeroCollapsed] = useHeroCollapsed();
+  const { data: homeFeatures } = useHomeFeatures();
+  const lastContentUpdateAt = homeFeatures?.lastContentUpdateAt ?? null;
+  const { hasUpdate, markSeen } = useHeroSeenUpdate(lastContentUpdateAt);
+  // While the hero is expanded the visitor is looking at the
+  // carousel directly — keep their seenAt baseline current so
+  // collapsing later doesn't surface a stale NEW badge for content
+  // they've already seen on this visit.
+  useEffect(() => {
+    if (!heroCollapsed && lastContentUpdateAt) {
+      markSeen();
+    }
+  }, [heroCollapsed, lastContentUpdateAt, markSeen]);
 
   const ACTIVITY_COLS = { base: 3, sm: 3, md: 4, lg: 5, xl: 7 };
   const activityCols = useGridCols(ACTIVITY_COLS);
@@ -396,7 +441,15 @@ export default function HomeNext() {
           last-viewed wall so the carousel doesn't disappear
           without trace). */}
       {heroCollapsed ? (
-        <CollapsedHeroBar onExpand={() => setHeroCollapsed(false)} />
+        <CollapsedHeroBar
+          walls={homeFeatures?.walls ?? []}
+          hasUpdate={hasUpdate}
+          lastContentUpdateAt={lastContentUpdateAt}
+          onExpand={() => {
+            markSeen();
+            setHeroCollapsed(false);
+          }}
+        />
       ) : (
         <div className="relative">
           {isMobile ? <HomeNextHeroMobile /> : <HomeNextHero />}
@@ -586,10 +639,22 @@ export default function HomeNext() {
 // 0 when storage is empty (fresh tab or the visitor never paged
 // the carousel before collapsing). The whole strip is the click
 // target so the affordance reads as "the bar is the button",
-// not "find the small button in the corner".
-function CollapsedHeroBar({ onExpand }: { onExpand: () => void }) {
-  const { data } = useHomeFeatures();
-  const walls = data?.walls ?? [];
+// not "find the small button in the corner". When the server
+// reports a curation change since the visitor's seenAt watermark,
+// a NEW badge + 업데이트 날짜 surface on the right so the visitor
+// has a reason to expand instead of letting the bar fade into the
+// page chrome.
+function CollapsedHeroBar({
+  walls,
+  hasUpdate,
+  lastContentUpdateAt,
+  onExpand,
+}: {
+  walls: HomeWall[];
+  hasUpdate: boolean;
+  lastContentUpdateAt: string | null;
+  onExpand: () => void;
+}) {
   let activeIdx = 0;
   if (typeof window !== 'undefined') {
     const raw = window.sessionStorage.getItem(ACTIVE_WALL_STORAGE_KEY);
@@ -629,8 +694,30 @@ function CollapsedHeroBar({ onExpand }: { onExpand: () => void }) {
           {theme}
         </span>
       )}
+      {hasUpdate && lastContentUpdateAt && (
+        <span className="absolute right-3 flex items-center gap-1.5 text-[11px]">
+          <span className="bg-accent text-black font-bold px-1.5 py-0.5 rounded">
+            NEW
+          </span>
+          <span className="text-gray-400">
+            {formatHeroUpdateDate(lastContentUpdateAt)} 업데이트
+          </span>
+        </span>
+      )}
     </button>
   );
+}
+
+// Format the server's UTC timestamp into a short M/D label for the
+// NEW badge ("5/14 업데이트"). Parses ISO-or-SQLite-datetime strings
+// — the server emits SQLite's `datetime('now')` shape (no TZ
+// suffix) so we treat it as UTC by appending Z before parsing.
+function formatHeroUpdateDate(iso: string): string {
+  const normalised = iso.includes('T') ? iso : iso.replace(' ', 'T');
+  const withZ = normalised.endsWith('Z') ? normalised : `${normalised}Z`;
+  const d = new Date(withZ);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
 // Compact avatar shared between the review and snapshot mini
