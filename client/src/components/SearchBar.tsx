@@ -55,6 +55,11 @@ export default function SearchBar({
   const [urlExtract, setUrlExtract] = useState<ExtractFromUrlResult | null>(null);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [urlLoading, setUrlLoading] = useState(false);
+  // Drives the focus-only help panel that surfaces when the user clicks
+  // into the search bar with no query. Blur is delayed so a click on a
+  // dropdown row registers before the panel collapses (the click target
+  // would otherwise unmount mid-event).
+  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -203,7 +208,9 @@ export default function SearchBar({
         }
       : null;
 
-  const showDropdown = isUrlMode ? trimmedInput.length >= 8 : query.length >= 1;
+  const showDropdown =
+    focused || (isUrlMode ? trimmedInput.length >= 8 : query.length >= 1);
+  const showHelp = focused && !isUrlMode && query.length === 0;
   const dbLoading = !isUrlMode && dbSearch.isFetching && query.length >= 1;
   const externalLoading =
     !isUrlMode && loggedIn && externalSearch.isFetching && query.length >= 2;
@@ -253,6 +260,12 @@ export default function SearchBar({
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onFocus={() => setFocused(true)}
+          // Delay closure so a click on a dropdown row commits before
+          // the dropdown unmounts. 150ms covers React's event flush
+          // without leaving a perceptible "ghost" of the panel after
+          // clicking elsewhere on the page.
+          onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder="아티스트 또는 앨범 검색..."
           className={inputCls}
         />
@@ -266,6 +279,33 @@ export default function SearchBar({
 
       {showDropdown && (
         <div className="absolute z-50 mt-2 w-full bg-background/95 backdrop-blur-sm border border-accent/40 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden max-h-[70vh] overflow-y-auto">
+          {/* Focus-only help panel. Shown when the user has just opened
+              the dropdown but hasn't typed yet — explains the two
+              search inputs (text vs URL) and what kinds of text query
+              actually work. Disappears the moment they start typing. */}
+          {showHelp && (
+            <section>
+              <SectionHeader label="검색 안내" />
+              <div className="px-4 py-3 text-xs text-gray-300 leading-relaxed space-y-1.5">
+                <p>
+                  <span className="text-gray-400">아티스트, 앨범 제목, 발매 연도</span>
+                  로 검색할 수 있어요. 예) "radiohead 2007", "kid a"
+                </p>
+                {loggedIn && (
+                  <p>
+                    <span className="text-gray-400">Discogs URL</span>
+                    을 그대로 붙여넣어도 앨범 등록이 돼요.
+                  </p>
+                )}
+                {!loggedIn && (
+                  <p className="text-gray-500">
+                    로그인하면 새 앨범 등록과 Discogs URL 붙여넣기도 가능해요.
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* URL paste branch — the extracted Discogs candidate sits at
               the top by itself, no DB / external sections beside it.
               Loading + error states surface here too so the user
@@ -359,8 +399,10 @@ export default function SearchBar({
           {/* Empty state — query has run, nothing came back from
               either source. Guests who could register via the external
               flow see a login hint instead. URL mode renders its own
-              loading / error / result branches above and skips this. */}
-          {!isUrlMode && !dbLoading && !externalLoading && !anyContent && (
+              loading / error / result branches above and skips this.
+              Suppressed at query.length === 0 so the focus-only help
+              panel above doesn't sit next to a "검색 결과가 없어요". */}
+          {!isUrlMode && query.length >= 1 && !dbLoading && !externalLoading && !anyContent && (
             <DigmanEmpty
               variant="thinking"
               message={
@@ -377,12 +419,14 @@ export default function SearchBar({
           )}
 
           {/* Manual entry — visible whenever the dropdown is open in
-              text-search mode for a logged-in user. Sits at the bottom
-              so it never competes with the matched results above; the
-              entry point is intentionally low-key (small text + chevron)
-              because manual entry is the escape hatch, not the primary
-              path. Expanding swaps the prompt for an inline form. */}
-          {!isUrlMode && loggedIn && (
+              text-search mode for a logged-in user with a typed query.
+              Sits at the bottom so it never competes with the matched
+              results above; the entry point is intentionally low-key
+              (small text + chevron) because manual entry is the escape
+              hatch, not the primary path. Expanding swaps the prompt
+              for an inline form. Gated on query.length so the bare
+              focus-only dropdown stays clean. */}
+          {!isUrlMode && loggedIn && query.length >= 1 && (
             <section className="border-t border-accent/15 bg-panel-strong">
               {!manualOpen ? (
                 <button
