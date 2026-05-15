@@ -1766,4 +1766,80 @@ router.post('/albums/backfill-release-types', async (req, res) => {
   });
 });
 
+// ─── GET /api/admin/review-reports ──────────────────────────────────────
+//
+// Dashboard queue for the user-facing 리뷰 신고 flow. Mirrors the
+// purchase-link-reports JOIN shape (report + reviewed-thing + album
+// + reporter) so the admin row template renders without follow-up
+// queries. Sorted newest first since admin typically reviews the
+// backlog top-down.
+router.get('/review-reports', (_req, res) => {
+  const rows = queryAll(
+    `SELECT r.id, r.reason, r.created_at,
+            r.review_id,
+            rv.source_name AS review_source,
+            rv.excerpt_ko AS review_excerpt_ko,
+            rv.excerpt AS review_excerpt,
+            rv.full_review_url AS review_url,
+            a.id AS album_id, a.slug AS album_slug, a.mbid AS album_mbid,
+            a.title AS album_title, a.artist_name AS album_artist,
+            r.user_id AS reporter_id,
+            COALESCE(ru.display_name, ru.name) AS reporter_name
+     FROM review_reports r
+     INNER JOIN reviews rv ON rv.id = r.review_id
+     INNER JOIN albums a ON a.mbid = rv.album_mbid
+     LEFT JOIN users ru ON ru.id = r.user_id
+     ORDER BY r.created_at DESC`
+  ) as Array<{
+    id: number;
+    reason: 'wrong-album' | 'bad-translation' | 'not-a-review';
+    created_at: string;
+    review_id: number;
+    review_source: string;
+    review_excerpt_ko: string | null;
+    review_excerpt: string | null;
+    review_url: string;
+    album_id: number;
+    album_slug: string | null;
+    album_mbid: string;
+    album_title: string;
+    album_artist: string | null;
+    reporter_id: number;
+    reporter_name: string | null;
+  }>;
+
+  res.json({
+    reports: rows.map((r) => ({
+      id: r.id,
+      reason: r.reason,
+      createdAt: r.created_at,
+      reviewId: r.review_id,
+      reviewSource: r.review_source,
+      reviewExcerpt: r.review_excerpt_ko || r.review_excerpt,
+      reviewUrl: r.review_url,
+      albumId: r.album_id,
+      albumSlug: r.album_slug,
+      albumMbid: r.album_mbid,
+      albumTitle: r.album_title,
+      albumArtist: r.album_artist,
+      reporterId: r.reporter_id,
+      reporterName: r.reporter_name,
+    })),
+  });
+});
+
+// ─── DELETE /api/admin/review-reports/:id — dismiss one report ──────────
+//
+// Single-report dismissal. Distinct from "delete the underlying review"
+// — admin uses the review card's own × button for that, which CASCADEs
+// all reports for that review away. This endpoint is for when admin
+// looked at the report and judges it unjustified, leaving the review
+// intact.
+router.delete('/review-reports/:id', (req, res) => {
+  const reportId = parseInt(req.params.id as string, 10);
+  if (isNaN(reportId)) return res.status(400).json({ error: 'Invalid id' });
+  execute(`DELETE FROM review_reports WHERE id = ?`, [reportId]);
+  res.json({ ok: true });
+});
+
 export default router;

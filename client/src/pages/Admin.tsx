@@ -19,6 +19,12 @@ import {
   type ReportedLink,
 } from '../hooks/usePurchaseLinks';
 import {
+  useReviewReports,
+  useDismissReviewReport,
+  type ReportedReview,
+  type ReviewReportReason,
+} from '../hooks/useAlbum';
+import {
   formatRelativeKo,
   formatShortKstDateTime,
   parseServerTimestamp,
@@ -526,6 +532,12 @@ const REPORT_REASON_LABEL: Record<ReportedLink['reason'], string> = {
   expired: '링크 만료',
 };
 
+const REVIEW_REPORT_REASON_LABEL: Record<ReviewReportReason, string> = {
+  'wrong-album': '다른 앨범 리뷰',
+  'bad-translation': '번역 이상',
+  'not-a-review': '리뷰 아님',
+};
+
 // One row per submitted report. Multiple reports on the same link show
 // as multiple rows so the admin can see who complained about what and
 // decide action per-report (dismiss this one) or wholesale (delete the
@@ -596,6 +608,79 @@ function ReportRow({
         >
           링크 삭제
         </button>
+      </div>
+    </div>
+  );
+}
+
+// One row per submitted review report. The actions row is intentionally
+// thinner than the purchase-link version — admin needs to look at the
+// review itself to decide rescrape vs edit vs delete, so we link to the
+// album page rather than offering shortcut buttons here. The 무시 button
+// covers the "report was unjustified" path that doesn't need a follow-up
+// trip to the album page.
+function ReviewReportRow({
+  report,
+  onDismiss,
+}: {
+  report: ReportedReview;
+  onDismiss: () => void;
+}) {
+  const albumHref = `/album/${report.albumSlug ?? report.albumMbid}`;
+  const excerpt = (report.reviewExcerpt ?? '').slice(0, 200);
+  return (
+    <div className="p-3 flex items-start gap-3 text-sm">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[11px] px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-300 border border-red-500/20">
+            {REVIEW_REPORT_REASON_LABEL[report.reason]}
+          </span>
+          <Link
+            to={albumHref}
+            className="text-gray-100 hover:text-accent truncate"
+          >
+            {report.albumArtist ? `${report.albumArtist} — ` : ''}
+            {report.albumTitle}
+          </Link>
+          <span className="text-gray-500 text-xs">· {report.reviewSource}</span>
+        </div>
+        {excerpt && (
+          <div className="mt-1.5 text-xs text-gray-400 line-clamp-2 leading-relaxed">
+            {excerpt}
+            {(report.reviewExcerpt?.length ?? 0) > 200 ? '…' : ''}
+          </div>
+        )}
+        <div className="mt-1 text-xs text-gray-500 truncate">
+          <a
+            href={report.reviewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-accent"
+          >
+            원문 보기
+          </a>
+          <span className="text-gray-600 mx-1.5">·</span>
+          신고: {report.reporterName || '알 수 없음'}
+          <span className="text-gray-600 mx-1.5">·</span>
+          {formatRelativeKo(report.createdAt)}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="text-xs text-gray-400 hover:text-gray-100 px-2 py-1 cursor-pointer"
+          title="이 신고만 정리"
+        >
+          무시
+        </button>
+        <Link
+          to={albumHref}
+          className="text-xs text-accent hover:text-white px-2 py-1 cursor-pointer"
+          title="앨범 페이지에서 처리"
+        >
+          앨범으로
+        </Link>
       </div>
     </div>
   );
@@ -741,6 +826,12 @@ export default function Admin() {
   const dismissReport = useDismissPurchaseLinkReport();
   const adminDeleteLink = useAdminDeletePurchaseLink();
 
+  // Review-report queue — same surface as the purchase-link reports
+  // above, just for the 리뷰 신고 flow. Independent query so a flaky
+  // user can't slow down the link reports panel.
+  const reviewReportsQuery = useReviewReports();
+  const dismissReviewReport = useDismissReviewReport();
+
   if (loading || !user?.isAdmin) return null;
 
   return (
@@ -855,6 +946,34 @@ export default function Admin() {
             </Panel>
 
             <IncompletePanel incompleteAlbums={data.incompleteAlbums} />
+          </section>
+
+          {/* Review reports panel — paired with the purchase-link
+              reports above as the other half of the user-facing flag
+              queue. Kept on its own row (not adjacent to the link
+              reports) because each row tends to be wider — the review
+              excerpt preview needs horizontal room to read clearly. */}
+          <section className="grid grid-cols-1 gap-4 mb-8">
+            <Panel
+              title="신고된 리뷰"
+              icon="🚩"
+              count={reviewReportsQuery.data?.reports.length ?? 0}
+            >
+              {reviewReportsQuery.isLoading ? (
+                <EmptyRow>불러오는 중…</EmptyRow>
+              ) : !reviewReportsQuery.data ||
+                reviewReportsQuery.data.reports.length === 0 ? (
+                <EmptyRow>신고된 리뷰가 없습니다.</EmptyRow>
+              ) : (
+                reviewReportsQuery.data.reports.map((r) => (
+                  <ReviewReportRow
+                    key={r.id}
+                    report={r}
+                    onDismiss={() => dismissReviewReport.mutate(r.id)}
+                  />
+                ))
+              )}
+            </Panel>
           </section>
 
           {/* 3-column feed grid — all "최근 ~" columns. */}

@@ -315,3 +315,76 @@ export function useMarkNoReviews(id: string) {
     },
   });
 }
+
+export type ReviewReportReason =
+  | 'wrong-album'
+  | 'bad-translation'
+  | 'not-a-review';
+
+// Non-admin flag for a review card that came in wrong: review of a
+// different album, bad translation, or not a review at all (interview
+// / news / feature that the scrape pipeline mistook for one). Mirrors
+// useReportPurchaseLink — three fixed reasons, server enforces UNIQUE
+// (review_id, user_id) so repeat clicks are idempotent.
+export function useReportReview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      reviewId,
+      reason,
+    }: {
+      reviewId: number;
+      reason: ReviewReportReason;
+    }) => {
+      await axios.post(`/api/reviews/${reviewId}/report`, { reason });
+      return reviewId;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['review-reports'] });
+    },
+  });
+}
+
+export interface ReportedReview {
+  id: number;
+  reason: ReviewReportReason;
+  createdAt: string;
+  reviewId: number;
+  reviewSource: string;
+  reviewExcerpt: string | null;
+  reviewUrl: string;
+  albumId: number;
+  albumSlug: string | null;
+  albumMbid: string;
+  albumTitle: string;
+  albumArtist: string | null;
+  reporterId: number;
+  reporterName: string | null;
+}
+
+// Admin-only feed mirroring the purchase-link-reports dashboard panel.
+export function useReviewReports() {
+  return useQuery<{ reports: ReportedReview[] }>({
+    queryKey: ['review-reports'],
+    queryFn: async () => {
+      const { data } = await axios.get('/api/admin/review-reports');
+      return data;
+    },
+    staleTime: 1000 * 30,
+  });
+}
+
+// Admin: clear a single report row, leaving the underlying review
+// in place. For "report was unjustified" cases.
+export function useDismissReviewReport() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (reportId: number) => {
+      await axios.delete(`/api/admin/review-reports/${reportId}`);
+      return reportId;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['review-reports'] });
+    },
+  });
+}
