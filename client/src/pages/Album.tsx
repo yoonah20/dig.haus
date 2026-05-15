@@ -168,7 +168,20 @@ export default function Album() {
             right (narrow) = 구매처 + 50자 평. */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
 
-        <div className="mt-10 lg:grid lg:grid-cols-[1fr_280px] lg:gap-8 lg:items-start">
+        <div className="mt-5 py-3 border-t border-b border-white/5 flex items-center justify-center gap-2">
+          <VoteButtons
+            albumId={albumId}
+            upvotes={album.upvotes ?? 0}
+            downvotes={album.downvotes ?? 0}
+            userVote={album.userVote ?? null}
+          />
+          <CrateButton
+            albumId={album.id ?? null}
+            crateCount={album.crateCount ?? 0}
+          />
+        </div>
+
+        <div className="mt-8 lg:grid lg:grid-cols-[1fr_280px] lg:gap-8 lg:items-start">
           <div>
             {reviewsLoading ? (
               <SectionLoader text="리뷰를 불러오고 있습니다..." />
@@ -193,19 +206,7 @@ export default function Album() {
             ) : null}
           </div>
 
-          <div className="mt-10 lg:mt-0 space-y-6">
-            <div className="flex justify-center items-center gap-2">
-              <VoteButtons
-                albumId={albumId}
-                upvotes={album.upvotes ?? 0}
-                downvotes={album.downvotes ?? 0}
-                userVote={album.userVote ?? null}
-              />
-              <CrateButton
-                albumId={album.id ?? null}
-                crateCount={album.crateCount ?? 0}
-              />
-            </div>
+          <div className="mt-8 lg:mt-0 space-y-6">
             <BuySection buy={base.buy} albumId={albumId} />
             <UserReviewsSection albumId={albumId} userAlbumVote={base.album.userVote ?? null} />
           </div>
