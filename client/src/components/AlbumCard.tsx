@@ -527,7 +527,7 @@ export default function AlbumCard({
                 hover-triggers-flip behavior is preserved. */}
             {topRightChip && (
               <div
-                className="absolute inset-0 pointer-events-none"
+                className="absolute inset-0 pointer-events-none album-front-decor"
                 style={{
                   backfaceVisibility: 'hidden',
                   WebkitBackfaceVisibility: 'hidden',
@@ -603,7 +603,7 @@ export default function AlbumCard({
                 src="/textures/pick.webp"
                 alt=""
                 aria-hidden
-                className="absolute pointer-events-none select-none"
+                className="absolute pointer-events-none select-none album-front-decor"
                 style={{
                   bottom: 'clamp(3px, 2.4cqw, 8px)',
                   left: 'clamp(3px, 2.4cqw, 8px)',
