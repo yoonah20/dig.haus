@@ -93,6 +93,11 @@ export interface HomeWall {
   lowerLpY: number;
   titleFontSize: number;
   titleRotationDeg: number;
+  /** When this specific wall's visitor-visible content last changed
+   *  — theme / description / items replaced. Excludes pure tuner /
+   *  position adjustments. Powers the per-wall "M/D 업데이트" subtitle
+   *  on the collapsed hero bar as it rotates through walls. */
+  contentUpdatedAt: string | null;
   items: HomeFeatureItem[];
 }
 
