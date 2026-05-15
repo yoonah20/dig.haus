@@ -457,7 +457,7 @@ export default function HomeNext() {
             onClick={() => setHeroCollapsed(true)}
             aria-label="히어로 접기"
             title="히어로 접기"
-            className="absolute top-3 right-3 z-30 text-[11px] text-gray-200 bg-black/60 hover:bg-black/80 hover:text-white border border-white/15 rounded-full px-2.5 py-1 transition-colors flex items-center gap-1"
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-30 text-[11px] text-gray-200 bg-black/60 hover:bg-black/80 hover:text-white border border-white/15 rounded-full px-2.5 py-1 transition-colors flex items-center gap-1"
           >
             <span aria-hidden>▲</span>
             <span>접기</span>
@@ -710,23 +710,12 @@ function CollapsedHeroBar({
       aria-label="히어로 펼치기"
       className="relative w-full bg-panel-strong border-b border-white/10 hover:bg-panel-strong/80 transition-colors flex items-center justify-center py-2.5 group/herobar"
     >
-      {/* Chip pinned to the right edge so it shares an X anchor
-          with the expanded-state 접기 chip at top-right. Both
-          controls read as the same toggle, just in different
-          states. The 접기 chip lives on the right because the
-          mobile hero's wall theme spans most of the left side of
-          the painted band, and a left-anchored chip overlaps with
-          the title — admin chips on desktop are hover-only so the
-          shared corner is a near-zero collision risk there. The
-          bar's own click target covers the whole row so the
-          off-centre chevron doesn't need to be aimed at. */}
-      <span className="absolute right-3 text-xs text-gray-400 group-hover/herobar:text-accent transition-colors">
-        ▼ 펼치기
-      </span>
-      {/* Theme + update info travel together as a single centred
-          group so the update label reads as a subtitle to the wall
-          theme rather than floating off on its own. NEW prefixes
-          the date when applicable. */}
+      {/* Theme + update info + 펼치기 chevron travel together as a
+          single centred cluster — same vertical-centre treatment the
+          expanded-state 접기 chip uses at top-center of the hero, so
+          the two states' toggle controls share a visual anchor. The
+          bar's own click target covers the whole row so the off-
+          centre date / chevron don't need to be aimed at. */}
       <span key={wall?.id ?? 0} className="flex items-center gap-3">
         {theme && (
           <span
@@ -751,6 +740,9 @@ function CollapsedHeroBar({
             </span>
           </span>
         )}
+        <span className="text-xs text-gray-400 group-hover/herobar:text-accent transition-colors">
+          ▼ 펼치기
+        </span>
       </span>
     </button>
   );
