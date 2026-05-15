@@ -183,7 +183,7 @@ export default function Album() {
             right (narrow) = 구매처 + 50자 평. */}
         <HeaderSection album={album} streaming={base.streaming} buy={base.buy} />
 
-        <div className="mt-5 py-3 flex items-center justify-center gap-2">
+        <div className="my-8 py-4 flex items-center justify-center gap-2">
           <VoteButtons
             albumId={albumId}
             upvotes={album.upvotes ?? 0}
