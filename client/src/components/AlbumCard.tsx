@@ -544,7 +544,7 @@ export default function AlbumCard({
             />
             {hasAnyCoverSticker && !compact && (
               <div
-                className="absolute flex flex-col items-start gap-1 select-none"
+                className="album-front-decor absolute flex flex-col items-start gap-1 select-none"
                 // Inset scales with card width (cqw) so the sticker
                 // stays at a consistent % from the corner instead of
                 // creeping inward on smaller grids. clamp floors at
