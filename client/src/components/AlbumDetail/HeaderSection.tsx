@@ -297,7 +297,7 @@ const linkServices = [
   {
     key: 'discogs' as const,
     name: 'Discogs',
-    color: '#333',
+    color: '#e8e8e8',
     icon: (
       <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
         <path d="M12 0C5.372 0 0 5.372 0 12s5.372 12 12 12 12-5.372 12-12S18.628 0 12 0zm0 21.6A9.6 9.6 0 1 1 12 2.4a9.6 9.6 0 0 1 0 19.2zm0-16.8a7.2 7.2 0 1 0 0 14.4 7.2 7.2 0 0 0 0-14.4zm0 12a4.8 4.8 0 1 1 0-9.6 4.8 4.8 0 0 1 0 9.6zm0-7.2a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8z" />
