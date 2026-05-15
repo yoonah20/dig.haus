@@ -466,7 +466,16 @@ export default function HomeNext() {
         </div>
       )}
 
-      <div className="bg-background px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
+      {/* pt tightens when the hero is collapsed — the strip is short
+          enough that pt-12 reads as a deliberate void below it
+          instead of breathing room around the painted band. Half
+          the gap restores the "the bar is part of the page header"
+          read. */}
+      <div
+        className={`bg-background px-4 md:px-8 lg:px-12 xl:px-16 pb-8 ${
+          heroCollapsed ? 'pt-5' : 'pt-12'
+        }`}
+      >
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-10">
           {/* ── 최근 발매 목록 ─────────────────────────────────────
               Past-only 30-day window keyed off release_date — the
