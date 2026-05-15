@@ -648,11 +648,12 @@ export default function HomeNext() {
 // 0 when storage is empty (fresh tab or the visitor never paged
 // the carousel before collapsing). The whole strip is the click
 // target so the affordance reads as "the bar is the button",
-// not "find the small button in the corner". When the server
-// reports a curation change since the visitor's seenAt watermark,
-// a NEW badge + 업데이트 날짜 surface on the right so the visitor
-// has a reason to expand instead of letting the bar fade into the
-// page chrome.
+// not "find the small button in the corner". The last update
+// date sits on the left as a permanent fixture so a visitor who
+// keeps the hero collapsed can see how fresh the curation is
+// without expanding; a NEW badge pins to its left only when the
+// server reports a change since the visitor's seenAt watermark,
+// giving them a reason to actually expand.
 function CollapsedHeroBar({
   walls,
   hasUpdate,
@@ -707,11 +708,13 @@ function CollapsedHeroBar({
           {theme}
         </span>
       )}
-      {hasUpdate && lastContentUpdateAt && (
+      {lastContentUpdateAt && (
         <span className="absolute left-3 flex items-center gap-1.5 text-[11px]">
-          <span className="bg-accent text-black font-bold px-1.5 py-0.5 rounded">
-            NEW
-          </span>
+          {hasUpdate && (
+            <span className="bg-accent text-black font-bold px-1.5 py-0.5 rounded">
+              NEW
+            </span>
+          )}
           <span className="text-gray-400">
             {formatHeroUpdateDate(lastContentUpdateAt)} 업데이트
           </span>
@@ -721,10 +724,11 @@ function CollapsedHeroBar({
   );
 }
 
-// Format the server's UTC timestamp into a short M/D label for the
-// NEW badge ("5/14 업데이트"). Parses ISO-or-SQLite-datetime strings
-// — the server emits SQLite's `datetime('now')` shape (no TZ
-// suffix) so we treat it as UTC by appending Z before parsing.
+// Format the server's UTC timestamp into a short M/D label for
+// the collapsed-bar update date ("5/14 업데이트"). Parses
+// ISO-or-SQLite-datetime strings — the server emits SQLite's
+// `datetime('now')` shape (no TZ suffix) so we treat it as UTC
+// by appending Z before parsing.
 function formatHeroUpdateDate(iso: string): string {
   const normalised = iso.includes('T') ? iso : iso.replace(' ', 'T');
   const withZ = normalised.endsWith('Z') ? normalised : `${normalised}Z`;
