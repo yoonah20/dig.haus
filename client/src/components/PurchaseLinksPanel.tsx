@@ -557,7 +557,7 @@ function LinkForm({
         {/* Price first so the URL → price tab order matches how the
             link is actually being described ("this costs $25"),
             followed by the pickers that don't take keyboard input. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+        <div className="grid grid-cols-1 gap-3.5">
           <div>
             <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
               가격 (선택)
@@ -607,7 +607,7 @@ function LinkForm({
         {/* Status + note on one row. Status pills collapse to a
             compact group; note takes the rest of the row so long
             descriptions have room without stealing focus. */}
-        <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-3.5">
+        <div className="grid grid-cols-1 gap-3.5">
           <div>
             <span className="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">
               상태 (선택)
