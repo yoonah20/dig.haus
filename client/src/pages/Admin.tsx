@@ -535,7 +535,7 @@ const REPORT_REASON_LABEL: Record<ReportedLink['reason'], string> = {
 const REVIEW_REPORT_REASON_LABEL: Record<ReviewReportReason, string> = {
   'wrong-album': '다른 앨범 리뷰',
   'bad-translation': '번역 이상',
-  'not-a-review': '리뷰 아님',
+  'not-a-review': '다른 내용',
 };
 
 // One row per submitted report. Multiple reports on the same link show
