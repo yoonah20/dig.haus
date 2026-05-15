@@ -649,11 +649,11 @@ export default function HomeNext() {
 // the carousel before collapsing). The whole strip is the click
 // target so the affordance reads as "the bar is the button",
 // not "find the small button in the corner". The last update
-// date sits on the left as a permanent fixture so a visitor who
-// keeps the hero collapsed can see how fresh the curation is
-// without expanding; a NEW badge pins to its left only when the
-// server reports a change since the visitor's seenAt watermark,
-// giving them a reason to actually expand.
+// date sits inline next to the wall theme as a permanent subtitle
+// — visitor sees how fresh the curation is without expanding —
+// and a NEW badge prefixes the date only when the server reports
+// a change since the visitor's seenAt watermark, giving them a
+// reason to actually expand.
 function CollapsedHeroBar({
   walls,
   hasUpdate,
@@ -697,29 +697,35 @@ function CollapsedHeroBar({
       <span className="absolute right-3 text-xs text-gray-400 group-hover/herobar:text-accent transition-colors">
         ▼ 펼치기
       </span>
-      {theme && (
-        <span
-          className="text-base text-gray-200"
-          style={{
-            fontFamily: GRAFFITI_FONT_STACK,
-            letterSpacing: '0.02em',
-          }}
-        >
-          {theme}
-        </span>
-      )}
-      {lastContentUpdateAt && (
-        <span className="absolute left-3 flex items-center gap-1.5 text-[11px]">
-          {hasUpdate && (
-            <span className="bg-accent text-black font-bold px-1.5 py-0.5 rounded">
-              NEW
-            </span>
-          )}
-          <span className="text-gray-400">
-            {formatHeroUpdateDate(lastContentUpdateAt)} 업데이트
+      {/* Theme + update info travel together as a single centred
+          group so the update label reads as a subtitle to the wall
+          theme rather than floating off on its own. NEW prefixes
+          the date when applicable. */}
+      <span className="flex items-center gap-3">
+        {theme && (
+          <span
+            className="text-base text-gray-200"
+            style={{
+              fontFamily: GRAFFITI_FONT_STACK,
+              letterSpacing: '0.02em',
+            }}
+          >
+            {theme}
           </span>
-        </span>
-      )}
+        )}
+        {lastContentUpdateAt && (
+          <span className="flex items-center gap-1.5 text-[11px]">
+            {hasUpdate && (
+              <span className="bg-accent text-black font-bold px-1.5 py-0.5 rounded">
+                NEW
+              </span>
+            )}
+            <span className="text-gray-400">
+              {formatHeroUpdateDate(lastContentUpdateAt)} 업데이트
+            </span>
+          </span>
+        )}
+      </span>
     </button>
   );
 }
