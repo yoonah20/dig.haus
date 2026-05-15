@@ -12,7 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import VoteButtons from '../VoteButtons';
 import CrateButton from './CrateButton';
 import CopyTitleButton from '../CopyTitleButton';
-import ShareLinkButton from '../ShareLinkButton';
+
 import ArtistCredit from '../ArtistCredit';
 
 function AdminMenuItem({
@@ -1037,10 +1037,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 label={`"${album.title} ${album.artist}" 복사`}
                 iconClassName="w-3 h-3"
               />
-              <ShareLinkButton
-                title={`${album.title} — ${album.artist}`}
-                iconClassName="w-3 h-3"
-              />
+
               <button
                 type="button"
                 onClick={(e) => {
