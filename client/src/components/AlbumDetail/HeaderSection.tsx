@@ -843,8 +843,8 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       )}
 
       {/* Cover Art */}
-      <div className="w-full md:w-72 flex-shrink-0">
-        <div className="relative group/cover aspect-square md:aspect-auto md:h-full bg-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
+      <div className="w-full md:w-72 md:self-start flex-shrink-0">
+        <div className="relative group/cover aspect-square bg-panel overflow-hidden transition-shadow duration-300 hover:shadow-[0_0_20px_rgba(232,160,32,0.3)]">
           <CoverArt
             src={album.coverArtUrl}
             fallbacks={album.coverArtFallbacks}
@@ -1020,14 +1020,15 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
       {/* Info + Streaming */}
       <div className="flex flex-col flex-1 min-w-0 p-4 md:pl-0">
         <div>
-          {/* Artist – Title, with compact action icons inline after the title */}
-          <div className="flex items-baseline gap-1 flex-wrap min-w-0 mb-1">
+          {/* Artist on its own line, title + action icons below */}
+          <div className="mb-0.5">
             <ArtistCredit
               credit={album.artistCredit}
               fallback={album.artist}
-              className="text-editorial-md md:text-editorial-lg text-accent hover:underline font-display font-bold cursor-pointer text-left leading-tight flex-shrink-0"
+              className="text-editorial-sm md:text-editorial-md text-accent hover:underline font-display font-bold cursor-pointer text-left leading-tight"
             />
-            <span className="text-gray-500 font-display font-bold text-editorial-md md:text-editorial-lg leading-tight flex-shrink-0">–</span>
+          </div>
+          <div className="flex items-baseline gap-1 flex-wrap min-w-0 mb-1">
             <h1 className="font-bold text-white font-display text-editorial-md md:text-editorial-lg break-words min-w-0 leading-tight">
               {album.title}
             </h1>
