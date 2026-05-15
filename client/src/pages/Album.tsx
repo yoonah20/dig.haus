@@ -194,12 +194,13 @@ export default function Album() {
           </div>
 
           <div className="mt-10 lg:mt-0 space-y-6">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-stretch gap-2">
               <VoteButtons
                 albumId={albumId}
                 upvotes={album.upvotes ?? 0}
                 downvotes={album.downvotes ?? 0}
                 userVote={album.userVote ?? null}
+                className="flex-1"
               />
               <CrateButton
                 albumId={album.id ?? null}

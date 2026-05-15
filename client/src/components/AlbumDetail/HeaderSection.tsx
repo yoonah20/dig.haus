@@ -1023,7 +1023,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             <ArtistCredit
               credit={album.artistCredit}
               fallback={album.artist}
-              className="text-editorial-sm md:text-editorial-md text-accent hover:underline font-display font-bold cursor-pointer text-left leading-tight"
+              className="text-editorial-md md:text-editorial-md text-accent hover:underline font-display font-bold cursor-pointer text-left leading-tight"
             />
           </div>
           <div className="flex items-baseline gap-1 flex-wrap min-w-0 mb-1">

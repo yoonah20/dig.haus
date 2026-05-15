@@ -191,7 +191,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
     : {};
 
   return (
-    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-3 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
+    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
       {isAdmin && !editing && (
         <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
           <CardOverlayButton onClick={startEditExcerpt} title="본문 수정">
@@ -711,13 +711,28 @@ export default function ReviewSection({
       <div className="space-y-6">
         {pendingNotice}
 
+        {isAdmin && albumTitle && albumArtist && (
+          <div className="flex justify-end -mt-2">
+            <a
+              href={`https://www.google.com/search?q=${encodeURIComponent(`${albumArtist} ${albumTitle} review`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-accent transition-colors"
+              title={`"${albumArtist} ${albumTitle} review" 구글 검색`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              리뷰 검색
+            </a>
+          </div>
+        )}
+
         {/* Score + Korean summary share one card. Average hidden when
             fewer than MIN_SCORED_FOR_AVG scored reviews — with 1 or 2,
             the "average" is really just one opinion and the big
             headline number misleads. Card still renders for the
             summary alone when the score doesn't qualify. */}
         {(koreanSummary || (averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG)) && (
-            <div className="relative group/summary bg-panel rounded-panel p-4 border-l-4 border-accent">
+            <div className="relative group/summary bg-panel rounded-panel p-5 border-l-4 border-accent">
               {isAdmin && !editingSummary && koreanSummary && (
                 <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/summary:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
                   <CardOverlayButton onClick={startEditSummary} title="요약 수정">
@@ -772,18 +787,18 @@ export default function ReviewSection({
               ) : (
                 <div className="overflow-hidden">
                   {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
-                    <div className="float-left mr-4 mb-1 text-center">
+                    <div className="float-left mr-4 mb-1 text-center min-h-[130px]">
                       <div className="flex items-baseline gap-1 justify-center">
-                        <span className={`text-6xl font-bold leading-none ${scoreColor(averageScore)}`}>
+                        <span className={`text-7xl font-bold leading-none ${scoreColor(averageScore)}`}>
                           {Math.round(averageScore)}
                         </span>
-                        <span className="text-gray-500 text-lg">/100</span>
+                        <span className="text-gray-500 text-xl">/100</span>
                       </div>
                       <div className="text-gray-600 text-[11px] mt-1.5">({scoredCount}개 사이트 평균)</div>
                     </div>
                   )}
                   {koreanSummary && (
-                    <p className="text-gray-300 text-sm leading-relaxed">
+                    <p className="text-gray-300 text-base leading-relaxed">
                       {koreanSummary}
                     </p>
                   )}

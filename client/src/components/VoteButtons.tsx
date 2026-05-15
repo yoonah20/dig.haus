@@ -9,13 +9,14 @@ interface Props {
   upvotes: number;
   downvotes: number;
   userVote: 'up' | 'down' | null;
+  className?: string;
 }
 
 // Split-pill: one rounded control with 굿굿 on the left (muted blue)
 // and 별루 on the right (muted red). Desaturated gradients fit the
 // dark page; idle halves keep a faint tint so the pair reads as
 // interactive even when nothing is picked.
-export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: Props) {
+export default function VoteButtons({ albumId, upvotes, downvotes, userVote, className }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [tooltip, setTooltip] = useState<'up' | 'down' | null>(null);
@@ -102,14 +103,14 @@ export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: P
               ? `linear-gradient(to bottom, ${palette.activeFrom}, ${palette.activeTo})`
               : `linear-gradient(to bottom, ${palette.idleFrom}, ${palette.idleTo})`,
             color: active ? palette.activeText : palette.idleText,
-            padding: '4px 10px',
-            fontSize: '13px',
+            padding: '8px 14px',
+            fontSize: '14px',
             fontWeight: 600,
             transition: 'background 160ms ease, color 160ms ease',
           }}
           className="w-full inline-flex items-center justify-center gap-1 cursor-pointer disabled:cursor-wait disabled:opacity-60 hover:brightness-110"
         >
-          <span style={{ fontSize: '13px', lineHeight: 1 }}>{emoji}</span>
+          <span style={{ fontSize: '14px', lineHeight: 1 }}>{emoji}</span>
           <span>{label}</span>
           <span className="tabular-nums">{count.toLocaleString()}</span>
         </button>
@@ -129,7 +130,7 @@ export default function VoteButtons({ albumId, upvotes, downvotes, userVote }: P
   };
 
   return (
-    <div className="inline-flex items-stretch rounded-full overflow-hidden border border-white/10">
+    <div className={`flex items-stretch rounded-full overflow-hidden border border-white/10 ${className ?? ''}`}>
       {half('up', '굿굿', localUp)}
       <div className="w-px self-stretch bg-black/40" aria-hidden />
       {half('down', '별루', localDown)}
