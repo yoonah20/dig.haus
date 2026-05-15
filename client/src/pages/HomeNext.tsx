@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import HomeNextHero from '../components/Home/HomeNextHero';
 import HomeNextHeroMobile from '../components/Home/HomeNextHeroMobile';
+import { useHomeFeatures } from '../hooks/useHomeFeatures';
+import { GRAFFITI_FONT_STACK } from '../components/MyDig/GraffitiSnapshotList';
 import {
   useHomeSnapshots,
   type HomeSnapshot,
@@ -45,6 +47,35 @@ function useIsMobileHero() {
     return () => mq.removeEventListener('change', handler);
   }, []);
   return isMobile;
+}
+
+// Hero collapse — the carousel updates rarely (operator-curated
+// walls, 1-3 rotations a week at most), so a returning visitor
+// might want the page to skip the tall painted strip and jump
+// straight to the activity feed. Persisted in localStorage so the
+// choice survives reloads; default is expanded so first-time
+// visitors still see the carousel as the page's primary surface.
+const HERO_COLLAPSED_KEY = 'dig.haus:hero-collapsed';
+// Mirrors HomeNextHero / HomeNextHeroMobile's ACTIVE_WALL_STORAGE_KEY.
+// Kept as a duplicate constant rather than exporting from the hero
+// modules so the collapsed bar can read the last-active wall without
+// pulling in the carousel itself.
+const ACTIVE_WALL_STORAGE_KEY = 'dig.haus:home-active-wall-idx';
+
+function useHeroCollapsed() {
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(HERO_COLLAPSED_KEY) === '1';
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (collapsed) {
+      window.localStorage.setItem(HERO_COLLAPSED_KEY, '1');
+    } else {
+      window.localStorage.removeItem(HERO_COLLAPSED_KEY);
+    }
+  }, [collapsed]);
+  return [collapsed, setCollapsed] as const;
 }
 
 // HomeNext is the canonical home composition. Hero on top, then a
@@ -139,6 +170,7 @@ export default function HomeNext() {
   const snapshots = useHomeSnapshots(true, 8);
   const recentReleases = useRecentReleases(true, 60);
   const isMobile = useIsMobileHero();
+  const [heroCollapsed, setHeroCollapsed] = useHeroCollapsed();
 
   const ACTIVITY_COLS = { base: 3, sm: 3, md: 4, lg: 5, xl: 7 };
   const activityCols = useGridCols(ACTIVITY_COLS);
@@ -356,8 +388,30 @@ export default function HomeNext() {
           rails + 2×5 LP layout. isMobile null on first render
           (SSR/hydration safety) — render the desktop hero in
           that brief window since it's the more common case;
-          the mobile swap kicks in once matchMedia resolves. */}
-      {isMobile ? <HomeNextHeroMobile /> : <HomeNextHero />}
+          the mobile swap kicks in once matchMedia resolves.
+          Collapse toggle wraps both variants so desktop + mobile
+          share one preference; the 접기 chip overlays the hero
+          when expanded, the CollapsedHeroBar replaces it when
+          collapsed (a single-line strip that still names the
+          last-viewed wall so the carousel doesn't disappear
+          without trace). */}
+      {heroCollapsed ? (
+        <CollapsedHeroBar onExpand={() => setHeroCollapsed(false)} />
+      ) : (
+        <div className="relative">
+          {isMobile ? <HomeNextHeroMobile /> : <HomeNextHero />}
+          <button
+            type="button"
+            onClick={() => setHeroCollapsed(true)}
+            aria-label="히어로 접기"
+            title="히어로 접기"
+            className="absolute top-3 left-3 z-30 text-[11px] text-gray-200 bg-black/60 hover:bg-black/80 hover:text-white border border-white/15 rounded-full px-2.5 py-1 transition-colors flex items-center gap-1"
+          >
+            <span aria-hidden>▲</span>
+            <span>접기</span>
+          </button>
+        </div>
+      )}
 
       <div className="bg-background px-4 md:px-8 lg:px-12 xl:px-16 pt-12 pb-8">
         <div className="w-full max-w-[1280px] mx-auto flex flex-col gap-10">
@@ -522,6 +576,54 @@ export default function HomeNext() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Collapsed-hero replacement — a single-line strip showing the
+// last-active wall's theme so the carousel stays referenced even
+// when the visitor has hidden it. Reads the active idx from
+// sessionStorage written by the hero modules; falls back to wall
+// 0 when storage is empty (fresh tab or the visitor never paged
+// the carousel before collapsing). The whole strip is the click
+// target so the affordance reads as "the bar is the button",
+// not "find the small button in the corner".
+function CollapsedHeroBar({ onExpand }: { onExpand: () => void }) {
+  const { data } = useHomeFeatures();
+  const walls = data?.walls ?? [];
+  let activeIdx = 0;
+  if (typeof window !== 'undefined') {
+    const raw = window.sessionStorage.getItem(ACTIVE_WALL_STORAGE_KEY);
+    if (raw) {
+      const parsed = Number.parseInt(raw, 10);
+      if (Number.isFinite(parsed) && parsed >= 0 && parsed < walls.length) {
+        activeIdx = parsed;
+      }
+    }
+  }
+  const wall = walls[activeIdx] ?? walls[0];
+  const theme = wall?.theme?.trim() || null;
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      aria-label="히어로 펼치기"
+      className="w-full bg-panel-strong border-b border-white/10 hover:bg-panel-strong/80 transition-colors flex items-center justify-center gap-3 py-2.5 group/herobar"
+    >
+      {theme && (
+        <span
+          className="text-base text-gray-200"
+          style={{
+            fontFamily: GRAFFITI_FONT_STACK,
+            letterSpacing: '0.02em',
+          }}
+        >
+          {theme}
+        </span>
+      )}
+      <span className="text-xs text-gray-400 group-hover/herobar:text-accent transition-colors">
+        ▼ 펼치기
+      </span>
+    </button>
   );
 }
 
