@@ -156,7 +156,7 @@ function SpeechBubble({
             trailing span is whitespace-nowrap so the two emojis never
             split across lines and never detach from the preceding space.
             line-clamp-4 remains a safety net for runaway bodies. */}
-        <p className="text-gray-100 text-[15px] leading-relaxed break-words flex-1 line-clamp-4">
+        <p className="text-gray-300 text-sm leading-relaxed break-words flex-1 line-clamp-4">
           {review.body}
           {hasBadges && (
             <span className="whitespace-nowrap">

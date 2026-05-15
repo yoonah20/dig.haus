@@ -153,7 +153,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
         onClick={handleChipClick}
         aria-expanded={open}
         aria-label="담기"
-        className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[14px] font-semibold border transition-colors cursor-pointer ${
+        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold border transition-colors cursor-pointer ${
           isInAnyCrate
             ? 'bg-accent border-accent text-panel-strong hover:bg-accent-hover'
             : 'bg-transparent border-accent/60 text-accent hover:bg-accent/10 hover:border-accent'
