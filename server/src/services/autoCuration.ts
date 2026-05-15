@@ -265,6 +265,15 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
   };
 }
 
+function isUnreleased(releaseDate: string | null | undefined): boolean {
+  if (!releaseDate) return false;
+  const match = releaseDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return false;
+  const ts = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(ts)) return false;
+  return ts > Date.now();
+}
+
 function emptyResult(
   mbid: string,
   status: AutoCurationResult['status'],
@@ -307,6 +316,20 @@ export function enqueueAutoCuration(mbid: string): void {
     return;
   }
   if (queuedSet.has(mbid)) {
+    return;
+  }
+  // Unreleased albums: pre-orders / future-dated rows have no reviews
+  // out there yet, so Serper would burn a query for zero return and
+  // the album would still get reviews_crawled_at stamped, hiding it
+  // from a future re-run on release day. Skip entirely and let the
+  // existing admin-pending queue pick it up after release. Parses
+  // YYYY-MM-DD prefix only; year-only / NULL release_date falls
+  // through to the curation path (matches AlbumCard.parseReleaseTimestamp).
+  const album = getCachedAlbum(mbid);
+  if (album && isUnreleased(album.release_date)) {
+    console.log(
+      `[auto-curation] skipping ${mbid} — unreleased (release_date=${album.release_date})`
+    );
     return;
   }
   queuedSet.add(mbid);
