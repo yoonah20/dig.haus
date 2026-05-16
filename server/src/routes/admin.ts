@@ -18,7 +18,6 @@ import {
   isSpotifyRateLimited,
   spotifyRateLimitRemainingMs,
 } from '../services/spotify.js';
-import { getRelease } from '../services/musicbrainz.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -1670,100 +1669,6 @@ router.delete('/signups/pending/:email', (req, res) => {
     console.error('[admin/signups/pending] discard failed:', err);
     res.status(500).json({ error: '신청 삭제에 실패했어요.' });
   }
-});
-
-// Count helper shared by the GET stats endpoint + the POST batch
-// runner so both reflect the exact same "needs backfill" predicate
-// (mbid-shaped row, primary_type still NULL). Discogs-only mbids
-// are excluded because MB can't resolve them.
-function countAlbumsNeedingTypeBackfill(): number {
-  return (
-    queryGet(
-      `SELECT COUNT(*) AS c FROM albums
-       WHERE primary_type IS NULL
-         AND mbid NOT LIKE 'discogs-%'
-         AND mbid IS NOT NULL`
-    ) as { c: number } | null
-  )?.c ?? 0;
-}
-
-// Stats endpoint for the admin UI backfill panel — returns just the
-// `remaining` count so the panel can auto-hide when work is done
-// (returns 0) without triggering an MB request. Refetched after
-// each POST so the count drains as batches complete.
-router.get('/albums/backfill-release-types', (_req, res) => {
-  res.json({ remaining: countAlbumsNeedingTypeBackfill() });
-});
-
-// Backfill `primary_type` + `secondary_types` for albums registered
-// before the release-type columns landed. MusicBrainz fetch is rate-
-// limited internally (~1.1s between requests), so each batch of N
-// takes ~N seconds; admin clicks the button repeatedly until the
-// `remaining` count hits 0. Only mbid-shaped rows are eligible —
-// Discogs-only registrations (mbid prefixed `discogs-`) don't carry
-// the release-group "secondary types" vocabulary at all and have to
-// be re-resolved through MB by some other path (admin can edit
-// them individually via the existing register flow).
-//
-// Skips rows that already have primary_type set so re-running is
-// safe. Writes secondary_types as a JSON-encoded string array
-// (matching cacheAlbum's representation); an empty array `'[]'`
-// means "plain studio LP" and is the canonical-tier signal.
-router.post('/albums/backfill-release-types', async (req, res) => {
-  const limit = Math.min(
-    Math.max(parseInt(String(req.query.limit ?? '50'), 10) || 50, 1),
-    500
-  );
-  const remainingBefore = countAlbumsNeedingTypeBackfill();
-
-  if (remainingBefore === 0) {
-    return res.json({ processed: 0, updated: 0, failed: 0, remaining: 0 });
-  }
-
-  const rows = queryAll(
-    `SELECT mbid FROM albums
-     WHERE primary_type IS NULL
-       AND mbid NOT LIKE 'discogs-%'
-       AND mbid IS NOT NULL
-     ORDER BY updated_at DESC
-     LIMIT ?`,
-    [limit]
-  ) as Array<{ mbid: string }>;
-
-  let updated = 0;
-  let failed = 0;
-  const failures: Array<{ mbid: string; reason: string }> = [];
-
-  for (const row of rows) {
-    try {
-      const mb = await getRelease(row.mbid);
-      const rg = mb?.releaseGroup;
-      if (!rg) {
-        failed += 1;
-        failures.push({ mbid: row.mbid, reason: 'no release-group' });
-        continue;
-      }
-      const pt = rg.primaryType || '';
-      const st = Array.isArray(rg.secondaryTypes) ? rg.secondaryTypes : [];
-      execute(
-        `UPDATE albums SET primary_type = ?, secondary_types = ? WHERE mbid = ?`,
-        [pt || null, JSON.stringify(st), row.mbid]
-      );
-      updated += 1;
-    } catch (err) {
-      failed += 1;
-      failures.push({ mbid: row.mbid, reason: (err as Error).message });
-    }
-  }
-
-  const remaining = Math.max(0, remainingBefore - updated);
-  res.json({
-    processed: rows.length,
-    updated,
-    failed,
-    remaining,
-    failures: failures.slice(0, 20),
-  });
 });
 
 // ─── GET /api/admin/review-reports ──────────────────────────────────────

@@ -46,10 +46,9 @@ export function searchAlbumsInDb(rawQuery: string, limit = 25): DbSearchResult[]
   //      types (Live / Compilation / Soundtrack / Remix / Demo /
   //      DJ-mix / Mixtape / Interview / Spokenword pull the album
   //      OUT of this tier). NULL primary_type is treated as canonical
-  //      so legacy rows that pre-date the column aren't penalised;
-  //      admin backfill (/admin/albums/backfill-release-types) writes
-  //      the truthful value once it runs. Empty `'[]'` and NULL on
-  //      secondary_types both behave as "no secondary qualifier".
+  //      so legacy rows that pre-date the column aren't penalised.
+  //      Empty `'[]'` and NULL on secondary_types both behave as
+  //      "no secondary qualifier".
   //   4. Recency — release_date DESC. Operator-requested tiebreaker
   //      so newer releases within the same tier surface first.
   const rows = queryAll(

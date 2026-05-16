@@ -438,8 +438,7 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
   // search ranker can treat plain studio LPs as a tier above live /
   // compilation / remix groups. NULL on the Discogs path because
   // Discogs doesn't carry the release-group "secondary types"
-  // vocabulary; admin can backfill those rows by re-resolving them
-  // through MusicBrainz via /admin/albums/backfill-release-types.
+  // vocabulary.
   let primaryType: string | null = null;
   let secondaryTypes: string[] | null = null;
 
