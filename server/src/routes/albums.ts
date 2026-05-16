@@ -1,9 +1,5 @@
 import { Router } from 'express';
-import axios from 'axios';
-import https from 'https';
 import { adminClaudeLimiter } from '../middleware/adminRateLimit.js';
-
-const httpsAgent = new https.Agent({ family: 4 });
 import { getRelease, getLabelByName, getArtistReleases, searchAlbums } from '../services/musicbrainz.js';
 import { searchTrack } from '../services/spotify.js';
 import { searchVideo } from '../services/youtube.js';
@@ -405,8 +401,6 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
       },
       streaming: {
         spotify: cached.spotify_url,
-        appleMusic: cached.apple_music_url,
-        appleMusicEmbedUrl: cached.apple_music_embed_url || null,
         youtube: cached.youtube_url,
         bandcamp: cached.bandcamp_url,
       },
@@ -502,17 +496,10 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
 
   // Fetch links + metadata in parallel
   const [
-    spotifyFetch, appleMusicFetch, youtubeFetch,
+    spotifyFetch, youtubeFetch,
     bandcampFetch, discogsFetch, lastfmFetch,
   ] = await Promise.allSettled([
     searchTrack(artistName, albumTitle),
-    axios.get('https://itunes.apple.com/search', {
-      params: { term: `${artistName} ${albumTitle}`, entity: 'album', limit: 1 },
-      httpsAgent, timeout: 5000,
-    }).then((r) => {
-      const result = r.data?.results?.[0];
-      return { url: result?.collectionViewUrl || null, collectionId: result?.collectionId || null };
-    }),
     searchVideo(artistName, albumTitle),
     searchBandcamp(artistName, albumTitle),
     isDiscogs ? Promise.resolve(null) : searchRelease(artistName, albumTitle),
@@ -522,9 +509,6 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
   const spotifyResult = spotifyFetch.status === 'fulfilled' ? spotifyFetch.value : null;
   const spotifyUrl = spotifyResult?.url || null;
   const spotifyImageUrl = spotifyResult?.imageUrl || null;
-  const appleMusicResult = appleMusicFetch.status === 'fulfilled' ? appleMusicFetch.value : null;
-  const appleMusicUrl = appleMusicResult?.url || null;
-  const appleMusicCollectionId = appleMusicResult?.collectionId || null;
   const youtubeUrl = youtubeFetch.status === 'fulfilled' ? youtubeFetch.value : null;
   const bandcampResult = bandcampFetch.status === 'fulfilled' ? bandcampFetch.value : null;
   const bandcampUrl = bandcampResult?.url || null;
@@ -585,10 +569,6 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
 
   const streamingData = {
     spotify: spotifyUrl,
-    appleMusic: appleMusicUrl,
-    appleMusicEmbedUrl: appleMusicCollectionId
-      ? `https://embed.music.apple.com/us/album/${appleMusicCollectionId}`
-      : null,
     youtube: youtubeUrl,
     bandcamp: bandcampUrl,
   };
@@ -616,8 +596,6 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     cover_art_url: primaryCoverArtUrl,
     cover_art_fallbacks: coverArtFallbacks,
     spotify_url: spotifyUrl,
-    apple_music_url: appleMusicUrl,
-    apple_music_embed_url: streamingData.appleMusicEmbedUrl,
     youtube_url: youtubeUrl,
     bandcamp_url: bandcampUrl,
     discogs_id: masterMarket?.masterId || discogsRelease?.discogsId || null,
@@ -1246,7 +1224,6 @@ router.patch('/:id', requireAdmin, (req, res) => {
 
   err = urlField('discogs_url') || err;
   err = urlField('spotify_url') || err;
-  err = urlField('apple_music_url') || err;
   err = urlField('youtube_url') || err;
   err = urlField('bandcamp_url') || err;
 
@@ -1278,7 +1255,7 @@ router.patch('/:id', requireAdmin, (req, res) => {
     updateAlbumFields(mbid, fields);
     const updated = queryGet(
       `SELECT mbid, title, artist_name, release_year, release_date, label_name, format,
-              discogs_url, discogs_id, spotify_url, apple_music_url, youtube_url, bandcamp_url
+              discogs_url, discogs_id, spotify_url, youtube_url, bandcamp_url
        FROM albums WHERE mbid = ?`,
       [mbid]
     );

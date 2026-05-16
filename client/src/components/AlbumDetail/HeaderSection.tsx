@@ -334,16 +334,6 @@ const linkServices = [
       </svg>
     ),
   },
-  {
-    key: 'appleMusic' as const,
-    name: 'Apple Music',
-    color: '#FC3C44',
-    icon: (
-      <svg viewBox="0 0 24 24" className="w-4 h-4 fill-current">
-        <path d="M23.994 6.124a9.23 9.23 0 00-.24-2.19c-.317-1.31-1.062-2.31-2.18-3.043A5.022 5.022 0 0019.7.165a10.18 10.18 0 00-1.564-.12C17.596.01 17.052 0 15.62 0H8.382c-1.434 0-1.978.01-2.518.045A10.18 10.18 0 004.3.165a5.02 5.02 0 00-1.874.716C1.31 1.597.565 2.597.248 3.908a9.23 9.23 0 00-.24 2.19C-.004 6.636 0 7.18 0 8.612v6.776c0 1.434-.004 1.978.008 2.518.02.74.08 1.468.24 2.19.317 1.31 1.062 2.31 2.18 3.043A5.02 5.02 0 004.3 23.835c.516.07 1.04.112 1.564.12.54.034 1.084.045 2.518.045h7.236c1.434 0 1.978-.01 2.518-.045a10.18 10.18 0 001.564-.12 5.022 5.022 0 001.874-.716c1.118-.733 1.863-1.733 2.18-3.043a9.23 9.23 0 00.24-2.19c.012-.54.008-1.084.008-2.518V8.612c0-1.434.004-1.978-.008-2.518zM17.02 17.61c0 .54-.18.96-.54 1.26s-.78.42-1.26.36a1.58 1.58 0 01-1.02-.54c-.24-.3-.36-.66-.36-1.08V9.87l-6.96 1.5v7.23c0 .54-.18.96-.54 1.26s-.78.42-1.26.36a1.58 1.58 0 01-1.02-.54c-.24-.3-.36-.66-.36-1.08 0-.54.18-.96.54-1.26s.78-.42 1.26-.36c.36.06.66.24.9.48V8.04c0-.36.12-.66.36-.9.24-.24.54-.42.9-.48l7.44-1.62c.36-.06.66 0 .9.18s.36.42.36.72v11.67z" />
-      </svg>
-    ),
-  },
 ];
 
 function LinkButton({ link }: { link: { key: string; name: string; color: string; icon: React.ReactNode; url: string } }) {
@@ -421,7 +411,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [labelInput, setLabelInput] = useState('');
   const [discogsUrlInput, setDiscogsUrlInput] = useState('');
   const [spotifyUrlInput, setSpotifyUrlInput] = useState('');
-  const [appleMusicUrlInput, setAppleMusicUrlInput] = useState('');
   const [youtubeUrlInput, setYoutubeUrlInput] = useState('');
   const [bandcampUrlInput, setBandcampUrlInput] = useState('');
   const navigate = useNavigate();
@@ -694,7 +683,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     setLabelInput(album.label || '');
     setDiscogsUrlInput(album.discogsUrl || '');
     setSpotifyUrlInput(streaming.spotify || '');
-    setAppleMusicUrlInput(streaming.appleMusic || '');
     setYoutubeUrlInput(streaming.youtube || '');
     setBandcampUrlInput(streaming.bandcamp || '');
     setEditingAlbum(true);
@@ -737,7 +725,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     const badUrl = [
       ['Discogs', discogsUrlInput],
       ['Spotify', spotifyUrlInput],
-      ['Apple Music', appleMusicUrlInput],
       ['YouTube', youtubeUrlInput],
       ['Bandcamp', bandcampUrlInput],
     ].find(([, u]) => u.trim() && !/^https?:\/\//i.test(u.trim()));
@@ -756,7 +743,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
         label_name: labelInput.trim() || null,
         discogs_url: urlOrNull(discogsUrlInput),
         spotify_url: urlOrNull(spotifyUrlInput),
-        apple_music_url: urlOrNull(appleMusicUrlInput),
         youtube_url: urlOrNull(youtubeUrlInput),
         bandcamp_url: urlOrNull(bandcampUrlInput),
       });
@@ -773,7 +759,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     } finally {
       setSavingAlbum(false);
     }
-  }, [albumId, titleInput, artistInput, releaseYearInput, releaseDateInput, labelInput, discogsUrlInput, spotifyUrlInput, appleMusicUrlInput, youtubeUrlInput, bandcampUrlInput, queryClient]);
+  }, [albumId, titleInput, artistInput, releaseYearInput, releaseDateInput, labelInput, discogsUrlInput, spotifyUrlInput, youtubeUrlInput, bandcampUrlInput, queryClient]);
 
   const allLinks: Array<{ key: string; name: string; color: string; icon: React.ReactNode; url: string }> = [];
   if (buy.discogsUrl) {
@@ -1304,15 +1290,6 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
                 onChange={(e) => setSpotifyUrlInput(e.target.value)}
                 disabled={savingAlbum}
                 placeholder="https://open.spotify.com/album/..."
-                className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
-              />
-              <label className="text-gray-400">Apple Music</label>
-              <input
-                type="url"
-                value={appleMusicUrlInput}
-                onChange={(e) => setAppleMusicUrlInput(e.target.value)}
-                disabled={savingAlbum}
-                placeholder="https://music.apple.com/..."
                 className="bg-panel-strong border border-white/10 rounded-md px-2 py-1.5 text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60"
               />
               <label className="text-gray-400">YouTube</label>

@@ -104,8 +104,6 @@ interface AlbumBase {
   };
   streaming: {
     spotify: string | null;
-    appleMusic: string | null;
-    appleMusicEmbedUrl: string | null;
     youtube: string | null;
     bandcamp: string | null;
   };

@@ -225,8 +225,6 @@ export function initializeDatabase(db: Database.Database): void {
       cover_art_url TEXT,
       cover_art_fallbacks TEXT,
       spotify_url TEXT,
-      apple_music_url TEXT,
-      apple_music_embed_url TEXT,
       youtube_url TEXT,
       bandcamp_url TEXT,
       discogs_id INTEGER,
@@ -644,6 +642,18 @@ export function initializeDatabase(db: Database.Database): void {
     console.log('[migration] dropped Phase 4 bench tables (plan parked)');
   });
 
+  // Drop the Apple Music streaming-link columns. Operator doesn't use
+  // Apple Music and can't verify the links, so the iTunes Search auto-
+  // fetch on registration + the header CTA + the never-rendered embed
+  // column were all carrying weight for no payoff. SQLite 3.35+ DROP
+  // COLUMN handles this in place; existing apple_music_url values are
+  // discarded with the column.
+  runOnce(db, 'drop-apple-music-columns-2026-05-17', () => {
+    db.exec('ALTER TABLE albums DROP COLUMN apple_music_url');
+    db.exec('ALTER TABLE albums DROP COLUMN apple_music_embed_url');
+    console.log('[migration] dropped albums.apple_music_url + apple_music_embed_url');
+  });
+
   // Auto-migrate
   migrateTable(db, 'albums', [
     'release_date TEXT',
@@ -651,7 +661,6 @@ export function initializeDatabase(db: Database.Database): void {
     'cover_art_fallbacks TEXT',
     'discogs_formats_json TEXT',
     'discogs_formats_updated_at TEXT',
-    'apple_music_embed_url TEXT',
     'artist_ko TEXT',
     'title_ko TEXT',
     'title_meaning TEXT',

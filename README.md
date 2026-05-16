@@ -25,7 +25,7 @@ Tagline positioning: dig.haus is for people who already know what algorithms fee
 | **Frontend** | React 19 + TypeScript + Vite + Tailwind CSS v4 + TanStack Query + React Router |
 | **Backend** | Node.js + Express + TypeScript + Passport (Google OAuth) |
 | **Database** | SQLite (better-sqlite3) — single-file, runtime migrations via `runOnce` |
-| **Catalog APIs** | MusicBrainz, Last.fm, Discogs, Spotify, YouTube, iTunes, Bandcamp, Cover Art Archive |
+| **Catalog APIs** | MusicBrainz, Last.fm, Discogs, Spotify, YouTube, Bandcamp, Cover Art Archive |
 | **LLM (hot path)** | DeepSeek v4 Flash via env-driven router for review extraction, editorial pick, Korean summary, similar-album descriptions, pronunciation |
 | **LLM (ad-hoc)** | Anthropic Claude Sonnet — available via the same router for one-off cases and the `/admin/compare` blind shadow comparator |
 | **Review pipeline** | Serper.dev (URL discovery) → Jina Reader (`r.jina.ai/` proxy for JS-rendered markdown) → DeepSeek (extract + summarise) |
@@ -44,7 +44,7 @@ Per-album curation runs at roughly **~$0.01** for a typical 9–15 review pull (
 - Reviews scraped + summarised in Korean (Pitchfork, AllMusic, Metacritic, RYM, et al.)
 - AI-powered similar-album recommendations in Korean (cached)
 - Discogs marketplace prices and buy links
-- Streaming links (Spotify, Apple Music, YouTube, Bandcamp)
+- Streaming links (Spotify, YouTube, Bandcamp)
 - Aggressive caching at every layer
 
 ### Phase 2 — Shop experience (done)
@@ -124,7 +124,7 @@ cd client && npm install && cd ..
 | **Serper.dev** | https://serper.dev/ | Google search API for review URL discovery |
 | **Google OAuth** | https://console.cloud.google.com/ | See *Google OAuth 설정* below |
 
-> **No auth required:** MusicBrainz, Cover Art Archive, iTunes Search, Jina Reader (`r.jina.ai/`), Bandcamp metadata.
+> **No auth required:** MusicBrainz, Cover Art Archive, Jina Reader (`r.jina.ai/`), Bandcamp metadata.
 
 ### 4-1. Google OAuth 설정
 
