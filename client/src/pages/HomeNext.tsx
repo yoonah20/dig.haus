@@ -223,16 +223,20 @@ export default function HomeNext() {
   // "최근 발매 목록" — release_date_desc fetch from the server,
   // filtered through isRecentRelease (the same 30-day past-only
   // window the NEW sticker uses) so the strip can't drift from the
-  // sticker. Sliced to exactly two rows at the current viewport
-  // (cols × 2). If the filtered count is smaller, the trailing
-  // grid cells stay empty rather than the section getting hidden —
-  // operator decision: heading should always be visible even on
-  // the rare empty day.
+  // sticker. Row count adapts to viewport: mobile (cols < 4, 3-col
+  // grid) gets 3 rows = 9 covers so the strip carries enough visual
+  // weight on a narrow viewport, desktop sticks at 2 rows since the
+  // wider grid (4-7 cols) already shows 8-14 covers per row pair. If
+  // the filtered count is smaller, the trailing grid cells stay
+  // empty rather than the section getting hidden — operator
+  // decision: heading should always be visible even on the rare
+  // empty day.
   const recentReleaseAlbums = useMemo<AlbumSearchResult[]>(() => {
     const all = recentReleases.data?.albums ?? [];
+    const rows = activityCols < 4 ? 3 : 2;
     return all
       .filter((a) => isRecentRelease(a.releaseDate))
-      .slice(0, activityCols * 2);
+      .slice(0, activityCols * rows);
   }, [recentReleases.data, activityCols]);
 
   // Flatten every fetched page from each infinite stream, then plain
