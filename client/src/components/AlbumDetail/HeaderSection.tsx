@@ -790,6 +790,21 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
 
   return (
     <div className="relative flex flex-col md:flex-row md:gap-6">
+      {/* Decorative listening-digman + turntable illustration tucked
+          into the empty right side of the header on lg+. Sized + anchored
+          bottom-right so it leaves the artist / title / KO / vote rows
+          (which all anchor left in the info column) untouched. The
+          asset's bg matches --color-background so the rectangular
+          frame blends into the page; pointer-events-none + DOM-order
+          first so the streaming link buttons (which can wrap into the
+          right edge on very wide info columns) paint over it cleanly. */}
+      <img
+        src="/textures/digman_turntable.webp"
+        alt=""
+        aria-hidden
+        loading="lazy"
+        className="hidden lg:block absolute bottom-0 right-0 w-56 pointer-events-none select-none"
+      />
       {user?.isAdmin && (
         <div ref={adminMenuRef} className="absolute top-0 right-0">
           <button
