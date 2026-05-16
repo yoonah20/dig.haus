@@ -43,6 +43,16 @@ function generateSplitQueries(query: string): Array<{ artist: string; album: str
   return splits;
 }
 
+// Split / collaborative releases — "Artist A / Artist B" or
+// "Artist A ● Artist B" in the title field. MusicBrainz tags
+// these as primary-type Album so the upstream filter doesn't
+// drop them, but for an artist-name search they sit visually
+// ahead of the real catalogue ("hot water music / rydell"
+// scores higher than "Vows" because its title also contains
+// the queried artist name). Demote so standard albums lead
+// while splits stay reachable lower in the list.
+const SPLIT_TITLE_PATTERN = /\s[\/●•]\s/;
+
 function relevanceScore(
   result: { artist: string; title: string; year?: string | null },
   queryWords: string[],
@@ -68,6 +78,14 @@ function relevanceScore(
   // text match still beats a non-year-matching exact text match.
   if (yearFilter && result.year && result.year.startsWith(yearFilter)) {
     score += 5;
+  }
+  // Split-album demotion. -4 brings a split with a perfect title +
+  // artist substring hit (3 + 2 = 5 from the bonuses, plus N from
+  // word matches) below a standard album that scores on artist
+  // alone (3 + N). Splits still pass minRelevance so they remain
+  // discoverable; they just stop crowding the top of the list.
+  if (SPLIT_TITLE_PATTERN.test(result.title)) {
+    score -= 4;
   }
   return score;
 }
