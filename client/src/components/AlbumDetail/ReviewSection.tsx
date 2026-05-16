@@ -980,9 +980,10 @@ export default function ReviewSection({
               ) : (
                 <div className="overflow-hidden">
                   {averageScore !== null && scoredCount >= MIN_SCORED_FOR_AVG && (
+                    // sm:text-7xl sizes the float box to ~100px so the first 5 lines of the summary (leading-relaxed text-sm = 22.75px/line) wrap right of the score and line 6 falls below at full width.
                     <div className="float-left mr-4 mb-1 text-center">
                       <div className="flex items-baseline gap-1 justify-center">
-                        <span className={`text-6xl font-bold leading-none ${scoreColor(averageScore)}`}>
+                        <span className={`text-6xl sm:text-7xl font-bold leading-none ${scoreColor(averageScore)}`}>
                           {Math.round(averageScore)}
                         </span>
                         <span className="text-gray-500 text-lg">/100</span>
