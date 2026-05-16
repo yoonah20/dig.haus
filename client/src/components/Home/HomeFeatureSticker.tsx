@@ -32,7 +32,15 @@ function formatPrice(price: number | null, currency: string): string {
 }
 
 interface Props {
-  link: PriceTagLink;
+  /** Top purchase-link sticker — drives the price digits in the
+   *  top-right slot and the soldout strike-through. Optional: when
+   *  absent (album has no registered purchase link yet), the price
+   *  overlay is skipped and the tag still ships with the baked
+   *  dig.haus + NEW wordmark on top and the artist·album band on
+   *  the mint bottom half. The operator's intent is that every
+   *  hero feature gets a tag, not just the ones with a buy link
+   *  already lined up. */
+  link?: PriceTagLink | null;
   // Wall LP size in px; sticker width derives from this so it scales
   // with the cover.
   lpSize: number;
@@ -68,7 +76,7 @@ export default function HomeFeatureSticker({
   albumArtist,
   seed,
 }: Props) {
-  const isSoldout = link.status === 'soldout';
+  const isSoldout = link?.status === 'soldout';
   // Width ratio: 0.42 (was 0.378 → +11%). The tag now carries
   // artist + album text on the mint band, so it earns a bit more
   // of the cover's width to keep that text legible at small lpSize.
@@ -125,24 +133,28 @@ export default function HomeFeatureSticker({
           ceiling; left: 65% lands the start position just past
           the NEW glyph's right edge in the source image. Right-
           aligned so the digits sit flush against the tag's right
-          edge regardless of length. */}
-      <div
-        className="absolute flex items-center justify-end leading-none"
-        style={{
-          top: '2%',
-          bottom: '52%',
-          left: '65%',
-          right: '3%',
-          fontFamily: GRAFFITI_FONT_STACK,
-          fontSize: priceFontSize,
-          color: 'var(--color-panel)',
-          letterSpacing: '-0.02em',
-          textDecoration: isSoldout ? 'line-through' : 'none',
-          textDecorationThickness: isSoldout ? 1.5 : undefined,
-        }}
-      >
-        {formatPrice(link.price, link.currency)}
-      </div>
+          edge regardless of length. Skipped entirely when the
+          album has no registered purchase link — the slot stays
+          empty in the tag asset rather than showing "$-". */}
+      {link && (
+        <div
+          className="absolute flex items-center justify-end leading-none"
+          style={{
+            top: '2%',
+            bottom: '52%',
+            left: '65%',
+            right: '3%',
+            fontFamily: GRAFFITI_FONT_STACK,
+            fontSize: priceFontSize,
+            color: 'var(--color-panel)',
+            letterSpacing: '-0.02em',
+            textDecoration: isSoldout ? 'line-through' : 'none',
+            textDecorationThickness: isSoldout ? 1.5 : undefined,
+          }}
+        >
+          {formatPrice(link.price, link.currency)}
+        </div>
+      )}
       {/* Artist·album band — mint bottom half (top 54%, bottom 4)
           carries a single "artist·album" line. Middle-dot separator
           with no surrounding spaces — the tilde was hard to spot at

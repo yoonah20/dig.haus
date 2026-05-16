@@ -759,15 +759,13 @@ function MobileFeatureCell({
       playChipScale={0.5}
       playChipInsetPct={2}
       priceTagOverlay={
-        topLink ? (
-          <HomeFeatureSticker
-            link={topLink}
-            lpSize={lpSize}
-            albumTitle={album.titleKo || album.title}
-            albumArtist={album.artistKo || album.artist}
-            seed={album.mbid}
-          />
-        ) : null
+        <HomeFeatureSticker
+          link={topLink}
+          lpSize={lpSize}
+          albumTitle={album.titleKo || album.title}
+          albumArtist={album.artistKo || album.artist}
+          seed={album.mbid}
+        />
       }
       coverOverlay={
         isPick ? <MobilePickSticker lpSize={lpSize} seed={album.mbid} /> : null
