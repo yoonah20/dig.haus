@@ -457,7 +457,7 @@ export default function HomeNext() {
             onClick={() => setHeroCollapsed(true)}
             aria-label="히어로 접기"
             title="히어로 접기"
-            className="absolute top-3 left-1/2 -translate-x-1/2 z-30 text-[11px] text-gray-200 bg-black/60 hover:bg-black/80 hover:text-white border border-white/15 rounded-full px-2.5 py-1 transition-colors flex items-center gap-1"
+            className="absolute top-3 right-3 lg:right-auto lg:left-1/2 lg:-translate-x-1/2 z-30 text-[11px] text-gray-200 bg-black/60 hover:bg-black/80 hover:text-white border border-white/15 rounded-full px-2.5 py-1 transition-colors flex items-center gap-1"
           >
             <span aria-hidden>▲</span>
             <span>접기</span>
