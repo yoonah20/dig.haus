@@ -703,6 +703,16 @@ export function initializeDatabase(db: Database.Database): void {
     // canonical tier above everything else.
     'primary_type TEXT',
     'secondary_types TEXT',
+    // Admin-curated tag override. JSON string[] saved by PATCH
+    // /api/albums/:id/tags. When NOT NULL, the album-detail GET
+    // surfaces these instead of cleanGenres(raw genres) so the
+    // curator can override import-side filters (EXCLUDED_TAGS,
+    // length/digit gates, top-5 cap) — typing "Hip-Hop" into the
+    // tag editor used to disappear silently because cleanGenres
+    // banned the broad genre bucket. Raw genres column is still
+    // updated alongside for back-compat (similar-album lookups,
+    // future filter changes) and for blacklist cross-album strip.
+    'manual_genres TEXT',
   ]);
 
   // One-time backfill: every album that existed BEFORE we split the

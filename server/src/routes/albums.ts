@@ -189,6 +189,48 @@ function cleanGenres(raw: string[], artistName?: string): string[] {
   return result.slice(0, 5);
 }
 
+// Resolve the genres shown on the album detail page. If the admin has
+// run PATCH /api/albums/:id/tags at least once, `manual_genres` carries
+// their explicit picks — those bypass the import-side filters in
+// cleanGenres so additions like "Hip-Hop" / "Rock" / short codes that
+// the import gate would silently strip can still appear. When the
+// override column is null (legacy rows / albums admin never touched)
+// we fall back to cleanGenres(raw).
+//
+// Title-casing applied so the override matches the visual style of the
+// filtered path. Capped at the same top-N used by cleanGenres so a
+// runaway raw list (e.g. an admin paste of 30 tags) doesn't blow up
+// the header section layout.
+function resolveDisplayGenres(
+  manualJson: string | null | undefined,
+  rawGenres: string[],
+  artistName?: string
+): string[] {
+  if (manualJson) {
+    try {
+      const parsed = JSON.parse(manualJson);
+      if (Array.isArray(parsed)) {
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const t of parsed) {
+          if (typeof t !== 'string') continue;
+          const trimmed = t.trim();
+          if (!trimmed) continue;
+          const key = trimmed.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push(trimmed.replace(/\b\w/g, (c) => c.toUpperCase()));
+          if (out.length >= 5) break;
+        }
+        return out;
+      }
+    } catch {
+      // Fall through to cleanGenres on malformed JSON.
+    }
+  }
+  return cleanGenres(rawGenres, artistName);
+}
+
 // ─── Helper: build album base data (fast path) ─────────────────────────────
 
 interface GetOrFetchOpts {
@@ -341,7 +383,10 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
         format: cached.format || null,
         discogsUrl: cached.discogs_url || null,
         label: cached.label_name,
-        genres: cleanGenres(genres, cached.artist_name),
+        // manual_genres (admin override via PATCH /tags) wins when set —
+        // it survives the EXCLUDED_TAGS / length / digit gates that
+        // cleanGenres applies to import-side noise.
+        genres: resolveDisplayGenres(cached.manual_genres, genres, cached.artist_name),
         coverArtUrl: cached.cover_art_url,
         coverArtFallbacks: cachedFallbacks,
         artistKo: cached.artist_ko || null,
@@ -1401,9 +1446,9 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
   const mbid = resolved?.mbid || (req.params.id as string);
 
   const row = queryGet(
-    'SELECT mbid, genres FROM albums WHERE mbid = ?',
+    'SELECT mbid, genres, manual_genres FROM albums WHERE mbid = ?',
     [mbid]
-  ) as { mbid: string; genres: string | null } | null;
+  ) as { mbid: string; genres: string | null; manual_genres: string | null } | null;
   if (!row) {
     return res.status(404).json({ error: 'Album not found' });
   }
@@ -1492,10 +1537,20 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
     nextLower.add(lower);
   }
 
+  // Admin's manual override list — what they want to see displayed.
+  // `visible` IS that intent verbatim (sanitiseList already dropped
+  // the digit-only / "best …" entries policy bans), so we save it
+  // straight. Stored as JSON; resolveDisplayGenres on the GET path
+  // surfaces it instead of cleanGenres(raw) when not null.
+  const nextManual = visible;
+
   let strippedAlbumCountOut = 0;
   try {
     transaction((): void => {
-      updateAlbumFields(mbid, { genres: JSON.stringify(nextRaw) });
+      updateAlbumFields(mbid, {
+        genres: JSON.stringify(nextRaw),
+        manual_genres: JSON.stringify(nextManual),
+      });
 
       if (blacklistList.length > 0) {
         const adminId = (req.user as { id?: number } | undefined)?.id ?? null;
@@ -1507,38 +1562,52 @@ router.patch('/:id/tags', requireAdmin, (req, res) => {
           insertBl.run(tag.toLowerCase(), adminId);
         }
 
-        // Cross-album strip: pull rows whose genres TEXT contains any
-        // of the just-blacklisted tags as a substring (rough but
-        // cheap LIKE prefilter), then re-filter the parsed JSON array
-        // exactly. The substring filter overshoots (e.g. "rock"
-        // matches "rock and roll") — the JS pass is the authoritative
-        // step.
+        // Cross-album strip: pull rows whose genres OR manual_genres
+        // TEXT contains any of the just-blacklisted tags as a substring
+        // (rough but cheap LIKE prefilter), then re-filter the parsed
+        // JSON arrays exactly. The substring filter overshoots (e.g.
+        // "rock" matches "rock and roll") — the JS pass is the
+        // authoritative step. manual_genres needs the same sweep
+        // because an admin override on album A shouldn't keep a tag
+        // alive after album B's curator blacklisted it.
         const likeClauses = blacklistList
-          .map(() => `genres LIKE ?`)
+          .map(() => `(genres LIKE ? OR manual_genres LIKE ?)`)
           .join(' OR ');
-        const likeParams = blacklistList.map(
-          (t) => `%${t.replace(/[%_]/g, '')}%`
-        );
+        const likeParams: string[] = [];
+        for (const t of blacklistList) {
+          const needle = `%${t.replace(/[%_]/g, '')}%`;
+          likeParams.push(needle, needle);
+        }
         const candidates = queryAll(
-          `SELECT mbid, genres FROM albums WHERE mbid != ? AND genres IS NOT NULL AND (${likeClauses})`,
+          `SELECT mbid, genres, manual_genres FROM albums
+           WHERE mbid != ?
+             AND (genres IS NOT NULL OR manual_genres IS NOT NULL)
+             AND (${likeClauses})`,
           [mbid, ...likeParams]
-        ) as Array<{ mbid: string; genres: string }>;
+        ) as Array<{ mbid: string; genres: string | null; manual_genres: string | null }>;
         const updateGenres = getDb().prepare(
-          `UPDATE albums SET genres = ? WHERE mbid = ?`
+          `UPDATE albums SET genres = ?, manual_genres = ? WHERE mbid = ?`
         );
-        let strippedAlbumCount = 0;
-        for (const cand of candidates) {
+        const stripFromJson = (json: string | null): { next: string | null; changed: boolean } => {
+          if (!json) return { next: null, changed: false };
           let parsed: unknown;
           try {
-            parsed = JSON.parse(cand.genres);
+            parsed = JSON.parse(json);
           } catch {
-            continue;
+            return { next: json, changed: false };
           }
-          if (!Array.isArray(parsed)) continue;
+          if (!Array.isArray(parsed)) return { next: json, changed: false };
           const tags = parsed.filter((t): t is string => typeof t === 'string');
           const next = tags.filter((t) => !blacklistLower.has(t.toLowerCase()));
-          if (next.length !== tags.length) {
-            updateGenres.run(JSON.stringify(next), cand.mbid);
+          if (next.length === tags.length) return { next: json, changed: false };
+          return { next: JSON.stringify(next), changed: true };
+        };
+        let strippedAlbumCount = 0;
+        for (const cand of candidates) {
+          const rawResult = stripFromJson(cand.genres);
+          const manualResult = stripFromJson(cand.manual_genres);
+          if (rawResult.changed || manualResult.changed) {
+            updateGenres.run(rawResult.next, manualResult.next, cand.mbid);
             strippedAlbumCount += 1;
           }
         }
