@@ -716,6 +716,71 @@ router.post('/reviews/:reviewId/rescrape', adminClaudeLimiter, requireAdmin, asy
   }
 });
 
+// ─── POST /api/albums/reviews/:reviewId/rescrape-paste — re-extract from pasted text ───
+//
+// Companion to /rescrape for cases where Jina keeps returning the wrong
+// page (paywall stub, navigation-only render, cookie banner instead of
+// body, etc.) — admin pastes the real article text from the browser
+// and we re-run the same LLM extraction the manual-entry flow uses
+// (extractFromPastedText). excerpt / excerpt_ko / score are overwritten
+// in place; source_name and full_review_url are preserved so the
+// (album_mbid, source_name) UNIQUE doesn't trip and the existing
+// outbound link keeps working. manual_score is left untouched (admin
+// score overrides survive).
+
+router.post('/reviews/:reviewId/rescrape-paste', adminClaudeLimiter, requireAdmin, async (req, res) => {
+  const reviewId = parseInt((req.params.reviewId as string), 10);
+  if (isNaN(reviewId)) {
+    return res.status(400).json({ error: 'Invalid review ID' });
+  }
+  const body = typeof req.body?.body === 'string' ? req.body.body : '';
+  if (body.trim().length < 50) {
+    return res.status(400).json({ error: '본문이 너무 짧아요. 최소 50자 이상 붙여넣어 주세요.' });
+  }
+
+  try {
+    const review = queryGet(
+      'SELECT id, album_mbid, source_name FROM reviews WHERE id = ?',
+      [reviewId]
+    );
+    if (!review) {
+      return res.status(404).json({ error: 'Review not found' });
+    }
+
+    const album = getCachedAlbum(review.album_mbid);
+    if (!album) {
+      return res.status(404).json({ error: 'Album not found' });
+    }
+
+    const extracted = await extractFromPastedText(
+      body,
+      album.artist_name || '',
+      album.title || '',
+      review.source_name
+    );
+    if (!extracted) {
+      return res.status(422).json({ error: '본문에서 리뷰를 추출하지 못했습니다.' });
+    }
+
+    execute(
+      `UPDATE reviews
+       SET excerpt = ?, excerpt_ko = ?, score = ?, score_max = ?, scraped_at = datetime('now')
+       WHERE id = ?`,
+      [extracted.excerpt, extracted.excerptKo, extracted.score, extracted.scoreMax, reviewId]
+    );
+
+    res.json({
+      excerpt: extracted.excerpt,
+      excerptKo: extracted.excerptKo,
+      score: extracted.score,
+      scoreMax: extracted.scoreMax,
+    });
+  } catch (error) {
+    console.error('Rescrape-paste error:', error);
+    res.status(500).json({ error: 'Failed to extract review from pasted text' });
+  }
+});
+
 // ─── GET /api/albums/:mbid/reviews — slow: reviews + summary ────────────────
 
 router.get('/:id/reviews', async (req, res) => {

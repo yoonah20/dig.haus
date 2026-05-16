@@ -248,6 +248,10 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
   const [savingExcerpt, setSavingExcerpt] = useState(false);
   const [excerptDraft, setExcerptDraft] = useState('');
   const [reporting, setReporting] = useState(false);
+  const [pasting, setPasting] = useState(false);
+  const [pasteDraft, setPasteDraft] = useState('');
+  const [extracting, setExtracting] = useState(false);
+  const formActive = editing || pasting;
 
   const handleRetranslate = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -315,15 +319,58 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
     }
   };
 
-  // When editing, render a plain div (no outer <a>) to keep form usable.
-  const Wrapper = editing ? 'div' : (review.url ? 'a' : 'div');
-  const wrapperProps = !editing && review.url
+  const startPaste = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setPasteDraft('');
+    setPasting(true);
+  };
+
+  const cancelPaste = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (extracting) return;
+    setPasting(false);
+  };
+
+  // Companion to ↻ (Jina re-fetch) for cases where Jina keeps returning
+  // the wrong page (paywall stub, cookie banner, JS-only nav). Admin
+  // pastes the real article body from the browser and we re-run the
+  // same LLM extraction the + 리뷰 추가 / 수동 입력 tab uses, so we
+  // get score + 2-sentence excerpt + Korean summary without touching
+  // Jina at all.
+  const submitPaste = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (pasteDraft.trim().length < 50) {
+      alert('본문이 너무 짧아요. 최소 50자 이상 붙여넣어 주세요.');
+      return;
+    }
+    setExtracting(true);
+    try {
+      await axios.post(`/api/albums/reviews/${review.id}/rescrape-paste`, {
+        body: pasteDraft,
+      });
+      onRetranslated();
+      setPasting(false);
+    } catch (err: any) {
+      const apiMessage = err?.response?.data?.error;
+      alert(apiMessage || '본문 추출에 실패했어요.');
+    } finally {
+      setExtracting(false);
+    }
+  };
+
+  // When editing or pasting, render a plain div (no outer <a>) to keep
+  // the inline form usable.
+  const Wrapper = formActive ? 'div' : (review.url ? 'a' : 'div');
+  const wrapperProps = !formActive && review.url
     ? { href: review.url, target: '_blank', rel: 'noopener noreferrer' }
     : {};
 
   return (
-    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${editing ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
-      {loggedIn && !isAdmin && !editing && (
+    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${formActive ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
+      {loggedIn && !isAdmin && !formActive && (
         // Non-admin can't delete/rescrape/edit, but they can flag a
         // card that came in wrong. ⚑ matches the purchase-link report
         // affordance so the gesture transfers. Popover sits below the
@@ -349,7 +396,7 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
           )}
         </div>
       )}
-      {isAdmin && !editing && (
+      {isAdmin && !formActive && (
         <div className="absolute -top-3 right-2 z-10 flex items-center gap-1 sm:opacity-0 sm:group-hover/card:opacity-100 sm:focus-within:opacity-100 sm:transition-opacity">
           <CardOverlayButton onClick={startEditExcerpt} title="본문 수정">
             ✎
@@ -357,9 +404,15 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
           <CardOverlayButton
             onClick={handleRetranslate}
             disabled={retranslating}
-            title="원문 다시 읽기"
+            title="원문 다시 읽기 (Jina로 재추출)"
           >
             {retranslating ? '…' : '↻'}
+          </CardOverlayButton>
+          <CardOverlayButton
+            onClick={startPaste}
+            title="원문 직접 붙여넣기 다시 추출 (Jina가 잘못된 페이지를 가져올 때)"
+          >
+            📋
           </CardOverlayButton>
           <CardOverlayButton
             variant="danger"
@@ -404,6 +457,41 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
             >
               {savingExcerpt ? '...' : '✓'}
             </button>
+          </div>
+        </div>
+      ) : pasting ? (
+        <div className="space-y-2">
+          <textarea
+            value={pasteDraft}
+            onChange={(e) => setPasteDraft(e.target.value)}
+            disabled={extracting}
+            rows={10}
+            autoFocus
+            placeholder="원문 페이지에서 리뷰 본문을 복사해 붙여넣으세요. score / 발쳐 / 한국어 요약을 다시 추출합니다."
+            className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-sm text-gray-200 placeholder:text-gray-500 focus:border-accent focus:outline-none disabled:opacity-60 resize-y"
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] text-gray-500">
+              {extracting ? '추출 중...' : `${pasteDraft.trim().length}자 (최소 50자)`}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={cancelPaste}
+                disabled={extracting}
+                className="px-2 py-0.5 text-xs text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
+                aria-label="취소"
+              >
+                ✕
+              </button>
+              <button
+                onClick={submitPaste}
+                disabled={extracting || pasteDraft.trim().length < 50}
+                className="px-2 py-0.5 text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
+                aria-label="추출"
+              >
+                {extracting ? '...' : '↻'}
+              </button>
+            </div>
           </div>
         </div>
       ) : (
