@@ -1005,15 +1005,13 @@ function ShelfRow({
                 playChipInsetPct={4}
                 tapToActivate
                 priceTagOverlay={
-                  topLink ? (
-                    <HomeFeatureSticker
-                      link={topLink}
-                      lpSize={lpSize}
-                      albumTitle={item.album.titleKo || item.album.title}
-                      albumArtist={item.album.artistKo || item.album.artist}
-                      seed={item.album.mbid}
-                    />
-                  ) : null
+                  <HomeFeatureSticker
+                    link={topLink}
+                    lpSize={lpSize}
+                    albumTitle={item.album.titleKo || item.album.title}
+                    albumArtist={item.album.artistKo || item.album.artist}
+                    seed={item.album.mbid}
+                  />
                 }
                 coverOverlay={
                   isPick ? (
