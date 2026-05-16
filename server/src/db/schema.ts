@@ -1420,31 +1420,14 @@ export function initializeDatabase(db: Database.Database): void {
   db.exec('CREATE INDEX IF NOT EXISTS idx_purchase_links_album_id ON purchase_links(album_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_albums_rank_score ON albums(rank_score DESC)');
 
-  // ─── Phase 3 mydig tables ──────────────────────────────────────────────
+  // ─── mydig tables ──────────────────────────────────────────────────────
   //
-  // See CLAUDE.md "Phase 3 plan" for the layout & interaction model.
-  // Summary: Vinyl Wall (22-slot fixed), Shelf (6 genre-scoped bins),
-  // Crate (0-N user-defined playlist stacks, 0-5 front-page visible).
-  // Duplicates across layers are intentional — no UNIQUE(user, album),
-  // only UNIQUE(container, position). Shelf bins are typed via an
-  // admin-curated `genres` taxonomy so they stay distinct from Crate
-  // (freeform labels).
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS genres (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      slug TEXT NOT NULL UNIQUE,
-      name_ko TEXT NOT NULL,
-      name_en TEXT NOT NULL,
-      position INTEGER NOT NULL DEFAULT 0,
-      is_active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT DEFAULT (datetime('now'))
-    )
-  `);
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_genres_position_active
-     ON genres(is_active, position)`
-  );
+  // Vinyl Wall (15-slot fixed) + Crate (0-N user-defined unlimited boxes).
+  // Shelf (was 6 genre-scoped bins) and the `genres` taxonomy were dropped
+  // 2026-05-17 — Shelf was never rendered on the client, and `genres`
+  // only existed to type Shelf bins. The freeform Crate model absorbed
+  // both. Duplicates across layers are intentional — no UNIQUE(user,
+  // album), only UNIQUE(container, position).
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS vinyl_wall_items (
@@ -2116,35 +2099,10 @@ export function initializeDatabase(db: Database.Database): void {
      ON user_follows(follower_id, created_at DESC)`
   );
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS shelf_slots (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL CHECK (position >= 0 AND position < 6),
-      genre_id INTEGER REFERENCES genres(id) ON DELETE SET NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(user_id, position)
-    )
-  `);
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_shelf_slots_user_position
-     ON shelf_slots(user_id, position)`
-  );
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS shelf_items (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      slot_id INTEGER NOT NULL REFERENCES shelf_slots(id) ON DELETE CASCADE,
-      album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
-      position INTEGER NOT NULL,
-      created_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(slot_id, position)
-    )
-  `);
-  db.exec(
-    `CREATE INDEX IF NOT EXISTS idx_shelf_items_slot_position
-     ON shelf_items(slot_id, position)`
-  );
+  // shelf_slots + shelf_items lived here until 2026-05-17. The tier
+  // was wired server-side (read in GET /mydig/:username) but never
+  // mounted on the client, so the data path was orphan. Dropped along
+  // with the `genres` taxonomy that typed Shelf bins.
 
   // Tag blacklist — admin-curated list of genre/tag strings that
   // should never appear on any album. Populated implicitly when
@@ -2390,37 +2348,16 @@ export function initializeDatabase(db: Database.Database): void {
     );
   });
 
-  // One-time seed of the genre taxonomy (admin can edit/extend via
-  // /admin later). Order of INSERTs drives initial UI ordering; admin
-  // can reorder via position later. Idempotent via INSERT OR IGNORE
-  // on the slug UNIQUE constraint.
-  runOnce(db, 'seed-genres-initial-2026-04-20', () => {
-    const seed: Array<[string, string, string]> = [
-      ['death-metal', '데스 메탈', 'Death Metal'],
-      ['black-metal', '블랙 메탈', 'Black Metal'],
-      ['thrash', '스래시', 'Thrash'],
-      ['doom-stoner', '둠 & 스토너', 'Doom & Stoner'],
-      ['grind-power', '그라인드코어 & 파워바이올런스', 'Grindcore & Powerviolence'],
-      ['hardcore-crust', '하드코어 & 크러스트', 'Hardcore & Crust'],
-      ['post-metal-sludge', '포스트메탈 & 슬러지', 'Post-Metal & Sludge'],
-      ['progressive', '프로그레시브', 'Progressive'],
-      ['trad-heavy', '전통 헤비메탈', 'Traditional Heavy Metal'],
-      ['punk-post-punk', '펑크 & 포스트펑크', 'Punk & Post-Punk'],
-      ['shoegaze-dreampop', '슈게이즈 & 드림팝', 'Shoegaze & Dreampop'],
-      ['indie-rock', '인디 록', 'Indie Rock'],
-      ['ambient-drone', '앰비언트 & 드론', 'Ambient & Drone'],
-      ['jazz', '재즈', 'Jazz'],
-      ['hip-hop', '힙합', 'Hip-Hop'],
-      ['electronic', '일렉트로닉', 'Electronic'],
-    ];
-    const stmt = db.prepare(
-      `INSERT OR IGNORE INTO genres (slug, name_ko, name_en, position)
-       VALUES (?, ?, ?, ?)`
-    );
-    seed.forEach(([slug, nameKo, nameEn], idx) => {
-      stmt.run(slug, nameKo, nameEn, idx);
-    });
-    console.log(`[migration] seeded ${seed.length} initial genres`);
+  // Drop the orphan Phase 3 shelf tier and its `genres` taxonomy.
+  // Both tables existed only to back a Shelf UI tier that never
+  // shipped to the client. shelf_slots referenced genres(id), so the
+  // drop order matters: children first. Idempotent via runOnce + the
+  // IF EXISTS clauses.
+  runOnce(db, 'drop-shelf-and-genres-2026-05-17', () => {
+    db.exec(`DROP TABLE IF EXISTS shelf_items`);
+    db.exec(`DROP TABLE IF EXISTS shelf_slots`);
+    db.exec(`DROP TABLE IF EXISTS genres`);
+    console.log('[migration] dropped shelf_items, shelf_slots, genres');
   });
 
   // Purge any Metacritic rows that were ingested before we added it to the

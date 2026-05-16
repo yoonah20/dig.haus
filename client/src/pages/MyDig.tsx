@@ -47,17 +47,10 @@ import WallHoverCard, {
 // no audio element, no preview_url dependency.
 const MYDIG_PREVIEW_ENABLED = true;
 
-// Phase 3a skeleton — the four-layer placeholder scaffold described
-// in CLAUDE.md. No edit mode, no drag-drop, no flip-through yet —
-// just the read-only "storefront" rendered with whatever items the
-// server returns (empty arrays for users who haven't placed
-// anything, which is everyone right now).
-//
-// The empty-is-OK aesthetic is the whole point of this commit:
-// Wall renders 22 slots always, Shelf renders 6 bins always, Crate
-// renders only what exists (zero crates = no crate row). Subsequent
-// sub-phases (3b-3d) layer item-level interactions on top of this
-// scaffold without touching the layout logic.
+// mydig page. Wall renders 15 slots always (empty-is-OK), Crate
+// renders only what exists (zero crates = no crate row). The Shelf
+// tier originally described here was dropped 2026-05-17 — it lived
+// in schema + GET response but never mounted on the client.
 
 export default function MyDig() {
   const { username, slug: pathSlug } = useParams<{

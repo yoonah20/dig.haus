@@ -53,20 +53,6 @@ export interface MyDigWallItem {
   } | null;
 }
 
-export interface MyDigGenre {
-  id: number;
-  slug: string;
-  nameKo: string;
-  nameEn: string;
-}
-
-export interface MyDigShelfSlot {
-  slotId: number;
-  position: number;
-  genre: MyDigGenre | null;
-  items: Array<{ position: number; album: MyDigAlbum }>;
-}
-
 export interface MyDigCrate {
   crateId: number;
   position: number;
@@ -80,7 +66,6 @@ export interface MyDigData {
   vinylWallTheme: string | null;
   vinylWallDescription: string | null;
   vinylWall: MyDigWallItem[];
-  shelf: MyDigShelfSlot[];
   crates: MyDigCrate[];
 }
 
