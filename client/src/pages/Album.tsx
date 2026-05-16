@@ -173,7 +173,12 @@ export default function Album() {
   const showNav = hasPrev || hasNext;
 
   return (
-    <div className="flex-1 px-4">
+    // `isolate` keeps the page's paint contained in its own stacking
+    // context so the hero cover's hover glow + scale can't escape
+    // above the sticky TopNav (z-40 + backdrop-blur creates its own
+    // stacking context, which without isolation here let the cover's
+    // GPU-promoted hover paint bleed onto / above the nav).
+    <div className="flex-1 px-4 isolate">
       <main className="max-w-[1120px] mx-auto py-8">
 
         {/* Header is full-width so cover + title/buttons fit above the fold.
