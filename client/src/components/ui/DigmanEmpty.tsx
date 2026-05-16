@@ -111,11 +111,13 @@ export default function DigmanEmpty({
           src={src}
           alt=""
           aria-hidden
-          // Digging renders at full opacity — the muted treatment that
-          // works for "nothing here" expressions reads as a broken /
-          // blurry image when the pose is conveying "actively working".
+          // The larger full-body variants (sign, digging) render at full
+          // opacity — the muted 80% treatment that quiets the expression
+          // mascots into background voice makes these read as a broken /
+          // blurry image because the asset is carrying detail (signage,
+          // shovel swing) that needs to stay crisp.
           className={`block w-full h-full object-contain object-center ${
-            isDigging ? 'opacity-100' : 'opacity-80'
+            isLarge ? 'opacity-100' : 'opacity-80'
           } select-none`}
           draggable={false}
         />
