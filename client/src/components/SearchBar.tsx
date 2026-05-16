@@ -208,8 +208,14 @@ export default function SearchBar({
         }
       : null;
 
-  const showDropdown =
-    focused || (isUrlMode ? trimmedInput.length >= 8 : query.length >= 1);
+  // Dropdown visibility tracks the input's focus state alone — when
+  // the visitor clicks anywhere outside the input + dropdown, the
+  // onBlur below flips focused=false (after a 150ms delay so a click
+  // on a dropdown row commits first) and the panel collapses. Earlier
+  // logic kept the dropdown open as long as `query.length >= 1`,
+  // which left a stale panel hanging on the page after the visitor
+  // moved on.
+  const showDropdown = focused;
   const showHelp = focused && !isUrlMode && query.length === 0;
   const dbLoading = !isUrlMode && dbSearch.isFetching && query.length >= 1;
   const externalLoading =
