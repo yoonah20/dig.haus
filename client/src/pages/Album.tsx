@@ -204,6 +204,7 @@ export default function Album() {
                     <ReviewsAdminBar
                       slug={slug!}
                       albumTitle={album.title}
+                      albumArtist={album.artist}
                       reviewCount={reviewsData.reviews.length}
                     />
                   ) : null

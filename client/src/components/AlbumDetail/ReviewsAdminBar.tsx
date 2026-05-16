@@ -2,7 +2,6 @@ import { useCurationProgress } from '../../contexts/CurationProgressContext';
 import {
   useGenerateReviewSummary,
   useMarkNoReviews,
-  useDeleteAllReviews,
 } from '../../hooks/useAlbum';
 
 // Admin-only action cluster shown above the review section while
@@ -22,6 +21,7 @@ import {
 type Props = {
   slug: string;
   albumTitle: string;
+  albumArtist: string;
   reviewCount: number;
 };
 
@@ -29,13 +29,16 @@ const BUTTON_BASE =
   'text-xs font-medium rounded-input px-3 py-1.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5';
 const BUTTON_AMBER = `${BUTTON_BASE} text-accent border border-accent/60 hover:bg-accent/15`;
 const BUTTON_NEUTRAL = `${BUTTON_BASE} text-gray-400 bg-white/5 hover:bg-white/10 border border-white/10`;
-const BUTTON_DANGER = `${BUTTON_BASE} text-red-400 bg-white/5 hover:bg-red-500/10 border border-white/10 hover:border-red-500/40`;
 
-export default function ReviewsAdminBar({ slug, albumTitle, reviewCount }: Props) {
+export default function ReviewsAdminBar({
+  slug,
+  albumTitle,
+  albumArtist,
+  reviewCount,
+}: Props) {
   const curation = useCurationProgress();
   const generateSummary = useGenerateReviewSummary(slug);
   const markNoReviews = useMarkNoReviews(slug);
-  const deleteAllReviews = useDeleteAllReviews(slug);
 
   // Three visual states for the curation button:
   //   idle                                   → "🔍 자동 큐레이션"
@@ -46,10 +49,7 @@ export default function ReviewsAdminBar({ slug, albumTitle, reviewCount }: Props
   );
   const otherInProgress = curation.isRunning && !thisInQueue;
   const lockedOut =
-    thisInQueue ||
-    generateSummary.isPending ||
-    markNoReviews.isPending ||
-    deleteAllReviews.isPending;
+    thisInQueue || generateSummary.isPending || markNoReviews.isPending;
   const curationLabel = thisInQueue
     ? '큐레이션 중…'
     : otherInProgress
@@ -82,24 +82,9 @@ export default function ReviewsAdminBar({ slug, albumTitle, reviewCount }: Props
     }
   };
 
-  const handleDeleteAll = async () => {
-    if (deleteAllReviews.isPending) return;
-    if (reviewCount === 0) {
-      alert('삭제할 리뷰가 없습니다.');
-      return;
-    }
-    if (
-      !confirm(
-        `이 앨범의 리뷰 ${reviewCount}개를 전부 삭제할까요?\n한국어 요약도 함께 초기화되고 수집-대기 상태로 돌아갑니다.\n앨범 자체는 유지됩니다 (앨범 삭제는 ⚙️ 관리 메뉴).`
-      )
-    )
-      return;
-    try {
-      await deleteAllReviews.mutateAsync();
-    } catch (err: any) {
-      alert(err?.response?.data?.error || '리뷰 삭제에 실패했습니다.');
-    }
-  };
+  const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(
+    `${albumArtist} ${albumTitle} review`
+  )}`;
 
   return (
     <div className="rounded-panel border border-accent/25 bg-panel/80 px-4 sm:px-5 py-3">
@@ -142,19 +127,15 @@ export default function ReviewsAdminBar({ slug, albumTitle, reviewCount }: Props
         >
           {markNoReviews.isPending ? '표시 중…' : '🙅 리뷰 없음'}
         </button>
-        <button
-          type="button"
-          onClick={handleDeleteAll}
-          disabled={
-            generateSummary.isPending ||
-            markNoReviews.isPending ||
-            deleteAllReviews.isPending
-          }
-          className={BUTTON_DANGER}
-          title="이 앨범의 수집된 리뷰 전체 삭제 (앨범은 유지됨)"
+        <a
+          href={googleSearchUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={BUTTON_NEUTRAL}
+          title="아티스트 + 앨범명 + review 로 구글 검색 (새 창)"
         >
-          {deleteAllReviews.isPending ? '삭제 중…' : '🗑️ 리뷰 전체 삭제'}
-        </button>
+          🌐 구글에 리뷰 검색
+        </a>
       </div>
     </div>
   );
