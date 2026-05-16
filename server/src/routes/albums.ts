@@ -37,9 +37,17 @@ const router = Router();
 //      american, british, ...) survive because they're useful for
 //      dig.haus's niche-international audience.
 const EXCLUDED_TAGS = new Set([
-  // overly-broad genre buckets
-  'rock', 'pop', 'electronic', 'music', 'hip hop', 'hip-hop',
-  'r&b', 'classical', 'soundtrack', 'vocal', 'spoken word',
+  // Non-musical metadata buckets. Broad genre names (rock, pop,
+  // hip-hop, classical, r&b, electronic, soundtrack, vocal, spoken
+  // word) used to sit here — they were pulled out so they're treated
+  // the same as jazz / soul / funk / punk, which were always allowed
+  // through. The cleanGenres length+sort+top-5 pass keeps cards from
+  // being papered with "Rock" when a more specific subgenre exists.
+  // What stays here is genuinely non-genre noise: the word "music"
+  // on its own, generic release-state words, and "X music" wrappers
+  // that the ` music` suffix gate also catches but kept explicit so
+  // the intent is grep-able.
+  'music',
   'rock music', 'pop music', 'electronic music',
   'new release', 'new', 'release', 'album', 'single',
 
@@ -142,11 +150,12 @@ function isAutoBannedTag(lowerTrimmed: string): boolean {
 
 // Known short genre names to keep (3 chars or less)
 const VALID_SHORT_GENRES = new Set([
-  'emo', 'edm', 'rap', 'ska', 'dub', 'rnb',
+  'emo', 'edm', 'rap', 'ska', 'dub', 'rnb', 'pop', 'r&b',
 ]);
 
 // Known short genre names to keep (4-5 chars)
 const VALID_MID_GENRES = new Set([
+  'rock', 'vocal',
   'jazz', 'soul', 'funk', 'punk', 'doom', 'folk', 'goth',
   'trap', 'wave', 'core', 'math', 'post', 'prog', 'surf',
   'noise', 'drone', 'lo-fi', 'lofi', 'grind', 'crust',
