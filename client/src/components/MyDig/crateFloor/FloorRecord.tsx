@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import CoverArt from '../../CoverArt';
@@ -13,29 +13,10 @@ import type { CrateItem } from '../../../hooks/useCrates';
 // that read as broken; the rotation prop is accepted for layout-data
 // compatibility but no longer applied to the render transform.
 //
-// 2026-05-17 iter: drop-shadow stripped (operator preference) and a
-// shrink-wrap raster overlay added on top of each cover, matching
-// the home-hero "sealed sleeve" treatment.
-
-const PLASTIC_TEXTURE_PATHS = [
-  '/textures/swrap01.webp',
-  '/textures/swrap02.webp',
-  '/textures/swrap03.webp',
-  '/textures/swrap04.webp',
-  '/textures/swrap09.webp',
-  '/textures/swrap15.webp',
-  '/textures/swrap16.webp',
-  '/textures/swrap17.webp',
-];
-
-// Deterministic plastic-texture pick per album so the wrap stays
-// stable across re-fetches (no flicker). Album id mod the pool.
-function pickPlasticTextureForAlbum(albumId: number): string {
-  return (
-    PLASTIC_TEXTURE_PATHS[Math.abs(albumId) % PLASTIC_TEXTURE_PATHS.length] ??
-    PLASTIC_TEXTURE_PATHS[0]!
-  );
-}
+// 2026-05-17 iter: shrink-wrap raster overlay tried briefly, pulled
+// back out — the texture that worked on the home hero (covers nested
+// in dark sleeves) read as wrong on the carpet (covers sit isolated).
+// Covers render bare; the carpet behind provides the surface cue.
 
 interface Props {
   item: CrateItem;
@@ -81,25 +62,12 @@ export default function FloorRecord({
   const scale = isDragging ? 1.05 : hover ? 1.04 : 1;
   const z = isDragging ? 1000 : hover ? 500 : zOrder;
 
-  const plasticSrc = useMemo(
-    () => pickPlasticTextureForAlbum(item.id),
-    [item.id]
-  );
-
-  // Plastic overlay sized 1:1 with the cover (no protrusion).
-  // Operator iter 2026-05-17: the home-hero 15% extra read as
-  // misaligned on the floor where covers sit isolated rather than
-  // nested into a sleeve frame.
-
   const inner = (
     <div
       style={{
         position: 'relative',
         width: sizePx,
         height: sizePx,
-        // No box-shadow — operator preference 2026-05-17. The
-        // plastic wrap below provides edge definition without the
-        // muddy stack a shadow would add on top.
       }}
     >
       <div
@@ -117,25 +85,6 @@ export default function FloorRecord({
           className="w-full h-full object-cover select-none pointer-events-none"
         />
       </div>
-      {/* Shrink-wrap raster — sized 1:1 with the cover so the film
-          stays flush with the sleeve edges. Pointer-events: none so
-          it never intercepts a drag. */}
-      <img
-        src={plasticSrc}
-        alt=""
-        aria-hidden
-        draggable={false}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: sizePx,
-          height: sizePx,
-          maxWidth: 'none',
-          objectFit: 'cover',
-          pointerEvents: 'none',
-        }}
-      />
       {/* Remove chip — owner-only, surfaces on hover. Sits at the
           top-right of the cover so the cursor's natural rest point
           (after moving onto the record) is already close to it.

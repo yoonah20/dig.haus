@@ -1005,15 +1005,23 @@ async function rowsToSlots(rows: ToasterRow[]): Promise<ToasterSlot[]> {
   return slots;
 }
 
-// Pull the 15 toaster items from a crate, sorted to match the
-// owner's arrangement on the mydig floor — left-to-right by
-// position_x only. Y-banding kept producing unintuitive reorders
-// in the + direction (dragging a record down rearranged in ways
-// that didn't match what the operator saw on screen) even after
-// the 0.33 band tuning, so y is pulled out for now. Records the
-// owner hasn't placed yet (position_x NULL) sort last by
-// created_at DESC so a brand-new vote still has a chance of
-// surfacing without an explicit drag.
+// Pull the 15 toaster items from a crate in reading order that
+// matches the owner's floor arrangement: top → bottom by visual
+// row, left → right within each row. Y_BAND below ties the band
+// width to the actual default-flow grid row spacing in
+// client/layout.ts (rowSpan = (Y_MAX - Y_MIN) / (FLOOR_ROWS - 1)
+// = (0.84 - 0.16) / 3 ≈ 0.227 with the current 4-row layout), so
+// each visible row of the default layout lands in its own band.
+// A record dragged within a visual row stays in that band's group;
+// one dragged clearly into the next row crosses a boundary and
+// reorders. 0.22 = "tighter than row spacing, looser than half-row"
+// — the shape that actually maps to what the operator sees on the
+// carpet. History worth remembering before the next tuning:
+//   0.16 — too sensitive, default rows landed in non-consecutive
+//          bands (0,2,3,5) and tiny drift fired a reorder.
+//   0.33 — rows 1+2 collapsed into one band, lost the cue mid-
+//          column.
+//   x-only — lost rows entirely; default 5×4 sorted column-major.
 async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
   const rows = queryAll(
     `SELECT a.id AS album_id, a.mbid, a.title, a.artist_name,
@@ -1023,7 +1031,8 @@ async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
      JOIN albums a ON a.id = ci.album_id
      WHERE ci.crate_id = ?
      ORDER BY
-       CASE WHEN ci.position_x IS NULL THEN 1 ELSE 0 END ASC,
+       CASE WHEN ci.position_y IS NULL THEN 1 ELSE 0 END ASC,
+       CAST(ci.position_y / 0.22 AS INTEGER) ASC,
        ci.position_x ASC,
        ci.created_at DESC
      LIMIT 15`,

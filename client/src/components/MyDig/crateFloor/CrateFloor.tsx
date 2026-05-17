@@ -209,10 +209,15 @@ export default function CrateFloor({ username, isOwner }: Props) {
         cur.moveDistance,
         Math.hypot(dx, dy)
       );
+      // Clamp to keep the dragged record's edges inside the carpet.
+      // Record is anchored by its centre, so half the record size in
+      // normalised floor coords is the safe inset.
+      const halfNx = (recordSize / 2) / cur.floorRect.width;
+      const halfNy = (recordSize / 2) / cur.floorRect.height;
       setDrag({
         ...cur,
-        currentX: Math.max(0, Math.min(1, nx)),
-        currentY: Math.max(0, Math.min(1, ny)),
+        currentX: Math.max(halfNx, Math.min(1 - halfNx, nx)),
+        currentY: Math.max(halfNy, Math.min(1 - halfNy, ny)),
         hoverCrateId: hover,
         moveDistance,
       });

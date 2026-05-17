@@ -5,17 +5,32 @@
 //
 // All output coordinates are normalised to [0, 1] floor space — the
 // renderer multiplies by the actual floor pixel size, so layout
-// survives viewport resize. The grid stays inside [0.06, 0.94] on
-// both axes to give edge records breathing room and a place for the
-// record's shadow + slight overflow to live.
+// survives viewport resize.
+//
+// X_MIN / Y_MIN bounds account for the fact that records are anchored
+// by their CENTRE: at recordSize ≈ 16% of floor width (the typical
+// upper end of the CrateFloor formula) the record's half-width is
+// 8% of floor width. The cover is square so its half-height as a
+// fraction of floor height (= floor width × 11/16) is ≈ 12%. We add
+// a few percent of breathing room past those minimums so corner
+// records sit cleanly inside the carpet's gold inner frame instead
+// of bleeding into it. Operator iter 2026-05-18: earlier bounds
+// (0.08/0.92, 0.10/0.90) put corner records partly outside the
+// rendered floor on narrower viewports.
 
 export const FLOOR_COLS = 5;
 export const FLOOR_ROWS = 4; // 5 × 4 = 20 = floor cap from the server (2026-05-17)
 
-const X_MIN = 0.08;
-const X_MAX = 0.92;
-const Y_MIN = 0.10;
-const Y_MAX = 0.90;
+const X_MIN = 0.12;
+const X_MAX = 0.88;
+const Y_MIN = 0.16;
+const Y_MAX = 0.84;
+// Hard clamp — generous over X_MIN/MAX to absorb the jitter without
+// re-introducing edge clipping.
+const X_CLAMP_MIN = 0.10;
+const X_CLAMP_MAX = 0.90;
+const Y_CLAMP_MIN = 0.14;
+const Y_CLAMP_MAX = 0.86;
 
 // Deterministic [-1, 1] pseudo-random from an integer seed. Good
 // enough for visual jitter — no need for cryptographic quality.
@@ -51,8 +66,8 @@ export function defaultFlowPosition(index: number, albumId: number): FlowPositio
   const jy = jitter(albumId, 2) * rowSpan * 0.05;
 
   return {
-    positionX: Math.max(0.04, Math.min(0.96, X_MIN + col * colSpan + jx)),
-    positionY: Math.max(0.04, Math.min(0.96, Y_MIN + row * rowSpan + jy)),
+    positionX: Math.max(X_CLAMP_MIN, Math.min(X_CLAMP_MAX, X_MIN + col * colSpan + jx)),
+    positionY: Math.max(Y_CLAMP_MIN, Math.min(Y_CLAMP_MAX, Y_MIN + row * rowSpan + jy)),
     rotation: 0,
   };
 }
