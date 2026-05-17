@@ -1005,41 +1005,119 @@ async function rowsToSlots(rows: ToasterRow[]): Promise<ToasterSlot[]> {
   return slots;
 }
 
+// Pull the 15 most-recently-added items from a crate and reflow them
+// into toaster slot positions 0-14. Shared between the username path
+// (which targets the user's 굿굿 by default for og:image / share
+// links) and the explicit per-crate path.
+async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
+  const rows = queryAll(
+    `SELECT a.id AS album_id, a.mbid, a.title, a.artist_name,
+            a.cover_art_url, a.cover_art_fallbacks
+     FROM crate_items ci
+     JOIN albums a ON a.id = ci.album_id
+     WHERE ci.crate_id = ?
+     ORDER BY ci.created_at DESC
+     LIMIT 15`,
+    [crateId]
+  ) as Array<{
+    album_id: number;
+    mbid: string;
+    title: string;
+    artist_name: string;
+    cover_art_url: string | null;
+    cover_art_fallbacks: string | null;
+  }>;
+  // The toaster renderer expects positions 0-14 in reading order.
+  // We assign by current display order (most-recent first) rather
+  // than carry through the crate_items.created_at — the latter would
+  // produce a row reshuffle every time a new vote drops a record at
+  // position 0, which is confusing for a saved image.
+  const withPos = rows.map((r, i) => ({ ...r, position: i }));
+  return rowsToSlots(withPos);
+}
+
 router.get('/mydig/:username/toaster.png', async (req, res) => {
   const raw = String(req.params.username || '').trim();
   if (!raw) return res.status(400).send('username required');
   const user = resolveUserByUsername(raw);
   if (!user) return res.status(404).send('not found');
 
-  const wallRows = queryAll(
-    `SELECT vwi.position, a.id AS album_id, a.mbid, a.title, a.artist_name,
-            a.cover_art_url, a.cover_art_fallbacks
-     FROM vinyl_wall_items vwi
-     JOIN albums a ON a.id = vwi.album_id
-     WHERE vwi.user_id = ?
-     ORDER BY vwi.position ASC`,
+  // Default per-user toaster reads from the 굿굿 default crate. This
+  // is what og:image / share-link previews resolve to — "this user's
+  // favourites" as the public identity capture. Falling back to the
+  // first public crate keeps the endpoint useful for users who don't
+  // have any 굿굿 votes yet but have manually curated something.
+  const goodgood = queryGet(
+    `SELECT id, title FROM crate_boxes
+      WHERE user_id = ? AND title = '굿굿' AND is_default = 1
+      LIMIT 1`,
     [user.id]
-  ) as ToasterRow[];
+  ) as { id: number; title: string } | null;
+  const fallback = goodgood
+    ? null
+    : (queryGet(
+        `SELECT id, title FROM crate_boxes
+          WHERE user_id = ? AND is_public = 1
+          ORDER BY position ASC LIMIT 1`,
+        [user.id]
+      ) as { id: number; title: string } | null);
+  const target = goodgood ?? fallback;
+  if (!target) return res.status(404).send('no crate to render');
 
   try {
-    const slots = await rowsToSlots(wallRows);
+    const slots = await crateToToasterSlots(target.id);
     const png = await renderToasterPng({
       username: user.username,
-      themeTitle: user.vinyl_wall_theme,
+      themeTitle: target.title,
       slots,
     });
     res.setHeader('Content-Type', 'image/png');
-    // 1 hour public cache — wall changes are infrequent and the
-    // OG-image preview consumers (Twitter / Kakao) cache aggressively
-    // anyway. If admins start tweaking copy in real time we can lower
-    // this; for now an hour balances freshness against re-render cost.
     res.setHeader('Cache-Control', 'public, max-age=3600');
     if (req.query.download !== undefined) {
-      setDownloadHeaders(res, buildToasterFilename(user.username, user.vinyl_wall_theme));
+      setDownloadHeaders(res, buildToasterFilename(user.username, target.title));
     }
     res.send(png);
   } catch (err) {
     console.error('[toaster]', (err as Error).message);
+    res.status(500).send('render failed');
+  }
+});
+
+// Explicit per-crate toaster — used by the mydig header button so the
+// owner can render any of their crates, not just 굿굿. Same renderer,
+// same caching. Visibility honours the per-crate is_public flag for
+// non-owners (matches the GET /mydig/crates/:id rule).
+router.get('/mydig/crates/:id/toaster.png', async (req, res) => {
+  const id = parseInt(String(req.params.id || ''), 10);
+  if (!Number.isFinite(id)) return res.status(400).send('invalid id');
+  const crate = queryGet(
+    `SELECT cb.id, cb.title, cb.is_public, cb.user_id, u.username
+       FROM crate_boxes cb
+       JOIN users u ON u.id = cb.user_id
+      WHERE cb.id = ?`,
+    [id]
+  ) as { id: number; title: string; is_public: number; user_id: number; username: string } | null;
+  if (!crate) return res.status(404).send('not found');
+  const viewer = req.user as AppUser | undefined;
+  const isOwner = !!viewer && viewer.id === crate.user_id;
+  if (!isOwner && crate.is_public !== 1) {
+    return res.status(404).send('not found');
+  }
+  try {
+    const slots = await crateToToasterSlots(crate.id);
+    const png = await renderToasterPng({
+      username: crate.username,
+      themeTitle: crate.title,
+      slots,
+    });
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (req.query.download !== undefined) {
+      setDownloadHeaders(res, buildToasterFilename(crate.username, crate.title));
+    }
+    res.send(png);
+  } catch (err) {
+    console.error('[toaster/crate]', (err as Error).message);
     res.status(500).send('render failed');
   }
 });

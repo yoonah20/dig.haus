@@ -44,11 +44,13 @@ export function defaultFlowPosition(index: number, albumId: number): FlowPositio
   // collide hard, large enough that the grid disappears at a glance.
   const jx = jitter(albumId, 1) * colSpan * 0.35;
   const jy = jitter(albumId, 2) * rowSpan * 0.30;
-  const rot = jitter(albumId, 3) * 8; // ±8°
+  // Rotation deliberately 0 — the early version tilted ±8° per
+  // record but the look read as broken/messy more than "scattered."
+  // Records lie flat now; jitter alone carries the spread.
 
   return {
     positionX: Math.max(0.04, Math.min(0.96, X_MIN + col * colSpan + jx)),
     positionY: Math.max(0.04, Math.min(0.96, Y_MIN + row * rowSpan + jy)),
-    rotation: rot,
+    rotation: 0,
   };
 }

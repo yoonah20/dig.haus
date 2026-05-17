@@ -5,10 +5,12 @@ import {
   useUpdateCrateItemLayout,
   useUserCrates,
   type CrateItem,
+  type CrateSummary,
 } from '../../../hooks/useCrates';
 import FloorRecord from './FloorRecord';
 import CrateBar, { type CrateBarHandle } from './CrateBar';
 import { defaultFlowPosition } from './layout';
+import ToasterButton from '../ToasterButton';
 
 // The main mydig surface (replacement for the old vinyl-wall +
 // storefront composition, 2026-05-17). Crates line the bottom of
@@ -61,7 +63,15 @@ const ACTIVE_KEY = 'mydig:crateFloor:activeCrateId';
 export default function CrateFloor({ username, isOwner }: Props) {
   const cratesQuery = useUserCrates(username);
 
-  const crates = cratesQuery.data?.crates ?? [];
+  // Default crates (굿굿 + 별루) lead the bar; user-named crates
+  // follow in their position order. This is purely a display sort —
+  // the server returns them by position only.
+  const crates = useMemo<CrateSummary[]>(() => {
+    const all = cratesQuery.data?.crates ?? [];
+    const defaults = all.filter((c) => c.isDefault);
+    const rest = all.filter((c) => !c.isDefault);
+    return [...defaults, ...rest];
+  }, [cratesQuery.data]);
 
   // Default open = 굿굿 unless the owner has previously picked
   // another (localStorage remembers across sessions).
@@ -95,6 +105,10 @@ export default function CrateFloor({ username, isOwner }: Props) {
 
   const detail = useCrateDetail(activeCrateId);
   const items = detail.data?.items ?? [];
+  const activeCrate = useMemo(
+    () => crates.find((c) => c.id === activeCrateId) ?? null,
+    [crates, activeCrateId]
+  );
 
   const updateLayout = useUpdateCrateItemLayout();
   const addToCrate = useAddToCrate();
@@ -105,8 +119,17 @@ export default function CrateFloor({ username, isOwner }: Props) {
   // (an album in 굿굿 and 별루 still shares the visual identity).
   // Reset when active crate changes so old positions don't leak.
   const [localLayouts, setLocalLayouts] = useState<LocalLayoutMap>(new Map());
+  // Per-album z-order: incrementing counter so the most-recently-
+  // dragged record stays on top after the drag ends (not just while
+  // mid-drag). Owner-side feature; visitors all render at z=1.
+  // Resets with the crate change so the natural added_at order
+  // re-asserts when switching.
+  const [zOrder, setZOrder] = useState<Map<number, number>>(new Map());
+  const zCounterRef = useRef(0);
   useEffect(() => {
     setLocalLayouts(new Map());
+    setZOrder(new Map());
+    zCounterRef.current = 0;
   }, [activeCrateId]);
 
   // Drag state + handlers — owner-only path. Captured once at
@@ -152,7 +175,9 @@ export default function CrateFloor({ username, isOwner }: Props) {
         addToCrate.mutate({ crateId: droppedOn, albumId: cur.albumId });
       } else {
         // Commit the new free position to the active crate. Local
-        // layout overrides server until the refetch lands.
+        // layout overrides server until the refetch lands. Bump the
+        // record's z so it stays on top of the records it now
+        // overlaps — the owner just placed it there, it should win.
         setLocalLayouts((prev) => {
           const next = new Map(prev);
           next.set(cur.albumId, {
@@ -160,6 +185,13 @@ export default function CrateFloor({ username, isOwner }: Props) {
             y: cur.currentY,
             rotation: cur.rotation,
           });
+          return next;
+        });
+        zCounterRef.current += 1;
+        const z = zCounterRef.current;
+        setZOrder((prev) => {
+          const next = new Map(prev);
+          next.set(cur.albumId, z);
           return next;
         });
         if (activeCrateId != null) {
@@ -309,15 +341,41 @@ export default function CrateFloor({ username, isOwner }: Props) {
         background: '#1a1614',
         borderRadius: 12,
         overflow: 'hidden',
-        // Subtle wood-tone floor cue — no full backdrop asset, just
-        // a colour wash that says "this is a surface" without a
-        // dedicated illustration.
-        backgroundImage:
-          'radial-gradient(ellipse at 50% 35%, rgba(80,55,30,0.35) 0%, rgba(0,0,0,0) 70%)',
       }}
     >
-      {/* Floor area — fixed aspect, no scroll. Records absolutely
-          positioned in normalised [0, 1] space. */}
+      {/* Toaster chip — top-right of the surface so it doesn't fight
+          the crate bar for attention. Targets the currently-active
+          crate so what's spilled on the floor matches what the
+          rendered PNG shows. Visible to visitors too: anyone can
+          export the toaster for a public crate.
+
+          Owners get the prominent (gold-rimmed) variant since this
+          is the "make my identity card" action; visitors get the
+          quieter default so it reads as a side-action rather than
+          something they're meant to trigger first. */}
+      {activeCrateId != null && activeCrate && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 10,
+            right: 12,
+            zIndex: 50,
+          }}
+        >
+          <ToasterButton
+            path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
+            filenameHint={`${username}-${activeCrate.title}-toaster.png`}
+            variant={isOwner ? 'prominent' : 'default'}
+            label={`토스터 만들기`}
+          />
+        </div>
+      )}
+
+      {/* Floor area — Persian carpet feel via layered gradients
+          (no asset). Wine ground, soft central medallion, darker
+          outer border zone, plus a thin gold inner frame inside
+          the carpet edge. Records float on top in normalised
+          [0, 1] space. */}
       <div
         ref={floorRef}
         style={{
@@ -325,6 +383,23 @@ export default function CrateFloor({ username, isOwner }: Props) {
           width: '100%',
           aspectRatio: '16 / 11',
           minHeight: 360,
+          backgroundImage: [
+            // Central medallion — warm gold glow
+            'radial-gradient(ellipse 38% 30% at 50% 50%, rgba(190, 140, 60, 0.18), transparent 65%)',
+            // Medallion inner pool — slight darker contrast so the
+            // gold reads as a halo around something
+            'radial-gradient(ellipse 18% 14% at 50% 50%, rgba(30, 10, 10, 0.35), transparent 75%)',
+            // Outer fade to deep border zone
+            'radial-gradient(ellipse 95% 95% at 50% 50%, transparent 60%, rgba(0,0,0,0.45))',
+            // Repeating geometric border — narrow band of light-on-
+            // dark dashes along the edges, suggestive of a kilim
+            // pattern without trying to be literal
+            'repeating-linear-gradient(45deg, rgba(220,170,80,0.08) 0 6px, transparent 6px 12px)',
+            // Carpet ground
+            'linear-gradient(135deg, #6a1d1d 0%, #4a1212 100%)',
+          ].join(', '),
+          boxShadow:
+            'inset 0 0 0 1px rgba(220,170,80,0.25), inset 0 0 0 12px rgba(0,0,0,0.18), inset 0 0 0 14px rgba(220,170,80,0.15)',
         }}
       >
         {detail.isLoading && (
@@ -361,6 +436,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
         )}
         {renderItems.map((r) => {
           const isThisDragging = drag?.albumId === r.item.id;
+          const z = zOrder.get(r.item.id) ?? 0;
           return (
             <FloorRecord
               key={r.item.id}
@@ -371,6 +447,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
               sizePx={recordSize}
               isOwner={isOwner}
               isDragging={isThisDragging}
+              zOrder={z}
               onPointerDown={
                 isOwner ? (e) => handleRecordPointerDown(r.item, e) : undefined
               }
