@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { queryAll, queryGet, execute } from '../db/index.js';
+import { queryAll, queryGet, execute, transaction } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
 
@@ -130,6 +130,66 @@ router.get('/mydig/users/:username/crates', (req, res) => {
   res.json({
     crates: rows.map((r) => serialiseCrate(r)),
   });
+});
+
+// ─── PUT /api/mydig/crates/order — bulk reorder ────────────────
+//
+// Body: { orderedIds: number[] } — every crate the caller owns,
+// in the new display order. Position 0 = leftmost in the bar (the
+// crate that opens by default for visitors). Two-phase update in a
+// transaction: first bump every position to a negative offset so
+// the UNIQUE(user_id, position) constraint can't trip on midway
+// collisions, then re-assign 0..n-1.
+router.put('/mydig/crates/order', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const ids = Array.isArray(body.orderedIds) ? body.orderedIds : null;
+  if (!ids) return res.status(400).json({ error: 'orderedIds required' });
+  const parsed = ids
+    .map((v) => (typeof v === 'number' && Number.isFinite(v) ? v : NaN))
+    .filter((v) => !Number.isNaN(v));
+  if (parsed.length !== ids.length) {
+    return res.status(400).json({ error: 'orderedIds must be all numbers' });
+  }
+
+  // Caller must own every crate in the list. Mismatched count
+  // catches both "id belongs to someone else" and "id was deleted
+  // between fetch and reorder."
+  const placeholders = parsed.map(() => '?').join(',');
+  const owned = queryAll(
+    `SELECT id FROM crate_boxes WHERE id IN (${placeholders}) AND user_id = ?`,
+    [...parsed, me.id]
+  ) as Array<{ id: number }>;
+  if (owned.length !== parsed.length) {
+    return res.status(403).json({ error: '본인 상자들만 정렬할 수 있어요.' });
+  }
+
+  try {
+    transaction(() => {
+      // Phase 1: shove every targeted row to a negative position so
+      // the UNIQUE(user_id, position) constraint can't collide mid-
+      // update. Use id as the negative offset (always unique per
+      // user since id is the table-wide PK).
+      for (const id of parsed) {
+        execute(
+          `UPDATE crate_boxes SET position = -id WHERE id = ? AND user_id = ?`,
+          [id, me.id]
+        );
+      }
+      // Phase 2: reassign 0..n-1 in the requested order.
+      parsed.forEach((id, idx) => {
+        execute(
+          `UPDATE crate_boxes SET position = ?, updated_at = datetime('now')
+           WHERE id = ? AND user_id = ?`,
+          [idx, id, me.id]
+        );
+      });
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[crates] reorder failed:', err);
+    res.status(500).json({ error: '정렬 저장 실패' });
+  }
 });
 
 // ─── POST /api/mydig/crates — create ────────────────────────────

@@ -4,6 +4,7 @@ import {
   useAddToCrate,
   useCrateDetail,
   useRemoveFromCrate,
+  useReorderCrates,
   useUpdateCrateItemLayout,
   useUserCrates,
   type CrateItem,
@@ -85,15 +86,14 @@ export default function CrateFloor({ username, isOwner }: Props) {
   const cratesQuery = useUserCrates(username);
   const navigate = useNavigate();
 
-  // Default crates (굿굿 + 별루) lead the bar; user-named crates
-  // follow in their position order. This is purely a display sort —
-  // the server returns them by position only.
-  const crates = useMemo<CrateSummary[]>(() => {
-    const all = cratesQuery.data?.crates ?? [];
-    const defaults = all.filter((c) => c.isDefault);
-    const rest = all.filter((c) => !c.isDefault);
-    return [...defaults, ...rest];
-  }, [cratesQuery.data]);
+  // Server returns crates ordered by position ASC. The owner controls
+  // ordering by drag-reordering chips in the bar; that PUT bumps
+  // position values so the next fetch lands in the new order. No
+  // client-side sort needed.
+  const crates = useMemo<CrateSummary[]>(
+    () => cratesQuery.data?.crates ?? [],
+    [cratesQuery.data]
+  );
 
   // Default open = 굿굿 unless the owner has previously picked
   // another (localStorage remembers across sessions).
@@ -123,15 +123,15 @@ export default function CrateFloor({ username, isOwner }: Props) {
   }, [previewCollapsed]);
 
   // Pick a sensible active crate when the list loads or when the
-  // saved one is no longer accessible (e.g. visitor where the crate
-  // is private). Always prefer 굿굿 (the canonical 좋아함 surface)
-  // when nothing else applies.
+  // saved one is no longer accessible (visitor + private crate).
+  // Falls back to the frontmost (position 0) crate — owner controls
+  // which one that is by drag-reordering chips in the bar, so
+  // "what visitors see first" stays an owner-curated choice.
   useEffect(() => {
     if (crates.length === 0) return;
     const exists = activeCrateId != null && crates.some((c) => c.id === activeCrateId);
     if (exists) return;
-    const goodgood = crates.find((c) => c.title === '굿굿');
-    setActiveCrateId(goodgood?.id ?? crates[0].id);
+    setActiveCrateId(crates[0].id);
   }, [crates, activeCrateId]);
 
   useEffect(() => {
@@ -159,6 +159,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
   const updateLayout = useUpdateCrateItemLayout();
   const addToCrate = useAddToCrate();
   const removeFromCrate = useRemoveFromCrate();
+  const reorderCrates = useReorderCrates();
 
   // Owner-local optimistic layout cache. Persists positions across
   // refetch and lets drag stay responsive while the PATCH is in
@@ -544,13 +545,17 @@ export default function CrateFloor({ username, isOwner }: Props) {
           );
         })}
       </div>
-      {/* Crate bar pinned at bottom of the left column. */}
+      {/* Crate bar pinned at bottom of the left column. Owner can
+          drag chips to reorder (position 0 is the leftmost / default
+          open for visitors); visitors get plain click-to-select. */}
       <CrateBar
         ref={crateBarRef}
         crates={crates}
         activeCrateId={activeCrateId}
         onSelect={setActiveCrateId}
         highlightedDropId={drag?.hoverCrateId ?? null}
+        isOwner={isOwner}
+        onReorder={(orderedIds) => reorderCrates.mutate(orderedIds)}
       />
       </div>
 

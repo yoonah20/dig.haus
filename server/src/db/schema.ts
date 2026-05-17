@@ -2523,6 +2523,25 @@ export function initializeDatabase(db: Database.Database): void {
     console.log(`[migration] reset crate_items positions: ${r.changes} rows`);
   });
 
+  // Drop the 굿굿/별루 default crates entirely (operator iter
+  // 2026-05-17 second pass). Surfacing them as public crates made
+  // every vote feel like a publicly-pinned statement, which dampened
+  // the low-stakes "그냥 누르는" feel of voting. Vote data in
+  // album_votes is untouched — the owner can still see their own
+  // votes on the profile page; only the crate surface goes. CASCADE
+  // on crate_items handles the item rows.
+  runOnce(db, 'drop-default-vote-crates-2026-05-17', () => {
+    const r = db
+      .prepare(
+        `DELETE FROM crate_boxes
+         WHERE is_default = 1 AND title IN ('굿굿', '별루')`
+      )
+      .run();
+    console.log(
+      `[migration] dropped 굿굿/별루 default crates: ${r.changes} rows`
+    );
+  });
+
   // Purge any Metacritic rows that were ingested before we added it to the
   // exclusion list. Metacritic is an aggregator (re-publishes other sites'
   // scores) so we don't want it competing with primary editorial sources

@@ -198,6 +198,21 @@ export function useAddToCrate() {
   });
 }
 
+// Bulk reorder the caller's crates by id. PUT body: every owned
+// crate id in display order, position 0 = leftmost. Server returns
+// 403 if any id isn't owned by the caller.
+export function useReorderCrates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (orderedIds: number[]) => {
+      await axios.put(`/api/mydig/crates/order`, { orderedIds });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['crates'] });
+    },
+  });
+}
+
 // Single-record drag persistence on the mydig floor. Owner picks a
 // record up, drops it somewhere new → client PATCHes the resolved
 // normalised position. Same endpoint handles all three layout fields;

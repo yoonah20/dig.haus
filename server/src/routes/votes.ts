@@ -5,35 +5,13 @@ import { resolveAlbumPk } from '../utils/slug.js';
 
 const router = Router();
 
-// Sync the user's 굿굿 / 별루 default crates to mirror their vote
-// state on this album. The seed-default-crates migration guarantees
-// both crates exist for every user, but we keep the SELECT as the
-// source of truth in case future code paths create users mid-flight
-// or seeded crates get re-created. Repeat votes are idempotent via
-// the SQL primitives — INSERT OR IGNORE never duplicates, DELETE no-
-// ops when the row is already absent.
-function syncVoteCrates(userId: number, albumId: number, vote: 'up' | 'down' | null) {
-  const up = queryGet(
-    `SELECT id FROM crate_boxes WHERE user_id = ? AND title = '굿굿' AND is_default = 1`,
-    [userId]
-  ) as { id: number } | undefined;
-  const down = queryGet(
-    `SELECT id FROM crate_boxes WHERE user_id = ? AND title = '별루' AND is_default = 1`,
-    [userId]
-  ) as { id: number } | undefined;
-  if (!up || !down) return; // user pre-dates the seed; next boot heals it
-
-  if (vote === 'up') {
-    execute(`INSERT OR IGNORE INTO crate_items (crate_id, album_id) VALUES (?, ?)`, [up.id, albumId]);
-    execute(`DELETE FROM crate_items WHERE crate_id = ? AND album_id = ?`, [down.id, albumId]);
-  } else if (vote === 'down') {
-    execute(`INSERT OR IGNORE INTO crate_items (crate_id, album_id) VALUES (?, ?)`, [down.id, albumId]);
-    execute(`DELETE FROM crate_items WHERE crate_id = ? AND album_id = ?`, [up.id, albumId]);
-  } else {
-    execute(`DELETE FROM crate_items WHERE crate_id = ? AND album_id = ?`, [up.id, albumId]);
-    execute(`DELETE FROM crate_items WHERE crate_id = ? AND album_id = ?`, [down.id, albumId]);
-  }
-}
+// Voting is a low-stakes click — operator pulled the 굿굿/별루
+// crates 2026-05-17 because surfacing them as public crates made
+// every vote feel like a public statement and dampened the "그냥
+// 누르는" feel. Vote data lives in album_votes; users still see
+// their own votes on their profile page, but it doesn't surface as
+// a public crate anywhere. The vote-to-crate sync function that
+// used to live here is gone with the crates it was mirroring into.
 
 // POST /api/albums/:id/vote  body: { vote: 'up' | 'down' | null }
 router.post('/albums/:id/vote', requireAuth, (req, res) => {
@@ -48,10 +26,6 @@ router.post('/albums/:id/vote', requireAuth, (req, res) => {
   }
 
   try {
-    // Resolved final state on this album for the user — used by
-    // syncVoteCrates below to mirror into the 굿굿 / 별루 crates. The
-    // "toggle off" branch (same vote twice) lands on null.
-    let resolved: 'up' | 'down' | null = vote;
     if (vote === null) {
       execute(`DELETE FROM album_votes WHERE user_id = ? AND album_id = ?`, [user.id, albumPk]);
     } else {
@@ -63,7 +37,6 @@ router.post('/albums/:id/vote', requireAuth, (req, res) => {
         if (existing.vote === vote) {
           // Same vote twice → toggle off
           execute(`DELETE FROM album_votes WHERE id = ?`, [existing.id]);
-          resolved = null;
         } else {
           execute(`UPDATE album_votes SET vote = ? WHERE id = ?`, [vote, existing.id]);
         }
@@ -74,7 +47,6 @@ router.post('/albums/:id/vote', requireAuth, (req, res) => {
         );
       }
     }
-    syncVoteCrates(user.id, albumPk, resolved);
 
     const counts = queryGet(
       `SELECT
