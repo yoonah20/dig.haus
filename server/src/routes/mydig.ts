@@ -1005,18 +1005,26 @@ async function rowsToSlots(rows: ToasterRow[]): Promise<ToasterSlot[]> {
   return slots;
 }
 
-// Pull the 15 most-recently-added items from a crate and reflow them
-// into toaster slot positions 0-14. Shared between the username path
-// (which targets the user's 굿굿 by default for og:image / share
-// links) and the explicit per-crate path.
+// Pull the 15 toaster items from a crate, sorted to match the owner's
+// arrangement on the mydig floor — visual reading order: top first,
+// then left-to-right. This is what makes "arrange on the floor →
+// download a PNG that matches" work: both surfaces read the same
+// sort. Records the owner hasn't placed yet (position_x/y NULL)
+// sort last by created_at DESC so a brand-new vote still has a
+// chance of surfacing in the toaster without an explicit drag first.
 async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
   const rows = queryAll(
     `SELECT a.id AS album_id, a.mbid, a.title, a.artist_name,
-            a.cover_art_url, a.cover_art_fallbacks
+            a.cover_art_url, a.cover_art_fallbacks,
+            ci.position_x, ci.position_y, ci.created_at
      FROM crate_items ci
      JOIN albums a ON a.id = ci.album_id
      WHERE ci.crate_id = ?
-     ORDER BY ci.created_at DESC
+     ORDER BY
+       CASE WHEN ci.position_y IS NULL THEN 1 ELSE 0 END ASC,
+       ci.position_y ASC,
+       ci.position_x ASC,
+       ci.created_at DESC
      LIMIT 15`,
     [crateId]
   ) as Array<{
@@ -1026,12 +1034,14 @@ async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
     artist_name: string;
     cover_art_url: string | null;
     cover_art_fallbacks: string | null;
+    position_x: number | null;
+    position_y: number | null;
+    created_at: string;
   }>;
-  // The toaster renderer expects positions 0-14 in reading order.
-  // We assign by current display order (most-recent first) rather
-  // than carry through the crate_items.created_at — the latter would
-  // produce a row reshuffle every time a new vote drops a record at
-  // position 0, which is confusing for a saved image.
+  // Renderer expects positions 0-14 in reading order. We assign by
+  // the visual sort above — the floor's positions feed the sort but
+  // the renderer slot grid is fixed 3×5 regardless of where on the
+  // floor each record sat.
   const withPos = rows.map((r, i) => ({ ...r, position: i }));
   return rowsToSlots(withPos);
 }

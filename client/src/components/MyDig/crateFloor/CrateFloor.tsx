@@ -11,6 +11,7 @@ import FloorRecord from './FloorRecord';
 import CrateBar, { type CrateBarHandle } from './CrateBar';
 import { defaultFlowPosition } from './layout';
 import ToasterButton from '../ToasterButton';
+import LiveToasterPreview from './LiveToasterPreview';
 
 // The main mydig surface (replacement for the old vinyl-wall +
 // storefront composition, 2026-05-17). Crates line the bottom of
@@ -333,44 +334,18 @@ export default function CrateFloor({ username, isOwner }: Props) {
   };
 
   return (
-    <div
-      style={{
-        position: 'relative',
-        display: 'flex',
-        flexDirection: 'column',
-        background: '#1a1614',
-        borderRadius: 12,
-        overflow: 'hidden',
-      }}
-    >
-      {/* Toaster chip — top-right of the surface so it doesn't fight
-          the crate bar for attention. Targets the currently-active
-          crate so what's spilled on the floor matches what the
-          rendered PNG shows. Visible to visitors too: anyone can
-          export the toaster for a public crate.
-
-          Owners get the prominent (gold-rimmed) variant since this
-          is the "make my identity card" action; visitors get the
-          quieter default so it reads as a side-action rather than
-          something they're meant to trigger first. */}
-      {activeCrateId != null && activeCrate && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            right: 12,
-            zIndex: 50,
-          }}
-        >
-          <ToasterButton
-            path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
-            filenameHint={`${username}-${activeCrate.title}-toaster.png`}
-            variant={isOwner ? 'prominent' : 'default'}
-            label={`토스터 만들기`}
-          />
-        </div>
-      )}
-
+    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] gap-4">
+      {/* Left column — floor (carpet) + crate bar at bottom. */}
+      <div
+        style={{
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          background: '#1a1614',
+          borderRadius: 12,
+          overflow: 'hidden',
+        }}
+      >
       {/* Floor area — Persian carpet feel via layered gradients
           (no asset). Wine ground, soft central medallion, darker
           outer border zone, plus a thin gold inner frame inside
@@ -455,7 +430,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
           );
         })}
       </div>
-      {/* Crate bar pinned at bottom. */}
+      {/* Crate bar pinned at bottom of the left column. */}
       <CrateBar
         ref={crateBarRef}
         crates={crates}
@@ -463,6 +438,35 @@ export default function CrateFloor({ username, isOwner }: Props) {
         onSelect={setActiveCrateId}
         highlightedDropId={drag?.hoverCrateId ?? null}
       />
+      </div>
+
+      {/* Right column — live toaster preview that updates as the
+          owner drags records on the left (sort matches the server's
+          download-PNG sort so what you see is what you get). The
+          download chip sits directly below as a separate action,
+          per the operator's "다운로드는 별개로" instruction. */}
+      {activeCrateId != null && activeCrate && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <LiveToasterPreview
+            crateTitle={activeCrate.title}
+            items={items}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <ToasterButton
+              path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
+              filenameHint={`${username}-${activeCrate.title}-toaster.png`}
+              variant={isOwner ? 'prominent' : 'default'}
+              label="다운로드"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

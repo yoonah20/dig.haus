@@ -1,5 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import type { CrateSummary } from '../../../hooks/useCrates';
+import CoverArt from '../../CoverArt';
 
 // Horizontal row of crates anchored at the bottom of the mydig
 // surface. Clicking a crate makes it the active one (its records
@@ -83,20 +84,29 @@ function CrateChip({
               : 'translateY(0)',
         }}
       >
-        {/* Front cover peek — the most-recent record in the crate. */}
+        {/* Front cover peek — the most-recent record in the crate.
+            CoverArt handles the API-base prefix for /api/custom-covers
+            paths and falls through the fallbacks chain on load failure,
+            both of which a raw <img> would skip (the prior version
+            broke for crates whose top item was a custom cover on the
+            split-origin Vercel→Railway deploy). */}
         {front?.url ? (
-          <img
-            src={front.url}
-            alt=""
+          <div
             style={{
               width: 56,
               height: 56,
-              objectFit: 'cover',
               boxShadow: '0 2px 4px rgba(0,0,0,0.5)',
               borderRadius: 1,
+              overflow: 'hidden',
             }}
-            draggable={false}
-          />
+          >
+            <CoverArt
+              src={front.url}
+              fallbacks={front.fallbacks}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          </div>
         ) : (
           <div
             style={{

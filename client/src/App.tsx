@@ -150,12 +150,11 @@ export default function App() {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
     }
   }, [location.pathname]);
-  // Routes under `/my/:username` (including snapshots) get the
-  // painted-wall backdrop + lamp pools + vignette across the full
-  // page, nav to footer. (Earlier the stack also ran a dust-mote
-  // particle layer + an SVG film-grain pass via feTurbulence;
-  // both pulled out 2026-05-02 — feTurbulence in particular kept
-  // re-painting on every layout change which dragged scrolling.)
+  // mydig — page-level backdrop intentionally absent. The earlier
+  // painted-wall + lamp + vignette + mobile pattern stack went out
+  // with the 2026-05-17 crate-floor redesign (the carpet inside
+  // CrateFloor is the only "surface" the new design needs). Flag
+  // is kept because SiteFooter pinning still reads it below.
   const isMydig = location.pathname.startsWith('/my/');
   const isDig = location.pathname === '/dig';
   // Home tints the app-root bg the same warm-dark as the nav so
@@ -189,140 +188,6 @@ export default function App() {
                   className="absolute inset-0 pointer-events-none"
                   style={{ zIndex: -1, backgroundColor: 'var(--color-panel)' }}
                 />
-              )}
-              {isMydig && (
-                <>
-                  {/* Desktop (md+) — full Hongdae-dusk atmosphere
-                      stack with the wall2.webp painted-wall asset
-                      anchored at center bottom. Locked to the source
-                      composition's pixel scale (the rails + stereo
-                      were drawn at this size); we accept letterboxing
-                      on very wide / tall viewports rather than
-                      stretching the asset out of proportion. The
-                      mobile branch below renders a flatter
-                      tile-able pattern instead, so the cutoff issue
-                      that prompted this split only matters on
-                      phones. */}
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 pointer-events-none hidden md:block"
-                    style={{
-                      // zIndex:-1 puts the backdrop behind the
-                      // in-flow content (nav + route + footer) without
-                      // blocking any of them. Filter is applied here
-                      // so the image's cream/beige tone is pulled
-                      // into the dark walnut range; filter stays
-                      // scoped to this div and doesn't cascade to
-                      // page content.
-                      zIndex: -1,
-                      backgroundImage: "url('/backdrops/wall2.webp')",
-                      // Fixed pixel size at 0.686× the 3500×2000 source,
-                      // not `cover`. The painted wall was composed at
-                      // a specific scale; letting cover stretch it to
-                      // every viewport distorts the rail spacing and
-                      // stereo proportions. We accept letterboxing on
-                      // very wide/tall viewports (the parent's #0a0703
-                      // fills the gap) in exchange for consistent
-                      // scale everywhere.
-                      backgroundSize: '2401px 1372px',
-                      // Anchor to the bottom so the floor/baseboard
-                      // of the painted wall stays visible at every
-                      // viewport height — a shorter window clips the
-                      // top of the image instead of the footer area,
-                      // matching how you'd look at a real shop wall
-                      // (eye level stays at the bottom).
-                      backgroundPosition: 'center bottom',
-                      backgroundRepeat: 'no-repeat',
-                      filter: 'brightness(0.55) saturate(0.85)',
-                    }}
-                  />
-                  {/* Warm lamp pool — soft radial from upper-right
-                      biased over the darkened backdrop, blended via
-                      `screen` so it only lightens (never darkens)
-                      whatever's beneath. Direction was flipped from
-                      upper-left so the lamp sits on the opposite
-                      side of the baked wall-glow, creating a small
-                      cross-light instead of piling on the same
-                      corner. */}
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 pointer-events-none hidden md:block"
-                    style={{
-                      zIndex: -1,
-                      background:
-                        'radial-gradient(ellipse 70% 60% at 75% 15%, rgba(255, 200, 130, 0.28) 0%, rgba(255, 180, 110, 0.10) 40%, transparent 70%)',
-                      mixBlendMode: 'screen',
-                    }}
-                  />
-                  {/* Bottom-left ambient lift — counter-balance to
-                      the upper-right lamp, keeps the opposite corner
-                      from sinking into pure black. */}
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 pointer-events-none hidden md:block"
-                    style={{
-                      zIndex: -1,
-                      background:
-                        'radial-gradient(ellipse 50% 40% at 20% 85%, rgba(232, 160, 80, 0.14) 0%, transparent 65%)',
-                      mixBlendMode: 'screen',
-                    }}
-                  />
-                  {/* Vignette — dark edges fading toward the
-                      center. Subtle depth cue that makes the scene
-                      feel like it's lit from within rather than
-                      uniformly flat. */}
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 pointer-events-none hidden md:block"
-                    style={{
-                      zIndex: -1,
-                      background:
-                        'radial-gradient(ellipse 110% 95% at center, transparent 45%, rgba(0,0,0,0.45) 100%)',
-                    }}
-                  />
-
-                  {/* Mobile (<md) — flatter tile-able pattern. The
-                      desktop wall2 asset is locked to a 1372 px
-                      source height, so on a phone where the wall +
-                      snapshot strip + pinned footer routinely push
-                      the page well past that, the painted-wall top
-                      got clipped against the parent's #0a0703
-                      fallback. Solid warm-walnut + a soft-light
-                      mobild_drop.webp overlay at repeat-y auto-grows
-                      with the page.
-
-                      Tone tuned to match the desktop wall2.webp
-                      surface: natural dominant of wall2 sampled at
-                      #dcc494 (warm beige plaster), then the desktop's
-                      `brightness(0.55) saturate(0.85)` filter math
-                      lands around #776c56 — the warm walnut tone the
-                      desktop reads as. Hardcoded here rather than
-                      pulled from HERO_THEME because that token is
-                      driven by the home hero's basement_purple
-                      backdrop and would carry the wrong (purple-grey)
-                      hue into mydig. */}
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 pointer-events-none md:hidden"
-                    style={{
-                      zIndex: -1,
-                      backgroundColor: '#776c56',
-                    }}
-                  />
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 pointer-events-none md:hidden"
-                    style={{
-                      zIndex: -1,
-                      backgroundImage: "url('/textures/mobild_drop.webp')",
-                      backgroundSize: '100% auto',
-                      backgroundRepeat: 'repeat-y',
-                      backgroundPosition: 'top center',
-                      mixBlendMode: 'soft-light',
-                      opacity: 0.6,
-                    }}
-                  />
-                </>
               )}
               <TopNav />
               <ErrorBoundary>
