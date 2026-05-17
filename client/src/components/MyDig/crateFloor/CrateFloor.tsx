@@ -593,18 +593,25 @@ export default function CrateFloor({ username, isOwner }: Props) {
               variant={isOwner ? 'prominent' : 'default'}
               label="이 배열로 토스터 만들기"
             />
-            {/* Toaster IMAGE share — copies the PNG URL (resolved
-                through API_BASE so split-origin deploys produce a
-                full URL the recipient can hit). The PNG endpoint is
-                public for public crates, so the link works for
-                anyone the owner sends it to. Not the page share —
-                operator clarified that's what this slot is for. */}
+            {/* Toaster IMAGE share. Mobile (coarse pointer + Web
+                Share API w/ files): opens the OS share sheet with
+                the PNG file → Instagram / KakaoTalk / Photos. Desktop
+                or no-share-support: copies the resolved PNG URL to
+                clipboard. resolveApiUrl prefixes API_BASE so split-
+                origin deploys produce a full URL the recipient can
+                hit. */}
             <ShareButton
               url={
                 resolveApiUrl(
                   `/api/mydig/crates/${activeCrateId}/toaster.png`
                 ) ?? `/api/mydig/crates/${activeCrateId}/toaster.png`
               }
+              imageUrl={
+                resolveApiUrl(
+                  `/api/mydig/crates/${activeCrateId}/toaster.png`
+                ) ?? `/api/mydig/crates/${activeCrateId}/toaster.png`
+              }
+              imageFilename={`${username}-${activeCrate.title}-toaster.png`}
               label="공유"
             />
           </div>
