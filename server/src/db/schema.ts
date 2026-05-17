@@ -654,6 +654,60 @@ export function initializeDatabase(db: Database.Database): void {
     console.log('[migration] dropped albums.apple_music_url + apple_music_embed_url');
   });
 
+  // Canonicalise label_name case variants. Different MusicBrainz /
+  // Discogs imports occasionally pull the same label with different
+  // casing ("Frontiers Music SRL" vs "Frontiers Music Srl"), which
+  // splits the /dig label lens into duplicate picker rows for what
+  // is in fact one label. We canonicalise on case-insensitive group:
+  // within each group, the variant with the most albums wins (ties
+  // break on alphabetic order, which is deterministic but arbitrary
+  // — case-of-the-loser doesn't matter when the picked variant is
+  // already the most-used display string in the catalog).
+  //
+  // One-shot only — new imports can still introduce new variants
+  // until we add normalisation at import time. This migration is
+  // safe to re-run by name change if that cleanup recurs.
+  runOnce(db, 'canonicalise-label-name-case-2026-05-18', () => {
+    const groups = db
+      .prepare(
+        `SELECT LOWER(label_name) AS k,
+                COUNT(DISTINCT label_name) AS variants
+           FROM albums
+          WHERE label_name IS NOT NULL AND label_name != ''
+          GROUP BY k
+         HAVING variants > 1`
+      )
+      .all() as Array<{ k: string; variants: number }>;
+    const pickCanonical = db.prepare(
+      `SELECT label_name, COUNT(*) AS c
+         FROM albums
+        WHERE LOWER(label_name) = ?
+        GROUP BY label_name
+        ORDER BY c DESC, label_name ASC
+        LIMIT 1`
+    );
+    const rename = db.prepare(
+      `UPDATE albums SET label_name = ?
+        WHERE LOWER(label_name) = ? AND label_name != ?`
+    );
+    let totalGroups = 0;
+    let totalRows = 0;
+    for (const g of groups) {
+      const winner = pickCanonical.get(g.k) as
+        | { label_name: string; c: number }
+        | undefined;
+      if (!winner) continue;
+      const r = rename.run(winner.label_name, g.k, winner.label_name);
+      if (r.changes > 0) {
+        totalGroups += 1;
+        totalRows += r.changes;
+      }
+    }
+    console.log(
+      `[migration] canonicalised label_name case across ${totalGroups} groups, ${totalRows} rows`
+    );
+  });
+
   // Auto-migrate
   migrateTable(db, 'albums', [
     'release_date TEXT',
