@@ -211,14 +211,22 @@ router.get('/mydig/crates/:id', (req, res) => {
   if (!isOwner && row.is_public !== 1) {
     return res.status(404).json({ error: 'not found' });
   }
+  // Floor displays at most FLOOR_CAP items — the most recently added
+  // ones. Older items remain in the crate (visible in alternate
+  // browsing UIs to be added later) but the mydig floor is bounded
+  // so the free-placement layout doesn't degrade past ~30 covers.
+  const FLOOR_CAP = 30;
   const items = queryAll(
     `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.release_year,
-            a.cover_art_url, a.cover_art_fallbacks, ci.created_at AS added_at
+            a.cover_art_url, a.cover_art_fallbacks,
+            ci.position_x, ci.position_y, ci.rotation,
+            ci.created_at AS added_at
      FROM crate_items ci
      JOIN albums a ON a.id = ci.album_id
      WHERE ci.crate_id = ?
-     ORDER BY ci.created_at DESC`,
-    [row.id]
+     ORDER BY ci.created_at DESC
+     LIMIT ?`,
+    [row.id, FLOOR_CAP]
   ) as Array<{
     id: number;
     mbid: string;
@@ -228,6 +236,9 @@ router.get('/mydig/crates/:id', (req, res) => {
     release_year: number | null;
     cover_art_url: string | null;
     cover_art_fallbacks: string | null;
+    position_x: number | null;
+    position_y: number | null;
+    rotation: number | null;
     added_at: string;
   }>;
   res.json({
@@ -250,9 +261,48 @@ router.get('/mydig/crates/:id', (req, res) => {
             }
           })()
         : [],
+      // Normalised floor coordinates [0, 1] × [0, 1]. NULL = "not yet
+      // placed, let the client lay it out via the default flow."
+      positionX: a.position_x,
+      positionY: a.position_y,
+      rotation: a.rotation,
       addedAt: a.added_at,
     })),
   });
+});
+
+// ─── PATCH /api/mydig/crates/:id/items/:albumId/layout — owner drag
+//
+// Persists a single record's floor coordinates after the owner drags
+// it on the mydig floor. All three fields optional individually but
+// at least one must be present. Coordinates are in normalised [0, 1]
+// floor units so the layout survives viewport resize. Rotation is in
+// degrees, no constraint (client clamps to a sensible range).
+router.patch('/mydig/crates/:id/items/:albumId/layout', requireAuth, (req, res) => {
+  const row = loadOwnCrate(req, res);
+  if (!row) return;
+  const albumId = parseInt(String(req.params.albumId || ''), 10);
+  if (!Number.isFinite(albumId)) return res.status(400).json({ error: 'invalid albumId' });
+
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const sets: string[] = [];
+  const params: any[] = [];
+  const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const x = num(body.positionX);
+  const y = num(body.positionY);
+  const r = num(body.rotation);
+  if (x !== null) { sets.push('position_x = ?'); params.push(x); }
+  if (y !== null) { sets.push('position_y = ?'); params.push(y); }
+  if (r !== null) { sets.push('rotation = ?'); params.push(r); }
+  if (sets.length === 0) return res.status(400).json({ error: 'no layout fields supplied' });
+
+  params.push(row.id, albumId);
+  const result = execute(
+    `UPDATE crate_items SET ${sets.join(', ')} WHERE crate_id = ? AND album_id = ?`,
+    params
+  );
+  if (result.changes === 0) return res.status(404).json({ error: 'item not in crate' });
+  res.json({ ok: true });
 });
 
 // ─── PATCH /api/mydig/crates/:id — rename / describe / toggle public

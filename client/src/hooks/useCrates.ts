@@ -16,6 +16,10 @@ export interface CrateSummary {
   title: string;
   description: string | null;
   isPublic: boolean;
+  // Default crates (굿굿 / 별루) are auto-synced by the vote pill and
+  // locked against rename + delete. The UI grays out edit affordances
+  // when this is true.
+  isDefault: boolean;
   position: number;
   createdAt: string;
   updatedAt: string;
@@ -32,6 +36,13 @@ export interface CrateItem {
   releaseYear: number | null;
   coverArtUrl: string | null;
   coverArtFallbacks: string[];
+  // Normalised floor coordinates [0, 1] × [0, 1]. NULL = the owner
+  // hasn't placed this one yet; the client fills in via default flow
+  // and PATCHes the resolved position back on first render so future
+  // visitors see a stable layout.
+  positionX: number | null;
+  positionY: number | null;
+  rotation: number | null;
   addedAt: string;
 }
 
@@ -175,6 +186,37 @@ export function useAddToCrate() {
       qc.invalidateQueries({ queryKey: ['album'] });
       qc.invalidateQueries({ queryKey: ['album-list'] });
       qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+    },
+  });
+}
+
+// Single-record drag persistence on the mydig floor. Owner picks a
+// record up, drops it somewhere new → client PATCHes the resolved
+// normalised position. Same endpoint handles all three layout fields;
+// supplying any subset is fine.
+export function useUpdateCrateItemLayout() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      crateId: number;
+      albumId: number;
+      positionX?: number;
+      positionY?: number;
+      rotation?: number;
+    }) => {
+      const { crateId, albumId, ...body } = vars;
+      await axios.patch(
+        `/api/mydig/crates/${crateId}/items/${albumId}/layout`,
+        body
+      );
+    },
+    onSuccess: (_d, vars) => {
+      // Only invalidate the affected crate detail — the bar (list) is
+      // unaffected by a single record's coords. Optimistic UI handles
+      // the in-flight render so we don't refetch on every drag.
+      qc.invalidateQueries({
+        queryKey: ['crates', 'detail', vars.crateId],
+      });
     },
   });
 }
