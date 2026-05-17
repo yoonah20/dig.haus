@@ -145,7 +145,7 @@ function Header({
 }) {
   const publicData = useUserPublic(userId, !!userId);
   const viewerIsFollowing = !!publicData.data?.followingByViewer;
-  const followingCount = publicData.data?.followingCount ?? 0;
+  const followingCount = publicData.data?.stats.followingCount ?? 0;
   const [followingOpen, setFollowingOpen] = useState(false);
 
   const signature =
