@@ -444,7 +444,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
             display: 'flex',
             alignItems: 'baseline',
             gap: 10,
-            padding: '10px 16px',
+            padding: '6px 14px',
             background: 'rgba(50, 32, 18, 0.55)',
             borderBottom: '1px solid rgba(220, 170, 80, 0.12)',
           }}
