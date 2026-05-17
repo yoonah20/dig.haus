@@ -212,10 +212,11 @@ router.get('/mydig/crates/:id', (req, res) => {
     return res.status(404).json({ error: 'not found' });
   }
   // Floor displays at most FLOOR_CAP items — the most recently added
-  // ones. Older items remain in the crate (visible in alternate
-  // browsing UIs to be added later) but the mydig floor is bounded
-  // so the free-placement layout doesn't degrade past ~30 covers.
-  const FLOOR_CAP = 30;
+  // ones. Older items remain in the crate (count is still in
+  // crate.itemCount so the client can render a "+N장 더" overflow
+  // badge). Cap dropped from 30 → 20 on 2026-05-17 per operator
+  // feedback that the carpet starts to feel crowded past 20.
+  const FLOOR_CAP = 20;
   const items = queryAll(
     `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.release_year,
             a.cover_art_url, a.cover_art_fallbacks,

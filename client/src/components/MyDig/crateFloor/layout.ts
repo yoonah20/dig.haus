@@ -10,7 +10,7 @@
 // record's shadow + slight overflow to live.
 
 export const FLOOR_COLS = 5;
-export const FLOOR_ROWS = 6; // 5 × 6 = 30 = floor cap from the server
+export const FLOOR_ROWS = 4; // 5 × 4 = 20 = floor cap from the server (2026-05-17)
 
 const X_MIN = 0.08;
 const X_MAX = 0.92;

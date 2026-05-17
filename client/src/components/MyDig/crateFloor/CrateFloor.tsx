@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   useAddToCrate,
   useCrateDetail,
@@ -59,13 +60,29 @@ interface DragState {
   floorRect: DOMRect;
   // Which crate chip the pointer is currently over (highlight target).
   hoverCrateId: number | null;
+  // Pointer position at pointerdown — used to distinguish tap-to-
+  // navigate from drag-to-reposition in pointerup.
+  startClientX: number;
+  startClientY: number;
+  // Pixel distance moved so far. > CLICK_THRESHOLD_PX means the
+  // gesture committed to drag; ≤ keeps it eligible for navigation.
+  moveDistance: number;
+  // Convenience link target — captured at pointerdown so the
+  // navigation handler doesn't have to re-lookup the item.
+  href: string;
 }
+
+// Maximum pointer drift (in CSS px) for a pointerdown→pointerup to
+// still count as a tap rather than a drag. 5 px is roughly the OS
+// default touch slop and matches the human "I didn't mean to move".
+const CLICK_THRESHOLD_PX = 5;
 
 const ACTIVE_KEY = 'mydig:crateFloor:activeCrateId';
 const PREVIEW_COLLAPSED_KEY = 'mydig:crateFloor:previewCollapsed';
 
 export default function CrateFloor({ username, isOwner }: Props) {
   const cratesQuery = useUserCrates(username);
+  const navigate = useNavigate();
 
   // Default crates (굿굿 + 별루) lead the bar; user-named crates
   // follow in their position order. This is purely a display sort —
@@ -128,6 +145,15 @@ export default function CrateFloor({ username, isOwner }: Props) {
     () => crates.find((c) => c.id === activeCrateId) ?? null,
     [crates, activeCrateId]
   );
+  // Overflow count — items is capped at the server's FLOOR_CAP, but
+  // crate.itemCount is the full membership. The badge surfaces "this
+  // crate has more than fits on the floor" without surfacing which
+  // ones are hidden; owner re-curates by adding / removing via
+  // 담기.
+  const overflowCount =
+    activeCrate != null
+      ? Math.max(0, activeCrate.itemCount - items.length)
+      : 0;
 
   const updateLayout = useUpdateCrateItemLayout();
   const addToCrate = useAddToCrate();
@@ -174,17 +200,37 @@ export default function CrateFloor({ username, isOwner }: Props) {
       const nx = (px - cur.floorRect.left) / cur.floorRect.width;
       const ny = (py - cur.floorRect.top) / cur.floorRect.height;
       const hover = crateBarRef.current?.hitTestAtClient(e.clientX, e.clientY) ?? null;
+      const dx = e.clientX - cur.startClientX;
+      const dy = e.clientY - cur.startClientY;
+      const moveDistance = Math.max(
+        cur.moveDistance,
+        Math.hypot(dx, dy)
+      );
       setDrag({
         ...cur,
         currentX: Math.max(0, Math.min(1, nx)),
         currentY: Math.max(0, Math.min(1, ny)),
         hoverCrateId: hover,
+        moveDistance,
       });
     };
     const onUp = (e: PointerEvent) => {
       const cur = dragRef.current;
       if (!cur) return;
       const droppedOn = crateBarRef.current?.hitTestAtClient(e.clientX, e.clientY) ?? null;
+      // Tap (no meaningful movement) → navigate to album page. Owner
+      // can still drag-to-move with intent; quick clicks read as
+      // "open this album". The CLICK_THRESHOLD_PX value is the human
+      // touch-slop, not a UI knob.
+      if (
+        droppedOn == null &&
+        cur.moveDistance < CLICK_THRESHOLD_PX &&
+        cur.href
+      ) {
+        navigate(cur.href);
+        setDrag(null);
+        return;
+      }
       if (droppedOn != null && droppedOn !== activeCrateId) {
         // Drop into another crate — adds membership but doesn't
         // remove from the source. The record visually returns to
@@ -231,7 +277,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
     };
-  }, [drag, activeCrateId, addToCrate, updateLayout]);
+  }, [drag, activeCrateId, addToCrate, updateLayout, navigate]);
 
   // Compute the rendered floor positions for the active crate's
   // items. Priority: local optimistic > server-stored > default flow.
@@ -350,6 +396,10 @@ export default function CrateFloor({ username, isOwner }: Props) {
       rotation: r?.rotation ?? 0,
       floorRect: floor.getBoundingClientRect(),
       hoverCrateId: null,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      moveDistance: 0,
+      href: `/album/${item.slug ?? item.mbid}`,
     });
     e.preventDefault();
   };
@@ -375,20 +425,30 @@ export default function CrateFloor({ username, isOwner }: Props) {
           overflow: 'hidden',
         }}
       >
-      {/* Toaster expand chip — only shows when the preview is
-          collapsed. Floats top-right of the floor. Owner-prominent
-          since hiding the export and re-showing it is more useful
-          to the page owner than to a visitor. */}
-      {previewCollapsed && (
-        <button
-          type="button"
-          onClick={() => setPreviewCollapsed(false)}
-          className="absolute top-2 right-3 z-[60] text-[11px] text-[#f4ebd9] hover:text-white bg-[rgba(40,20,20,0.85)] border border-[rgba(220,170,80,0.4)] hover:border-[rgba(220,170,80,0.8)] rounded-full px-2.5 py-1 cursor-pointer transition-colors"
-          title="토스터 펴기"
-        >
-          🖼 토스터
-        </button>
-      )}
+      {/* Top-right chip row — overflow badge (when crate has more
+          items than fit on the floor) + the toaster-expand button
+          (only when the preview is collapsed). Both float free of
+          the carpet so they don't fight the records for space. */}
+      <div className="absolute top-2 right-3 z-[60] flex items-center gap-2">
+        {overflowCount > 0 && (
+          <span
+            className="text-[11px] text-[#f4ebd9] bg-[rgba(40,20,20,0.85)] border border-[rgba(220,170,80,0.25)] rounded-full px-2.5 py-1"
+            title={`총 ${activeCrate?.itemCount ?? 0}장 중 ${items.length}장 표시`}
+          >
+            +{overflowCount}장
+          </span>
+        )}
+        {previewCollapsed && (
+          <button
+            type="button"
+            onClick={() => setPreviewCollapsed(false)}
+            className="text-[11px] text-[#f4ebd9] hover:text-white bg-[rgba(40,20,20,0.85)] border border-[rgba(220,170,80,0.4)] hover:border-[rgba(220,170,80,0.8)] rounded-full px-2.5 py-1 cursor-pointer transition-colors"
+            title="토스터 펴기"
+          >
+            🖼 토스터
+          </button>
+        )}
+      </div>
       {/* Floor area — Persian carpet feel via layered gradients
           (no asset). Wine ground, soft central medallion, darker
           outer border zone, plus a thin gold inner frame inside

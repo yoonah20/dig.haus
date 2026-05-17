@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import CoverArt from '../../CoverArt';
 import type { CrateItem } from '../../../hooks/useCrates';
@@ -11,6 +11,30 @@ import type { CrateItem } from '../../../hooks/useCrates';
 // on the floor." Records lie flat — rotation was an early experiment
 // that read as broken; the rotation prop is accepted for layout-data
 // compatibility but no longer applied to the render transform.
+//
+// 2026-05-17 iter: drop-shadow stripped (operator preference) and a
+// shrink-wrap raster overlay added on top of each cover, matching
+// the home-hero "sealed sleeve" treatment.
+
+const PLASTIC_TEXTURE_PATHS = [
+  '/textures/swrap01.webp',
+  '/textures/swrap02.webp',
+  '/textures/swrap03.webp',
+  '/textures/swrap04.webp',
+  '/textures/swrap09.webp',
+  '/textures/swrap15.webp',
+  '/textures/swrap16.webp',
+  '/textures/swrap17.webp',
+];
+
+// Deterministic plastic-texture pick per album so the wrap stays
+// stable across re-fetches (no flicker). Album id mod the pool.
+function pickPlasticTextureForAlbum(albumId: number): string {
+  return (
+    PLASTIC_TEXTURE_PATHS[Math.abs(albumId) % PLASTIC_TEXTURE_PATHS.length] ??
+    PLASTIC_TEXTURE_PATHS[0]!
+  );
+}
 
 interface Props {
   item: CrateItem;
@@ -42,30 +66,63 @@ export default function FloorRecord({
 
   const lift = isDragging ? 0 : hover ? -6 : 0;
   const scale = isDragging ? 1.05 : hover ? 1.04 : 1;
-
-  // Resolved z-index — dragging trumps everything; hovered records
-  // pop temporarily; otherwise use the owner's drag-order stack so
-  // the last-touched record stays on top of what it now overlaps.
   const z = isDragging ? 1000 : hover ? 500 : zOrder;
+
+  const plasticSrc = useMemo(
+    () => pickPlasticTextureForAlbum(item.id),
+    [item.id]
+  );
+
+  // Plastic overlay extends ~15% past every cover edge so the film
+  // visibly wraps around the sleeve — same protrusion the home hero
+  // uses (HomeNextHero plasticScalePct = 15).
+  const extra = sizePx * 0.15;
+  const half = extra / 2;
 
   const inner = (
     <div
       style={{
+        position: 'relative',
         width: sizePx,
         height: sizePx,
-        boxShadow: isDragging
-          ? '0 18px 32px rgba(0,0,0,0.55)'
-          : '0 6px 12px rgba(0,0,0,0.35)',
-        borderRadius: 2,
-        overflow: 'hidden',
-        background: '#111',
+        // No box-shadow — operator preference 2026-05-17. The
+        // plastic wrap below provides edge definition without the
+        // muddy stack a shadow would add on top.
       }}
     >
-      <CoverArt
-        src={item.coverArtUrl}
-        fallbacks={item.coverArtFallbacks}
-        alt={`${item.title} – ${item.artist}`}
-        className="w-full h-full object-cover select-none pointer-events-none"
+      <div
+        style={{
+          width: sizePx,
+          height: sizePx,
+          overflow: 'hidden',
+          background: '#111',
+        }}
+      >
+        <CoverArt
+          src={item.coverArtUrl}
+          fallbacks={item.coverArtFallbacks}
+          alt={`${item.title} – ${item.artist}`}
+          className="w-full h-full object-cover select-none pointer-events-none"
+        />
+      </div>
+      {/* Shrink-wrap raster — extended past every edge so the film
+          looks wrapped around the sleeve. Pointer-events: none so
+          it never intercepts a drag. */}
+      <img
+        src={plasticSrc}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{
+          position: 'absolute',
+          top: -half,
+          left: -half,
+          width: sizePx + extra,
+          height: sizePx + extra,
+          maxWidth: 'none',
+          objectFit: 'cover',
+          pointerEvents: 'none',
+        }}
       />
     </div>
   );
@@ -80,9 +137,7 @@ export default function FloorRecord({
         left: `${x * 100}%`,
         top: `${y * 100}%`,
         transform: `translate(-50%, ${lift - 50}%) scale(${scale})`,
-        transition: isDragging
-          ? 'none'
-          : 'transform 180ms ease-out, box-shadow 180ms ease-out',
+        transition: isDragging ? 'none' : 'transform 180ms ease-out',
         cursor: isOwner ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
         zIndex: z,
         touchAction: 'none',
@@ -93,7 +148,7 @@ export default function FloorRecord({
       ) : (
         <Link
           to={`/album/${item.slug ?? item.mbid}`}
-          className="block w-full h-full"
+          className="block"
           draggable={false}
         >
           {inner}
