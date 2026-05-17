@@ -51,6 +51,9 @@ interface Props {
   // "natural order" (DOM order wins).
   zOrder: number;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
+  // Owner-only — remove this record from the active crate. Click on
+  // the × chip surfaces on hover when supplied; visitors get null.
+  onRemove?: () => void;
 }
 
 export default function FloorRecord({
@@ -62,6 +65,7 @@ export default function FloorRecord({
   isDragging,
   zOrder,
   onPointerDown,
+  onRemove,
 }: Props) {
   const [hover, setHover] = useState(false);
   // Mouse position in viewport coords — drives the hover label
@@ -132,6 +136,44 @@ export default function FloorRecord({
           pointerEvents: 'none',
         }}
       />
+      {/* Remove chip — owner-only, surfaces on hover. Sits at the
+          top-right of the cover so the cursor's natural rest point
+          (after moving onto the record) is already close to it.
+          stopPropagation on both pointerdown + click so the chip
+          never starts a drag or fires the tap-to-navigate path. */}
+      {isOwner && onRemove && hover && !isDragging && (
+        <button
+          type="button"
+          aria-label="이 상자에서 빼기"
+          title="이 상자에서 빼기"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            background: 'rgba(20, 12, 10, 0.92)',
+            color: '#f4ebd9',
+            border: '1px solid rgba(220, 170, 80, 0.45)',
+            fontSize: 13,
+            lineHeight: 1,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            zIndex: 2,
+          }}
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 

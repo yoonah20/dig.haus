@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   useAddToCrate,
   useCrateDetail,
+  useRemoveFromCrate,
   useUpdateCrateItemLayout,
   useUserCrates,
   type CrateItem,
@@ -157,6 +158,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
 
   const updateLayout = useUpdateCrateItemLayout();
   const addToCrate = useAddToCrate();
+  const removeFromCrate = useRemoveFromCrate();
 
   // Owner-local optimistic layout cache. Persists positions across
   // refetch and lets drag stay responsive while the PATCH is in
@@ -528,6 +530,15 @@ export default function CrateFloor({ username, isOwner }: Props) {
               zOrder={z}
               onPointerDown={
                 isOwner ? (e) => handleRecordPointerDown(r.item, e) : undefined
+              }
+              onRemove={
+                isOwner && activeCrateId != null
+                  ? () =>
+                      removeFromCrate.mutate({
+                        crateId: activeCrateId,
+                        albumId: r.item.id,
+                      })
+                  : undefined
               }
             />
           );
