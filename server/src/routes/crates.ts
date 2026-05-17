@@ -410,6 +410,159 @@ router.delete('/mydig/crates/:id/items/:albumId', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ─── Guestbook (방명록) — per-crate comments ──────────────────
+//
+// Visitor leaves a top-level note; the crate owner can reply (single
+// thread depth — reply.parent_id points at the top-level row, replies
+// can't have replies). Body capped at 500 chars. Read access mirrors
+// the crate's is_public flag; write access requires auth, with the
+// reply restriction enforced here.
+
+const COMMENT_BODY_MAX = 500;
+
+interface CommentRow {
+  id: number;
+  crate_id: number;
+  user_id: number;
+  parent_id: number | null;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  custom_avatar_url: string | null;
+}
+
+function serialiseComment(row: CommentRow, crateOwnerId: number) {
+  return {
+    id: row.id,
+    parentId: row.parent_id,
+    body: row.body,
+    createdAt: row.created_at,
+    author: {
+      id: row.user_id,
+      username: row.username,
+      displayName: row.display_name || row.username,
+      avatarUrl: row.custom_avatar_url || row.avatar_url,
+      isCrateOwner: row.user_id === crateOwnerId,
+    },
+  };
+}
+
+// GET — public if crate is_public, else owner-only. Returns flat list
+// ordered by created_at ASC; client groups by parent_id.
+router.get('/mydig/crates/:id/comments', (req, res) => {
+  const id = parseInt(String(req.params.id || ''), 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'invalid id' });
+  const crate = queryGet(
+    `SELECT id, user_id, is_public FROM crate_boxes WHERE id = ?`,
+    [id]
+  ) as { id: number; user_id: number; is_public: number } | null;
+  if (!crate) return res.status(404).json({ error: 'not found' });
+  const viewer = req.user as AppUser | undefined;
+  const isOwner = !!viewer && viewer.id === crate.user_id;
+  if (!isOwner && crate.is_public !== 1) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  const rows = queryAll(
+    `SELECT cc.id, cc.crate_id, cc.user_id, cc.parent_id, cc.body,
+            cc.created_at, cc.updated_at,
+            u.username, u.display_name, u.avatar_url, u.custom_avatar_url
+     FROM crate_comments cc
+     JOIN users u ON u.id = cc.user_id
+     WHERE cc.crate_id = ?
+     ORDER BY cc.created_at ASC`,
+    [id]
+  ) as CommentRow[];
+  res.json({ comments: rows.map((r) => serialiseComment(r, crate.user_id)) });
+});
+
+// POST — top-level note or owner reply. Body required, capped at
+// COMMENT_BODY_MAX chars. parent_id (optional) must reference a
+// top-level row in the same crate AND the caller must be the crate
+// owner — otherwise visitors could spoof "owner replies."
+router.post('/mydig/crates/:id/comments', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const id = parseInt(String(req.params.id || ''), 10);
+  if (!Number.isFinite(id)) return res.status(400).json({ error: 'invalid id' });
+  const crate = queryGet(
+    `SELECT id, user_id, is_public FROM crate_boxes WHERE id = ?`,
+    [id]
+  ) as { id: number; user_id: number; is_public: number } | null;
+  if (!crate) return res.status(404).json({ error: 'not found' });
+  const isOwner = me.id === crate.user_id;
+  if (!isOwner && crate.is_public !== 1) {
+    return res.status(404).json({ error: 'not found' });
+  }
+  const body = String(req.body?.body || '').trim();
+  if (!body) return res.status(400).json({ error: '내용을 입력해 주세요.' });
+  if (body.length > COMMENT_BODY_MAX) {
+    return res.status(400).json({ error: `${COMMENT_BODY_MAX}자 이내로 적어주세요.` });
+  }
+  let parentId: number | null = null;
+  if (req.body?.parentId != null) {
+    const p = parseInt(String(req.body.parentId), 10);
+    if (!Number.isFinite(p)) return res.status(400).json({ error: 'invalid parentId' });
+    // Reply rules: parent must exist in this crate AND be top-level
+    // (no nested threading) AND caller must be the crate owner.
+    if (!isOwner) {
+      return res.status(403).json({ error: '답글은 상자 주인만 달 수 있어요.' });
+    }
+    const parent = queryGet(
+      `SELECT id, parent_id FROM crate_comments WHERE id = ? AND crate_id = ?`,
+      [p, id]
+    ) as { id: number; parent_id: number | null } | null;
+    if (!parent) return res.status(404).json({ error: '원댓글을 찾을 수 없어요.' });
+    if (parent.parent_id != null) {
+      return res.status(400).json({ error: '답글의 답글은 안 돼요.' });
+    }
+    parentId = p;
+  }
+  const result = execute(
+    `INSERT INTO crate_comments (crate_id, user_id, parent_id, body)
+     VALUES (?, ?, ?, ?)`,
+    [id, me.id, parentId, body]
+  );
+  const row = queryGet(
+    `SELECT cc.id, cc.crate_id, cc.user_id, cc.parent_id, cc.body,
+            cc.created_at, cc.updated_at,
+            u.username, u.display_name, u.avatar_url, u.custom_avatar_url
+     FROM crate_comments cc
+     JOIN users u ON u.id = cc.user_id
+     WHERE cc.id = ?`,
+    [result.lastInsertRowid]
+  ) as CommentRow;
+  res.status(201).json({ comment: serialiseComment(row, crate.user_id) });
+});
+
+// DELETE — caller must be the comment author OR the crate owner.
+// CASCADE on parent_id self-ref drops the replies along with a
+// top-level deletion.
+router.delete('/mydig/crates/:id/comments/:commentId', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const crateId = parseInt(String(req.params.id || ''), 10);
+  const commentId = parseInt(String(req.params.commentId || ''), 10);
+  if (!Number.isFinite(crateId) || !Number.isFinite(commentId)) {
+    return res.status(400).json({ error: 'invalid id' });
+  }
+  const crate = queryGet(
+    `SELECT id, user_id FROM crate_boxes WHERE id = ?`,
+    [crateId]
+  ) as { id: number; user_id: number } | null;
+  if (!crate) return res.status(404).json({ error: 'not found' });
+  const comment = queryGet(
+    `SELECT id, user_id FROM crate_comments WHERE id = ? AND crate_id = ?`,
+    [commentId, crateId]
+  ) as { id: number; user_id: number } | null;
+  if (!comment) return res.status(404).json({ error: 'not found' });
+  if (comment.user_id !== me.id && crate.user_id !== me.id) {
+    return res.status(403).json({ error: '삭제 권한이 없어요.' });
+  }
+  execute(`DELETE FROM crate_comments WHERE id = ?`, [commentId]);
+  res.json({ ok: true });
+});
+
 // ─── GET /api/mydig/crates/album-membership/:albumId ──────────
 //
 // Returns the IDs of the caller's crates that contain the given

@@ -2228,6 +2228,33 @@ export function initializeDatabase(db: Database.Database): void {
      ON crate_items(crate_id, created_at DESC)`
   );
 
+  // crate_comments — per-crate guestbook (방명록). Single-level
+  // threading: a top-level note (parent_id NULL) can carry one or
+  // more replies (parent_id pointing at it). Reply authorship is
+  // limited at the route layer to the crate's owner — the schema
+  // doesn't enforce it (DB checks would require a CTE per write),
+  // so the constraint lives in routes/crates.ts.
+  //
+  // ON DELETE CASCADE on the parent_id self-reference: if a top-level
+  // comment is deleted, its replies go too. That's the natural "the
+  // conversation went with it" behaviour and lines up with what a
+  // visitor would expect.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crate_comments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      crate_id INTEGER NOT NULL REFERENCES crate_boxes(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      parent_id INTEGER REFERENCES crate_comments(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+  db.exec(
+    `CREATE INDEX IF NOT EXISTS idx_crate_comments_crate_created
+     ON crate_comments(crate_id, created_at ASC)`
+  );
+
   // Rebuild legacy crate_items (had position UNIQUE + position column)
   // into the new shape. Idempotent via runOnce; the CREATE IF NOT
   // EXISTS above lands fresh DBs on the new schema directly, so this

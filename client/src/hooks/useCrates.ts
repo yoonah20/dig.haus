@@ -221,6 +221,75 @@ export function useUpdateCrateItemLayout() {
   });
 }
 
+// ─── Guestbook (방명록) ────────────────────────────────────────
+
+export interface CrateCommentAuthor {
+  id: number;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  isCrateOwner: boolean;
+}
+
+export interface CrateComment {
+  id: number;
+  parentId: number | null;
+  body: string;
+  createdAt: string;
+  author: CrateCommentAuthor;
+}
+
+export function useCrateComments(crateId: number | null | undefined) {
+  return useQuery<{ comments: CrateComment[] }>({
+    queryKey: ['crates', 'comments', crateId],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/mydig/crates/${crateId}/comments`);
+      return data;
+    },
+    enabled: crateId != null,
+    staleTime: 15 * 1000,
+  });
+}
+
+export function usePostCrateComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: {
+      crateId: number;
+      body: string;
+      parentId?: number | null;
+    }) => {
+      const { crateId, ...body } = vars;
+      const { data } = await axios.post<{ comment: CrateComment }>(
+        `/api/mydig/crates/${crateId}/comments`,
+        body
+      );
+      return data.comment;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({
+        queryKey: ['crates', 'comments', vars.crateId],
+      });
+    },
+  });
+}
+
+export function useDeleteCrateComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { crateId: number; commentId: number }) => {
+      await axios.delete(
+        `/api/mydig/crates/${vars.crateId}/comments/${vars.commentId}`
+      );
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({
+        queryKey: ['crates', 'comments', vars.crateId],
+      });
+    },
+  });
+}
+
 export function useRemoveFromCrate() {
   const qc = useQueryClient();
   return useMutation({

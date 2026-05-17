@@ -24,6 +24,11 @@ export function normalizeSearchQuery(raw: string): string {
 }
 
 export interface DbSearchResult {
+  // Numeric primary key — added 2026-05-17 so callers that need to
+  // mutate the album (add to a crate, etc.) don't have to round-trip
+  // through a separate mbid → id lookup. The home search bar treats
+  // it as optional.
+  id: number;
   mbid: string;
   title: string;
   artist: string;
@@ -52,7 +57,7 @@ export function searchAlbumsInDb(rawQuery: string, limit = 25): DbSearchResult[]
   //   4. Recency — release_date DESC. Operator-requested tiebreaker
   //      so newer releases within the same tier surface first.
   const rows = queryAll(
-    `SELECT slug, mbid, title, artist_name, release_date, release_year,
+    `SELECT id, slug, mbid, title, artist_name, release_date, release_year,
             label_name, cover_art_url, cover_art_fallbacks
      FROM albums
      WHERE LOWER(title) LIKE LOWER(?)
@@ -69,6 +74,7 @@ export function searchAlbumsInDb(rawQuery: string, limit = 25): DbSearchResult[]
   );
 
   return rows.map((a: any) => ({
+    id: a.id,
     mbid: a.slug || a.mbid,
     title: a.title,
     artist: a.artist_name,

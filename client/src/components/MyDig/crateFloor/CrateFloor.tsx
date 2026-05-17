@@ -12,6 +12,8 @@ import CrateBar, { type CrateBarHandle } from './CrateBar';
 import { defaultFlowPosition } from './layout';
 import ToasterButton from '../ToasterButton';
 import LiveToasterPreview from './LiveToasterPreview';
+import AddAlbumSearch from './AddAlbumSearch';
+import Guestbook from './Guestbook';
 
 // The main mydig surface (replacement for the old vinyl-wall +
 // storefront composition, 2026-05-17). Crates line the bottom of
@@ -288,17 +290,20 @@ export default function CrateFloor({ username, isOwner }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCrateId, isOwner]);
 
-  // Record size — slightly smaller on narrow viewports so 30 records
-  // breathe. Tied to the floor's measured width; default to 120px
-  // before the first layout pass.
-  const [recordSize, setRecordSize] = useState(120);
+  // Record size — bigger than the preview's covers so the floor
+  // reads as the working surface and the preview as the export
+  // thumbnail. Bumped 2026-05-17 per operator feedback ("커버 크기가
+  // 토스터 쪽 보단 커야함"). Tied to floor measured width.
+  const [recordSize, setRecordSize] = useState(150);
   useLayoutEffect(() => {
     const el = floorRef.current;
     if (!el) return;
     const update = () => {
       const w = el.clientWidth;
-      // Scale: 96 → 140 across 320 → 1100 px viewport.
-      const target = Math.max(80, Math.min(140, Math.round(w * 0.12)));
+      // Scale: 110 → 180 across 320 → 1100 px viewport. Min stays
+      // generous on mobile; max bumped so a wide desktop floor
+      // really feels like LP-sized records.
+      const target = Math.max(110, Math.min(180, Math.round(w * 0.16)));
       setRecordSize(target);
     };
     update();
@@ -334,7 +339,8 @@ export default function CrateFloor({ username, isOwner }: Props) {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_320px] gap-4">
+    <div className="flex flex-col gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] gap-4">
       {/* Left column — floor (carpet) + crate bar at bottom. */}
       <div
         style={{
@@ -357,7 +363,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
           position: 'relative',
           width: '100%',
           aspectRatio: '16 / 11',
-          minHeight: 360,
+          minHeight: 520,
           backgroundImage: [
             // Central medallion — warm gold glow
             'radial-gradient(ellipse 38% 30% at 50% 50%, rgba(190, 140, 60, 0.18), transparent 65%)',
@@ -453,8 +459,15 @@ export default function CrateFloor({ username, isOwner }: Props) {
             gap: 10,
           }}
         >
+          {isOwner && (
+            <AddAlbumSearch
+              activeCrateId={activeCrateId}
+              activeCrateTitle={activeCrate.title}
+            />
+          )}
           <LiveToasterPreview
             crateTitle={activeCrate.title}
+            username={username}
             items={items}
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -467,6 +480,18 @@ export default function CrateFloor({ username, isOwner }: Props) {
           </div>
         </div>
       )}
+    </div>
+
+    {/* Guestbook (방명록) — below the floor+preview row, full-width.
+        Tied to the active crate so switching crates loads its own
+        thread. Logged-out visitors see the thread + a login prompt. */}
+    {activeCrateId != null && activeCrate && (
+      <Guestbook
+        crateId={activeCrateId}
+        crateTitle={activeCrate.title}
+        isOwner={isOwner}
+      />
+    )}
     </div>
   );
 }

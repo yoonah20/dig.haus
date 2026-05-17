@@ -1006,12 +1006,17 @@ async function rowsToSlots(rows: ToasterRow[]): Promise<ToasterSlot[]> {
 }
 
 // Pull the 15 toaster items from a crate, sorted to match the owner's
-// arrangement on the mydig floor — visual reading order: top first,
-// then left-to-right. This is what makes "arrange on the floor →
-// download a PNG that matches" work: both surfaces read the same
-// sort. Records the owner hasn't placed yet (position_x/y NULL)
-// sort last by created_at DESC so a brand-new vote still has a
-// chance of surfacing in the toaster without an explicit drag first.
+// arrangement on the mydig floor — visual reading order: top BAND
+// first, then left-to-right within a band. y-axis is BUCKETED into
+// 0.16-wide rows (same row spacing as the default-flow grid in
+// client/layout.ts) so a record only ranks above another when it's
+// clearly in a higher row — a 1-px y drift no longer promotes a
+// record past its visual neighbours. Within a band, position_x is
+// the sole tiebreaker. Records the owner hasn't placed yet
+// (position_x/y NULL) sort last by created_at DESC so a brand-new
+// vote still has a chance of surfacing without an explicit drag.
+// 0.16 = (Y_MAX - Y_MIN) / (FLOOR_ROWS - 1) in client/layout.ts;
+// keep these in sync if the floor row count there changes.
 async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
   const rows = queryAll(
     `SELECT a.id AS album_id, a.mbid, a.title, a.artist_name,
@@ -1022,7 +1027,7 @@ async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
      WHERE ci.crate_id = ?
      ORDER BY
        CASE WHEN ci.position_y IS NULL THEN 1 ELSE 0 END ASC,
-       ci.position_y ASC,
+       CAST(ci.position_y / 0.16 AS INTEGER) ASC,
        ci.position_x ASC,
        ci.created_at DESC
      LIMIT 15`,

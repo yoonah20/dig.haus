@@ -21,6 +21,11 @@ export const OWNERSHIP_FORMATS: readonly OwnershipFormat[] = [
 ] as const;
 
 export interface AlbumSearchResult {
+  // Numeric album.id — present on results from /api/albums/search
+  // (DB search). Some legacy callers used to thread mbid only; new
+  // consumers (mydig add-to-crate) need the int FK for the existing
+  // /crates/:id/items endpoint.
+  id?: number;
   mbid: string;
   title: string;
   artist: string;
