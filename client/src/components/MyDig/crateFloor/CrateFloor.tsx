@@ -19,6 +19,7 @@ import LiveToasterPreview from './LiveToasterPreview';
 import AddAlbumSearch from './AddAlbumSearch';
 import Guestbook from './Guestbook';
 import ShareButton from '../ShareButton';
+import { resolveApiUrl } from '../../../utils/apiUrl';
 
 // The main mydig surface (replacement for the old vinyl-wall +
 // storefront composition, 2026-05-17). Crates line the bottom of
@@ -592,8 +593,18 @@ export default function CrateFloor({ username, isOwner }: Props) {
               variant={isOwner ? 'prominent' : 'default'}
               label="이 배열로 토스터 만들기"
             />
+            {/* Toaster IMAGE share — copies the PNG URL (resolved
+                through API_BASE so split-origin deploys produce a
+                full URL the recipient can hit). The PNG endpoint is
+                public for public crates, so the link works for
+                anyone the owner sends it to. Not the page share —
+                operator clarified that's what this slot is for. */}
             <ShareButton
-              url={typeof window !== 'undefined' ? window.location.href : ''}
+              url={
+                resolveApiUrl(
+                  `/api/mydig/crates/${activeCrateId}/toaster.png`
+                ) ?? `/api/mydig/crates/${activeCrateId}/toaster.png`
+              }
               label="공유"
             />
           </div>
