@@ -5,10 +5,6 @@ import HomeNextHeroMobile from '../components/Home/HomeNextHeroMobile';
 import { useHomeFeatures, type HomeWall } from '../hooks/useHomeFeatures';
 import { GRAFFITI_FONT_STACK } from '../components/MyDig/GraffitiSnapshotList';
 import {
-  useHomeSnapshots,
-  type HomeSnapshot,
-} from '../hooks/useHomeSnapshots';
-import {
   useInfiniteUserReviewsFeed,
   type UserReviewFeedItem,
 } from '../hooks/useUserReviewsFeed';
@@ -124,10 +120,11 @@ function useHeroSeenUpdate(lastContentUpdateAt: string | null | undefined) {
 
 // Discriminated union keyed by `kind` — each card type renders from
 // its own source data but they all share the createdAt sort key + a
-// stable id for React keying.
+// stable id for React keying. The 'snapshot' kind was retired
+// 2026-05-17 along with the home-feed snapshot pin (mydig redesign
+// no longer surfaces vinyl-wall snapshots — they're DB-only legacy).
 type FeedItem =
   | { kind: 'album'; createdAt: string; key: string; album: AlbumSearchResult }
-  | { kind: 'snapshot'; createdAt: string; key: string; snap: HomeSnapshot }
   | { kind: 'review'; createdAt: string; key: string; review: UserReviewFeedItem };
 
 // Page size for the infinite-scroll streams (albums + reviews).
@@ -150,10 +147,8 @@ function chunk<T>(items: T[], size: number): T[][] {
   return rows;
 }
 
-// Per-cell renderer shared between rows that end with a snapshot
-// (custom column template + spacer placeholder) and uniform rows.
-// Pulled out so the row map below stays scannable; the union of
-// FeedItem variants gets discriminated here.
+// Per-cell renderer. Pulled out so the row map below stays
+// scannable; the union of FeedItem variants gets discriminated here.
 function renderFeedCell(item: FeedItem) {
   if (item.kind === 'album') {
     // Reuse /dig's AlbumCard chrome (sticker stack + release-date
@@ -179,9 +174,6 @@ function renderFeedCell(item: FeedItem) {
       />
     );
   }
-  if (item.kind === 'snapshot') {
-    return <SnapshotMiniCard key={item.key} snap={item.snap} />;
-  }
   return <BlurredReviewCard key={item.key} item={item.review} />;
 }
 
@@ -194,13 +186,11 @@ export default function HomeNext() {
   });
 
   // Albums + reviews are paged via useInfiniteQuery so the feed
-  // grows as the visitor scrolls. Snapshots stay one-shot — there
-  // are only ever a small finite set in flight, and the row builder
-  // already falls back to base items when snapshots run out, so
-  // pagination there would be wasted code.
+  // grows as the visitor scrolls. (Snapshots were pinned into
+  // every row's last slot until 2026-05-17 — pulled out with the
+  // mydig redesign since snapshots are no longer surfaced anywhere.)
   const recentAlbums = useInfiniteRecentAlbums(true, FEED_SIZE);
   const reviews = useInfiniteUserReviewsFeed(true, FEED_SIZE);
-  const snapshots = useHomeSnapshots(true, 8);
   const recentReleases = useRecentReleases(true, 60);
   const isMobile = useIsMobileHero();
   const [heroCollapsed, setHeroCollapsed] = useHeroCollapsed();
@@ -306,20 +296,9 @@ export default function HomeNext() {
     reviews.hasNextPage,
   ]);
 
-  // Snapshot density adapts to viewport width:
-  //   • Desktop (cols >= 4) — per-row pinning. Each row's last slot
-  //     is reserved for a snapshot, falling back to a base item if
-  //     snapshots run out. Wide rows have room for one snapshot
-  //     without crowding the album/review stream.
-  //   • Mobile (cols < 4) — every-other-row pinning. With only 3
-  //     cells per row, per-row pinning reads as half-snapshot/half-
-  //     everything-else; thinning to one snap per 2 rows preserves
-  //     visibility without dominating the feed.
-  const recentSnapshots = snapshots.data?.snapshots ?? [];
   const feed = useMemo<FeedItem[]>(() => {
     const result: FeedItem[] = [];
     const cols = activityCols;
-    const perRowSnaps = cols >= 4;
     // Per-row review cap. Pure time-merge produced "comment-only"
     // rows whenever a stretch of reviews happened with no album
     // registrations between them — particularly noticeable when one
@@ -331,22 +310,13 @@ export default function HomeNext() {
     const reviewCapPerRow = Math.max(1, Math.ceil(cols / 3));
     const albumQ = [...baseFeed.albums];
     const reviewQ = [...baseFeed.reviews];
-    const snapQ: FeedItem[] = recentSnapshots.map((snap) => ({
-      kind: 'snapshot',
-      createdAt: snap.createdAt,
-      key: `snap-${snap.id}`,
-      snap,
-    }));
     const tsOf = (it: FeedItem) =>
       parseServerTimestamp(it.createdAt).getTime();
-    let row = 0;
     while (albumQ.length + reviewQ.length > 0) {
-      const isSnapRow = perRowSnaps ? true : row % 2 === 1;
-      const baseInRow = isSnapRow ? cols - 1 : cols;
       const startedRow = result.length;
       let rowReviews = 0;
       let filled = 0;
-      while (filled < baseInRow) {
+      while (filled < cols) {
         if (albumQ.length === 0 && reviewQ.length === 0) break;
         let pickAlbum: boolean;
         if (albumQ.length === 0) {
@@ -366,38 +336,21 @@ export default function HomeNext() {
         }
         filled++;
       }
-      if (filled < baseInRow) {
-        // Couldn't fill the base portion — drop the partial row.
+      if (filled < cols) {
+        // Couldn't fill the row — drop the partial.
         result.length = startedRow;
         break;
       }
-      if (isSnapRow) {
-        if (snapQ.length > 0) {
-          result.push(snapQ.shift()!);
-        } else if (albumQ.length > 0) {
-          result.push(albumQ.shift()!);
-        } else if (reviewQ.length > 0) {
-          // Snapshots exhausted and no albums left — fall back to a
-          // review even if it nudges the row past the cap. Better
-          // than dropping the whole row when only reviews remain.
-          result.push(reviewQ.shift()!);
-        } else {
-          result.length = startedRow;
-          break;
-        }
-      }
-      row++;
     }
     return result;
-  }, [baseFeed, recentSnapshots, activityCols]);
+  }, [baseFeed, activityCols]);
 
   const trimmed = useMemo(
     () => trimToFullRows(feed, activityCols),
     [feed, activityCols]
   );
 
-  const isLoading =
-    recentAlbums.isLoading || snapshots.isLoading || reviews.isLoading;
+  const isLoading = recentAlbums.isLoading || reviews.isLoading;
 
   // Infinite-scroll sentinel — when this div enters the viewport
   // (with a 600px rootMargin so prefetch happens before the visitor
@@ -575,39 +528,21 @@ export default function HomeNext() {
               >
                 최근 굴착 활동
               </SectionTitle>
-              {/* Row-by-row grids instead of one big auto-flow grid.
-                  Desktop snap rows use a custom template
-                  `repeat(cols-1, 1fr) 0.25rem 1fr` — the 0.25rem
-                  spacer column + grid gap-3 on each side yields
-                  ~28px visible separation before the snapshot vs
-                  the 12px gap elsewhere, producing the "6 / 1" read
-                  on a 7-col row. Mobile (cols < 4) drops the spacer
-                  entirely; it would otherwise eat 16px of width per
-                  row and leave the snapshot cell narrower than the
-                  base cells, breaking the square grid. */}
+              {/* Uniform row grid. The earlier snapshot-pin special
+                  case (custom template + spacer column) went out
+                  2026-05-17 along with snapshots themselves. */}
               <div className="flex flex-col gap-3">
-                {chunk(trimmed, activityCols).map((row, ri) => {
-                  const last = row[row.length - 1];
-                  const lastIsSnap =
-                    row.length === activityCols && last?.kind === 'snapshot';
-                  const head = lastIsSnap ? row.slice(0, -1) : row;
-                  const useSpacer = lastIsSnap && activityCols >= 4;
-                  return (
-                    <div
-                      key={ri}
-                      className="grid gap-3"
-                      style={{
-                        gridTemplateColumns: useSpacer
-                          ? `repeat(${activityCols - 1}, minmax(0, 1fr)) 0.25rem minmax(0, 1fr)`
-                          : `repeat(${activityCols}, minmax(0, 1fr))`,
-                      }}
-                    >
-                      {head.map(renderFeedCell)}
-                      {useSpacer && <div aria-hidden />}
-                      {lastIsSnap && last && renderFeedCell(last)}
-                    </div>
-                  );
-                })}
+                {chunk(trimmed, activityCols).map((row, ri) => (
+                  <div
+                    key={ri}
+                    className="grid gap-3"
+                    style={{
+                      gridTemplateColumns: `repeat(${activityCols}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {row.map(renderFeedCell)}
+                  </div>
+                ))}
               </div>
               {/* Infinite-scroll sentinel. The IntersectionObserver
                   above watches this element and pages in more
@@ -1039,87 +974,3 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
   );
 }
 
-// Square snapshot card for the merged feed grid. Same aspect-square
-// footprint as the album / review cards so it slots cleanly into the
-// "last cell of every row" pinned position. Title sits *below* the
-// 3×2 cover preview rather than above so it doesn't fight the
-// top-right TimeChip; rose ring distinguishes the card from album
-// (no ring) and review (amber ring) at a glance.
-function SnapshotMiniCard({ snap }: { snap: HomeSnapshot }) {
-  const filledItems = snap.items.filter((it) => it.album != null);
-  const total = filledItems.length;
-  const visible = filledItems.slice(0, 5);
-  const overflow = total - 5;
-  const showOverflow = overflow > 0;
-  const displayName = snap.user.displayName || snap.user.username;
-  const mydigUrl = `/my/${snap.user.username}`;
-
-  return (
-    <div className="group/card relative aspect-square flex flex-col rounded-lg overflow-hidden border border-rose-400/45 hover:border-rose-400/75 transition-colors bg-[#110b04]">
-      <TimeChip iso={snap.createdAt} />
-      <Link
-        to={`${mydigUrl}/snap/${snap.slug}`}
-        className="relative flex-[4_1_0%] min-h-0 flex flex-col gap-1.5 p-2 hover:[&_.snap-name]:text-accent"
-      >
-        {/* Cover grid uses fr-based rows + flex-1 so it absorbs the
-            available Link area instead of forcing a fixed 3×2-of-
-            squares height that overflowed the card on narrow mobile
-            cells (causing the title to clip). Cells drop aspect-
-            square — at small widths the grid yields slightly-tall
-            rectangles and CoverArt's object-cover crops to fit;
-            covers stay legible at the 25-30px scale they end up at
-            on a 3-col mobile row. Title gets shrink-0 so it reserves
-            its single-line height first. */}
-        <div className="grid grid-cols-3 grid-rows-2 gap-0.5 flex-1 min-h-0">
-          {Array.from({ length: 6 }, (_, i) => {
-            if (i < 5) {
-              const item = visible[i];
-              return (
-                <div
-                  key={i}
-                  className="bg-panel-strong rounded-[2px] overflow-hidden"
-                >
-                  {item?.album?.coverArtUrl && (
-                    <CoverArt
-                      src={item.album.coverArtUrl}
-                      fallbacks={item.album.coverArtFallbacks}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
-              );
-            }
-            if (showOverflow) {
-              return (
-                <div
-                  key={i}
-                  className="bg-panel-strong rounded-[2px] overflow-hidden flex items-center justify-center text-[12px] font-medium text-[#c9a060] tabular-nums"
-                  aria-label={`${overflow}개 더`}
-                >
-                  +{overflow}
-                </div>
-              );
-            }
-            return (
-              <div
-                key={i}
-                className="bg-panel-strong rounded-[2px] overflow-hidden"
-              />
-            );
-          })}
-        </div>
-        <div className="snap-name shrink-0 text-[12px] text-gray-200 font-medium leading-tight line-clamp-1 transition-colors">
-          {snap.name}
-        </div>
-      </Link>
-
-      <AuthorStrip
-        userId={snap.user.id}
-        mydigUrl={mydigUrl}
-        avatarSrc={snap.user.avatarUrl}
-        displayName={displayName}
-      />
-    </div>
-  );
-}

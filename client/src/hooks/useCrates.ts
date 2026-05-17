@@ -44,6 +44,14 @@ export interface CrateItem {
   positionY: number | null;
   rotation: number | null;
   addedAt: string;
+  // Crate owner's own 50자 평 on this album, if any. Surfaced in
+  // the mydig floor hover label so the cover can carry the owner's
+  // own line about the record. NULL when the owner hasn't written
+  // a review for this album.
+  ownerReview: {
+    body: string;
+    emoji: string | null;
+  } | null;
 }
 
 export interface CrateDetail {

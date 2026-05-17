@@ -221,13 +221,17 @@ router.get('/mydig/crates/:id', (req, res) => {
     `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.release_year,
             a.cover_art_url, a.cover_art_fallbacks,
             ci.position_x, ci.position_y, ci.rotation,
-            ci.created_at AS added_at
+            ci.created_at AS added_at,
+            ur.body AS owner_review_body,
+            ur.emoji AS owner_review_emoji
      FROM crate_items ci
      JOIN albums a ON a.id = ci.album_id
+     LEFT JOIN user_reviews ur
+       ON ur.album_id = ci.album_id AND ur.user_id = ?
      WHERE ci.crate_id = ?
      ORDER BY ci.created_at DESC
      LIMIT ?`,
-    [row.id, FLOOR_CAP]
+    [row.user_id, row.id, FLOOR_CAP]
   ) as Array<{
     id: number;
     mbid: string;
@@ -241,6 +245,8 @@ router.get('/mydig/crates/:id', (req, res) => {
     position_y: number | null;
     rotation: number | null;
     added_at: string;
+    owner_review_body: string | null;
+    owner_review_emoji: string | null;
   }>;
   res.json({
     crate: serialiseCrate(row),
@@ -268,6 +274,15 @@ router.get('/mydig/crates/:id', (req, res) => {
       positionY: a.position_y,
       rotation: a.rotation,
       addedAt: a.added_at,
+      // Owner's 50자 평 on this album, if any — surfaced in the
+      // floor hover label so the cover can carry the owner's own
+      // line about it. NULL when the owner hasn't written one.
+      ownerReview: a.owner_review_body
+        ? {
+            body: String(a.owner_review_body),
+            emoji: a.owner_review_emoji ? String(a.owner_review_emoji) : null,
+          }
+        : null,
     })),
   });
 });

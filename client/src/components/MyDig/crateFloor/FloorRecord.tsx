@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import CoverArt from '../../CoverArt';
 import type { CrateItem } from '../../../hooks/useCrates';
@@ -63,6 +64,14 @@ export default function FloorRecord({
   onPointerDown,
 }: Props) {
   const [hover, setHover] = useState(false);
+  // Mouse position in viewport coords — drives the hover label
+  // anchor so the artist/title/review tag follows the cursor instead
+  // of sitting fixed above the record. Updated on each mousemove
+  // while the pointer is over the record.
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    setPointer({ x: e.clientX, y: e.clientY });
+  };
 
   const lift = isDragging ? 0 : hover ? -6 : 0;
   const scale = isDragging ? 1.05 : hover ? 1.04 : 1;
@@ -73,11 +82,10 @@ export default function FloorRecord({
     [item.id]
   );
 
-  // Plastic overlay extends ~15% past every cover edge so the film
-  // visibly wraps around the sleeve — same protrusion the home hero
-  // uses (HomeNextHero plasticScalePct = 15).
-  const extra = sizePx * 0.15;
-  const half = extra / 2;
+  // Plastic overlay sized 1:1 with the cover (no protrusion).
+  // Operator iter 2026-05-17: the home-hero 15% extra read as
+  // misaligned on the floor where covers sit isolated rather than
+  // nested into a sleeve frame.
 
   const inner = (
     <div
@@ -105,8 +113,8 @@ export default function FloorRecord({
           className="w-full h-full object-cover select-none pointer-events-none"
         />
       </div>
-      {/* Shrink-wrap raster — extended past every edge so the film
-          looks wrapped around the sleeve. Pointer-events: none so
+      {/* Shrink-wrap raster — sized 1:1 with the cover so the film
+          stays flush with the sleeve edges. Pointer-events: none so
           it never intercepts a drag. */}
       <img
         src={plasticSrc}
@@ -115,10 +123,10 @@ export default function FloorRecord({
         draggable={false}
         style={{
           position: 'absolute',
-          top: -half,
-          left: -half,
-          width: sizePx + extra,
-          height: sizePx + extra,
+          top: 0,
+          left: 0,
+          width: sizePx,
+          height: sizePx,
           maxWidth: 'none',
           objectFit: 'cover',
           pointerEvents: 'none',
@@ -131,7 +139,11 @@ export default function FloorRecord({
     <div
       onPointerDown={isOwner ? onPointerDown : undefined}
       onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onMouseLeave={() => {
+        setHover(false);
+        setPointer(null);
+      }}
+      onMouseMove={handleMouseMove}
       style={{
         position: 'absolute',
         left: `${x * 100}%`,
@@ -154,53 +166,88 @@ export default function FloorRecord({
           {inner}
         </Link>
       )}
-      {/* Hover label — artist (small, muted) above title (bolder),
-          on a dark plaque so it reads against any cover. Sits just
-          above the record. Pointer-events-none so it never grabs
-          the cursor mid-drag. */}
-      {hover && !isDragging && (
-        <div
-          style={{
-            position: 'absolute',
-            left: '50%',
-            bottom: 'calc(100% + 6px)',
-            transform: 'translateX(-50%)',
-            background: 'rgba(20, 12, 10, 0.92)',
-            color: '#f4ebd9',
-            padding: '4px 8px',
-            borderRadius: 4,
-            fontSize: 11,
-            lineHeight: 1.35,
-            maxWidth: 240,
-            pointerEvents: 'none',
-            boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
-            border: '1px solid rgba(220, 170, 80, 0.25)',
-            textAlign: 'center',
-          }}
-        >
+      {/* Hover label — anchored to the cursor (operator iter
+          2026-05-17), portaled to body so the floor's overflow:
+          hidden / record stacking can't clip it. Artist (dim) over
+          title (bold), and the owner's 50자 평 below if any.
+          Pointer-events: none so it never intercepts the drag. */}
+      {hover &&
+        !isDragging &&
+        pointer &&
+        typeof document !== 'undefined' &&
+        createPortal(
           <div
             style={{
-              opacity: 0.72,
-              fontSize: 10,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              position: 'fixed',
+              // 14 px clearance to the upper-left of the cursor so
+              // the label sits where the eye expects a tooltip
+              // without covering whatever the user is mousing over.
+              left: pointer.x + 14,
+              top: pointer.y - 14,
+              transform: 'translateY(-100%)',
+              background: 'rgba(20, 12, 10, 0.94)',
+              color: '#f4ebd9',
+              padding: '5px 9px',
+              borderRadius: 4,
+              fontSize: 11,
+              lineHeight: 1.4,
+              maxWidth: 280,
+              pointerEvents: 'none',
+              boxShadow: '0 4px 10px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(220, 170, 80, 0.25)',
+              zIndex: 10000,
             }}
           >
-            {item.artist}
-          </div>
-          <div
-            style={{
-              fontWeight: 600,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {item.title}
-          </div>
-        </div>
-      )}
+            <div
+              style={{
+                opacity: 0.72,
+                fontSize: 10,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {item.artist}
+            </div>
+            <div
+              style={{
+                fontWeight: 600,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {item.title}
+            </div>
+            {item.ownerReview && (
+              <div
+                style={{
+                  marginTop: 4,
+                  paddingTop: 4,
+                  borderTop: '1px solid rgba(220,170,80,0.18)',
+                  fontSize: 11,
+                  color: '#e8d8b5',
+                  fontStyle: 'italic',
+                  // The 50자 평 caps at 50 chars Korean by design,
+                  // but allow it to wrap inside the 280px max
+                  // rather than ellipsis — it's the most expressive
+                  // bit, worth showing in full.
+                  whiteSpace: 'normal',
+                  wordBreak: 'keep-all',
+                  lineHeight: 1.4,
+                }}
+              >
+                {item.ownerReview.emoji && (
+                  <span style={{ marginRight: 4 }}>
+                    {item.ownerReview.emoji}
+                  </span>
+                )}
+                {item.ownerReview.body}
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
