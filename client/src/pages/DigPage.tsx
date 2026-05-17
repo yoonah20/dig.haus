@@ -98,10 +98,17 @@ async function fetchAlbumPage(
   sort: SortValue,
   page: number,
   pageSize: number,
-  seed?: number
+  seed?: number,
+  lens?: string
 ) {
   const { data } = await axios.get<AlbumListResponse>('/api/albums', {
-    params: { sort, page, pageSize, ...(seed != null ? { seed } : {}) },
+    params: {
+      sort,
+      page,
+      pageSize,
+      ...(seed != null ? { seed } : {}),
+      ...(lens ? { lens } : {}),
+    },
   });
   return data;
 }
@@ -111,11 +118,12 @@ function useAlbumList(
   page: number,
   pageSize: number,
   enabled: boolean,
-  seed?: number
+  seed?: number,
+  lens?: string
 ) {
   return useQuery<AlbumListResponse>({
-    queryKey: ['album-list', sort, page, pageSize, seed ?? null],
-    queryFn: () => fetchAlbumPage(sort, page, pageSize, seed),
+    queryKey: ['album-list', sort, page, pageSize, seed ?? null, lens ?? null],
+    queryFn: () => fetchAlbumPage(sort, page, pageSize, seed, lens),
     staleTime: 1000 * 60 * 5,
     // Always refetch when the user lands on Home, not just when the
     // cache is past staleTime. Without this, returning to / via
@@ -139,12 +147,19 @@ function useAlbumList(
 function useMobileAlbumList(
   sort: SortValue,
   enabled: boolean,
-  seed?: number
+  seed?: number,
+  lens?: string
 ) {
   return useInfiniteQuery<AlbumListResponse>({
-    queryKey: ['album-list-infinite', sort, MOBILE_PAGE_SIZE, seed ?? null],
+    queryKey: [
+      'album-list-infinite',
+      sort,
+      MOBILE_PAGE_SIZE,
+      seed ?? null,
+      lens ?? null,
+    ],
     queryFn: ({ pageParam }) =>
-      fetchAlbumPage(sort, pageParam as number, MOBILE_PAGE_SIZE, seed),
+      fetchAlbumPage(sort, pageParam as number, MOBILE_PAGE_SIZE, seed, lens),
     initialPageParam: 1,
     getNextPageParam: (last) =>
       last.page < last.totalPages ? last.page + 1 : undefined,
@@ -208,6 +223,29 @@ function paginationItems(current: number, total: number): Array<number | 'ellips
   return items;
 }
 
+type LensType = 'label' | 'year';
+type ActiveLens = { type: LensType; value: string };
+
+interface LensOptions {
+  labels: Array<{ id: number; name: string; count: number }>;
+  years: Array<{ year: number; count: number }>;
+}
+
+// Parse the URL's ?lens=label:5 / ?lens=year:1979 into a typed shape.
+// Anything malformed returns null — the server applies the same
+// "drop silently" policy, so an invalid lens behaves identically to no
+// lens at both layers.
+function parseLensParam(raw: string | null): ActiveLens | null {
+  if (!raw) return null;
+  const colon = raw.indexOf(':');
+  if (colon <= 0) return null;
+  const type = raw.slice(0, colon);
+  const value = raw.slice(colon + 1);
+  if (type !== 'label' && type !== 'year') return null;
+  if (!value) return null;
+  return { type, value };
+}
+
 export default function DigPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { openOverlay } = useSearchOverlay();
@@ -267,6 +305,26 @@ export default function DigPage() {
   const seedReady = sort !== 'random' || seed !== undefined;
   const pageSize = computeAdaptivePageSize(density, viewportH);
 
+  // Active lens — read straight off the URL so /dig?lens=label:5 from
+  // a shared link or an album-page link works on first paint without
+  // any context plumbing. The serialized form is what we pass to the
+  // server, so we keep it as a single string in addition to the
+  // structured shape used for chip rendering.
+  const lensParamRaw = searchParams.get('lens');
+  const activeLens = useMemo(() => parseLensParam(lensParamRaw), [lensParamRaw]);
+  const lensSerialized = activeLens
+    ? `${activeLens.type}:${activeLens.value}`
+    : undefined;
+
+  // Reset to page 1 whenever the active lens changes — otherwise a
+  // user landing on /dig?lens=label:5 from /dig page 4 would query
+  // page 4 of the (much smaller) lensed result set and likely see an
+  // empty grid.
+  useEffect(() => {
+    if (page !== 1) setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lensSerialized]);
+
   // Desktop keeps the original rail + pagination layout. Mobile
   // runs a single unified infinite-scroll feed — albums in 30-per
   // batches, each batch ending with a snapshot card and two
@@ -276,12 +334,14 @@ export default function DigPage() {
     page,
     pageSize,
     seedReady && !isMobile,
-    seed
+    seed,
+    lensSerialized
   );
   const mobileQuery = useMobileAlbumList(
     sort,
     seedReady && isMobile,
-    seed
+    seed,
+    lensSerialized
   );
   const albums: AlbumSearchResult[] = isMobile
     ? mobileQuery.data?.pages.flatMap((p) => p.albums) ?? []
@@ -418,6 +478,22 @@ export default function DigPage() {
   const desktopGridCols = DESKTOP_GRID_CLASSES[density];
   const desktopGap = DESKTOP_GAP_CLASSES[density];
 
+  // Lens change helpers — both `setLens` and `clearLens` flow through
+  // setSearchParams so the address bar stays the source of truth.
+  // `replace: false` (the default) keeps lens changes in browser
+  // history so back-nav restores the previous lens state — matches
+  // how a user would think about "go back to the previous view".
+  const setLens = (type: LensType, value: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('lens', `${type}:${value}`);
+    setSearchParams(next);
+  };
+  const clearLens = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('lens');
+    setSearchParams(next);
+  };
+
   return (
     <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-4">
       <section className="w-full max-w-[1280px] mx-auto">
@@ -429,22 +505,27 @@ export default function DigPage() {
           // and peripheral activity. No tabs — the activity
           // signals are interleaved inline.
           <>
-            {albums.length > 0 && (
-              <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
-                <SortTrigger
-                  sort={sort}
-                  onChange={setSort}
-                  label={currentSortLabel}
-                />
-              </div>
-            )}
+            <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
+              <SortTrigger
+                sort={sort}
+                onChange={setSort}
+                label={currentSortLabel}
+              />
+              <LensControl
+                activeLens={activeLens}
+                onSet={setLens}
+                onClear={clearLens}
+              />
+            </div>
             {isLoading && albums.length === 0 ? (
               <div className="text-center py-20 text-sm text-gray-500">
                 불러오는 중...
               </div>
             ) : albums.length === 0 ? (
               <div className="text-center py-20 text-sm text-gray-500">
-                등록된 앨범이 없습니다.
+                {activeLens
+                  ? '이 렌즈로 보이는 앨범이 없습니다.'
+                  : '등록된 앨범이 없습니다.'}
               </div>
             ) : (
               <div className="flex flex-col gap-6">
@@ -475,23 +556,30 @@ export default function DigPage() {
           // sections, so /dig can be the pure browsing surface.
           <>
             <main className="min-w-0">
-              {albums.length > 0 && (
-                <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
+              <div className="mb-3 flex items-center justify-between gap-3 text-xs text-gray-500">
+                <div className="flex items-center gap-3">
                   <SortTrigger
                     sort={sort}
                     onChange={setSort}
                     label={currentSortLabel}
                   />
-                  <DensitySwitcher density={density} onChange={setDensity} />
+                  <LensControl
+                    activeLens={activeLens}
+                    onSet={setLens}
+                    onClear={clearLens}
+                  />
                 </div>
-              )}
+                <DensitySwitcher density={density} onChange={setDensity} />
+              </div>
               {isLoading && albums.length === 0 ? (
                 <div className="text-center py-20 text-sm text-gray-500">
                   불러오는 중...
                 </div>
               ) : albums.length === 0 ? (
                 <div className="text-center py-20 text-sm text-gray-500">
-                  등록된 앨범이 없습니다.
+                  {activeLens
+                    ? '이 렌즈로 보이는 앨범이 없습니다.'
+                    : '등록된 앨범이 없습니다.'}
                 </div>
               ) : (
                 <div
@@ -757,6 +845,214 @@ function DensitySwitcher({
         </div>
       </div>
       <DensityGlyph dots={4} active={density === 'ultra'} />
+    </div>
+  );
+}
+
+// Lens picker data — labels with album counts + distinct years. The
+// list rarely changes (new label arrives only when admin registers an
+// album from a previously-unseen Spotify label) so a long staleTime
+// keeps the popover instant on second open.
+function useLensOptions() {
+  return useQuery<LensOptions>({
+    queryKey: ['lens-options'],
+    queryFn: async () => {
+      const { data } = await axios.get<LensOptions>('/api/albums/lens-options');
+      return data;
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+}
+
+// Single trigger that renders either the empty "+ 렌즈" button or the
+// active "◉ Blue Note ✕" chip, and owns the picker popover. Folding
+// both states into one component avoids the parent juggling visibility
+// state — the trigger button always sits in the same flex slot and the
+// chip simply replaces the label when a lens is active.
+function LensControl({
+  activeLens,
+  onSet,
+  onClear,
+}: {
+  activeLens: ActiveLens | null;
+  onSet: (type: LensType, value: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<LensType>('label');
+  const ref = useRef<HTMLDivElement>(null);
+  const options = useLensOptions();
+
+  // Resolve a human label for the active lens chip. Years render from
+  // the URL value directly (no lookup needed). Labels need the name —
+  // we look it up against the lens-options list once that resolves; if
+  // the user landed via a shared link before the list arrives, the
+  // chip falls back to "레이블 #5" so the page never blocks on the
+  // network round-trip.
+  const activeChipLabel = useMemo(() => {
+    if (!activeLens) return null;
+    if (activeLens.type === 'year') return `${activeLens.value}년`;
+    const labelId = parseInt(activeLens.value, 10);
+    const match = options.data?.labels.find((l) => l.id === labelId);
+    return match ? match.name : `레이블 #${activeLens.value}`;
+  }, [activeLens, options.data]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative" ref={ref}>
+      {activeLens ? (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/15 border border-accent/40 px-2.5 py-1 text-xs text-accent">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex items-center gap-1 cursor-pointer hover:text-accent/80 transition-colors"
+            aria-haspopup="dialog"
+            aria-expanded={open}
+          >
+            <span aria-hidden>◉</span>
+            <span className="font-medium">{activeChipLabel}</span>
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            className="text-accent/70 hover:text-accent cursor-pointer leading-none"
+            aria-label="렌즈 해제"
+          >
+            ✕
+          </button>
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="inline-flex items-center gap-1 text-gray-500 hover:text-gray-200 transition-colors cursor-pointer"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+        >
+          렌즈
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-3 h-3 opacity-70"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2.5}
+            stroke="currentColor"
+            aria-hidden
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+      )}
+      {open && (
+        <Popover
+          role="dialog"
+          strong={false}
+          radius="lg"
+          pad="none"
+          shadow="2xl"
+          className="absolute right-0 mt-1 w-64 z-50"
+        >
+          <div className="flex items-center gap-1 border-b border-white/10 px-2 pt-2">
+            {(['label', 'year'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-3 py-1.5 text-xs rounded-t-md cursor-pointer transition-colors ${
+                  tab === t
+                    ? 'text-accent bg-white/5'
+                    : 'text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {t === 'label' ? '레이블' : '연도'}
+              </button>
+            ))}
+          </div>
+          <div className="max-h-80 overflow-y-auto py-1">
+            {options.isLoading ? (
+              <div className="px-4 py-3 text-xs text-gray-500">
+                불러오는 중...
+              </div>
+            ) : tab === 'label' ? (
+              options.data?.labels.length ? (
+                options.data.labels.map((l) => {
+                  const isCurrent =
+                    activeLens?.type === 'label' &&
+                    activeLens.value === String(l.id);
+                  return (
+                    <button
+                      key={l.id}
+                      onClick={() => {
+                        onSet('label', String(l.id));
+                        setOpen(false);
+                      }}
+                      className={`flex w-full items-center justify-between px-4 py-2 text-sm cursor-pointer hover:bg-white/5 transition-colors ${
+                        isCurrent
+                          ? 'text-accent font-semibold'
+                          : 'text-gray-300'
+                      }`}
+                    >
+                      <span className="truncate">{l.name}</span>
+                      <span className="text-xs text-gray-500 ml-2 tabular-nums">
+                        {l.count}
+                      </span>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="px-4 py-3 text-xs text-gray-500">
+                  등록된 레이블이 없습니다.
+                </div>
+              )
+            ) : options.data?.years.length ? (
+              options.data.years.map((y) => {
+                const isCurrent =
+                  activeLens?.type === 'year' &&
+                  activeLens.value === String(y.year);
+                return (
+                  <button
+                    key={y.year}
+                    onClick={() => {
+                      onSet('year', String(y.year));
+                      setOpen(false);
+                    }}
+                    className={`flex w-full items-center justify-between px-4 py-2 text-sm cursor-pointer hover:bg-white/5 transition-colors ${
+                      isCurrent
+                        ? 'text-accent font-semibold'
+                        : 'text-gray-300'
+                    }`}
+                  >
+                    <span className="tabular-nums">{y.year}년</span>
+                    <span className="text-xs text-gray-500 ml-2 tabular-nums">
+                      {y.count}
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="px-4 py-3 text-xs text-gray-500">
+                연도 정보가 없습니다.
+              </div>
+            )}
+          </div>
+        </Popover>
+      )}
     </div>
   );
 }

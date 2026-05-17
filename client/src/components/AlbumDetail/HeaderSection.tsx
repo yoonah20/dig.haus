@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../../lib/axios';
 import { useGenerateReviewSummary } from '../../hooks/useAlbum';
@@ -1174,11 +1174,33 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
           )}
 
           <div className="flex items-center gap-2 text-gray-400 text-sm mb-6 flex-wrap">
-            {album.releaseDate && <span>{formatReleaseDate(album.releaseDate)}</span>}
+            {album.releaseDate && (
+              album.releaseYear ? (
+                <Link
+                  to={`/dig?lens=year:${album.releaseYear}`}
+                  className="hover:text-accent transition-colors"
+                  title={`${album.releaseYear}년 발매작 보기`}
+                >
+                  {formatReleaseDate(album.releaseDate)}
+                </Link>
+              ) : (
+                <span>{formatReleaseDate(album.releaseDate)}</span>
+              )
+            )}
             {album.label && (
               <>
                 {album.releaseDate && <span className="text-gray-600">&middot;</span>}
-                <span>{album.label}</span>
+                {album.labelId ? (
+                  <Link
+                    to={`/dig?lens=label:${album.labelId}`}
+                    className="hover:text-accent transition-colors"
+                    title={`${album.label} 작품 보기`}
+                  >
+                    {album.label}
+                  </Link>
+                ) : (
+                  <span>{album.label}</span>
+                )}
               </>
             )}
           </div>

@@ -388,6 +388,7 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
         format: cached.format || null,
         discogsUrl: cached.discogs_url || null,
         label: cached.label_name,
+        labelId: cached.label_id ?? null,
         // manual_genres (admin override via PATCH /tags) wins when set —
         // it survives the EXCLUDED_TAGS / length / digit gates that
         // cleanGenres applies to import-side noise.
@@ -555,6 +556,11 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     format: format || null,
     discogsUrl: masterMarket?.discogsUrl || discogsRelease?.url || null,
     label: labelName,
+    // Fresh-fetch path: label_id isn't resolved yet (the labels-table
+    // lookup happens lazily). The cached path will surface the id
+    // once the backfill runs, so the lens-deep-link from album page
+    // becomes available on the second view.
+    labelId: null as number | null,
     genres: cleanGenres(genres, artistName),
     coverArtUrl: primaryCoverArtUrl,
     coverArtFallbacks,
@@ -738,29 +744,67 @@ router.get('/', async (req, res) => {
     // every new registration until admin runs the scrape. Ordering
     // falls back to registered_desc inside SORT_CLAUSES below.
     const isNoReviewsSort = sortKey === 'no_reviews';
-    let filterSql = '';
+
+    // Lens filter — one active lens at a time, encoded as
+    // ?lens=<type>:<value>. Supported types: `label` (a.label_id)
+    // and `year` (a.release_year). The UI only ever emits one
+    // lens, and anything not matching the two known shapes is
+    // silently dropped — invalid values fall through to "no lens"
+    // rather than erroring, since the typical bad input is a stale
+    // shared URL pointing at a deleted label. Values are parsed to
+    // ints and bound as `?` params so they can never be SQL-injected.
+    const whereParts: string[] = [];
+    const filterParams: any[] = [];
     if (isScoreSort) {
-      filterSql = `WHERE (SELECT COUNT(*) FROM reviews r
-                          WHERE r.album_mbid = a.mbid
-                            AND COALESCE(r.manual_score, r.score) IS NOT NULL
-                            AND r.score_max > 0) >= 3`;
+      whereParts.push(
+        `(SELECT COUNT(*) FROM reviews r
+            WHERE r.album_mbid = a.mbid
+              AND COALESCE(r.manual_score, r.score) IS NOT NULL
+              AND r.score_max > 0) >= 3`
+      );
     } else if (isNoReviewsSort) {
-      filterSql = `WHERE a.reviews_crawled_at IS NULL`;
+      whereParts.push(`a.reviews_crawled_at IS NULL`);
     }
 
+    const rawLens = (req.query.lens as string) || '';
+    const lensColon = rawLens.indexOf(':');
+    if (lensColon > 0) {
+      const lensType = rawLens.slice(0, lensColon);
+      const lensVal = rawLens.slice(lensColon + 1);
+      if (lensType === 'label') {
+        const idNum = parseInt(lensVal, 10);
+        if (Number.isFinite(idNum) && idNum > 0) {
+          whereParts.push(`a.label_id = ?`);
+          filterParams.push(idNum);
+        }
+      } else if (lensType === 'year') {
+        const yNum = parseInt(lensVal, 10);
+        if (Number.isFinite(yNum) && yNum > 1900 && yNum < 2200) {
+          whereParts.push(`a.release_year = ?`);
+          filterParams.push(yNum);
+        }
+      }
+    }
+
+    const filterSql = whereParts.length
+      ? `WHERE ${whereParts.join(' AND ')}`
+      : '';
+
     const total =
-      isScoreSort || isNoReviewsSort
-        ? (queryGet(
-            `SELECT COUNT(*) AS c FROM albums a ${filterSql}`
-          )?.c as number) || 0
-        : (queryGet('SELECT COUNT(*) AS c FROM albums')?.c as number) || 0;
+      (queryGet(
+        `SELECT COUNT(*) AS c FROM albums a ${filterSql}`,
+        filterParams
+      )?.c as number) || 0;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
     let albums: any[];
     if (isPriceSort) {
       // Currency conversion has to happen in-app, so fetch all albums + all
       // purchase links, compute min USD price per album, sort, then paginate.
-      const allAlbums = queryAll(ALBUM_ROW_SELECT) as any[];
+      const allAlbums = queryAll(
+        `${ALBUM_ROW_SELECT} ${filterSql}`,
+        filterParams
+      ) as any[];
       const allLinks = queryAll(
         `SELECT album_id, price, currency FROM purchase_links
          WHERE price IS NOT NULL AND currency IS NOT NULL`
@@ -793,7 +837,7 @@ router.get('/', async (req, res) => {
          ${filterSql}
          ORDER BY ${orderBy}
          LIMIT ? OFFSET ?`,
-        [pageSize, offset]
+        [...filterParams, pageSize, offset]
       );
     }
 
@@ -959,6 +1003,42 @@ router.get('/', async (req, res) => {
 // album ID + sort, so the album page can show browse arrows. For
 // random sort, returns a random album. price_asc/price_desc are
 // excluded (too expensive to compute inline).
+
+// ─── GET /api/albums/lens-options — picker data for /dig lens menu ─────
+//
+// Returns the lens values the picker should offer:
+//   - labels: labels that actually have at least one registered album,
+//     sorted by album count desc, capped so the popover stays short.
+//   - years: distinct release_year values across the catalog, sorted
+//     descending (newer first) since that's the dominant browsing
+//     direction. NULL release_year is dropped.
+//
+// One read per surface mount; no auth gating — the picker is part of
+// /dig's public surface. The shape is intentionally flat / pre-counted
+// so the client doesn't have to do its own aggregation.
+router.get('/lens-options', (_req, res) => {
+  try {
+    const labels = queryAll(
+      `SELECT l.id, l.name, COUNT(a.id) AS count
+         FROM labels l
+         JOIN albums a ON a.label_id = l.id
+        GROUP BY l.id
+        ORDER BY count DESC, LOWER(l.name) ASC
+        LIMIT 60`
+    );
+    const years = queryAll(
+      `SELECT a.release_year AS year, COUNT(*) AS count
+         FROM albums a
+        WHERE a.release_year IS NOT NULL
+        GROUP BY a.release_year
+        ORDER BY a.release_year DESC`
+    );
+    res.json({ labels, years });
+  } catch (e) {
+    console.error('lens-options error', e);
+    res.status(500).json({ error: 'lens-options failed' });
+  }
+});
 
 router.get('/neighbors', (req, res) => {
   try {
