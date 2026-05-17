@@ -1190,17 +1190,13 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
             {album.label && (
               <>
                 {album.releaseDate && <span className="text-gray-600">&middot;</span>}
-                {album.labelId ? (
-                  <Link
-                    to={`/dig?lens=label:${album.labelId}`}
-                    className="hover:text-accent transition-colors"
-                    title={`${album.label} 작품 보기`}
-                  >
-                    {album.label}
-                  </Link>
-                ) : (
-                  <span>{album.label}</span>
-                )}
+                <Link
+                  to={`/dig?lens=label:${encodeURIComponent(album.label)}`}
+                  className="hover:text-accent transition-colors"
+                  title={`${album.label} 작품 보기`}
+                >
+                  {album.label}
+                </Link>
               </>
             )}
           </div>

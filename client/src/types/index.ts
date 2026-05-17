@@ -217,10 +217,6 @@ export interface AlbumDetail {
     format?: string | null;
     discogsUrl?: string | null;
     label: string | null;
-    /** Numeric labels-table pkey. Only present once the label backfill
-     *  has resolved the label name → id; missing on freshly-fetched
-     *  rows. Used to deep-link the label name to /dig?lens=label:<id>. */
-    labelId?: number | null;
     genres: string[];
     coverArtUrl: string | null;
     coverArtFallbacks?: string[];

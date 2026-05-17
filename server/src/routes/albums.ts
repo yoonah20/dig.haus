@@ -388,7 +388,6 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
         format: cached.format || null,
         discogsUrl: cached.discogs_url || null,
         label: cached.label_name,
-        labelId: cached.label_id ?? null,
         // manual_genres (admin override via PATCH /tags) wins when set —
         // it survives the EXCLUDED_TAGS / length / digit gates that
         // cleanGenres applies to import-side noise.
@@ -556,11 +555,6 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     format: format || null,
     discogsUrl: masterMarket?.discogsUrl || discogsRelease?.url || null,
     label: labelName,
-    // Fresh-fetch path: label_id isn't resolved yet (the labels-table
-    // lookup happens lazily). The cached path will surface the id
-    // once the backfill runs, so the lens-deep-link from album page
-    // becomes available on the second view.
-    labelId: null as number | null,
     genres: cleanGenres(genres, artistName),
     coverArtUrl: primaryCoverArtUrl,
     coverArtFallbacks,
@@ -746,13 +740,15 @@ router.get('/', async (req, res) => {
     const isNoReviewsSort = sortKey === 'no_reviews';
 
     // Lens filter — one active lens at a time, encoded as
-    // ?lens=<type>:<value>. Supported types: `label` (a.label_id)
-    // and `year` (a.release_year). The UI only ever emits one
-    // lens, and anything not matching the two known shapes is
-    // silently dropped — invalid values fall through to "no lens"
-    // rather than erroring, since the typical bad input is a stale
-    // shared URL pointing at a deleted label. Values are parsed to
-    // ints and bound as `?` params so they can never be SQL-injected.
+    // ?lens=<type>:<value>. Supported types: `label` (a.label_name —
+    // the labels-table FK never gets populated in practice, so we
+    // key off the name column the importer actually fills) and
+    // `year` (a.release_year). The UI only ever emits one lens, and
+    // anything not matching the two known shapes is silently
+    // dropped — invalid values fall through to "no lens" rather
+    // than erroring, since the typical bad input is a stale shared
+    // URL pointing at a deleted entity. Both values are bound as
+    // `?` params so they can never be SQL-injected.
     const whereParts: string[] = [];
     const filterParams: any[] = [];
     if (isScoreSort) {
@@ -772,10 +768,9 @@ router.get('/', async (req, res) => {
       const lensType = rawLens.slice(0, lensColon);
       const lensVal = rawLens.slice(lensColon + 1);
       if (lensType === 'label') {
-        const idNum = parseInt(lensVal, 10);
-        if (Number.isFinite(idNum) && idNum > 0) {
-          whereParts.push(`a.label_id = ?`);
-          filterParams.push(idNum);
+        if (lensVal.length > 0 && lensVal.length <= 200) {
+          whereParts.push(`a.label_name = ?`);
+          filterParams.push(lensVal);
         }
       } else if (lensType === 'year') {
         const yNum = parseInt(lensVal, 10);
@@ -1007,8 +1002,13 @@ router.get('/', async (req, res) => {
 // ─── GET /api/albums/lens-options — picker data for /dig lens menu ─────
 //
 // Returns the lens values the picker should offer:
-//   - labels: labels that actually have at least one registered album,
+//   - labels: distinct label_name values present on registered albums,
 //     sorted by album count desc, capped so the popover stays short.
+//     Grouped on label_name (not label_id) because the labels-table FK
+//     is never populated in practice — the importer fills label_name.
+//     Casing variants of the same label ("Frontiers Music Srl" vs
+//     "Frontiers Music SRL") surface as separate rows; normalising is
+//     a follow-up cleanup, not this PR's concern.
 //   - years: distinct release_year values across the catalog, sorted
 //     descending (newer first) since that's the dominant browsing
 //     direction. NULL release_year is dropped.
@@ -1019,11 +1019,11 @@ router.get('/', async (req, res) => {
 router.get('/lens-options', (_req, res) => {
   try {
     const labels = queryAll(
-      `SELECT l.id, l.name, COUNT(a.id) AS count
-         FROM labels l
-         JOIN albums a ON a.label_id = l.id
-        GROUP BY l.id
-        ORDER BY count DESC, LOWER(l.name) ASC
+      `SELECT a.label_name AS name, COUNT(*) AS count
+         FROM albums a
+        WHERE a.label_name IS NOT NULL AND a.label_name != ''
+        GROUP BY a.label_name
+        ORDER BY count DESC, LOWER(a.label_name) ASC
         LIMIT 60`
     );
     const years = queryAll(

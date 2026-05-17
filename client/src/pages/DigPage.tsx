@@ -227,7 +227,7 @@ type LensType = 'label' | 'year';
 type ActiveLens = { type: LensType; value: string };
 
 interface LensOptions {
-  labels: Array<{ id: number; name: string; count: number }>;
+  labels: Array<{ name: string; count: number }>;
   years: Array<{ year: number; count: number }>;
 }
 
@@ -883,19 +883,15 @@ function LensControl({
   const ref = useRef<HTMLDivElement>(null);
   const options = useLensOptions();
 
-  // Resolve a human label for the active lens chip. Years render from
-  // the URL value directly (no lookup needed). Labels need the name —
-  // we look it up against the lens-options list once that resolves; if
-  // the user landed via a shared link before the list arrives, the
-  // chip falls back to "레이블 #5" so the page never blocks on the
-  // network round-trip.
+  // Resolve a human label for the active lens chip. Year renders the
+  // numeric value with the 년 suffix; label is already the human name
+  // (the URL carries the label_name string directly — labels.id isn't
+  // populated in practice). No lookup round-trip.
   const activeChipLabel = useMemo(() => {
     if (!activeLens) return null;
     if (activeLens.type === 'year') return `${activeLens.value}년`;
-    const labelId = parseInt(activeLens.value, 10);
-    const match = options.data?.labels.find((l) => l.id === labelId);
-    return match ? match.name : `레이블 #${activeLens.value}`;
-  }, [activeLens, options.data]);
+    return activeLens.value;
+  }, [activeLens]);
 
   useEffect(() => {
     if (!open) return;
@@ -994,12 +990,12 @@ function LensControl({
                 options.data.labels.map((l) => {
                   const isCurrent =
                     activeLens?.type === 'label' &&
-                    activeLens.value === String(l.id);
+                    activeLens.value === l.name;
                   return (
                     <button
-                      key={l.id}
+                      key={l.name}
                       onClick={() => {
-                        onSet('label', String(l.id));
+                        onSet('label', l.name);
                         setOpen(false);
                       }}
                       className={`flex w-full items-center justify-between px-4 py-2 text-sm cursor-pointer hover:bg-white/5 transition-colors ${
