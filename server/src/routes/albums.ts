@@ -769,7 +769,14 @@ router.get('/', async (req, res) => {
       const lensVal = rawLens.slice(lensColon + 1);
       if (lensType === 'label') {
         if (lensVal.length > 0 && lensVal.length <= 200) {
-          whereParts.push(`a.label_name = ?`);
+          // COLLATE NOCASE so the lens treats "Century Media" /
+          // "century media" / "CENTURY MEDIA" as one label, in case
+          // a casing variant slips in between canonicalisation
+          // migration runs (or arrives via a shared URL someone
+          // typed by hand). NOCASE is ASCII-only — non-ASCII label
+          // names compare byte-equal, which is the same behavior as
+          // the previous `=` comparison.
+          whereParts.push(`a.label_name = ? COLLATE NOCASE`);
           filterParams.push(lensVal);
         }
       } else if (lensType === 'year') {
@@ -1018,12 +1025,19 @@ router.get('/', async (req, res) => {
 // so the client doesn't have to do its own aggregation.
 router.get('/lens-options', (_req, res) => {
   try {
+    // GROUP BY NOCASE folds casing variants into one picker row even
+    // when the canonicalisation migration hasn't run on the variants
+    // yet (e.g. a new variant arrived between deploys). MIN() picks
+    // a deterministic representative for the display name — in ASCII
+    // that's the uppercase-leaning variant ("SRL" < "Srl"), which is
+    // fine as a safety-net default; the one-shot migration that
+    // already ran is what gives the catalog its real canonical form.
     const labels = queryAll(
-      `SELECT a.label_name AS name, COUNT(*) AS count
+      `SELECT MIN(a.label_name) AS name, COUNT(*) AS count
          FROM albums a
         WHERE a.label_name IS NOT NULL AND a.label_name != ''
-        GROUP BY a.label_name
-        ORDER BY count DESC, LOWER(a.label_name) ASC
+        GROUP BY a.label_name COLLATE NOCASE
+        ORDER BY count DESC, MIN(a.label_name) COLLATE NOCASE ASC
         LIMIT 60`
     );
     const years = queryAll(
