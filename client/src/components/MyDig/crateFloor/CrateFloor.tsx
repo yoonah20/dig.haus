@@ -435,49 +435,59 @@ export default function CrateFloor({ username, isOwner }: Props) {
         }}
       >
       {/* Meta strip ABOVE the carpet — active crate's title +
-          description. Lives outside the carpet so it doesn't
-          compete with records for visual space (the earlier
-          painted-on-carpet version had to fight cover thumbnails
-          for contrast). Owner gets a ✏️ trail-end button as a
-          backup edit affordance to the chip ✏️. */}
+          description on a single row, separated by a thin dot.
+          Slightly warmer background tint than the carpet wrapper
+          so it reads as its own ribbon, not just dead space. */}
       {activeCrate && (
         <div
           style={{
             display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'space-between',
+            alignItems: 'baseline',
             gap: 10,
-            padding: '12px 16px 10px',
+            padding: '10px 16px',
+            background: 'rgba(50, 32, 18, 0.55)',
+            borderBottom: '1px solid rgba(220, 170, 80, 0.12)',
           }}
         >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 700,
-                color: '#f0c060',
-                lineHeight: 1.2,
-                letterSpacing: 0.2,
-              }}
-            >
-              {activeCrate.title}
-            </div>
-            {activeCrate.description && (
-              <div
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#f0c060',
+              letterSpacing: 0.2,
+              flexShrink: 0,
+            }}
+          >
+            {activeCrate.title}
+          </span>
+          {activeCrate.description && (
+            <>
+              <span
+                aria-hidden
                 style={{
-                  marginTop: 3,
-                  fontSize: 12,
-                  fontStyle: 'italic',
-                  color: 'rgba(220, 200, 160, 0.8)',
-                  lineHeight: 1.4,
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'keep-all',
+                  color: 'rgba(220, 200, 160, 0.4)',
+                  flexShrink: 0,
                 }}
               >
+                ·
+              </span>
+              <span
+                style={{
+                  fontSize: 12,
+                  fontStyle: 'italic',
+                  color: 'rgba(220, 200, 160, 0.85)',
+                  lineHeight: 1.4,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  minWidth: 0,
+                }}
+                title={activeCrate.description}
+              >
                 {activeCrate.description}
-              </div>
-            )}
-          </div>
+              </span>
+            </>
+          )}
         </div>
       )}
       {/* Top-right overflow badge — shows when the crate has more
