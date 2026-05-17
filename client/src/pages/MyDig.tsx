@@ -5,6 +5,7 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
+import FollowListModal from '../components/FollowListModal';
 import { useUserPublic } from '../hooks/useMe';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveApiUrl } from '../utils/apiUrl';
@@ -144,6 +145,8 @@ function Header({
 }) {
   const publicData = useUserPublic(userId, !!userId);
   const viewerIsFollowing = !!publicData.data?.followingByViewer;
+  const followingCount = publicData.data?.followingCount ?? 0;
+  const [followingOpen, setFollowingOpen] = useState(false);
 
   const signature =
     userId != null ? (
@@ -157,20 +160,54 @@ function Header({
     );
 
   return (
-    <div className="flex items-center justify-between gap-3 px-1">
-      <h1 className="text-[18px] md:text-[22px] text-gray-200 font-semibold">
-        {signature}
-      </h1>
-      <div className="flex items-center gap-2">
-        {!isOwner && userId != null && viewerLoggedIn && (
-          <FollowButton
-            targetUserId={userId}
-            following={viewerIsFollowing}
-          />
-        )}
-        {/* Page share moved into the right-column toaster cluster
-            inside CrateFloor (2026-05-18) — header stays minimal. */}
+    <>
+      <div className="flex items-center justify-between gap-3 px-1">
+        <h1 className="text-[18px] md:text-[22px] text-gray-200 font-semibold">
+          {signature}
+        </h1>
+        <div className="flex items-center gap-2">
+          {userId != null && followingCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setFollowingOpen(true)}
+              className="text-[11px] text-gray-200 hover:text-accent bg-background/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+              title={
+                isOwner
+                  ? '내가 디깅 중인 디거들'
+                  : `${displayLabel}이(가) 디깅 중인 디거들`
+              }
+            >
+              <span className="hidden md:inline">🔗 </span>
+              디깅 중 {followingCount}
+            </button>
+          )}
+          {!isOwner && userId != null && viewerLoggedIn && (
+            <FollowButton
+              targetUserId={userId}
+              following={viewerIsFollowing}
+            />
+          )}
+          {/* Page share moved into the right-column toaster cluster
+              inside CrateFloor (2026-05-18) — header stays minimal. */}
+        </div>
       </div>
-    </div>
+      {/* Following modal — shared component already used elsewhere
+          for follower/following list dialogs. Public to everyone:
+          mydig's other surfaces (vote/comment counts on profile,
+          follow button) are all public-by-default; the followings
+          list follows the same posture so this isn't a leak. */}
+      {followingOpen && userId != null && (
+        <FollowListModal
+          userId={userId}
+          kind="following"
+          title={
+            isOwner
+              ? '내가 디깅 중'
+              : `${displayLabel}이(가) 디깅 중`
+          }
+          onClose={() => setFollowingOpen(false)}
+        />
+      )}
+    </>
   );
 }
