@@ -40,13 +40,15 @@ export function defaultFlowPosition(index: number, albumId: number): FlowPositio
   const colSpan = (X_MAX - X_MIN) / (FLOOR_COLS - 1);
   const rowSpan = (Y_MAX - Y_MIN) / (FLOOR_ROWS - 1);
 
-  // Per-cell jitter magnitude — small enough that records don't
-  // collide hard, large enough that the grid disappears at a glance.
-  const jx = jitter(albumId, 1) * colSpan * 0.35;
-  const jy = jitter(albumId, 2) * rowSpan * 0.30;
-  // Rotation deliberately 0 — the early version tilted ±8° per
-  // record but the look read as broken/messy more than "scattered."
-  // Records lie flat now; jitter alone carries the spread.
+  // Per-cell jitter magnitude — kept tiny (~6% / cell) so the first
+  // spill reads as "organised, slightly handmade" instead of
+  // scattered. Operator iter (2026-05-17): the earlier 30-35% jitter
+  // felt 어수선하다 — the spread was tightened way down. Owner can
+  // still drag any record into a freer position; the default just
+  // doesn't start it there. Rotation stays 0 (rotation prop kept on
+  // FlowPosition for layout-data shape compatibility only).
+  const jx = jitter(albumId, 1) * colSpan * 0.06;
+  const jy = jitter(albumId, 2) * rowSpan * 0.05;
 
   return {
     positionX: Math.max(0.04, Math.min(0.96, X_MIN + col * colSpan + jx)),

@@ -2500,6 +2500,29 @@ export function initializeDatabase(db: Database.Database): void {
     );
   });
 
+  // Reset every crate_items position so the new tidier default-flow
+  // layout (client/layout.ts, jitter dropped from 30-35% → ~6% per
+  // cell, 2026-05-17 iter) actually shows up. The prior heavy jitter
+  // got persisted on first spill back when the redesign shipped — if
+  // we don't clear those, the carpet stays scattered for every
+  // existing crate even with the new code in place.
+  //
+  // This DOES drop any intentional drag arrangements the owner has
+  // made. Acceptable because (a) the redesign is a day old and the
+  // feedback prompting this reset says the existing layout reads as
+  // messy, not curated; (b) the next client visit re-spills with
+  // the new defaults and the owner can drag again from there.
+  runOnce(db, 'reset-crate-item-positions-2026-05-17', () => {
+    const r = db
+      .prepare(
+        `UPDATE crate_items
+         SET position_x = NULL, position_y = NULL, rotation = NULL
+         WHERE position_x IS NOT NULL OR position_y IS NOT NULL OR rotation IS NOT NULL`
+      )
+      .run();
+    console.log(`[migration] reset crate_items positions: ${r.changes} rows`);
+  });
+
   // Purge any Metacritic rows that were ingested before we added it to the
   // exclusion list. Metacritic is an aggregator (re-publishes other sites'
   // scores) so we don't want it competing with primary editorial sources

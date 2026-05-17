@@ -62,6 +62,7 @@ interface DragState {
 }
 
 const ACTIVE_KEY = 'mydig:crateFloor:activeCrateId';
+const PREVIEW_COLLAPSED_KEY = 'mydig:crateFloor:previewCollapsed';
 
 export default function CrateFloor({ username, isOwner }: Props) {
   const cratesQuery = useUserCrates(username);
@@ -87,6 +88,21 @@ export default function CrateFloor({ username, isOwner }: Props) {
   const [activeCrateId, setActiveCrateId] = useState<number | null>(
     initialActive
   );
+
+  // Toaster preview collapse — owner-driven affordance for the case
+  // where you don't care about the export and want the carpet to use
+  // the full row. Persisted across visits.
+  const [previewCollapsed, setPreviewCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(PREVIEW_COLLAPSED_KEY) === '1';
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(
+      PREVIEW_COLLAPSED_KEY,
+      previewCollapsed ? '1' : '0'
+    );
+  }, [previewCollapsed]);
 
   // Pick a sensible active crate when the list loads or when the
   // saved one is no longer accessible (e.g. visitor where the crate
@@ -338,9 +354,16 @@ export default function CrateFloor({ username, isOwner }: Props) {
     e.preventDefault();
   };
 
+  // Grid columns flip with the preview collapse state. When the
+  // preview is hidden the floor takes the whole row; a small chip
+  // sits at the top-right of the floor to expand it again.
+  const gridCols = previewCollapsed
+    ? 'grid-cols-1'
+    : 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px]';
+
   return (
     <div className="flex flex-col gap-4">
-    <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px] gap-4">
+    <div className={`grid ${gridCols} gap-4 relative`}>
       {/* Left column — floor (carpet) + crate bar at bottom. */}
       <div
         style={{
@@ -352,6 +375,20 @@ export default function CrateFloor({ username, isOwner }: Props) {
           overflow: 'hidden',
         }}
       >
+      {/* Toaster expand chip — only shows when the preview is
+          collapsed. Floats top-right of the floor. Owner-prominent
+          since hiding the export and re-showing it is more useful
+          to the page owner than to a visitor. */}
+      {previewCollapsed && (
+        <button
+          type="button"
+          onClick={() => setPreviewCollapsed(false)}
+          className="absolute top-2 right-3 z-[60] text-[11px] text-[#f4ebd9] hover:text-white bg-[rgba(40,20,20,0.85)] border border-[rgba(220,170,80,0.4)] hover:border-[rgba(220,170,80,0.8)] rounded-full px-2.5 py-1 cursor-pointer transition-colors"
+          title="토스터 펴기"
+        >
+          🖼 토스터
+        </button>
+      )}
       {/* Floor area — Persian carpet feel via layered gradients
           (no asset). Wine ground, soft central medallion, darker
           outer border zone, plus a thin gold inner frame inside
@@ -450,8 +487,11 @@ export default function CrateFloor({ username, isOwner }: Props) {
           owner drags records on the left (sort matches the server's
           download-PNG sort so what you see is what you get). The
           download chip sits directly below as a separate action,
-          per the operator's "다운로드는 별개로" instruction. */}
-      {activeCrateId != null && activeCrate && (
+          per the operator's "다운로드는 별개로" instruction. The
+          column collapses to nothing when previewCollapsed is true —
+          the floor takes the full row and the expand chip on the
+          floor brings the preview back. */}
+      {!previewCollapsed && activeCrateId != null && activeCrate && (
         <div
           style={{
             display: 'flex',
@@ -459,17 +499,25 @@ export default function CrateFloor({ username, isOwner }: Props) {
             gap: 10,
           }}
         >
+          {/* Collapse handle — quiet button at the top of the column
+              so the gesture mirrors the floor-side expand chip. */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => setPreviewCollapsed(true)}
+              className="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer"
+              title="토스터 접기"
+            >
+              ✕ 토스터 접기
+            </button>
+          </div>
           {isOwner && (
             <AddAlbumSearch
               activeCrateId={activeCrateId}
               activeCrateTitle={activeCrate.title}
             />
           )}
-          <LiveToasterPreview
-            crateTitle={activeCrate.title}
-            username={username}
-            items={items}
-          />
+          <LiveToasterPreview items={items} />
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <ToasterButton
               path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
