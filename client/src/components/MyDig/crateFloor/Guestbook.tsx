@@ -321,7 +321,7 @@ export default function Guestbook({ crateId, crateTitle, isOwner }: Props) {
           gap: 6,
         }}
       >
-        방명록
+        코멘트
         <span style={{ fontSize: 11, color: '#888', fontWeight: 400 }}>
           · "{crateTitle}"에 한 마디
         </span>

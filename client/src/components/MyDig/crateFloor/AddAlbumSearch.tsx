@@ -91,7 +91,7 @@ export default function AddAlbumSearch({ activeCrateId, activeCrateTitle }: Prop
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        placeholder={`${activeCrateTitle}에 앨범 담기`}
+        placeholder={`${activeCrateTitle}에 앨범 추가`}
         className="w-full bg-background/60 border border-white/10 focus:border-accent/60 rounded-md px-3 py-2 text-[13px] text-gray-200 placeholder:text-gray-500 outline-none transition-colors"
       />
       {toast && (

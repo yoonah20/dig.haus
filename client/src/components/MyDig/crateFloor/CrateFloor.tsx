@@ -18,6 +18,7 @@ import ToasterButton from '../ToasterButton';
 import LiveToasterPreview from './LiveToasterPreview';
 import AddAlbumSearch from './AddAlbumSearch';
 import Guestbook from './Guestbook';
+import CrateMeta from './CrateMeta';
 import ShareButton from '../ShareButton';
 import { resolveApiUrl } from '../../../utils/apiUrl';
 
@@ -528,6 +529,13 @@ export default function CrateFloor({ username, isOwner }: Props) {
           );
         })}
       </div>
+      {/* Crate meta — description (and inline edit for owner) for
+          the active crate. Sits between the floor and the bar so
+          it reads as "this crate's notes" rather than free-floating
+          copy. Collapses entirely for visitors when there's no
+          description; owners always see at least the "+ 설명 추가"
+          affordance. */}
+      {activeCrate && <CrateMeta crate={activeCrate} isOwner={isOwner} />}
       {/* Crate bar pinned at bottom of the left column. Owner can
           drag chips to reorder (position 0 is the leftmost / default
           open for visitors); visitors get plain click-to-select. */}
