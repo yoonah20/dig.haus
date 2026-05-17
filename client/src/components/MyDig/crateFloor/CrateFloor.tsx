@@ -412,12 +412,16 @@ export default function CrateFloor({ username, isOwner }: Props) {
     e.preventDefault();
   };
 
-  // Grid columns flip with the preview collapse state. When the
-  // preview is hidden the floor takes the whole row; a small chip
-  // sits at the top-right of the floor to expand it again.
-  const gridCols = previewCollapsed
-    ? 'grid-cols-1'
-    : 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px]';
+  // Right column always reserved when there's an active crate so the
+  // guestbook (which lives in that column now) keeps its place
+  // regardless of the toaster's collapse state. "토스터 접기" hides
+  // the toaster tools (search / preview / download) inside the
+  // column but doesn't widen the floor — the guestbook still needs
+  // somewhere to live.
+  const gridCols =
+    activeCrateId != null && activeCrate
+      ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px]'
+      : 'grid-cols-1';
 
   return (
     <div className="flex flex-col gap-4">
@@ -564,15 +568,14 @@ export default function CrateFloor({ username, isOwner }: Props) {
       />
       </div>
 
-      {/* Right column — live toaster preview that updates as the
-          owner drags records on the left (sort matches the server's
-          download-PNG sort so what you see is what you get). The
-          download chip sits directly below as a separate action,
-          per the operator's "다운로드는 별개로" instruction. The
-          column collapses to nothing when previewCollapsed is true —
-          the floor takes the full row and the expand chip on the
-          floor brings the preview back. */}
-      {!previewCollapsed && activeCrateId != null && activeCrate && (
+      {/* Right column — toaster tools (search / preview / download)
+          + the guestbook. The toaster tools collapse with the
+          previewCollapsed flag; the guestbook stays so visitors
+          always have somewhere to leave a note even when the owner
+          has the export tools hidden. Operator iter 2026-05-18:
+          guestbook moved out of its full-width below-the-grid slot
+          and into this column. */}
+      {activeCrateId != null && activeCrate && (
         <div
           style={{
             display: 'flex',
@@ -580,47 +583,46 @@ export default function CrateFloor({ username, isOwner }: Props) {
             gap: 10,
           }}
         >
-          {/* Collapse handle — quiet button at the top of the column
-              so the gesture mirrors the floor-side expand chip. */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button
-              type="button"
-              onClick={() => setPreviewCollapsed(true)}
-              className="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer"
-              title="토스터 접기"
-            >
-              ✕ 토스터 접기
-            </button>
-          </div>
-          {isOwner && (
-            <AddAlbumSearch
-              activeCrateId={activeCrateId}
-              activeCrateTitle={activeCrate.title}
-            />
+          {!previewCollapsed && (
+            <>
+              {/* Collapse handle — quiet button at the top of the
+                  column so the gesture mirrors the floor-side
+                  expand chip. */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setPreviewCollapsed(true)}
+                  className="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer"
+                  title="토스터 접기"
+                >
+                  ✕ 토스터 접기
+                </button>
+              </div>
+              {isOwner && (
+                <AddAlbumSearch
+                  activeCrateId={activeCrateId}
+                  activeCrateTitle={activeCrate.title}
+                />
+              )}
+              <LiveToasterPreview items={items} />
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <ToasterButton
+                  path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
+                  filenameHint={`${username}-${activeCrate.title}-toaster.png`}
+                  variant={isOwner ? 'prominent' : 'default'}
+                  label="다운로드"
+                />
+              </div>
+            </>
           )}
-          <LiveToasterPreview items={items} />
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <ToasterButton
-              path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
-              filenameHint={`${username}-${activeCrate.title}-toaster.png`}
-              variant={isOwner ? 'prominent' : 'default'}
-              label="다운로드"
-            />
-          </div>
+          <Guestbook
+            crateId={activeCrateId}
+            crateTitle={activeCrate.title}
+            isOwner={isOwner}
+          />
         </div>
       )}
     </div>
-
-    {/* Guestbook (방명록) — below the floor+preview row, full-width.
-        Tied to the active crate so switching crates loads its own
-        thread. Logged-out visitors see the thread + a login prompt. */}
-    {activeCrateId != null && activeCrate && (
-      <Guestbook
-        crateId={activeCrateId}
-        crateTitle={activeCrate.title}
-        isOwner={isOwner}
-      />
-    )}
     </div>
   );
 }
