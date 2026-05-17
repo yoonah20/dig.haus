@@ -173,12 +173,12 @@ function Header({
               className="text-[11px] text-gray-200 hover:text-accent bg-background/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
               title={
                 isOwner
-                  ? '내가 디깅 중인 디거들'
-                  : `${displayLabel}이(가) 디깅 중인 디거들`
+                  ? '내가 팔로잉 중인 디거들'
+                  : `${displayLabel}이(가) 팔로잉 중인 디거들`
               }
             >
               <span className="hidden md:inline">🔗 </span>
-              디깅 중 {followingCount}
+              팔로잉 중 {followingCount}
             </button>
           )}
           {!isOwner && userId != null && viewerLoggedIn && (
@@ -202,8 +202,8 @@ function Header({
           kind="following"
           title={
             isOwner
-              ? '내가 디깅 중'
-              : `${displayLabel}이(가) 디깅 중`
+              ? '내가 팔로잉 중'
+              : `${displayLabel}이(가) 팔로잉 중`
           }
           onClose={() => setFollowingOpen(false)}
         />
