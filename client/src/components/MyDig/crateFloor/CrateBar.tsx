@@ -35,6 +35,9 @@ interface Props {
   // Owner-only — fired with a trimmed title when the trailing + chip
   // commits a new crate.
   onCreate?: (title: string) => void;
+  // Owner-only — fired when the active chip's ✏️ button is clicked.
+  // Parent opens an edit modal for the active crate.
+  onEditActive?: (crateId: number) => void;
   isOwner?: boolean;
 }
 
@@ -56,6 +59,7 @@ function CrateChip({
   reorderTranslateX,
   onPointerDown,
   chipRef,
+  onEdit,
 }: {
   crate: CrateSummary;
   isActive: boolean;
@@ -66,14 +70,21 @@ function CrateChip({
   reorderTranslateX: number;
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
   chipRef: (el: HTMLDivElement | null) => void;
+  // Owner-only — set on the active chip. Click on the ✏️ corner
+  // button fires this; visitor chips leave it undefined and the
+  // button doesn't render.
+  onEdit?: () => void;
 }) {
   const front = crate.coverThumbs?.[0];
+  const [hover, setHover] = useState(false);
   return (
     <div
       ref={chipRef}
       role="button"
       tabIndex={0}
       onPointerDown={onPointerDown}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       data-crate-id={crate.id}
       style={{
         padding: 4,
@@ -92,6 +103,42 @@ function CrateChip({
         transition: isReordering ? 'none' : 'transform 160ms ease-out',
       }}
     >
+      {/* Edit chip — owner-only, surfaces on the active chip when
+          hovered. stopPropagation on both pointerdown + click so it
+          never starts a drag or trips the chip-select path. */}
+      {onEdit && hover && !isReordering && (
+        <button
+          type="button"
+          aria-label="상자 편집"
+          title="상자 편집"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+          style={{
+            position: 'absolute',
+            top: -2,
+            right: -2,
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            background: 'rgba(20, 12, 10, 0.95)',
+            color: '#f4ebd9',
+            border: '1px solid rgba(220, 170, 80, 0.6)',
+            fontSize: 11,
+            lineHeight: 1,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+            zIndex: 3,
+          }}
+        >
+          ✏️
+        </button>
+      )}
       {/* Crate body — a small wooden bin with the front record peeking. */}
       <div
         style={{
@@ -191,6 +238,7 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
     highlightedDropId,
     onReorder,
     onCreate,
+    onEditActive,
     isOwner = false,
   },
   ref
@@ -355,23 +403,31 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
           'linear-gradient(180deg, rgba(0,0,0,0.0) 0%, rgba(0,0,0,0.25) 100%)',
       }}
     >
-      {displayCrates.map((c) => (
-        <CrateChip
-          key={c.id}
-          crate={c}
-          isActive={c.id === activeCrateId}
-          isDropHover={c.id === highlightedDropId}
-          isReordering={drag?.moved === true && drag.id === c.id}
-          reorderTranslateX={
-            drag?.moved === true && drag.id === c.id ? reorderTranslateX : 0
-          }
-          onPointerDown={(e) => handleChipPointerDown(c.id, e)}
-          chipRef={(el) => {
-            if (el) chipsRef.current.set(c.id, el);
-            else chipsRef.current.delete(c.id);
-          }}
-        />
-      ))}
+      {displayCrates.map((c) => {
+        const isActive = c.id === activeCrateId;
+        return (
+          <CrateChip
+            key={c.id}
+            crate={c}
+            isActive={isActive}
+            isDropHover={c.id === highlightedDropId}
+            isReordering={drag?.moved === true && drag.id === c.id}
+            reorderTranslateX={
+              drag?.moved === true && drag.id === c.id ? reorderTranslateX : 0
+            }
+            onPointerDown={(e) => handleChipPointerDown(c.id, e)}
+            chipRef={(el) => {
+              if (el) chipsRef.current.set(c.id, el);
+              else chipsRef.current.delete(c.id);
+            }}
+            onEdit={
+              isActive && isOwner && onEditActive
+                ? () => onEditActive(c.id)
+                : undefined
+            }
+          />
+        );
+      })}
       {/* Trailing + chip — owner only. Click → inline name input,
           Enter → create empty crate. Same chip footprint as the
           crate ones so it doesn't break the bar's rhythm. */}

@@ -18,7 +18,7 @@ import ToasterButton from '../ToasterButton';
 import LiveToasterPreview from './LiveToasterPreview';
 import AddAlbumSearch from './AddAlbumSearch';
 import Guestbook from './Guestbook';
-import CrateMeta from './CrateMeta';
+import CrateEditModal from './CrateEditModal';
 import ShareButton from '../ShareButton';
 import { resolveApiUrl } from '../../../utils/apiUrl';
 
@@ -109,6 +109,9 @@ export default function CrateFloor({ username, isOwner }: Props) {
   const [activeCrateId, setActiveCrateId] = useState<number | null>(
     initialActive
   );
+  // Open-modal target — set when the active crate's ✏️ chip fires,
+  // cleared when the modal closes or the active crate changes.
+  const [editingCrateId, setEditingCrateId] = useState<number | null>(null);
 
   // Pick a sensible active crate when the list loads or when the
   // saved one is no longer accessible (visitor + private crate).
@@ -126,6 +129,13 @@ export default function CrateFloor({ username, isOwner }: Props) {
     if (activeCrateId != null && typeof window !== 'undefined') {
       window.localStorage.setItem(ACTIVE_KEY, String(activeCrateId));
     }
+  }, [activeCrateId]);
+
+  // Close the edit modal when the active crate changes — the
+  // operator's intent is "edit THIS active one", not "follow me
+  // around as I switch crates."
+  useEffect(() => {
+    setEditingCrateId(null);
   }, [activeCrateId]);
 
   const detail = useCrateDetail(activeCrateId);
@@ -424,6 +434,48 @@ export default function CrateFloor({ username, isOwner }: Props) {
           overflow: 'hidden',
         }}
       >
+      {/* Top-left meta — active crate's title + description painted
+          onto the carpet. Title in slightly bolder gold-ink, description
+          in muted italic underneath. Click-through (pointerEvents: none)
+          so the records below can still receive drag pointerdown. */}
+      {activeCrate && (
+        <div
+          className="absolute top-3 left-4 z-[55] max-w-[60%]"
+          style={{ pointerEvents: 'none' }}
+        >
+          <div
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: '#f4ebd9',
+              textShadow: '0 1px 2px rgba(0,0,0,0.7)',
+              lineHeight: 1.2,
+              letterSpacing: 0.2,
+            }}
+          >
+            {activeCrate.title}
+          </div>
+          {activeCrate.description && (
+            <div
+              style={{
+                marginTop: 2,
+                fontSize: 12,
+                fontStyle: 'italic',
+                color: 'rgba(244, 235, 217, 0.78)',
+                textShadow: '0 1px 2px rgba(0,0,0,0.7)',
+                lineHeight: 1.35,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+                wordBreak: 'keep-all',
+              }}
+            >
+              {activeCrate.description}
+            </div>
+          )}
+        </div>
+      )}
       {/* Top-right overflow badge — shows when the crate has more
           items than fit on the floor. */}
       {overflowCount > 0 && (
@@ -529,16 +581,10 @@ export default function CrateFloor({ username, isOwner }: Props) {
           );
         })}
       </div>
-      {/* Crate meta — description (and inline edit for owner) for
-          the active crate. Sits between the floor and the bar so
-          it reads as "this crate's notes" rather than free-floating
-          copy. Collapses entirely for visitors when there's no
-          description; owners always see at least the "+ 설명 추가"
-          affordance. */}
-      {activeCrate && <CrateMeta crate={activeCrate} isOwner={isOwner} />}
       {/* Crate bar pinned at bottom of the left column. Owner can
           drag chips to reorder (position 0 is the leftmost / default
-          open for visitors); visitors get plain click-to-select. */}
+          open for visitors), ✏️ on the active chip opens the edit
+          modal; visitors get plain click-to-select. */}
       <CrateBar
         ref={crateBarRef}
         crates={crates}
@@ -558,6 +604,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
               alert(err?.response?.data?.error || '상자 만들기 실패');
             });
         }}
+        onEditActive={(crateId) => setEditingCrateId(crateId)}
       />
       </div>
 
@@ -631,6 +678,21 @@ export default function CrateFloor({ username, isOwner }: Props) {
         </div>
       )}
     </div>
+    {/* Edit modal — opens when ✏️ on the active chip fires.
+        Looked up against the current crates list rather than
+        re-fetching, so the modal's title / description inputs
+        seed from whatever the bar already showed. */}
+    {editingCrateId != null &&
+      (() => {
+        const editing = crates.find((c) => c.id === editingCrateId);
+        if (!editing) return null;
+        return (
+          <CrateEditModal
+            crate={editing}
+            onClose={() => setEditingCrateId(null)}
+          />
+        );
+      })()}
     </div>
   );
 }
