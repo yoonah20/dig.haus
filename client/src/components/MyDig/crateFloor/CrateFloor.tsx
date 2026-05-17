@@ -369,10 +369,13 @@ export default function CrateFloor({ username, isOwner }: Props) {
     if (!el) return;
     const update = () => {
       const w = el.clientWidth;
-      // Scale: 110 → 180 across 320 → 1100 px viewport. Min stays
-      // generous on mobile; max bumped so a wide desktop floor
-      // really feels like LP-sized records.
-      const target = Math.max(110, Math.min(180, Math.round(w * 0.16)));
+      // Scale: w × 0.16, clamped to a 56-180 px range. The earlier
+      // 110 px min was operator-comfort-on-desktop scaled to a phone
+      // — at ~360 px mobile floor the records hit 31% of the floor
+      // width and didn't fit the 5-col grid, so adjacent covers
+      // overlapped badly. 56 px keeps them legible while letting
+      // the 5×4 default layout actually breathe on narrow viewports.
+      const target = Math.max(56, Math.min(180, Math.round(w * 0.16)));
       setRecordSize(target);
     };
     update();
