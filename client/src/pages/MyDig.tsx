@@ -9,7 +9,6 @@ import { useUserPublic } from '../hooks/useMe';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveApiUrl } from '../utils/apiUrl';
 import { useNowPlaying } from '../hooks/useNowPlaying';
-import ShareButton from '../components/MyDig/ShareButton';
 import CrateFloor from '../components/MyDig/crateFloor/CrateFloor';
 
 // mydig page — crate-floor redesign (2026-05-17). Vinyl wall +
@@ -169,12 +168,8 @@ function Header({
             following={viewerIsFollowing}
           />
         )}
-        <ShareButton
-          url={
-            typeof window !== 'undefined' ? window.location.href : ''
-          }
-          label="공유"
-        />
+        {/* Page share moved into the right-column toaster cluster
+            inside CrateFloor (2026-05-18) — header stays minimal. */}
       </div>
     </div>
   );

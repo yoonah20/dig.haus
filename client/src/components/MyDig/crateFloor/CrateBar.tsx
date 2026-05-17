@@ -32,6 +32,9 @@ interface Props {
   // Owner-only — fired with the new id order when the owner finishes
   // a drag-to-reorder gesture.
   onReorder?: (orderedIds: number[]) => void;
+  // Owner-only — fired with a trimmed title when the trailing + chip
+  // commits a new crate.
+  onCreate?: (title: string) => void;
   isOwner?: boolean;
 }
 
@@ -181,10 +184,21 @@ function CrateChip({
 }
 
 const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
-  { crates, activeCrateId, onSelect, highlightedDropId, onReorder, isOwner = false },
+  {
+    crates,
+    activeCrateId,
+    onSelect,
+    highlightedDropId,
+    onReorder,
+    onCreate,
+    isOwner = false,
+  },
   ref
 ) {
   const chipsRef = useRef<Map<number, HTMLDivElement>>(new Map());
+  // Inline new-crate name input. null = collapsed (just shows the +
+  // chip); string = composing (text input is open, Enter creates).
+  const [newCrateTitle, setNewCrateTitle] = useState<string | null>(null);
 
   // Local override of crate order while the owner is mid-drag. Null
   // means "use props order"; an array means "render in this order
@@ -234,39 +248,37 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
       const dy = e.clientY - cur.startClientY;
       const moved = cur.moved || Math.hypot(dx, dy) >= REORDER_CLICK_THRESHOLD_PX;
       setDrag({ ...cur, currentClientX: e.clientX, moved });
-      if (moved) {
-        // Recompute the draft order based on which chip's centre x
-        // the pointer is currently closest to. The dragged chip
-        // shifts to that index.
-        const order = crates.map((c) => c.id);
-        const draggedIdx = order.indexOf(cur.id);
-        if (draggedIdx < 0) return;
-        // Build chip rect snapshot once per move event.
-        const rects: Array<{ id: number; centreX: number }> = [];
-        for (const [id, el] of chipsRef.current) {
-          const r = el.getBoundingClientRect();
-          rects.push({ id, centreX: r.left + r.width / 2 });
-        }
-        // Pick the chip whose centre is nearest the pointer.
-        let nearest = order[0];
-        let nearestDist = Number.POSITIVE_INFINITY;
-        for (const r of rects) {
-          const d = Math.abs(r.centreX - e.clientX);
-          if (d < nearestDist) {
-            nearestDist = d;
-            nearest = r.id;
-          }
-        }
-        const targetIdx = order.indexOf(nearest);
-        if (targetIdx < 0 || targetIdx === draggedIdx) {
-          setDraftOrder(null);
-          return;
-        }
-        const next = order.slice();
-        next.splice(draggedIdx, 1);
-        next.splice(targetIdx, 0, cur.id);
-        setDraftOrder(next);
+      if (!moved) return;
+      // Rewritten 2026-05-18: the prior "nearest-chip-centre" logic
+      // got confused once the dragged chip moved, since chipsRef
+      // also reported its own (floated) position. Now: collect the
+      // OTHER chips' rects only, sort by visual left edge, then
+      // pick the insertion index from cursor x vs each chip's
+      // centre. The dragged chip goes at the first index whose
+      // chip centre is past the cursor.
+      const others: Array<{ id: number; left: number; centreX: number }> = [];
+      for (const [id, el] of chipsRef.current) {
+        if (id === cur.id) continue;
+        const r = el.getBoundingClientRect();
+        others.push({ id, left: r.left, centreX: r.left + r.width / 2 });
       }
+      others.sort((a, b) => a.left - b.left);
+      let insertIdx = others.length;
+      for (let i = 0; i < others.length; i++) {
+        if (e.clientX < others[i].centreX) {
+          insertIdx = i;
+          break;
+        }
+      }
+      const next = others.map((o) => o.id);
+      next.splice(insertIdx, 0, cur.id);
+      // Only push state when the draft order actually changes —
+      // avoids pointermove storms re-rendering every frame at rest.
+      const same =
+        draftOrder != null &&
+        draftOrder.length === next.length &&
+        draftOrder.every((id, i) => id === next[i]);
+      if (!same) setDraftOrder(next);
     };
     const onUp = () => {
       const cur = dragRef.current;
@@ -360,6 +372,107 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
           }}
         />
       ))}
+      {/* Trailing + chip — owner only. Click → inline name input,
+          Enter → create empty crate. Same chip footprint as the
+          crate ones so it doesn't break the bar's rhythm. */}
+      {isOwner && onCreate && (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            padding: 4,
+          }}
+        >
+          {newCrateTitle == null ? (
+            <button
+              type="button"
+              onClick={() => setNewCrateTitle('')}
+              title="새 상자 만들기"
+              style={{
+                width: 88,
+                height: 70,
+                background:
+                  'linear-gradient(180deg, rgba(60,42,24,0.4) 0%, rgba(40,28,18,0.4) 100%)',
+                border: '2px dashed rgba(200,184,154,0.35)',
+                borderRadius: 4,
+                color: 'rgba(220,200,160,0.7)',
+                fontSize: 26,
+                fontWeight: 400,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+              }}
+            >
+              +
+            </button>
+          ) : (
+            <div
+              style={{
+                width: 88,
+                height: 70,
+                background:
+                  'linear-gradient(180deg, #523620 0%, #3a2310 100%)',
+                border: '2px solid #d9a559',
+                borderRadius: 4,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 4,
+              }}
+            >
+              <input
+                type="text"
+                autoFocus
+                value={newCrateTitle}
+                onChange={(e) => setNewCrateTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const t = (newCrateTitle ?? '').trim();
+                    if (t) {
+                      onCreate(t);
+                      setNewCrateTitle(null);
+                    }
+                  } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setNewCrateTitle(null);
+                  }
+                }}
+                onBlur={() => {
+                  const t = (newCrateTitle ?? '').trim();
+                  if (t) onCreate(t);
+                  setNewCrateTitle(null);
+                }}
+                placeholder="이름"
+                maxLength={60}
+                style={{
+                  width: '100%',
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#f0c060',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  outline: 'none',
+                }}
+              />
+            </div>
+          )}
+          <div
+            style={{
+              marginTop: 6,
+              fontSize: 12,
+              color: '#c8b89a',
+              opacity: 0.6,
+            }}
+          >
+            새 상자
+          </div>
+        </div>
+      )}
     </div>
   );
 });

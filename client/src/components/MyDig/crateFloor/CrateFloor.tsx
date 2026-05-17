@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   useAddToCrate,
   useCrateDetail,
+  useCreateCrate,
   useRemoveFromCrate,
   useReorderCrates,
   useUpdateCrateItemLayout,
@@ -17,6 +18,7 @@ import ToasterButton from '../ToasterButton';
 import LiveToasterPreview from './LiveToasterPreview';
 import AddAlbumSearch from './AddAlbumSearch';
 import Guestbook from './Guestbook';
+import ShareButton from '../ShareButton';
 
 // The main mydig surface (replacement for the old vinyl-wall +
 // storefront composition, 2026-05-17). Crates line the bottom of
@@ -80,7 +82,6 @@ interface DragState {
 const CLICK_THRESHOLD_PX = 5;
 
 const ACTIVE_KEY = 'mydig:crateFloor:activeCrateId';
-const PREVIEW_COLLAPSED_KEY = 'mydig:crateFloor:previewCollapsed';
 
 export default function CrateFloor({ username, isOwner }: Props) {
   const cratesQuery = useUserCrates(username);
@@ -106,21 +107,6 @@ export default function CrateFloor({ username, isOwner }: Props) {
   const [activeCrateId, setActiveCrateId] = useState<number | null>(
     initialActive
   );
-
-  // Toaster preview collapse — owner-driven affordance for the case
-  // where you don't care about the export and want the carpet to use
-  // the full row. Persisted across visits.
-  const [previewCollapsed, setPreviewCollapsed] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(PREVIEW_COLLAPSED_KEY) === '1';
-  });
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(
-      PREVIEW_COLLAPSED_KEY,
-      previewCollapsed ? '1' : '0'
-    );
-  }, [previewCollapsed]);
 
   // Pick a sensible active crate when the list loads or when the
   // saved one is no longer accessible (visitor + private crate).
@@ -160,6 +146,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
   const addToCrate = useAddToCrate();
   const removeFromCrate = useRemoveFromCrate();
   const reorderCrates = useReorderCrates();
+  const createCrate = useCreateCrate();
 
   // Owner-local optimistic layout cache. Persists positions across
   // refetch and lets drag stay responsive while the PATCH is in
@@ -412,12 +399,10 @@ export default function CrateFloor({ username, isOwner }: Props) {
     e.preventDefault();
   };
 
-  // Right column always reserved when there's an active crate so the
-  // guestbook (which lives in that column now) keeps its place
-  // regardless of the toaster's collapse state. "토스터 접기" hides
-  // the toaster tools (search / preview / download) inside the
-  // column but doesn't widen the floor — the guestbook still needs
-  // somewhere to live.
+  // Right column reserved when there's an active crate — holds the
+  // toaster tools + guestbook. The earlier collapse toggle was
+  // pulled 2026-05-18 since the carpet couldn't widen anyway (the
+  // guestbook needed a column to live in regardless).
   const gridCols =
     activeCrateId != null && activeCrate
       ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px]'
@@ -437,30 +422,18 @@ export default function CrateFloor({ username, isOwner }: Props) {
           overflow: 'hidden',
         }}
       >
-      {/* Top-right chip row — overflow badge (when crate has more
-          items than fit on the floor) + the toaster-expand button
-          (only when the preview is collapsed). Both float free of
-          the carpet so they don't fight the records for space. */}
-      <div className="absolute top-2 right-3 z-[60] flex items-center gap-2">
-        {overflowCount > 0 && (
+      {/* Top-right overflow badge — shows when the crate has more
+          items than fit on the floor. */}
+      {overflowCount > 0 && (
+        <div className="absolute top-2 right-3 z-[60]">
           <span
             className="text-[11px] text-[#f4ebd9] bg-[rgba(40,20,20,0.85)] border border-[rgba(220,170,80,0.25)] rounded-full px-2.5 py-1"
             title={`총 ${activeCrate?.itemCount ?? 0}장 중 ${items.length}장 표시`}
           >
             +{overflowCount}장
           </span>
-        )}
-        {previewCollapsed && (
-          <button
-            type="button"
-            onClick={() => setPreviewCollapsed(false)}
-            className="text-[11px] text-[#f4ebd9] hover:text-white bg-[rgba(40,20,20,0.85)] border border-[rgba(220,170,80,0.4)] hover:border-[rgba(220,170,80,0.8)] rounded-full px-2.5 py-1 cursor-pointer transition-colors"
-            title="토스터 펴기"
-          >
-            🖼 토스터
-          </button>
-        )}
-      </div>
+        </div>
+      )}
       {/* Floor area — Persian carpet feel via layered gradients
           (no asset). Wine ground, soft central medallion, darker
           outer border zone, plus a thin gold inner frame inside
@@ -565,6 +538,17 @@ export default function CrateFloor({ username, isOwner }: Props) {
         highlightedDropId={drag?.hoverCrateId ?? null}
         isOwner={isOwner}
         onReorder={(orderedIds) => reorderCrates.mutate(orderedIds)}
+        onCreate={(title) => {
+          // Create + auto-select. The mutation refetches the crate
+          // list; once the new id lands in props, switching active
+          // makes the new crate the spilled one immediately.
+          void createCrate
+            .mutateAsync({ title })
+            .then((c) => setActiveCrateId(c.id))
+            .catch((err) => {
+              alert(err?.response?.data?.error || '상자 만들기 실패');
+            });
+        }}
       />
       </div>
 
@@ -583,38 +567,36 @@ export default function CrateFloor({ username, isOwner }: Props) {
             gap: 10,
           }}
         >
-          {!previewCollapsed && (
-            <>
-              {/* Collapse handle — quiet button at the top of the
-                  column so the gesture mirrors the floor-side
-                  expand chip. */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  onClick={() => setPreviewCollapsed(true)}
-                  className="text-[11px] text-gray-500 hover:text-gray-300 cursor-pointer"
-                  title="토스터 접기"
-                >
-                  ✕ 토스터 접기
-                </button>
-              </div>
-              {isOwner && (
-                <AddAlbumSearch
-                  activeCrateId={activeCrateId}
-                  activeCrateTitle={activeCrate.title}
-                />
-              )}
-              <LiveToasterPreview items={items} />
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <ToasterButton
-                  path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
-                  filenameHint={`${username}-${activeCrate.title}-toaster.png`}
-                  variant={isOwner ? 'prominent' : 'default'}
-                  label="다운로드"
-                />
-              </div>
-            </>
+          {isOwner && (
+            <AddAlbumSearch
+              activeCrateId={activeCrateId}
+              activeCrateTitle={activeCrate.title}
+            />
           )}
+          <LiveToasterPreview items={items} />
+          {/* Toaster export actions — explicit "make a toaster
+              from THIS arrangement" + a page-share link. The page
+              share lives here now (removed from the MyDig header)
+              so both export-style actions cluster in one place. */}
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 6,
+              flexWrap: 'wrap',
+            }}
+          >
+            <ToasterButton
+              path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
+              filenameHint={`${username}-${activeCrate.title}-toaster.png`}
+              variant={isOwner ? 'prominent' : 'default'}
+              label="이 배열로 토스터 만들기"
+            />
+            <ShareButton
+              url={typeof window !== 'undefined' ? window.location.href : ''}
+              label="공유"
+            />
+          </div>
           <Guestbook
             crateId={activeCrateId}
             crateTitle={activeCrate.title}
