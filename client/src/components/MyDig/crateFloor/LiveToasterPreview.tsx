@@ -11,20 +11,30 @@ import type { CrateItem } from '../../../hooks/useCrates';
 // the export will pick and in what order. The downloaded PNG still
 // carries the full text treatment (header / captions / stamp).
 //
-// Sort mirrors server crateToToasterSlots: position_x only,
-// unplaced records last by added_at DESC.
+// Sort mirrors server crateToToasterSlots: y bucketed into 0.33-
+// wide bands (≈ 2 default-flow rows), within a band x decides;
+// unplaced records last by addedAt DESC.
 
 interface Props {
   items: CrateItem[];
 }
 
+// Must stay in sync with server/src/routes/mydig.ts → toaster sort
+// (CAST(position_y / 0.33 AS INTEGER)).
+const Y_BAND = 0.33;
+
 function sortForToaster(items: CrateItem[]): CrateItem[] {
   return [...items].sort((a, b) => {
-    const aPlaced = a.positionX != null;
-    const bPlaced = b.positionX != null;
+    const aPlaced = a.positionY != null;
+    const bPlaced = b.positionY != null;
     if (aPlaced !== bPlaced) return aPlaced ? -1 : 1;
     if (aPlaced && bPlaced) {
-      if (a.positionX! !== b.positionX!) return a.positionX! - b.positionX!;
+      const aBand = Math.floor(a.positionY! / Y_BAND);
+      const bBand = Math.floor(b.positionY! / Y_BAND);
+      if (aBand !== bBand) return aBand - bBand;
+      if ((a.positionX ?? 0) !== (b.positionX ?? 0)) {
+        return (a.positionX ?? 0) - (b.positionX ?? 0);
+      }
     }
     return (b.addedAt ?? '').localeCompare(a.addedAt ?? '');
   });

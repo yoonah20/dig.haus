@@ -1006,13 +1006,17 @@ async function rowsToSlots(rows: ToasterRow[]): Promise<ToasterSlot[]> {
 }
 
 // Pull the 15 toaster items from a crate, sorted to match the owner's
-// arrangement on the mydig floor — left-to-right by position_x only.
-// The earlier 0.16-wide y-band was still too sensitive: a small
-// vertical drift could leapfrog a record past visual neighbours.
-// The operator's call (2026-05-17 iter): treat the whole floor as
-// one band, x-only. Records the owner hasn't placed yet
-// (position_x/y NULL) sort last by created_at DESC so a brand-new
-// vote still has a chance of surfacing without an explicit drag.
+// arrangement on the mydig floor. Y is bucketed into 0.33-wide
+// bands so a record only ranks higher when it's clearly ≥2 default-
+// flow rows above (default-flow rows sit 0.16 apart, so a 0.33 band
+// is "visibly two rows above" — the "누가 봐도 올라간 거" threshold).
+// Within a band, position_x decides; bands sort top→bottom.
+//
+// History: started at 0.16 (one default-flow row, too sensitive),
+// then briefly went x-only (lost the "clearly above" cue entirely),
+// landed here. Records the owner hasn't placed yet (position_x/y
+// NULL) sort last by created_at DESC so a brand-new vote still has
+// a chance of surfacing without an explicit drag.
 async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
   const rows = queryAll(
     `SELECT a.id AS album_id, a.mbid, a.title, a.artist_name,
@@ -1022,7 +1026,8 @@ async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
      JOIN albums a ON a.id = ci.album_id
      WHERE ci.crate_id = ?
      ORDER BY
-       CASE WHEN ci.position_x IS NULL THEN 1 ELSE 0 END ASC,
+       CASE WHEN ci.position_y IS NULL THEN 1 ELSE 0 END ASC,
+       CAST(ci.position_y / 0.33 AS INTEGER) ASC,
        ci.position_x ASC,
        ci.created_at DESC
      LIMIT 15`,
