@@ -39,6 +39,7 @@ interface CrateRow {
   title: string;
   description: string | null;
   is_public: number;
+  is_default: number;
   created_at: string;
   updated_at: string;
 }
@@ -85,6 +86,7 @@ function serialiseCrate(row: CrateRow, viewerCanSeeCount = true) {
     title: row.title,
     description: row.description,
     isPublic: !!row.is_public,
+    isDefault: !!row.is_default,
     position: row.position,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -141,7 +143,10 @@ router.post('/mydig/crates', requireAuth, (req, res) => {
   const description = req.body?.description != null
     ? String(req.body.description).trim().slice(0, CRATE_DESC_MAX) || null
     : null;
-  const isPublic = req.body?.isPublic === true ? 1 : 0;
+  // Public-by-default — the mydig redesign (2026-05-17) makes crates
+  // the primary identity surface so visibility is the natural default.
+  // Owner explicitly sets isPublic: false to opt a crate private.
+  const isPublic = req.body?.isPublic === false ? 0 : 1;
 
   const nextPos = (queryGet(
     `SELECT COALESCE(MAX(position), -1) + 1 AS p FROM crate_boxes WHERE user_id = ?`,
@@ -262,6 +267,12 @@ router.patch('/mydig/crates/:id', requireAuth, (req, res) => {
     if (title.length > CRATE_TITLE_MAX) {
       return res.status(400).json({ error: `제목은 ${CRATE_TITLE_MAX}자 이내` });
     }
+    // Default crates (굿굿 / 별루) have fixed titles — the vote
+    // auto-sync layer keys off title to find the right crate.
+    // Description and isPublic stay freely editable.
+    if (row.is_default && title !== row.title) {
+      return res.status(403).json({ error: '기본 상자는 이름을 바꿀 수 없어요.' });
+    }
     updates.push('title = ?');
     params.push(title);
   }
@@ -292,10 +303,14 @@ router.patch('/mydig/crates/:id', requireAuth, (req, res) => {
 // ─── DELETE /api/mydig/crates/:id ───────────────────────────────
 //
 // crate_items.crate_id has ON DELETE CASCADE so item rows are
-// removed automatically.
+// removed automatically. Default crates (굿굿 / 별루) are locked —
+// owner can hide them via isPublic but not delete.
 router.delete('/mydig/crates/:id', requireAuth, (req, res) => {
   const row = loadOwnCrate(req, res);
   if (!row) return;
+  if (row.is_default) {
+    return res.status(403).json({ error: '기본 상자는 삭제할 수 없어요.' });
+  }
   execute(`DELETE FROM crate_boxes WHERE id = ?`, [row.id]);
   res.json({ ok: true });
 });

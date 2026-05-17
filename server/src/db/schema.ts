@@ -2157,9 +2157,17 @@ export function initializeDatabase(db: Database.Database): void {
 
   // Crate — user-named container of unlimited capacity, replaces the
   // legacy collections + wants tables (post-Phase 3 roadmap item 2).
-  // is_public defaults to 0: per the design discussion, "남들 눈치
-  // 안 보고 일단 담을 수 있는" private dumping ground is the natural
-  // first state; owner flips public on the crates they want surfaced.
+  // is_public default flipped to 1 (2026-05-17): the mydig redesign
+  // makes crates the primary identity surface, so the natural default
+  // is "visible, owner privates the ones they want hidden".
+  // is_default = 1 marks the two canonical crates (굿굿 / 별루) that
+  // mirror the vote pill. These are seeded per-user, undeletable, and
+  // have fixed titles (rename blocked) — the auto-sync layer keys off
+  // title to know which crate to mirror album_votes into, so renaming
+  // would silently break the sync. 샀음/살거 used to exist as default
+  // crates in an early draft but stay as ordinary user crates: there's
+  // no separate truth-source to sync them from (they're managed via
+  // 담기 directly), so locking them gains nothing.
   // position kept for future drag-reorder UI but not currently
   // surfaced — list reads ORDER BY position ASC, ties broken by id.
   db.exec(`
@@ -2169,13 +2177,17 @@ export function initializeDatabase(db: Database.Database): void {
       position INTEGER NOT NULL,
       title TEXT NOT NULL,
       description TEXT,
-      is_public INTEGER NOT NULL DEFAULT 0,
+      is_public INTEGER NOT NULL DEFAULT 1,
+      is_default INTEGER NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now')),
       UNIQUE(user_id, position)
     )
   `);
-  migrateTable(db, 'crate_boxes', ['is_public INTEGER NOT NULL DEFAULT 0']);
+  migrateTable(db, 'crate_boxes', [
+    'is_public INTEGER NOT NULL DEFAULT 0',
+    'is_default INTEGER NOT NULL DEFAULT 0',
+  ]);
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_crate_boxes_user_position
      ON crate_boxes(user_id, position)`
@@ -2183,19 +2195,34 @@ export function initializeDatabase(db: Database.Database): void {
 
   // crate_items: one row per (crate, album). UNIQUE on (crate_id,
   // album_id) so the "담기" toggle stays idempotent — repeat clicks
-  // can't double-stuff the same album. The legacy schema had
-  // UNIQUE(crate_id, position) plus a position column; that's
-  // unnecessary for v1 (no reorder UI yet) and made dedupe-on-add
-  // awkward, so the rebuild below drops it.
+  // can't double-stuff the same album.
+  //
+  // position_x / position_y / rotation (added 2026-05-17 for the
+  // crate-floor mydig redesign): owner-curated layout of the
+  // album cover when this item is spilled onto the mydig floor.
+  // All three are nullable — NULL means "not yet placed, let the
+  // client lay it out via the default flow algorithm." The client
+  // PATCHes coords on drag, and the next visitor sees the owner's
+  // arrangement. Values are in normalised floor units (the client
+  // scales against the actual rendered floor width), so layout
+  // survives different viewport widths.
   db.exec(`
     CREATE TABLE IF NOT EXISTS crate_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       crate_id INTEGER NOT NULL REFERENCES crate_boxes(id) ON DELETE CASCADE,
       album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+      position_x REAL,
+      position_y REAL,
+      rotation REAL,
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(crate_id, album_id)
     )
   `);
+  migrateTable(db, 'crate_items', [
+    'position_x REAL',
+    'position_y REAL',
+    'rotation REAL',
+  ]);
   db.exec(
     `CREATE INDEX IF NOT EXISTS idx_crate_items_crate_created
      ON crate_items(crate_id, created_at DESC)`
@@ -2358,6 +2385,92 @@ export function initializeDatabase(db: Database.Database): void {
     db.exec(`DROP TABLE IF EXISTS shelf_slots`);
     db.exec(`DROP TABLE IF EXISTS genres`);
     console.log('[migration] dropped shelf_items, shelf_slots, genres');
+  });
+
+  // Seed the two canonical default crates per user (굿굿 / 별루) and
+  // backfill them from existing album_votes rows. The mydig redesign
+  // (2026-05-17) makes these crates the primary vote surface — auto-
+  // synced by user actions, locked against rename/delete, and public
+  // by default. 샀음/살거 are NOT defaults: they live as ordinary
+  // user crates from the earlier collections/wants absorption, and
+  // the owner is free to rename/delete/private them.
+  //
+  // For each user:
+  //   1. Find-or-create the 굿굿 + 별루 crates by title (preserves
+  //      any crate the user already named "굿굿" / "별루" — that one
+  //      gets the lock instead of a duplicate being created).
+  //   2. Mark is_default = 1, is_public = 1.
+  //   3. Copy each matching album_votes row into the crate via
+  //      INSERT OR IGNORE — repeat-safe vs already-present rows from
+  //      a manual 담기.
+  //
+  // Idempotent via runOnce wrapper + INSERT OR IGNORE + find-or-create.
+  // Existing user-created crates with other titles are untouched.
+  runOnce(db, 'seed-default-crates-and-vote-backfill-2026-05-17', () => {
+    const userIds = (
+      db.prepare(`SELECT id FROM users`).all() as Array<{ id: number }>
+    ).map((r) => r.id);
+
+    const ensureDefaultCrate = (userId: number, title: string): number => {
+      const existing = db
+        .prepare(
+          `SELECT id FROM crate_boxes WHERE user_id = ? AND title = ? LIMIT 1`
+        )
+        .get(userId, title) as { id: number } | undefined;
+      if (existing) {
+        db.prepare(
+          `UPDATE crate_boxes SET is_default = 1, is_public = 1 WHERE id = ?`
+        ).run(existing.id);
+        return existing.id;
+      }
+      const nextPos = (
+        db
+          .prepare(
+            `SELECT COALESCE(MAX(position), -1) + 1 AS p FROM crate_boxes WHERE user_id = ?`
+          )
+          .get(userId) as { p: number }
+      ).p;
+      const result = db
+        .prepare(
+          `INSERT INTO crate_boxes (user_id, position, title, is_public, is_default)
+           VALUES (?, ?, ?, 1, 1)`
+        )
+        .run(userId, nextPos, title);
+      return Number(result.lastInsertRowid);
+    };
+
+    let createdOrLocked = 0;
+    let backfilled = 0;
+    for (const userId of userIds) {
+      const upCrate = ensureDefaultCrate(userId, '굿굿');
+      const downCrate = ensureDefaultCrate(userId, '별루');
+      createdOrLocked += 2;
+
+      const ins = db.prepare(
+        `INSERT OR IGNORE INTO crate_items (crate_id, album_id) VALUES (?, ?)`
+      );
+      const upVotes = db
+        .prepare(
+          `SELECT album_id FROM album_votes WHERE user_id = ? AND vote = 'up'`
+        )
+        .all(userId) as Array<{ album_id: number }>;
+      for (const { album_id } of upVotes) {
+        const r = ins.run(upCrate, album_id);
+        backfilled += r.changes;
+      }
+      const downVotes = db
+        .prepare(
+          `SELECT album_id FROM album_votes WHERE user_id = ? AND vote = 'down'`
+        )
+        .all(userId) as Array<{ album_id: number }>;
+      for (const { album_id } of downVotes) {
+        const r = ins.run(downCrate, album_id);
+        backfilled += r.changes;
+      }
+    }
+    console.log(
+      `[migration] seeded default crates: ${userIds.length} users, ${createdOrLocked} crate slots ensured, ${backfilled} vote-backfilled items`
+    );
   });
 
   // Purge any Metacritic rows that were ingested before we added it to the

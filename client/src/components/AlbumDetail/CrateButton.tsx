@@ -125,7 +125,7 @@ export default function CrateButton({ albumId, crateCount }: Props) {
     }
     if (albumId == null) return;
     try {
-      const created = await create.mutateAsync({ title, isPublic: false });
+      const created = await create.mutateAsync({ title, isPublic: true });
       await add.mutateAsync({ crateId: created.id, albumId });
       setNewCrateName(null);
       showToast(`${title}에 담았어요`);
