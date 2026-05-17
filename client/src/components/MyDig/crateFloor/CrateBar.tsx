@@ -35,9 +35,10 @@ interface Props {
   // Owner-only — fired with a trimmed title when the trailing + chip
   // commits a new crate.
   onCreate?: (title: string) => void;
-  // Owner-only — fired when the active chip's ✏️ button is clicked.
-  // Parent opens an edit modal for the active crate.
-  onEditActive?: (crateId: number) => void;
+  // Owner-only — fired when any chip's ✏️ button is clicked. Parent
+  // opens an edit modal for that crate (no need to switch active
+  // first — owner can edit any of their crates in place).
+  onEditCrate?: (crateId: number) => void;
   isOwner?: boolean;
 }
 
@@ -238,7 +239,7 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
     highlightedDropId,
     onReorder,
     onCreate,
-    onEditActive,
+    onEditCrate,
     isOwner = false,
   },
   ref
@@ -421,8 +422,10 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
               else chipsRef.current.delete(c.id);
             }}
             onEdit={
-              isActive && isOwner && onEditActive
-                ? () => onEditActive(c.id)
+              // Edit chip surfaces on every owner-side chip, not
+              // just the active one — visitor never sees it.
+              isOwner && onEditCrate
+                ? () => onEditCrate(c.id)
                 : undefined
             }
           />

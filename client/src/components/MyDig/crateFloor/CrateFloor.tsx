@@ -434,46 +434,50 @@ export default function CrateFloor({ username, isOwner }: Props) {
           overflow: 'hidden',
         }}
       >
-      {/* Top-left meta — active crate's title + description painted
-          onto the carpet. Title in slightly bolder gold-ink, description
-          in muted italic underneath. Click-through (pointerEvents: none)
-          so the records below can still receive drag pointerdown. */}
+      {/* Meta strip ABOVE the carpet — active crate's title +
+          description. Lives outside the carpet so it doesn't
+          compete with records for visual space (the earlier
+          painted-on-carpet version had to fight cover thumbnails
+          for contrast). Owner gets a ✏️ trail-end button as a
+          backup edit affordance to the chip ✏️. */}
       {activeCrate && (
         <div
-          className="absolute top-3 left-4 z-[55] max-w-[60%]"
-          style={{ pointerEvents: 'none' }}
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 10,
+            padding: '12px 16px 10px',
+          }}
         >
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: '#f4ebd9',
-              textShadow: '0 1px 2px rgba(0,0,0,0.7)',
-              lineHeight: 1.2,
-              letterSpacing: 0.2,
-            }}
-          >
-            {activeCrate.title}
-          </div>
-          {activeCrate.description && (
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
-                marginTop: 2,
-                fontSize: 12,
-                fontStyle: 'italic',
-                color: 'rgba(244, 235, 217, 0.78)',
-                textShadow: '0 1px 2px rgba(0,0,0,0.7)',
-                lineHeight: 1.35,
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-                wordBreak: 'keep-all',
+                fontSize: 14,
+                fontWeight: 700,
+                color: '#f0c060',
+                lineHeight: 1.2,
+                letterSpacing: 0.2,
               }}
             >
-              {activeCrate.description}
+              {activeCrate.title}
             </div>
-          )}
+            {activeCrate.description && (
+              <div
+                style={{
+                  marginTop: 3,
+                  fontSize: 12,
+                  fontStyle: 'italic',
+                  color: 'rgba(220, 200, 160, 0.8)',
+                  lineHeight: 1.4,
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'keep-all',
+                }}
+              >
+                {activeCrate.description}
+              </div>
+            )}
+          </div>
         </div>
       )}
       {/* Top-right overflow badge — shows when the crate has more
@@ -604,7 +608,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
               alert(err?.response?.data?.error || '상자 만들기 실패');
             });
         }}
-        onEditActive={(crateId) => setEditingCrateId(crateId)}
+        onEditCrate={(crateId) => setEditingCrateId(crateId)}
       />
       </div>
 
