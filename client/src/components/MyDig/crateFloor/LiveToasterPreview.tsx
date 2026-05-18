@@ -59,8 +59,8 @@ export default function LiveToasterPreview({ items }: Props) {
   return (
     <div
       style={{
-        background: '#1a130a',
-        border: '1px solid rgba(220, 170, 80, 0.18)',
+        background: 'var(--color-panel-strong)',
+        border: '1px solid rgba(255, 255, 255, 0.10)',
         borderRadius: 6,
         padding: 10,
         boxShadow:

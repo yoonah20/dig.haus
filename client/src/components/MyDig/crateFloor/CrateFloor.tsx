@@ -434,7 +434,8 @@ export default function CrateFloor({ username, isOwner }: Props) {
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
-          background: '#1a1614',
+          background: 'var(--color-panel-strong)',
+          border: '1px solid rgba(255, 255, 255, 0.10)',
           borderRadius: 12,
           overflow: 'hidden',
         }}
