@@ -7,30 +7,58 @@
 // renderer multiplies by the actual floor pixel size, so layout
 // survives viewport resize.
 //
-// X_MIN / Y_MIN bounds account for the fact that records are anchored
-// by their CENTRE: at recordSize ≈ 16% of floor width (the typical
-// upper end of the CrateFloor formula) the record's half-width is
-// 8% of floor width. The cover is square so its half-height as a
-// fraction of floor height (= floor width × 11/16) is ≈ 12%. We add
-// a few percent of breathing room past those minimums so corner
-// records sit cleanly inside the carpet's gold inner frame instead
-// of bleeding into it. Operator iter 2026-05-18: earlier bounds
-// (0.08/0.92, 0.10/0.90) put corner records partly outside the
-// rendered floor on narrower viewports.
+// Bounds are parameterised (FlowBounds) because the carpet's edge
+// padding differs between desktop (inset gold frame leaves a few
+// percent of breathing room) and mobile (no frame — records run
+// edge-to-edge so the floor reads as a single block of LPs rather
+// than a centred grid floating inside a border).
 
 export const FLOOR_COLS = 5;
 export const FLOOR_ROWS = 4; // 5 × 4 = 20 = floor cap from the server (2026-05-17)
 
-const X_MIN = 0.12;
-const X_MAX = 0.88;
-const Y_MIN = 0.16;
-const Y_MAX = 0.84;
-// Hard clamp — generous over X_MIN/MAX to absorb the jitter without
-// re-introducing edge clipping.
-const X_CLAMP_MIN = 0.10;
-const X_CLAMP_MAX = 0.90;
-const Y_CLAMP_MIN = 0.14;
-const Y_CLAMP_MAX = 0.86;
+export interface FlowBounds {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  // Hard clamp envelope — keeps jitter from kicking records past the
+  // visible carpet edge. Set a few percent past xMin/xMax.
+  xClampMin: number;
+  xClampMax: number;
+  yClampMin: number;
+  yClampMax: number;
+}
+
+// Desktop default — corner records sit cleanly inside the carpet's
+// gold inner frame instead of bleeding into it. Half-record at
+// recordSize≈16% of floor width = 8% of width; we add ~4% padding.
+export const DESKTOP_BOUNDS: FlowBounds = {
+  xMin: 0.12,
+  xMax: 0.88,
+  yMin: 0.16,
+  yMax: 0.84,
+  xClampMin: 0.10,
+  xClampMax: 0.90,
+  yClampMin: 0.14,
+  yClampMax: 0.86,
+};
+
+// Mobile — no gold frame, no edge padding. Records use the full
+// floor area so a phone-width carpet doesn't waste 24% of its
+// horizontal real estate on margins. Half-record fraction is larger
+// on a narrow viewport (recordSize / floorWidth ≈ 0.19), so we
+// bias the centre points slightly in from the absolute edge to
+// keep records from clipping.
+export const MOBILE_BOUNDS: FlowBounds = {
+  xMin: 0.13,
+  xMax: 0.87,
+  yMin: 0.13,
+  yMax: 0.87,
+  xClampMin: 0.11,
+  xClampMax: 0.89,
+  yClampMin: 0.11,
+  yClampMax: 0.89,
+};
 
 // Deterministic [-1, 1] pseudo-random from an integer seed. Good
 // enough for visual jitter — no need for cryptographic quality.
@@ -47,27 +75,30 @@ export interface FlowPosition {
 
 // Returns the default position for the i-th record in flow order.
 // Album id seeds the jitter so the same record always lands in the
-// same default spot when re-spilled.
-export function defaultFlowPosition(index: number, albumId: number): FlowPosition {
+// same default spot when re-spilled. Caller picks bounds based on
+// viewport class.
+export function defaultFlowPosition(
+  index: number,
+  albumId: number,
+  bounds: FlowBounds = DESKTOP_BOUNDS
+): FlowPosition {
   const col = index % FLOOR_COLS;
   const row = Math.floor(index / FLOOR_COLS);
 
-  const colSpan = (X_MAX - X_MIN) / (FLOOR_COLS - 1);
-  const rowSpan = (Y_MAX - Y_MIN) / (FLOOR_ROWS - 1);
+  const colSpan = (bounds.xMax - bounds.xMin) / (FLOOR_COLS - 1);
+  const rowSpan = (bounds.yMax - bounds.yMin) / (FLOOR_ROWS - 1);
 
   // Per-cell jitter magnitude — kept tiny (~6% / cell) so the first
   // spill reads as "organised, slightly handmade" instead of
-  // scattered. Operator iter (2026-05-17): the earlier 30-35% jitter
-  // felt 어수선하다 — the spread was tightened way down. Owner can
-  // still drag any record into a freer position; the default just
-  // doesn't start it there. Rotation stays 0 (rotation prop kept on
-  // FlowPosition for layout-data shape compatibility only).
+  // scattered. Owner can still drag any record into a freer position.
+  // Rotation stays 0 (rotation prop kept on FlowPosition for layout-
+  // data shape compatibility only).
   const jx = jitter(albumId, 1) * colSpan * 0.06;
   const jy = jitter(albumId, 2) * rowSpan * 0.05;
 
   return {
-    positionX: Math.max(X_CLAMP_MIN, Math.min(X_CLAMP_MAX, X_MIN + col * colSpan + jx)),
-    positionY: Math.max(Y_CLAMP_MIN, Math.min(Y_CLAMP_MAX, Y_MIN + row * rowSpan + jy)),
+    positionX: Math.max(bounds.xClampMin, Math.min(bounds.xClampMax, bounds.xMin + col * colSpan + jx)),
+    positionY: Math.max(bounds.yClampMin, Math.min(bounds.yClampMax, bounds.yMin + row * rowSpan + jy)),
     rotation: 0,
   };
 }

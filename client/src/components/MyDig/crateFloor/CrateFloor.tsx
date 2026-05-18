@@ -13,7 +13,11 @@ import {
 } from '../../../hooks/useCrates';
 import FloorRecord from './FloorRecord';
 import CrateBar, { type CrateBarHandle } from './CrateBar';
-import { defaultFlowPosition } from './layout';
+import {
+  DESKTOP_BOUNDS,
+  MOBILE_BOUNDS,
+  defaultFlowPosition,
+} from './layout';
 import ToasterButton from '../ToasterButton';
 import LiveToasterPreview from './LiveToasterPreview';
 import AddAlbumSearch from './AddAlbumSearch';
@@ -88,6 +92,24 @@ const ACTIVE_KEY = 'mydig:crateFloor:activeCrateId';
 export default function CrateFloor({ username, isOwner }: Props) {
   const cratesQuery = useUserCrates(username);
   const navigate = useNavigate();
+
+  // Viewport class — mobile (≤ 767px) drops the carpet's gold inner
+  // frame and tightens the default-flow bounds so records use the
+  // full floor width. Same breakpoint as the rest of the app's
+  // Tailwind md: prefix.
+  const [isMobile, setIsMobile] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia('(max-width: 767px)').matches
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  const flowBounds = isMobile ? MOBILE_BOUNDS : DESKTOP_BOUNDS;
 
   // Server returns crates ordered by position ASC. The owner controls
   // ordering by drag-reordering chips in the bar; that PUT bumps
@@ -312,7 +334,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
           isPersisted: true,
         };
       }
-      const flow = defaultFlowPosition(index, item.id);
+      const flow = defaultFlowPosition(index, item.id, flowBounds);
       return {
         item,
         x: flow.positionX,
@@ -321,7 +343,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
         isPersisted: false,
       };
     });
-  }, [items, localLayouts]);
+  }, [items, localLayouts, flowBounds]);
 
   // First-time owner-side persistence of default-flow positions —
   // so the next visitor sees a stable, owner-curated-or-defaulted
@@ -369,20 +391,20 @@ export default function CrateFloor({ username, isOwner }: Props) {
     if (!el) return;
     const update = () => {
       const w = el.clientWidth;
-      // Scale: w × 0.16, clamped to a 56-180 px range. The earlier
-      // 110 px min was operator-comfort-on-desktop scaled to a phone
-      // — at ~360 px mobile floor the records hit 31% of the floor
-      // width and didn't fit the 5-col grid, so adjacent covers
-      // overlapped badly. 56 px keeps them legible while letting
-      // the 5×4 default layout actually breathe on narrow viewports.
-      const target = Math.max(56, Math.min(180, Math.round(w * 0.16)));
+      // Scale factor depends on viewport class. Mobile (no inner
+      // frame, tighter bounds → more usable width) gets a slightly
+      // larger factor + larger min so covers are actually readable
+      // at phone size. Desktop unchanged.
+      const factor = isMobile ? 0.19 : 0.16;
+      const min = isMobile ? 64 : 56;
+      const target = Math.max(min, Math.min(180, Math.round(w * factor)));
       setRecordSize(target);
     };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [isMobile]);
 
   const handleRecordPointerDown = (
     item: CrateItem,
@@ -516,7 +538,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
           position: 'relative',
           width: '100%',
           aspectRatio: '16 / 11',
-          minHeight: 520,
+          minHeight: isMobile ? 320 : 520,
           backgroundImage: [
             // Central medallion — warm gold glow
             'radial-gradient(ellipse 38% 30% at 50% 50%, rgba(190, 140, 60, 0.18), transparent 65%)',
@@ -532,8 +554,12 @@ export default function CrateFloor({ username, isOwner }: Props) {
             // Carpet ground
             'linear-gradient(135deg, #6a1d1d 0%, #4a1212 100%)',
           ].join(', '),
-          boxShadow:
-            'inset 0 0 0 1px rgba(220,170,80,0.25), inset 0 0 0 12px rgba(0,0,0,0.18), inset 0 0 0 14px rgba(220,170,80,0.15)',
+          // Inner gold frame is desktop-only — on mobile the carpet
+          // runs flush to the surrounding wrapper so records can use
+          // the full width without the frame eating edge space.
+          boxShadow: isMobile
+            ? undefined
+            : 'inset 0 0 0 1px rgba(220,170,80,0.25), inset 0 0 0 12px rgba(0,0,0,0.18), inset 0 0 0 14px rgba(220,170,80,0.15)',
         }}
       >
         {detail.isLoading && (
