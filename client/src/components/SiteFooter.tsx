@@ -33,7 +33,7 @@ export default function SiteFooter() {
 
   return (
     <footer
-      className="w-full max-w-[1280px] mx-auto mt-auto pt-10 pb-5 px-4 text-center text-gray-600 text-xs"
+      className="w-full max-w-[1280px] mx-auto mt-auto pt-6 pb-5 px-4 text-center text-gray-600 text-xs"
     >
       {/* Line 1: site identity + live counts. Counts append as they
           become available so the line shapes around whatever

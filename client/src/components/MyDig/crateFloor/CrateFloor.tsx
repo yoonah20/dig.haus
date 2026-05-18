@@ -447,7 +447,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
   // guestbook needed a column to live in regardless).
   const gridCols =
     activeCrateId != null && activeCrate
-      ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_280px]'
+      ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px]'
       : 'grid-cols-1';
 
   return (
