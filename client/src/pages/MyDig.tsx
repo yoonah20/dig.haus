@@ -246,7 +246,7 @@ function Header({
               </span>
               <span className="text-white/15">·</span>
               <span>
-                평{' '}
+                50자 평{' '}
                 <span className="tabular-nums text-gray-300">
                   {pageStats.reviewCount ?? 0}
                 </span>

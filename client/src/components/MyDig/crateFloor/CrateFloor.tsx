@@ -456,7 +456,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
         >
           <span
             style={{
-              fontSize: 14,
+              fontSize: 16,
               fontWeight: 700,
               color: '#f0c060',
               letterSpacing: 0.2,
@@ -478,7 +478,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
               </span>
               <span
                 style={{
-                  fontSize: 12,
+                  fontSize: 14,
                   fontStyle: 'italic',
                   color: 'rgba(220, 200, 160, 0.85)',
                   lineHeight: 1.4,
