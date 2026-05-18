@@ -335,7 +335,7 @@ export default function Guestbook({ crateId, crateTitle, isOwner }: Props) {
             onChange={(e) => setDraft(e.target.value)}
             placeholder={
               isOwner
-                ? '내 상자에 메모 남기기'
+                ? '내 박스에 메모 남기기'
                 : `${crateTitle}에 한 마디 남겨보세요`
             }
             rows={2}

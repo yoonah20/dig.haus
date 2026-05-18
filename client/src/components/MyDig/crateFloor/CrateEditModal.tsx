@@ -95,7 +95,7 @@ export default function CrateEditModal({ crate, onClose }: Props) {
             marginBottom: 4,
           }}
         >
-          상자 편집
+          박스 편집
         </h2>
         <input
           ref={titleRef}
@@ -109,7 +109,7 @@ export default function CrateEditModal({ crate, onClose }: Props) {
             }
           }}
           maxLength={60}
-          placeholder="상자 이름"
+          placeholder="박스 이름"
           className="bg-background/60 border border-white/15 focus:border-accent/60 rounded px-3 py-2 text-[14px] text-gray-100 outline-none"
         />
         <textarea

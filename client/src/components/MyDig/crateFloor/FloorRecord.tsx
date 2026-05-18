@@ -129,8 +129,8 @@ export default function FloorRecord({
       {isOwner && onRemove && hover && !isDragging && (
         <button
           type="button"
-          aria-label="이 상자에서 빼기"
-          title="이 상자에서 빼기"
+          aria-label="이 박스에서 빼기"
+          title="이 박스에서 빼기"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();

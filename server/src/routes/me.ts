@@ -452,6 +452,15 @@ router.get('/users/:id/public', (req, res) => {
       `SELECT COUNT(*) AS c FROM user_follows WHERE follower_id = ?`,
       [id]
     )?.c || 0;
+  // Albums this user submitted to the catalog via the album-request
+  // flow — surfaced on the mydig header as a "이 사람이 디그.하우스에
+  // 등록한 앨범 수" stat. Distinct so duplicate requests don't
+  // double-count.
+  const submittedAlbumCount =
+    queryGet(
+      `SELECT COUNT(DISTINCT id) AS c FROM albums WHERE requested_by_user_id = ?`,
+      [id]
+    )?.c || 0;
   const viewer = req.user as { id?: number } | undefined;
   const followingByViewer = viewer?.id
     ? !!queryGet(
@@ -480,6 +489,7 @@ router.get('/users/:id/public', (req, res) => {
       crateCount,
       followerCount,
       followingCount,
+      submittedAlbumCount,
     },
     followingByViewer,
   });

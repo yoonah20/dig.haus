@@ -188,6 +188,9 @@ export interface UserPublic {
     crateCount?: number;
     followerCount?: number;
     followingCount?: number;
+    /** Albums this user submitted to the catalog via the album-
+     *  request flow. Surfaced on the mydig header stats line. */
+    submittedAlbumCount?: number;
   };
   // Viewer's own follow state toward this user. False when the
   // viewer isn't logged in (or viewing their own card).

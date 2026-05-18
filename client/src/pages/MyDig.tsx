@@ -232,7 +232,21 @@ function Header({
               </span>
               <span className="text-white/15">·</span>
               <span>
-                상자{' '}
+                팔로우{' '}
+                <span className="tabular-nums text-gray-300">
+                  {pageStats.followingCount ?? 0}
+                </span>
+              </span>
+              <span className="text-white/15">·</span>
+              <span>
+                등록한 앨범{' '}
+                <span className="tabular-nums text-gray-300">
+                  {pageStats.submittedAlbumCount ?? 0}
+                </span>
+              </span>
+              <span className="text-white/15">·</span>
+              <span>
+                박스{' '}
                 <span className="tabular-nums text-gray-300">
                   {pageStats.crateCount ?? 0}
                 </span>

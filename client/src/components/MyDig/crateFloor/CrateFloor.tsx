@@ -581,7 +581,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
               fontSize: 13,
             }}
           >
-            상자 꺼내는 중…
+            박스 꺼내는 중…
           </div>
         )}
         {!detail.isLoading && items.length === 0 && (
@@ -598,7 +598,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
               textAlign: 'center',
             }}
           >
-            이 상자는 아직 비어있어요.
+            이 박스는 아직 비어있어요.
           </div>
         )}
         {renderItems.map((r) => {
@@ -651,7 +651,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
             .mutateAsync({ title })
             .then((c) => setActiveCrateId(c.id))
             .catch((err) => {
-              alert(err?.response?.data?.error || '상자 만들기 실패');
+              alert(err?.response?.data?.error || '박스 만들기 실패');
             });
         }}
         onEditCrate={(crateId) => setEditingCrateId(crateId)}

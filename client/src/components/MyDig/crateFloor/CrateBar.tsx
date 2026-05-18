@@ -110,8 +110,8 @@ function CrateChip({
       {onEdit && hover && !isReordering && (
         <button
           type="button"
-          aria-label="상자 편집"
-          title="상자 편집"
+          aria-label="박스 편집"
+          title="박스 편집"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
@@ -450,7 +450,7 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
             <button
               type="button"
               onClick={() => setNewCrateTitle('')}
-              title="새 상자 만들기"
+              title="새 박스 만들기"
               style={{
                 width: 88,
                 height: 70,
@@ -531,7 +531,7 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
               opacity: 0.6,
             }}
           >
-            새 상자
+            새 박스
           </div>
         </div>
       )}

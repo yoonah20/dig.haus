@@ -264,20 +264,16 @@ export default function UserHoverCard({
                 {/* mydig row — direct link to the user's /my/:username
                     page. Sits above instagram because it's the native
                     in-app destination; @instagram is the external
-                    fallback. The wallItemCount===0 branch (public or
-                    private with no items yet) shows a muted "공사 중"
-                    label instead of the theme title — any wall with
-                    ≥1 item gets the real title per the user's rule.
-                    When a mydig has never been claimed (username null)
-                    the row is skipped entirely — nothing to link to. */}
+                    fallback. The "theme title" branch went away with
+                    the 2026-05 mydig redesign (the vinyl wall + its
+                    theme title concept is gone) — the row now just
+                    says "마이딕 보기" so visitors have a clean entry
+                    point regardless of what's on the page. Skipped
+                    entirely when the user hasn't claimed a username. */}
                 {data.mydig && (
                   <Link
                     to={`/my/${data.mydig.username}`}
-                    className={`flex items-center gap-1.5 truncate ${
-                      data.mydig.wallItemCount === 0
-                        ? 'text-gray-500 hover:text-gray-400'
-                        : 'text-accent hover:text-accent-hover'
-                    }`}
+                    className="flex items-center gap-1.5 truncate text-accent hover:text-accent-hover"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {/* Same Heroicons building-storefront as the nav
@@ -296,13 +292,7 @@ export default function UserHoverCard({
                     >
                       <path d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .415.336.75.75.75z" />
                     </svg>
-                    {data.mydig.wallItemCount === 0 ? (
-                      <span className="truncate italic">아직 공사 중</span>
-                    ) : (
-                      <span className="truncate">
-                        {data.mydig.theme || 'my dig'}
-                      </span>
-                    )}
+                    <span className="truncate">마이딕 보기</span>
                   </Link>
                 )}
 
