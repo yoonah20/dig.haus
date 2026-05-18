@@ -7,58 +7,30 @@
 // renderer multiplies by the actual floor pixel size, so layout
 // survives viewport resize.
 //
-// Bounds are parameterised (FlowBounds) because the carpet's edge
-// padding differs between desktop (inset gold frame leaves a few
-// percent of breathing room) and mobile (no frame — records run
-// edge-to-edge so the floor reads as a single block of LPs rather
-// than a centred grid floating inside a border).
+// Bounds are SHARED across viewport sizes (operator decision 2026-
+// 05-18): owner-placed positions should look identical regardless
+// of where the page is viewed. Per-viewport bounds were tried
+// earlier but broke the "same arrangement everywhere" contract —
+// a record placed at the centre on desktop would shift sideways
+// on mobile if the bounds didn't match.
 
 export const FLOOR_COLS = 5;
 export const FLOOR_ROWS = 4; // 5 × 4 = 20 = floor cap from the server (2026-05-17)
 
-export interface FlowBounds {
-  xMin: number;
-  xMax: number;
-  yMin: number;
-  yMax: number;
-  // Hard clamp envelope — keeps jitter from kicking records past the
-  // visible carpet edge. Set a few percent past xMin/xMax.
-  xClampMin: number;
-  xClampMax: number;
-  yClampMin: number;
-  yClampMax: number;
-}
-
-// Desktop default — corner records sit cleanly inside the carpet's
-// gold inner frame instead of bleeding into it. Half-record at
-// recordSize≈16% of floor width = 8% of width; we add ~4% padding.
-export const DESKTOP_BOUNDS: FlowBounds = {
-  xMin: 0.12,
-  xMax: 0.88,
-  yMin: 0.16,
-  yMax: 0.84,
-  xClampMin: 0.10,
-  xClampMax: 0.90,
-  yClampMin: 0.14,
-  yClampMax: 0.86,
-};
-
-// Mobile — no gold frame, no edge padding. Records use the full
-// floor area so a phone-width carpet doesn't waste 24% of its
-// horizontal real estate on margins. Half-record fraction is larger
-// on a narrow viewport (recordSize / floorWidth ≈ 0.19), so we
-// bias the centre points slightly in from the absolute edge to
-// keep records from clipping.
-export const MOBILE_BOUNDS: FlowBounds = {
-  xMin: 0.13,
-  xMax: 0.87,
-  yMin: 0.13,
-  yMax: 0.87,
-  xClampMin: 0.11,
-  xClampMax: 0.89,
-  yClampMin: 0.11,
-  yClampMax: 0.89,
-};
+// Default-flow placement bounds, in [0, 1] normalised carpet space.
+// Tight — records fill close to the carpet edges so the layout
+// reads as "a floor full of records" rather than a centred grid
+// floating inside a frame. CLAMP envelope sits a couple of percent
+// past the placement range so jitter can't push a record over the
+// visible edge.
+const X_MIN = 0.13;
+const X_MAX = 0.87;
+const Y_MIN = 0.13;
+const Y_MAX = 0.87;
+const X_CLAMP_MIN = 0.11;
+const X_CLAMP_MAX = 0.89;
+const Y_CLAMP_MIN = 0.11;
+const Y_CLAMP_MAX = 0.89;
 
 // Deterministic [-1, 1] pseudo-random from an integer seed. Good
 // enough for visual jitter — no need for cryptographic quality.
@@ -75,18 +47,13 @@ export interface FlowPosition {
 
 // Returns the default position for the i-th record in flow order.
 // Album id seeds the jitter so the same record always lands in the
-// same default spot when re-spilled. Caller picks bounds based on
-// viewport class.
-export function defaultFlowPosition(
-  index: number,
-  albumId: number,
-  bounds: FlowBounds = DESKTOP_BOUNDS
-): FlowPosition {
+// same default spot when re-spilled.
+export function defaultFlowPosition(index: number, albumId: number): FlowPosition {
   const col = index % FLOOR_COLS;
   const row = Math.floor(index / FLOOR_COLS);
 
-  const colSpan = (bounds.xMax - bounds.xMin) / (FLOOR_COLS - 1);
-  const rowSpan = (bounds.yMax - bounds.yMin) / (FLOOR_ROWS - 1);
+  const colSpan = (X_MAX - X_MIN) / (FLOOR_COLS - 1);
+  const rowSpan = (Y_MAX - Y_MIN) / (FLOOR_ROWS - 1);
 
   // Per-cell jitter magnitude — kept tiny (~6% / cell) so the first
   // spill reads as "organised, slightly handmade" instead of
@@ -97,8 +64,8 @@ export function defaultFlowPosition(
   const jy = jitter(albumId, 2) * rowSpan * 0.05;
 
   return {
-    positionX: Math.max(bounds.xClampMin, Math.min(bounds.xClampMax, bounds.xMin + col * colSpan + jx)),
-    positionY: Math.max(bounds.yClampMin, Math.min(bounds.yClampMax, bounds.yMin + row * rowSpan + jy)),
+    positionX: Math.max(X_CLAMP_MIN, Math.min(X_CLAMP_MAX, X_MIN + col * colSpan + jx)),
+    positionY: Math.max(Y_CLAMP_MIN, Math.min(Y_CLAMP_MAX, Y_MIN + row * rowSpan + jy)),
     rotation: 0,
   };
 }
