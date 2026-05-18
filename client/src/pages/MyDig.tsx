@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useMyDig } from '../hooks/useMyDig';
 import LoadingSkeleton from '../components/LoadingSkeleton';
 import { useDocumentHead } from '../hooks/useDocumentHead';
 import UserHoverCard from '../components/UserHoverCard';
 import FollowButton from '../components/FollowButton';
-import FollowListModal from '../components/FollowListModal';
+import FollowingDropdown from '../components/FollowingDropdown';
 import { useUserPublic } from '../hooks/useMe';
 import { useAuth } from '../contexts/AuthContext';
 import { resolveApiUrl } from '../utils/apiUrl';
@@ -120,6 +120,7 @@ export default function MyDig() {
           isOwner={isOwner}
           viewerLoggedIn={!!viewer}
           viewerId={viewer?.id ?? null}
+          avatarUrl={data.user.avatarUrl}
         />
         {username && <CrateFloor username={username} isOwner={isOwner} />}
       </main>
@@ -128,16 +129,20 @@ export default function MyDig() {
 }
 
 // ─── Header ────────────────────────────────────────────────────
-// One-line signature + follow + share. Significantly slimmer than
-// the old graffiti-block ProfileHeader — the floor below is the
-// expressive surface now, so the header just sets identity.
+// Avatar on the left, signature + page-user stats stacked on the
+// right of it, actions cluster (chip + follow) on the far right.
+// Redesigned 2026-05-18: the prior single-line layout read too
+// thin against the carpet below it; this version gives the page
+// owner's identity visible weight without ballooning into a hero
+// strip.
 function Header({
-  username,
+  username: _username,
   displayLabel,
   userId,
   isOwner,
   viewerLoggedIn,
   viewerId,
+  avatarUrl,
 }: {
   username: string;
   displayLabel: string;
@@ -145,12 +150,12 @@ function Header({
   isOwner: boolean;
   viewerLoggedIn: boolean;
   viewerId: number | null;
+  avatarUrl: string | null;
 }) {
-  // Two separate fetches: page-user's public profile (drives the
-  // follow button + follower count) and the viewer's own (drives
-  // the "내 팔로잉" chip, available even when visiting someone
-  // else's page). When isOwner the two queries dedupe via the same
-  // ['user-public', id] key in React Query — no double-fetch.
+  // Two fetches: page-user (drives follow button + the page-user
+  // stats strip), viewer's own (drives the "내 팔로잉" chip count
+  // on visitors). When isOwner the two queries dedupe via the
+  // same ['user-public', id] key in React Query.
   const pagePublic = useUserPublic(userId, !!userId);
   const viewerPublic = useUserPublic(
     viewerId,
@@ -160,18 +165,21 @@ function Header({
   const viewerFollowingCount = isOwner
     ? (pagePublic.data?.stats.followingCount ?? 0)
     : (viewerPublic.data?.stats.followingCount ?? 0);
+  const pageStats = pagePublic.data?.stats;
   const [followingOpen, setFollowingOpen] = useState(false);
+  const chipRef = useRef<HTMLButtonElement>(null);
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
 
-  // Signature uses hover:text-accent (gold) instead of the old
-  // hover:text-ink — ink (#1a1208) was a near-black left over from
-  // the painted-wall backdrop era and made the title vanish on the
-  // current dark mydig bg when hovered. Underline-offset gives a
-  // subtle "hoverable" cue at rest too, so the hover hit area is
-  // discoverable instead of invisible.
+  const resolvedAvatar = resolveApiUrl(avatarUrl);
+  const initial = (displayLabel || '?').trim().charAt(0).toUpperCase();
+
+  // Signature — dotted underline at rest as a "hoverable" cue,
+  // hover:text-accent for legible hover (the prior hover:text-ink
+  // collapsed against the dark mydig bg).
   const signature =
     userId != null ? (
       <UserHoverCard userId={userId}>
-        <span className="cursor-help text-gray-200 hover:text-accent underline decoration-dotted decoration-white/15 hover:decoration-accent/50 underline-offset-4 transition-colors">
+        <span className="cursor-help text-gray-100 hover:text-accent underline decoration-dotted decoration-white/15 hover:decoration-accent/50 underline-offset-4 transition-colors">
           {displayLabel}의 마이딕
         </span>
       </UserHoverCard>
@@ -179,26 +187,82 @@ function Header({
       <span>{displayLabel}의 마이딕</span>
     );
 
-  // "내 팔로잉" chip target — always the viewer's own user id. On
-  // the owner's own page that's the same as the page user; on a
-  // visitor's view of someone else's page, it shows the visitor's
-  // own following list (the operator-asked feature: the chip is
-  // about ME wherever I am, not about whose page I'm looking at).
   const showFollowingChip =
     viewerLoggedIn && viewerId != null && viewerFollowingCount > 0;
 
+  const openFollowing = () => {
+    if (chipRef.current) {
+      setAnchorRect(chipRef.current.getBoundingClientRect());
+    }
+    setFollowingOpen(true);
+  };
+
   return (
     <>
-      <div className="flex items-center justify-between gap-3 px-1">
-        <h1 className="text-[18px] md:text-[22px] text-gray-200 font-semibold">
-          {signature}
-        </h1>
-        <div className="flex items-center gap-2">
+      <div
+        className="flex items-center gap-3 md:gap-4 px-2 py-3 rounded-lg"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(50, 32, 18, 0.45) 0%, rgba(50, 32, 18, 0.20) 100%)',
+          border: '1px solid rgba(220, 170, 80, 0.12)',
+        }}
+      >
+        {/* Avatar — page owner's face. Falls back to an initial chip
+            if no avatar is set, same shape as the rest of the app. */}
+        <div className="shrink-0">
+          {resolvedAvatar ? (
+            <img
+              src={resolvedAvatar}
+              alt=""
+              referrerPolicy="no-referrer"
+              className="w-12 h-12 md:w-14 md:h-14 rounded-full object-cover border border-white/15"
+            />
+          ) : (
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-avatar-bg border border-white/15 flex items-center justify-center text-accent text-lg font-semibold">
+              {initial}
+            </div>
+          )}
+        </div>
+        {/* Title + stats stack. Title size bumps on md+; stats line
+            stays a single muted row. */}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-[18px] md:text-[22px] text-gray-100 font-semibold leading-tight">
+            {signature}
+          </h1>
+          {pageStats && (
+            <div className="mt-1 text-[12px] text-gray-400 flex items-center gap-x-2 gap-y-1 flex-wrap">
+              <span>
+                팔로워{' '}
+                <span className="tabular-nums text-gray-300">
+                  {pageStats.followerCount ?? 0}
+                </span>
+              </span>
+              <span className="text-white/15">·</span>
+              <span>
+                상자{' '}
+                <span className="tabular-nums text-gray-300">
+                  {pageStats.crateCount ?? 0}
+                </span>
+              </span>
+              <span className="text-white/15">·</span>
+              <span>
+                평{' '}
+                <span className="tabular-nums text-gray-300">
+                  {pageStats.reviewCount ?? 0}
+                </span>
+              </span>
+            </div>
+          )}
+        </div>
+        {/* Actions — vertical on narrow viewports, inline on md+. */}
+        <div className="shrink-0 flex flex-col md:flex-row md:items-center items-end gap-1.5 md:gap-2">
           {showFollowingChip && (
             <button
+              ref={chipRef}
               type="button"
-              onClick={() => setFollowingOpen(true)}
-              className="text-[11px] text-gray-200 hover:text-accent bg-background/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
+              data-following-trigger
+              onClick={openFollowing}
+              className="text-[11px] text-gray-200 hover:text-accent bg-background/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors whitespace-nowrap"
               title="내가 팔로우 중인 디거들"
             >
               <span className="hidden md:inline">🔗 </span>
@@ -211,18 +275,14 @@ function Header({
               following={viewerIsFollowing}
             />
           )}
-          {/* Page share moved into the right-column toaster cluster
-              inside CrateFloor (2026-05-18) — header stays minimal. */}
         </div>
       </div>
-      {/* Following modal — always shows the VIEWER's own list, not
-          the page user's, so visitors browsing other mydigs can pull
-          up their own following list from anywhere. */}
+      {/* Following dropdown — anchored under the chip, lighter
+          touch than the full-screen modal it replaced. */}
       {followingOpen && viewerId != null && (
-        <FollowListModal
+        <FollowingDropdown
           userId={viewerId}
-          kind="following"
-          title="내 팔로잉"
+          anchorRect={anchorRect}
           onClose={() => setFollowingOpen(false)}
         />
       )}
