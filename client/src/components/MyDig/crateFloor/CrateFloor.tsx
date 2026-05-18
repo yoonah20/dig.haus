@@ -503,11 +503,13 @@ export default function CrateFloor({ username, isOwner }: Props) {
           </span>
         </div>
       )}
-      {/* Floor area — Persian carpet feel via layered gradients
-          (no asset). Wine ground, soft central medallion, darker
-          outer border zone, plus a thin gold inner frame inside
-          the carpet edge. Records float on top in normalised
-          [0, 1] space. */}
+      {/* Floor area — carpet asset on top, gradient fallback
+          underneath. When /textures/carpet.webp is dropped in, the
+          image wins (cover-fit); until then the layered gradients
+          below still render so the surface is never blank. Both
+          layers share the same aspect ratio + render area so the
+          owner-placed record coordinates land in the same spots
+          either way. */}
       <div
         ref={floorRef}
         style={{
@@ -520,6 +522,10 @@ export default function CrateFloor({ username, isOwner }: Props) {
           // size" promise.
           aspectRatio: '16 / 11',
           backgroundImage: [
+            // Carpet asset (cover-fit). Falls through to the
+            // gradient layers below when the file is missing — no
+            // alt text needed since this is decoration.
+            "url('/textures/carpet.webp')",
             // Central medallion — warm gold glow
             'radial-gradient(ellipse 38% 30% at 50% 50%, rgba(190, 140, 60, 0.18), transparent 65%)',
             // Medallion inner pool — slight darker contrast so the
@@ -534,8 +540,35 @@ export default function CrateFloor({ username, isOwner }: Props) {
             // Carpet ground
             'linear-gradient(135deg, #6a1d1d 0%, #4a1212 100%)',
           ].join(', '),
+          backgroundSize: 'cover, auto, auto, auto, auto, auto',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
         }}
       >
+        {/* Digman 마스코트 — bottom-right of the carpet, hardhat
+            character "digging" through the records. Sized to
+            ~10% of the carpet width so it's a presence without
+            crowding the floor; pointer-events none so it never
+            intercepts a drag. */}
+        <img
+          src="/textures/digman_digging.webp"
+          alt=""
+          aria-hidden
+          draggable={false}
+          style={{
+            position: 'absolute',
+            right: '2%',
+            bottom: '2%',
+            width: '10%',
+            minWidth: 56,
+            maxWidth: 110,
+            height: 'auto',
+            pointerEvents: 'none',
+            zIndex: 30,
+            opacity: 0.92,
+            filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.45))',
+          }}
+        />
         {detail.isLoading && (
           <div
             style={{
