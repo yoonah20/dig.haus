@@ -106,7 +106,7 @@ export default function MyDig() {
   return (
     <div className="flex-1">
       <main
-        className="max-w-[1120px] mx-auto px-4 md:px-6 pt-4 pb-8 md:pb-16 space-y-3"
+        className="max-w-[1040px] mx-auto px-4 md:px-6 pt-4 pb-8 md:pb-16 space-y-3"
         style={
           isMobile && playerActive
             ? { paddingBottom: 'calc(140px + env(safe-area-inset-bottom))' }
