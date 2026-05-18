@@ -323,43 +323,13 @@ export default function UserHoverCard({
                   </a>
                 )}
 
-                {/* Collection + comment counts. 굿굿/별루 counts were
-                    pulled out because they already appear on every
-                    comment card the user lands on before the popover
-                    ever opens — duplicating them here pushed the row
-                    onto two lines. 💿 / 🎯 stay conditional (hidden
-                    when zero — nobody reads "0장 샀음" as a stat),
-                    💬 always shows since reviews are how most users
-                    actually participate even with no collection. */}
-                <div className="pt-1.5 border-t border-white/5 tabular-nums">
-                  <div className="flex items-center gap-3">
-                    {/* Followers lead — the social metric is the
-                        most-immediately-actionable read for a
-                        hover-card, so it sits first. Always
-                        renders (even 0) so the row anchors on the
-                        same metric regardless of activity level. */}
-                    <span>
-                      <span aria-hidden>👥</span>{' '}
-                      <span className="text-gray-100 font-semibold">
-                        {data.stats.followerCount ?? 0}
-                      </span>
-                    </span>
-                    {(data.stats.crateAlbumCount ?? 0) > 0 && (
-                      <span>
-                        <span aria-hidden>📦</span>{' '}
-                        <span className="text-gray-100 font-semibold">
-                          {data.stats.crateAlbumCount}
-                        </span>
-                      </span>
-                    )}
-                    <span>
-                      <span aria-hidden>💬</span>{' '}
-                      <span className="text-gray-100 font-semibold">
-                        {data.stats.reviewCount}
-                      </span>
-                    </span>
-                  </div>
-                </div>
+                {/* Stats row pulled 2026-05-18 — every count the
+                    hover card surfaced (팔로워 / 박스 앨범 / 50자 평)
+                    is now visible on the mydig header itself, so
+                    duplicating them in the hover felt redundant.
+                    The hover stays focused on identity + the two
+                    actions (follow + 마이딕 보기 / @instagram); deep
+                    stats live one click away on /my/:username. */}
               </div>
             </div>
           )}
