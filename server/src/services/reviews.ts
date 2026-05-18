@@ -1850,7 +1850,17 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       // pages and similar bare album-detail pages trigger this.
       /(?:이\s*(?:페이지|글|기사|리뷰|텍스트)|페이지)에(?:는|서)?\s*(?:명시적인?|구체적인?|직접적인?|특정한?|확실한?)?\s*(?:평점|별점|점수|등급|레이팅)[을를은는이가]?\s*(?:없|존재하지\s*않|찾을\s*수\s*없|기재되지\s*않|표시되지\s*않|부재|확인되지\s*않)/,
       /(?:명시적인?|구체적인?|직접적인?)\s*(?:평점|별점|점수|등급)[을를은는이가]?\s*(?:없|부재|존재하지\s*않|찾을\s*수\s*없)/,
+      // Same shape but anchored on "(이) 앨범" instead of "(이) 페이지",
+      // with "제공/부여/명시/기재되지 않" as the negative — lambgoat's
+      // /albums/<id>/ bare detail pages render "Our score: N/A" and
+      // the LLM writes "이 앨범에 대한 평점은 제공되지 않는다" as the
+      // excerpt. The rule above doesn't fire because its subject set
+      // (페이지/글/기사/리뷰/텍스트) doesn't include 앨범, and "제공되지
+      // 않" isn't in its negative list.
+      /(?:이\s*)?앨범(?:의|에\s*(?:대한|관한)?)?\s*(?:평점|별점|점수|등급|레이팅)[을를은는이가]?\s*(?:제공|기재|표시|명시|부여|할당)되지?\s*않/,
       /no\s+(?:explicit|specific|clear|stated|visible)\s+(?:score|rating|grade)/i,
+      /(?:rating|score|grade)\s+(?:is\s+)?not\s+(?:provided|given|specified|stated|listed|available)/i,
+      /no\s+(?:rating|score|grade)\s+(?:is\s+)?(?:provided|given|specified|stated|listed|available)/i,
       // Release / news / event calendar pages — sites like
       // time-for-metal.eu publish a per-week release roster that
       // links to reviews but doesn't contain review prose. Catches

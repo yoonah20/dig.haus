@@ -8,6 +8,17 @@ Add new entries to the top.
 
 ---
 
+## 2026-05-18 — lambgoat /albums/<id>/ "Our score: N/A" 페이지가 placeholder 본문으로 등록됨
+
+- **URL**: https://lambgoat.com/albums/1050/subzero-happiness-without-peace-re-release/
+- **Expected**: 거부 (`not-a-review-in-prose`). 페이지는 메타데이터(연도/레이블)만 있고 리뷰 본문 자체가 없음. "Our score: N/A".
+- **Observed**: 등록됨. score=null, excerpt_ko = "이 앨범에 대한 평점은 제공되지 않는다."
+- **Cause**: `services/reviews.ts` 의 prose-rejection 패턴이 이미 "score-only meta-commentary" 케이스를 잡고 있고, 코멘트도 lambgoat 페이지를 명시적으로 노리고 있었음. 하지만 이번 문구는 두 가지 이유로 빠져나옴 — (1) 주어가 `이 앨범에` 인데 기존 룰은 `이 페이지/글/기사/리뷰/텍스트` 만 매칭, (2) 부정어가 `제공되지 않` 인데 기존 룰의 부정어 목록 (`없/부재/존재하지 않/찾을 수 없/기재되지 않/표시되지 않/확인되지 않`) 에는 `제공/부여/명시되지 않` 이 빠져 있었음.
+- **Fix**: 두 변형을 잡는 KR 패턴 1개 + 영문 변형 2개 추가. 14개 케이스 (placeholder 7개 reject + 진짜 Lambgoat NULL-score 리뷰 4개 keep + edge cases 3개 keep) 모두 통과.
+- **Status**: fixed
+
+---
+
 ## 2026-05-18 — thedarkmelody.com WP Review 총점 무시
 
 - **URL**: https://thedarkmelody.com/review-clasico-seventh-wonder-tiara-2018/
