@@ -575,7 +575,10 @@ export default function CrateFloor({ username, isOwner }: Props) {
             character "digging" through the records. Sized to
             ~10% of the carpet width so it's a presence without
             crowding the floor; pointer-events none so it never
-            intercepts a drag. */}
+            intercepts a drag. Grayscale + multiply blend takes
+            the yellow-hardhat colour out and re-tints him in the
+            carpet's red so he reads as part of the surface
+            instead of a sticker pasted on top. */}
         <img
           src="/textures/digman_digging.webp"
           alt=""
@@ -591,7 +594,9 @@ export default function CrateFloor({ username, isOwner }: Props) {
             height: 'auto',
             pointerEvents: 'none',
             zIndex: 30,
-            opacity: 0.92,
+            opacity: 0.7,
+            filter: 'grayscale(1)',
+            mixBlendMode: 'multiply',
           }}
         />
         {detail.isLoading && (
