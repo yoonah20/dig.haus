@@ -85,9 +85,34 @@ const CLICK_THRESHOLD_PX = 5;
 
 const ACTIVE_KEY = 'mydig:crateFloor:activeCrateId';
 
+// Tailwind's `md` breakpoint is 768px; the grid above swaps to a
+// two-column layout at the same width, so anything keyed on mobile-
+// vs-desktop here matches the visual breakpoint.
+function useIsMobileViewport() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 767px)').matches;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}
+
 export default function CrateFloor({ username, isOwner }: Props) {
   const cratesQuery = useUserCrates(username);
   const navigate = useNavigate();
+  const isMobile = useIsMobileViewport();
+
+  // Mobile collapses the toaster tools (search + preview + export
+  // buttons) by default so the guestbook isn't pushed below the fold.
+  // Desktop ignores this state — the tools always render in the side
+  // column there.
+  const [toasterToolsOpen, setToasterToolsOpen] = useState(false);
 
   // Server returns crates ordered by position ASC. The owner controls
   // ordering by drag-reordering chips in the bar; that PUT bumps
@@ -664,7 +689,11 @@ export default function CrateFloor({ username, isOwner }: Props) {
           always have somewhere to leave a note even when the owner
           has the export tools hidden. Operator iter 2026-05-18:
           guestbook moved out of its full-width below-the-grid slot
-          and into this column. */}
+          and into this column. Mobile-specific iter 2026-05-18:
+          the right column stacks below the carpet on mobile, where
+          the toaster tools push the guestbook well below the fold.
+          On mobile we default them closed behind a toggle; desktop
+          renders them inline as before. */}
       {activeCrateId != null && activeCrate && (
         <div
           style={{
@@ -673,53 +702,80 @@ export default function CrateFloor({ username, isOwner }: Props) {
             gap: 10,
           }}
         >
-          {isOwner && (
-            <AddAlbumSearch
-              activeCrateId={activeCrateId}
-              activeCrateTitle={activeCrate.title}
-            />
+          {isMobile && (
+            <button
+              type="button"
+              onClick={() => setToasterToolsOpen((v) => !v)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 8,
+                padding: '8px 12px',
+                background: 'var(--color-panel-strong)',
+                border: '1px solid rgba(255, 255, 255, 0.10)',
+                borderRadius: 8,
+                color: 'inherit',
+                font: 'inherit',
+                cursor: 'pointer',
+              }}
+              aria-expanded={toasterToolsOpen}
+            >
+              <span>토스터 만들기</span>
+              <span aria-hidden="true">{toasterToolsOpen ? '▴' : '▾'}</span>
+            </button>
           )}
-          <LiveToasterPreview items={items} />
-          {/* Toaster export actions — explicit "make a toaster
-              from THIS arrangement" + a page-share link. The page
-              share lives here now (removed from the MyDig header)
-              so both export-style actions cluster in one place. */}
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: 6,
-              flexWrap: 'wrap',
-            }}
-          >
-            <ToasterButton
-              path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
-              filenameHint={`${username}-${activeCrate.title}-toaster.png`}
-              variant={isOwner ? 'prominent' : 'default'}
-              label="이 배열로 토스터 만들기"
-            />
-            {/* Toaster IMAGE share. Mobile (coarse pointer + Web
-                Share API w/ files): opens the OS share sheet with
-                the PNG file → Instagram / KakaoTalk / Photos. Desktop
-                or no-share-support: copies the resolved PNG URL to
-                clipboard. resolveApiUrl prefixes API_BASE so split-
-                origin deploys produce a full URL the recipient can
-                hit. */}
-            <ShareButton
-              url={
-                resolveApiUrl(
-                  `/api/mydig/crates/${activeCrateId}/toaster.png`
-                ) ?? `/api/mydig/crates/${activeCrateId}/toaster.png`
-              }
-              imageUrl={
-                resolveApiUrl(
-                  `/api/mydig/crates/${activeCrateId}/toaster.png`
-                ) ?? `/api/mydig/crates/${activeCrateId}/toaster.png`
-              }
-              imageFilename={`${username}-${activeCrate.title}-toaster.png`}
-              label="공유"
-            />
-          </div>
+          {(!isMobile || toasterToolsOpen) && (
+            <>
+              {isOwner && (
+                <AddAlbumSearch
+                  activeCrateId={activeCrateId}
+                  activeCrateTitle={activeCrate.title}
+                />
+              )}
+              <LiveToasterPreview items={items} />
+              {/* Toaster export actions — explicit "make a toaster
+                  from THIS arrangement" + a page-share link. The page
+                  share lives here now (removed from the MyDig header)
+                  so both export-style actions cluster in one place. */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 6,
+                  flexWrap: 'wrap',
+                }}
+              >
+                <ToasterButton
+                  path={`/api/mydig/crates/${activeCrateId}/toaster.png`}
+                  filenameHint={`${username}-${activeCrate.title}-toaster.png`}
+                  variant={isOwner ? 'prominent' : 'default'}
+                  label="이 배열로 토스터 만들기"
+                />
+                {/* Toaster IMAGE share. Mobile (coarse pointer + Web
+                    Share API w/ files): opens the OS share sheet with
+                    the PNG file → Instagram / KakaoTalk / Photos. Desktop
+                    or no-share-support: copies the resolved PNG URL to
+                    clipboard. resolveApiUrl prefixes API_BASE so split-
+                    origin deploys produce a full URL the recipient can
+                    hit. */}
+                <ShareButton
+                  url={
+                    resolveApiUrl(
+                      `/api/mydig/crates/${activeCrateId}/toaster.png`
+                    ) ?? `/api/mydig/crates/${activeCrateId}/toaster.png`
+                  }
+                  imageUrl={
+                    resolveApiUrl(
+                      `/api/mydig/crates/${activeCrateId}/toaster.png`
+                    ) ?? `/api/mydig/crates/${activeCrateId}/toaster.png`
+                  }
+                  imageFilename={`${username}-${activeCrate.title}-toaster.png`}
+                  label="공유"
+                />
+              </div>
+            </>
+          )}
           <Guestbook
             crateId={activeCrateId}
             crateTitle={activeCrate.title}
