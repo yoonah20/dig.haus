@@ -450,8 +450,8 @@ export default function CrateFloor({ username, isOwner }: Props) {
             alignItems: 'baseline',
             gap: 10,
             padding: '6px 14px',
-            background: 'rgba(50, 32, 18, 0.55)',
-            borderBottom: '1px solid rgba(220, 170, 80, 0.12)',
+            background: 'var(--color-panel-strong)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
           }}
         >
           <span

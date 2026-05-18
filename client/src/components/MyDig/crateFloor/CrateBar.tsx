@@ -399,12 +399,12 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
         gap: 14,
         padding: '12px 16px 16px',
         overflowX: 'auto',
-        // Same warm tint as the meta ribbon above the carpet so the
-        // two crate-info bands read as a matched pair bracketing the
-        // floor. Border on top mirrors the meta strip's bottom amber
-        // border for the same visual rhyme.
-        borderTop: '1px solid rgba(220, 170, 80, 0.12)',
-        background: 'rgba(50, 32, 18, 0.55)',
+        // Matches the meta ribbon above the carpet (neutral
+        // panel-strong) so the two crate-info bands read as one
+        // matched frame bracketing the floor — same tone the album
+        // page uses for chrome.
+        borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+        background: 'var(--color-panel-strong)',
       }}
     >
       {displayCrates.map((c) => {

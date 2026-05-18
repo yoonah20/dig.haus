@@ -199,14 +199,7 @@ function Header({
 
   return (
     <>
-      <div
-        className="flex items-center gap-3 md:gap-4 px-2 py-3 rounded-lg"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(50, 32, 18, 0.45) 0%, rgba(50, 32, 18, 0.20) 100%)',
-          border: '1px solid rgba(220, 170, 80, 0.12)',
-        }}
-      >
+      <div className="flex items-center gap-3 md:gap-4 px-2 py-3 rounded-lg bg-panel-strong border border-white/10">
         {/* Avatar — page owner's face. Falls back to an initial chip
             if no avatar is set, same shape as the rest of the app. */}
         <div className="shrink-0">
