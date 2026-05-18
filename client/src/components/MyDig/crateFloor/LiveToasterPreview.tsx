@@ -11,7 +11,7 @@ import type { CrateItem } from '../../../hooks/useCrates';
 // the export will pick and in what order. The downloaded PNG still
 // carries the full text treatment (header / captions / stamp).
 //
-// Sort mirrors server crateToToasterSlots: y bucketed into 0.22-
+// Sort mirrors server crateToToasterSlots: y bucketed into 0.25-
 // wide bands (one band per visible row of the default-flow grid),
 // within a band x decides, unplaced records last by addedAt DESC.
 
@@ -20,10 +20,12 @@ interface Props {
 }
 
 // Must stay in sync with server/src/routes/mydig.ts → toaster sort
-// (CAST(position_y / 0.22 AS INTEGER)) and with default-flow grid
-// row spacing in ./layout.ts. Touching one without the other will
-// desync the preview from the download.
-const Y_BAND = 0.22;
+// (CAST(position_y / 0.25 AS INTEGER)) and with the default-flow
+// row positions in ./layout.ts. Touching one without the other will
+// desync the preview from the download, and tuning this without
+// re-checking the row positions can re-introduce the "tiny drag
+// flips a band" bug (see server-side history comment).
+const Y_BAND = 0.25;
 
 function sortForToaster(items: CrateItem[]): CrateItem[] {
   return [...items].sort((a, b) => {
