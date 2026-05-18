@@ -1964,9 +1964,11 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       /(?:release|news|event|tour)\s+calendar/i,
       // Aggregator / link-list pages — the page only LINKS to
       // reviews on other sites instead of containing review prose
-      // itself. "리뷰 링크만 (포함/수록/있/싣)" is the LLM's typical
-      // way of describing this when it doesn't refuse cleanly.
-      /(?:리뷰|평론)\s*링크만?\s*(?:포함|수록|있|싣|모아)/,
+      // itself. "리뷰 링크만 (포함/수록/있/싣/제공/제시)" is the LLM's
+      // typical way of describing this when it doesn't refuse cleanly.
+      // 제공 added for vm-underground /band/<slug>/ archive pages whose
+      // excerpts read "앨범 제목과 리뷰 링크만 제공한다".
+      /(?:리뷰|평론)\s*링크만?\s*(?:포함|수록|있|싣|모아|제공|제시)/,
       /(?:only|just)\s+(?:contains?|has|provides?)\s+(?:links?|hyperlinks?)\s+to\s+reviews?/i,
       // Tag-archive / author-archive landing pages — wordpress-style
       // sites at /tag/<artist>/ or /author/<critic>/ render a list of
@@ -1974,11 +1976,13 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
       // the target album's review prose. The LLM correctly notes the
       // mismatch in the summary (a real case: "이 페이지는 Machine
       // Head 태그 아카이브로, 여러 게시물을 나열하며 'The Blackening'
-      // 앨범 리뷰가 포함되어 있지 않다"). We catch the two strongest
-      // markers separately so a future variant where the LLM phrases
-      // one but not the other still trips the rejection.
-      /(?:태그|작가|저자|카테고리|아티스트)\s*아카이브/,
-      /(?:tag|author|category|artist)\s+archive/i,
+      // 앨범 리뷰가 포함되어 있지 않다"). vm-underground /band/<slug>/
+      // takes the same shape with 밴드/band as the archive subject.
+      // We catch the two strongest markers separately so a future
+      // variant where the LLM phrases one but not the other still
+      // trips the rejection.
+      /(?:태그|작가|저자|카테고리|아티스트|밴드)\s*아카이브/,
+      /(?:tag|author|category|artist|band)\s+archive/i,
       // "[any] 앨범 리뷰가 포함/수록/존재되어 있지 않" — generic
       // form of "the requested album's review is not on this page".
       // Covers the tag-archive case above plus future variants where

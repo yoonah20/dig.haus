@@ -8,6 +8,17 @@ Add new entries to the top.
 
 ---
 
+## 2026-05-18 — vm-underground /band/<slug>/ archive 페이지가 등록됨
+
+- **URL**: https://www.vm-underground.com/band/ebony-tears/
+- **Expected**: 거부 (`not-a-review-in-prose`). 페이지는 "Ebony Tears Archives" — band tag archive 로 사이트 전체 최근 리뷰 링크만 나열할 뿐 해당 앨범 본문 없음.
+- **Observed**: 등록됨. score=null, excerpt_ko = "이 페이지는 앨범 제목과 리뷰 링크만 제공한다. 리뷰 본문이나 평점은 확인할 수 없다."
+- **Cause**: (1) 링크-only 룰 `(?:리뷰|평론)\s*링크만?\s*(?:포함|수록|있|싣|모아)` 의 동사 목록에 `제공` 이 빠져 있어서 "리뷰 링크만 **제공**한다" 가 빠져나옴. (2) 아카이브 룰 subject set `(태그|작가|저자|카테고리|아티스트)` / `(tag|author|category|artist) archive` 에 `밴드/band` 가 없어서 LLM이 `밴드 아카이브` 라고 말해도 안 잡힘. URL 구조 (`/band/<slug>/`) 자체가 이 카테고리.
+- **Fix**: 링크-only 룰에 `제공` / `제시` 추가. 아카이브 룰 subject 에 `밴드` / `band` 추가. 15개 케이스 (사용자 보고문구 + 밴드-아카이브 KR/EN + 기존 링크-list/lambgoat reject + 진짜 lambgoat 리뷰 4개 + edge case 4개) 모두 통과.
+- **Status**: fixed
+
+---
+
 ## 2026-05-18 — lambgoat /albums/<id>/ "Our score: N/A" 페이지가 placeholder 본문으로 등록됨
 
 - **URL**: https://lambgoat.com/albums/1050/subzero-happiness-without-peace-re-release/
