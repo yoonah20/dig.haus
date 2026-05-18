@@ -249,6 +249,22 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
   // chip); string = composing (text input is open, Enter creates).
   const [newCrateTitle, setNewCrateTitle] = useState<string | null>(null);
 
+  // Mobile wraps chips onto multiple rows instead of horizontal
+  // scrolling — the latter hides crates off-screen on narrow phones.
+  // 767px matches the page's md:grid-cols swap and the mydig
+  // mobile-vs-desktop hook in CrateFloor.
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 767px)').matches;
+  });
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
   // Local override of crate order while the owner is mid-drag. Null
   // means "use props order"; an array means "render in this order
   // until the drag commits or cancels." Committed to the server via
@@ -398,7 +414,13 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
         display: 'flex',
         gap: 14,
         padding: '12px 16px 16px',
-        overflowX: 'auto',
+        // Mobile: wrap to the next row when chips don't fit (chip
+        // width ~88px + 14 gap → ~3–4 per row on typical phones).
+        // Desktop: keep horizontal scroll so the bar stays one
+        // continuous row inside the side-by-side grid.
+        flexWrap: isMobile ? 'wrap' : 'nowrap',
+        overflowX: isMobile ? 'visible' : 'auto',
+        rowGap: 14,
         // Matches the meta ribbon above the carpet (neutral
         // panel-strong) so the two crate-info bands read as one
         // matched frame bracketing the floor — same tone the album

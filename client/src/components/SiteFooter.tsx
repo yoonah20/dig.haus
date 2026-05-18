@@ -22,29 +22,18 @@ function useSiteStats() {
 }
 
 // Global footer rendered by App.tsx so every route shares the same
-// "dig.haus 2026 · …" line at the bottom.
-//
-// `pinned` — mydig variant: footer is fixed to the viewport bottom
-// at md+ (matches the backdrop's bottom anchor), compact padding,
-// and overlays scroll instead of flowing with it. On mobile the
-// pinned mode falls back to flow layout so the footer only appears
-// once the user has scrolled the page to the end — the small
-// viewport doesn't have room for a permanent footer strip. The
-// page reserves its own bottom padding on desktop so last-row
-// content clears the overlay. The mydig Spotify embed lives inline
-// inside the wall section, so the footer no longer hosts it.
-export default function SiteFooter({ pinned = false }: { pinned?: boolean }) {
+// "dig.haus 2026 · …" line at the bottom. Flows at the end of the
+// page on every route — `mt-auto` inside the App's flex-column root
+// pushes it to the bottom of the viewport on short pages and lands
+// it after content on tall ones.
+export default function SiteFooter() {
   const { data } = useSiteStats();
   const users = data?.users ?? 0;
   const albums = data?.albums ?? 0;
 
-  const layoutClasses = pinned
-    ? 'mt-auto pt-10 pb-5 md:mt-0 md:pt-3 md:pb-3 md:fixed md:bottom-0 md:left-0 md:right-0 md:z-10 md:pointer-events-none'
-    : 'mt-auto pt-10 pb-5';
-
   return (
     <footer
-      className={`w-full max-w-[1280px] mx-auto ${layoutClasses} px-4 text-center text-gray-600 text-xs`}
+      className="w-full max-w-[1280px] mx-auto mt-auto pt-10 pb-5 px-4 text-center text-gray-600 text-xs"
     >
       {/* Line 1: site identity + live counts. Counts append as they
           become available so the line shapes around whatever
@@ -66,22 +55,13 @@ export default function SiteFooter({ pinned = false }: { pinned?: boolean }) {
       </div>
       {/* Line 2: legal links — broken onto their own row so the
           dense counts line doesn't visually bury them. Dimmer
-          than the counts so they read as the secondary pair.
-          Links re-enable pointer events in pinned mode so they
-          stay clickable while the surrounding footer area is
-          click-through to content scrolling beneath. */}
+          than the counts so they read as the secondary pair. */}
       <div className="mt-1.5 text-gray-700">
-        <a
-          href="/privacy.html"
-          className={`hover:text-amber-500 ${pinned ? 'md:pointer-events-auto' : ''}`}
-        >
+        <a href="/privacy.html" className="hover:text-amber-500">
           개인정보처리방침
         </a>
         {' · '}
-        <a
-          href="/terms.html"
-          className={`hover:text-amber-500 ${pinned ? 'md:pointer-events-auto' : ''}`}
-        >
+        <a href="/terms.html" className="hover:text-amber-500">
           서비스 약관
         </a>
       </div>

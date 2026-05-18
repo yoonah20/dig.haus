@@ -150,12 +150,6 @@ export default function App() {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior });
     }
   }, [location.pathname]);
-  // mydig — page-level backdrop intentionally absent. The earlier
-  // painted-wall + lamp + vignette + mobile pattern stack went out
-  // with the 2026-05-17 crate-floor redesign (the carpet inside
-  // CrateFloor is the only "surface" the new design needs). Flag
-  // is kept because SiteFooter pinning still reads it below.
-  const isMydig = location.pathname.startsWith('/my/');
   const isDig = location.pathname === '/dig';
   // Home tints the app-root bg the same warm-dark as the nav so
   // the strip below the activity sections (where the footer
@@ -220,11 +214,14 @@ export default function App() {
                   </Routes>
                 </Suspense>
               </ErrorBoundary>
-              {/* Footer on mydig is `pinned` — fixed to the viewport
-                  bottom so it tracks the backdrop's bottom anchor no
-                  matter how the wall + snapshot strip change length.
-                  Other routes keep the flow-layout sticky-footer. */}
-              <SiteFooter pinned={isMydig} />
+              {/* Footer flows at the end of the page on every route.
+                  The mydig variant used `pinned` (md:fixed bottom-0)
+                  to anchor against the old painted-wall backdrop,
+                  but with that backdrop gone (2026-05-17 crate-floor
+                  redesign) the fixed footer just overlaid scrolling
+                  content. Flow layout drops it at the actual page
+                  end like the rest of the site. */}
+              <SiteFooter />
               {/* Persistent Spotify player — a single iframe mounted
                   once at App root and never unmounted. Fixed to the
                   viewport at bottom-center. The stable DOM node is
