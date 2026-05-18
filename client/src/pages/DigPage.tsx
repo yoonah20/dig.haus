@@ -511,11 +511,20 @@ export default function DigPage() {
                 onChange={setSort}
                 label={currentSortLabel}
               />
-              <LensControl
-                activeLens={activeLens}
-                onSet={setLens}
-                onClear={clearLens}
-              />
+              <div className="flex items-center gap-3">
+                <LensTrigger
+                  type="label"
+                  activeLens={activeLens}
+                  onSet={setLens}
+                  onClear={clearLens}
+                />
+                <LensTrigger
+                  type="year"
+                  activeLens={activeLens}
+                  onSet={setLens}
+                  onClear={clearLens}
+                />
+              </div>
             </div>
             {isLoading && albums.length === 0 ? (
               <div className="text-center py-20 text-sm text-gray-500">
@@ -524,7 +533,7 @@ export default function DigPage() {
             ) : albums.length === 0 ? (
               <div className="text-center py-20 text-sm text-gray-500">
                 {activeLens
-                  ? '이 렌즈로 보이는 앨범이 없습니다.'
+                  ? '이 조건에 해당하는 앨범이 없습니다.'
                   : '등록된 앨범이 없습니다.'}
               </div>
             ) : (
@@ -563,7 +572,14 @@ export default function DigPage() {
                     onChange={setSort}
                     label={currentSortLabel}
                   />
-                  <LensControl
+                  <LensTrigger
+                    type="label"
+                    activeLens={activeLens}
+                    onSet={setLens}
+                    onClear={clearLens}
+                  />
+                  <LensTrigger
+                    type="year"
                     activeLens={activeLens}
                     onSet={setLens}
                     onClear={clearLens}
@@ -578,7 +594,7 @@ export default function DigPage() {
               ) : albums.length === 0 ? (
                 <div className="text-center py-20 text-sm text-gray-500">
                   {activeLens
-                    ? '이 렌즈로 보이는 앨범이 없습니다.'
+                    ? '이 조건에 해당하는 앨범이 없습니다.'
                     : '등록된 앨범이 없습니다.'}
                 </div>
               ) : (
@@ -864,34 +880,35 @@ function useLensOptions() {
   });
 }
 
-// Single trigger that renders either the empty "+ 렌즈" button or the
-// active "◉ Blue Note ✕" chip, and owns the picker popover. Folding
-// both states into one component avoids the parent juggling visibility
-// state — the trigger button always sits in the same flex slot and the
-// chip simply replaces the label when a lens is active.
-function LensControl({
+// Per-type filter trigger — one for 레이블, one for 연도. Splitting the
+// previous tabbed "lens" picker into two separate triggers drops the
+// umbrella-noun vocabulary ("렌즈") that read awkwardly in Korean and
+// makes the two filter axes equally visible at a glance. Selecting a
+// value on one trigger replaces whichever filter was active before
+// (single-filter invariant lives in the URL via setSearchParams — the
+// `lens` URL param can hold one type:value pair at a time).
+function LensTrigger({
+  type,
   activeLens,
   onSet,
   onClear,
 }: {
+  type: LensType;
   activeLens: ActiveLens | null;
   onSet: (type: LensType, value: string) => void;
   onClear: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<LensType>('label');
   const ref = useRef<HTMLDivElement>(null);
   const options = useLensOptions();
 
-  // Resolve a human label for the active lens chip. Year renders the
-  // numeric value with the 년 suffix; label is already the human name
-  // (the URL carries the label_name string directly — labels.id isn't
-  // populated in practice). No lookup round-trip.
-  const activeChipLabel = useMemo(() => {
-    if (!activeLens) return null;
-    if (activeLens.type === 'year') return `${activeLens.value}년`;
-    return activeLens.value;
-  }, [activeLens]);
+  const isMine = activeLens?.type === type;
+  const triggerLabel = type === 'label' ? '레이블' : '연도';
+  const activeValue = isMine && activeLens
+    ? activeLens.type === 'year'
+      ? `${activeLens.value}년`
+      : activeLens.value
+    : null;
 
   useEffect(() => {
     if (!open) return;
@@ -913,23 +930,22 @@ function LensControl({
 
   return (
     <div className="relative" ref={ref}>
-      {activeLens ? (
+      {activeValue ? (
         <span className="inline-flex items-center gap-1.5 rounded-full bg-accent/15 border border-accent/40 px-2.5 py-1 text-xs text-accent">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex items-center gap-1 cursor-pointer hover:text-accent/80 transition-colors"
+            className="cursor-pointer hover:text-accent/80 transition-colors font-medium"
             aria-haspopup="dialog"
             aria-expanded={open}
           >
-            <span aria-hidden>◉</span>
-            <span className="font-medium">{activeChipLabel}</span>
+            {activeValue}
           </button>
           <button
             type="button"
             onClick={onClear}
             className="text-accent/70 hover:text-accent cursor-pointer leading-none"
-            aria-label="렌즈 해제"
+            aria-label={`${triggerLabel} 해제`}
           >
             ✕
           </button>
@@ -942,7 +958,7 @@ function LensControl({
           aria-haspopup="dialog"
           aria-expanded={open}
         >
-          렌즈
+          {triggerLabel}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="w-3 h-3 opacity-70"
@@ -965,32 +981,17 @@ function LensControl({
           shadow="2xl"
           className="absolute right-0 mt-1 w-64 z-50"
         >
-          <div className="flex items-center gap-1 border-b border-white/10 px-2 pt-2">
-            {(['label', 'year'] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1.5 text-xs rounded-t-md cursor-pointer transition-colors ${
-                  tab === t
-                    ? 'text-accent bg-white/5'
-                    : 'text-gray-400 hover:text-gray-200'
-                }`}
-              >
-                {t === 'label' ? '레이블' : '연도'}
-              </button>
-            ))}
-          </div>
           <div className="max-h-80 overflow-y-auto py-1">
             {options.isLoading ? (
               <div className="px-4 py-3 text-xs text-gray-500">
                 불러오는 중...
               </div>
-            ) : tab === 'label' ? (
+            ) : type === 'label' ? (
               options.data?.labels.length ? (
                 options.data.labels.map((l) => {
                   const isCurrent =
                     activeLens?.type === 'label' &&
-                    activeLens.value === l.name;
+                    activeLens.value.toLowerCase() === l.name.toLowerCase();
                   return (
                     <button
                       key={l.name}
