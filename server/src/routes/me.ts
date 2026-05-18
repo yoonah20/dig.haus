@@ -245,38 +245,49 @@ router.get('/me/reviews', requireAuth, (req, res) => {
 });
 
 // ─── GET /api/me/upvotes — albums I've 굿굿'd ─────────────────────────────
+// ─── GET /api/me/downvotes — albums I've 별루'd ───────────────────────────
+//
+// Both routes share one handler builder — they differ only by vote
+// direction and response key. The profile page renders both lists so a
+// user can see *which* albums fed their 굿굿 / 별루 totals, not just the
+// counts on the activity card.
 
-router.get('/me/upvotes', requireAuth, (req, res) => {
-  const me = req.user as AppUser;
-  const rows = queryAll(
-    `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name,
-            a.cover_art_url, a.cover_art_fallbacks,
-            v.created_at AS voted_at
-     FROM album_votes v
-     JOIN albums a ON a.id = v.album_id
-     WHERE v.user_id = ? AND v.vote = 'up'
-     ORDER BY v.created_at DESC, v.id DESC`,
-    [me.id]
-  );
-  res.json({
-    upvotes: rows.map((a: any) => ({
-      slug: a.slug || a.mbid,
-      title: a.title,
-      artist: a.artist_name,
-      coverArtUrl: a.cover_art_url,
-      coverArtFallbacks: a.cover_art_fallbacks
-        ? (() => {
-            try {
-              return JSON.parse(a.cover_art_fallbacks);
-            } catch {
-              return [];
-            }
-          })()
-        : [],
-      votedAt: a.voted_at,
-    })),
-  });
-});
+function makeVoteListHandler(direction: 'up' | 'down', responseKey: 'upvotes' | 'downvotes') {
+  return (req: any, res: any) => {
+    const me = req.user as AppUser;
+    const rows = queryAll(
+      `SELECT a.id, a.slug, a.mbid, a.title, a.artist_name,
+              a.cover_art_url, a.cover_art_fallbacks,
+              v.created_at AS voted_at
+       FROM album_votes v
+       JOIN albums a ON a.id = v.album_id
+       WHERE v.user_id = ? AND v.vote = ?
+       ORDER BY v.created_at DESC, v.id DESC`,
+      [me.id, direction]
+    );
+    res.json({
+      [responseKey]: rows.map((a: any) => ({
+        slug: a.slug || a.mbid,
+        title: a.title,
+        artist: a.artist_name,
+        coverArtUrl: a.cover_art_url,
+        coverArtFallbacks: a.cover_art_fallbacks
+          ? (() => {
+              try {
+                return JSON.parse(a.cover_art_fallbacks);
+              } catch {
+                return [];
+              }
+            })()
+          : [],
+        votedAt: a.voted_at,
+      })),
+    });
+  };
+}
+
+router.get('/me/upvotes', requireAuth, makeVoteListHandler('up', 'upvotes'));
+router.get('/me/downvotes', requireAuth, makeVoteListHandler('down', 'downvotes'));
 
 // ─── GET /api/me/collection — albums I own ────────────────────────────────
 //

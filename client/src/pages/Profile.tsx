@@ -7,11 +7,14 @@ import { resolveApiUrl } from '../utils/apiUrl';
 import {
   useMyProfile,
   useMyReviews,
+  useMyUpvotes,
+  useMyDownvotes,
   useUpdateMyProfile,
   useUploadMyAvatar,
   useResetMyAvatar,
   useDeleteMyReview,
   useDeleteMyAccount,
+  type MyVotedAlbum,
 } from '../hooks/useMe';
 import {
   useMyAlbumRequests,
@@ -63,6 +66,61 @@ function SectionHeader({
         <span className="text-sm text-gray-500 font-sans tabular-nums">{count}</span>
       )}
     </h2>
+  );
+}
+
+// Compact album-row list shared by the 굿굿 / 별루 panels. The row
+// shape matches "내 50자 평" above — same 40×40 cover, same hover-link
+// title — so the page reads as one continuous activity dashboard
+// instead of two competing layouts.
+function VotedAlbumList({
+  albums,
+  emptyText,
+  isLoading,
+}: {
+  albums: MyVotedAlbum[];
+  emptyText: string;
+  isLoading: boolean;
+}) {
+  if (isLoading) {
+    return <div className="text-sm text-gray-500">불러오는 중…</div>;
+  }
+  if (albums.length === 0) {
+    return <div className="text-sm text-gray-500">{emptyText}</div>;
+  }
+  return (
+    <div className="bg-panel rounded-xl border border-white/5 overflow-hidden">
+      <div className="divide-y divide-white/5 max-h-[480px] overflow-y-auto">
+        {albums.map((a) => (
+          <div key={a.slug} className="p-3 flex items-center gap-3">
+            <Link
+              to={`/album/${a.slug}`}
+              className="shrink-0 w-10 h-10 rounded-md overflow-hidden bg-panel-hover"
+            >
+              <CoverArt
+                src={a.coverArtUrl}
+                fallbacks={a.coverArtFallbacks}
+                alt={a.title}
+                className="w-full h-full object-cover"
+              />
+            </Link>
+            <div className="flex-1 min-w-0">
+              <Link
+                to={`/album/${a.slug}`}
+                className="block text-sm text-white font-medium truncate hover:text-accent transition-colors"
+                title={`${a.title} — ${a.artist ?? ''}`}
+              >
+                {a.title}
+              </Link>
+              <div className="text-xs text-gray-500 truncate">{a.artist}</div>
+            </div>
+            <span className="shrink-0 text-xs text-gray-500 tabular-nums">
+              {a.votedAt?.slice(0, 10)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -252,6 +310,8 @@ export default function Profile() {
 
   const profile = useMyProfile();
   const reviews = useMyReviews();
+  const upvotes = useMyUpvotes();
+  const downvotes = useMyDownvotes();
   const myRequests = useMyAlbumRequests();
   const deleteMyAlbum = useDeletePendingAlbum();
   const myCrates = useMyCrates();
@@ -333,6 +393,8 @@ export default function Profile() {
   };
 
   const myReviews = reviews.data?.reviews ?? [];
+  const myUpvotes = upvotes.data?.upvotes ?? [];
+  const myDownvotes = downvotes.data?.downvotes ?? [];
   const myRequestList = myRequests.data?.requests ?? [];
 
   return (
@@ -602,6 +664,30 @@ export default function Profile() {
               아직 등록한 앨범이 없습니다. 상단 + 버튼으로 등록해보세요.
             </div>
           )}
+        </section>
+      </div>
+
+      {/* ─── Vote lists — which albums fed the 굿굿 / 별루 counts.
+          Equal-width 2-col on lg+ so the two histories read as a
+          paired set; stacks on mobile. The activity card above
+          shows totals, this row shows the actual albums those
+          totals came from. */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <section>
+          <SectionHeader emoji="👍" title="내 굿굿" count={myUpvotes.length} />
+          <VotedAlbumList
+            albums={myUpvotes}
+            emptyText="아직 굿굿을 남긴 앨범이 없습니다."
+            isLoading={upvotes.isLoading}
+          />
+        </section>
+        <section>
+          <SectionHeader emoji="👎" title="내 별루" count={myDownvotes.length} />
+          <VotedAlbumList
+            albums={myDownvotes}
+            emptyText="아직 별루를 남긴 앨범이 없습니다."
+            isLoading={downvotes.isLoading}
+          />
         </section>
       </div>
 

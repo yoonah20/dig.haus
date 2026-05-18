@@ -27,7 +27,7 @@ export interface MyReview {
   albumCoverFallbacks: string[];
 }
 
-export interface MyUpvote {
+export interface MyVotedAlbum {
   slug: string;
   title: string;
   artist: string;
@@ -136,10 +136,21 @@ export function useDeleteMyAccount() {
 }
 
 export function useMyUpvotes() {
-  return useQuery<{ upvotes: MyUpvote[] }>({
+  return useQuery<{ upvotes: MyVotedAlbum[] }>({
     queryKey: ['me-upvotes'],
     queryFn: async () => {
       const { data } = await axios.get('/api/me/upvotes');
+      return data;
+    },
+    staleTime: 1000 * 30,
+  });
+}
+
+export function useMyDownvotes() {
+  return useQuery<{ downvotes: MyVotedAlbum[] }>({
+    queryKey: ['me-downvotes'],
+    queryFn: async () => {
+      const { data } = await axios.get('/api/me/downvotes');
       return data;
     },
     staleTime: 1000 * 30,
