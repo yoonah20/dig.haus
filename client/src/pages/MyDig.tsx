@@ -119,6 +119,7 @@ export default function MyDig() {
           userId={userId}
           isOwner={isOwner}
           viewerLoggedIn={!!viewer}
+          viewerId={viewer?.id ?? null}
         />
         {username && <CrateFloor username={username} isOwner={isOwner} />}
       </main>
@@ -136,16 +137,29 @@ function Header({
   userId,
   isOwner,
   viewerLoggedIn,
+  viewerId,
 }: {
   username: string;
   displayLabel: string;
   userId: number | null;
   isOwner: boolean;
   viewerLoggedIn: boolean;
+  viewerId: number | null;
 }) {
-  const publicData = useUserPublic(userId, !!userId);
-  const viewerIsFollowing = !!publicData.data?.followingByViewer;
-  const followingCount = publicData.data?.stats.followingCount ?? 0;
+  // Two separate fetches: page-user's public profile (drives the
+  // follow button + follower count) and the viewer's own (drives
+  // the "내 팔로잉" chip, available even when visiting someone
+  // else's page). When isOwner the two queries dedupe via the same
+  // ['user-public', id] key in React Query — no double-fetch.
+  const pagePublic = useUserPublic(userId, !!userId);
+  const viewerPublic = useUserPublic(
+    viewerId,
+    !!viewerId && viewerId !== userId
+  );
+  const viewerIsFollowing = !!pagePublic.data?.followingByViewer;
+  const viewerFollowingCount = isOwner
+    ? (pagePublic.data?.stats.followingCount ?? 0)
+    : (viewerPublic.data?.stats.followingCount ?? 0);
   const [followingOpen, setFollowingOpen] = useState(false);
 
   const signature =
@@ -159,6 +173,14 @@ function Header({
       <span>{displayLabel}의 마이딕</span>
     );
 
+  // "내 팔로잉" chip target — always the viewer's own user id. On
+  // the owner's own page that's the same as the page user; on a
+  // visitor's view of someone else's page, it shows the visitor's
+  // own following list (the operator-asked feature: the chip is
+  // about ME wherever I am, not about whose page I'm looking at).
+  const showFollowingChip =
+    viewerLoggedIn && viewerId != null && viewerFollowingCount > 0;
+
   return (
     <>
       <div className="flex items-center justify-between gap-3 px-1">
@@ -166,19 +188,15 @@ function Header({
           {signature}
         </h1>
         <div className="flex items-center gap-2">
-          {userId != null && followingCount > 0 && (
+          {showFollowingChip && (
             <button
               type="button"
               onClick={() => setFollowingOpen(true)}
               className="text-[11px] text-gray-200 hover:text-accent bg-background/40 border border-white/10 hover:border-accent/50 rounded-full px-2.5 py-0.5 cursor-pointer transition-colors"
-              title={
-                isOwner
-                  ? '내가 팔로우 중인 디거들'
-                  : `${displayLabel}의 팔로잉 목록`
-              }
+              title="내가 팔로우 중인 디거들"
             >
               <span className="hidden md:inline">🔗 </span>
-              팔로잉 {followingCount}
+              내 팔로잉 {viewerFollowingCount}
             </button>
           )}
           {!isOwner && userId != null && viewerLoggedIn && (
@@ -191,20 +209,14 @@ function Header({
               inside CrateFloor (2026-05-18) — header stays minimal. */}
         </div>
       </div>
-      {/* Following modal — shared component already used elsewhere
-          for follower/following list dialogs. Public to everyone:
-          mydig's other surfaces (vote/comment counts on profile,
-          follow button) are all public-by-default; the followings
-          list follows the same posture so this isn't a leak. */}
-      {followingOpen && userId != null && (
+      {/* Following modal — always shows the VIEWER's own list, not
+          the page user's, so visitors browsing other mydigs can pull
+          up their own following list from anywhere. */}
+      {followingOpen && viewerId != null && (
         <FollowListModal
-          userId={userId}
+          userId={viewerId}
           kind="following"
-          title={
-            isOwner
-              ? '내 팔로잉'
-              : `${displayLabel}의 팔로잉`
-          }
+          title="내 팔로잉"
           onClose={() => setFollowingOpen(false)}
         />
       )}
