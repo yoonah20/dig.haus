@@ -530,21 +530,17 @@ export default function CrateFloor({ username, isOwner }: Props) {
             // gradient layers below when the file is missing — no
             // alt text needed since this is decoration.
             "url('/textures/carpet.webp')",
-            // Central medallion — warm gold glow
-            'radial-gradient(ellipse 38% 30% at 50% 50%, rgba(190, 140, 60, 0.18), transparent 65%)',
-            // Medallion inner pool — slight darker contrast so the
-            // gold reads as a halo around something
-            'radial-gradient(ellipse 18% 14% at 50% 50%, rgba(30, 10, 10, 0.35), transparent 75%)',
-            // Outer fade to deep border zone
-            'radial-gradient(ellipse 95% 95% at 50% 50%, transparent 60%, rgba(0,0,0,0.45))',
             // Repeating geometric border — narrow band of light-on-
             // dark dashes along the edges, suggestive of a kilim
-            // pattern without trying to be literal
+            // pattern without trying to be literal. (Earlier passes
+            // also painted a centre medallion + outer vignette via
+            // radial-gradients but those read as a spotlight on the
+            // carpet — pulled 2026-05-18.)
             'repeating-linear-gradient(45deg, rgba(220,170,80,0.08) 0 6px, transparent 6px 12px)',
             // Carpet ground
             'linear-gradient(135deg, #6a1d1d 0%, #4a1212 100%)',
           ].join(', '),
-          backgroundSize: 'cover, auto, auto, auto, auto, auto',
+          backgroundSize: 'cover, auto, auto',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
         }}
