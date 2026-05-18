@@ -430,11 +430,13 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
           <span className="text-white font-semibold text-sm truncate">{review.source}</span>
           {review.verified && (
             <span
-              className="text-[#5aa9e6] text-xs leading-none flex-shrink-0"
+              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[#1DB954] flex-shrink-0"
               title="검증된 매체"
               aria-label="검증된 매체"
             >
-              ✓
+              <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" aria-hidden="true">
+                <path d="M2.5 6.2 L5 8.5 L9.5 3.8" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </span>
           )}
         </div>
