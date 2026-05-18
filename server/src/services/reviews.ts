@@ -255,6 +255,101 @@ export function getWhitelistedHostsFromDb(): Set<string> {
 export function bustSourceListCaches(): void {
   blacklistCache = null;
   whitelistCache = null;
+  verifiedSourcesCache = null;
+}
+
+// "Verified" source = the publication is editorial enough that the
+// admin trusts it, surfaced as a discreet mark next to source_name on
+// the album page so the long tail of one-off personal-blog rows is
+// visually distinct from established outlets.
+//
+// A source_name is verified when EITHER:
+//   1. Its dominant host (most common full_review_url hostname for
+//      that source_name) appears in source_whitelist, OR
+//   2. It has been collected at least VERIFIED_REVIEW_COUNT_THRESHOLD
+//      times across the catalogue.
+//
+// Two paths because the whitelist is admin-curated for specific
+// editorial outlets (Pitchfork, Kerrang!, Sputnikmusic) while the
+// count rule auto-catches lesser-curated-but-clearly-real publications
+// (AllMusic, PopMatters, Metal Hammer) that landed in the catalogue
+// repeatedly without being added to the whitelist by hand.
+//
+// Cache shape mirrors the blacklist/whitelist caches: TTL refresh, no
+// explicit invalidation on review writes (60s drift on a "is this site
+// recognised?" badge is fine), busted by bustSourceListCaches() when
+// admin edits source_whitelist so whitelist changes propagate fast.
+const VERIFIED_REVIEW_COUNT_THRESHOLD = 50;
+type VerifiedCache = { set: Set<string>; expiresAt: number };
+let verifiedSourcesCache: VerifiedCache | null = null;
+
+export function getVerifiedSourceNames(): Set<string> {
+  if (verifiedSourcesCache && verifiedSourcesCache.expiresAt > Date.now()) {
+    return verifiedSourcesCache.set;
+  }
+
+  const whitelist = getWhitelistedHostsFromDb();
+  const rows = queryAll(
+    `SELECT source_name, full_review_url FROM reviews WHERE source_name IS NOT NULL`
+  ) as Array<{ source_name: string; full_review_url: string | null }>;
+
+  const counts = new Map<string, number>();
+  const hostCounts = new Map<string, Map<string, number>>();
+  for (const r of rows) {
+    counts.set(r.source_name, (counts.get(r.source_name) || 0) + 1);
+    if (!r.full_review_url) continue;
+    try {
+      const h = new URL(r.full_review_url).hostname
+        .toLowerCase()
+        .replace(/^www\./, '');
+      let inner = hostCounts.get(r.source_name);
+      if (!inner) {
+        inner = new Map();
+        hostCounts.set(r.source_name, inner);
+      }
+      inner.set(h, (inner.get(h) || 0) + 1);
+    } catch {
+      // Malformed URL (manual entry, etc.) — ignored for host matching.
+    }
+  }
+
+  const verified = new Set<string>();
+  for (const [source, n] of counts) {
+    if (n >= VERIFIED_REVIEW_COUNT_THRESHOLD) {
+      verified.add(source);
+      continue;
+    }
+    const inner = hostCounts.get(source);
+    if (!inner) continue;
+    let topHost = '';
+    let topCount = 0;
+    for (const [h, c] of inner) {
+      if (c > topCount) {
+        topCount = c;
+        topHost = h;
+      }
+    }
+    if (topHost && isHostInWhitelist(topHost, whitelist)) {
+      verified.add(source);
+    }
+  }
+
+  verifiedSourcesCache = {
+    set: verified,
+    expiresAt: Date.now() + SOURCE_CACHE_TTL_MS,
+  };
+  return verified;
+}
+
+// Match the suffix-aware shape used by isHostBlacklisted so an entry
+// like "example.com" also covers "blog.example.com".
+function isHostInWhitelist(host: string, whitelist: Set<string>): boolean {
+  const h = host.toLowerCase().replace(/^www\./, '');
+  if (whitelist.has(h)) return true;
+  for (const entry of whitelist) {
+    if (h === entry || h.endsWith(`.${entry}`)) return true;
+  }
+  return false;
 }
 
 // Single entry point for "should we refuse this host?" — combines the

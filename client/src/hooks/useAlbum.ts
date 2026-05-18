@@ -137,6 +137,7 @@ interface ReviewsData {
     excerptKo: string | null;
     url: string | null;
     isManualScore: boolean;
+    verified: boolean;
   }>;
   koreanSummary: string | null;
   averageScore: number | null;

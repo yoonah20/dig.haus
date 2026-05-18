@@ -157,6 +157,7 @@ export interface Review {
   excerptKo: string | null;
   url: string | null;
   isManualScore: boolean;
+  verified: boolean;
 }
 
 export interface SimilarAlbum {

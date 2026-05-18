@@ -426,7 +426,18 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
       )}
 
       <div className="flex items-center gap-3 mb-2">
-        <span className="text-white font-semibold text-sm truncate">{review.source}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-white font-semibold text-sm truncate">{review.source}</span>
+          {review.verified && (
+            <span
+              className="text-[#5aa9e6] text-xs leading-none flex-shrink-0"
+              title="검증된 매체"
+              aria-label="검증된 매체"
+            >
+              ✓
+            </span>
+          )}
+        </div>
         <ScoreBadge review={review} onSaved={onScoreSaved} />
       </div>
 

@@ -6,6 +6,7 @@ import {
   EXCLUDED_URL_PATH_PATTERNS,
   isHostBlacklisted,
   getWhitelistedHostsFromDb,
+  getVerifiedSourceNames,
   normalizeReviewUrl,
 } from '../services/reviews.js';
 import { searchReviewUrls } from '../services/serper.js';
@@ -314,6 +315,7 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
       return res.status(500).json({ error: 'Failed to retrieve saved review' });
     }
 
+    const verifiedSources = getVerifiedSourceNames();
     res.json({
       ok: true,
       review: {
@@ -325,6 +327,7 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
         excerptKo: saved.excerpt_ko || null,
         url: saved.full_review_url,
         isManualScore: saved.manual_score != null,
+        verified: verifiedSources.has(saved.source_name),
       },
     });
   } catch (err) {
@@ -433,6 +436,7 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
       return res.status(500).json({ error: 'Failed to retrieve saved review' });
     }
 
+    const verifiedSources = getVerifiedSourceNames();
     res.json({
       ok: true,
       review: {
@@ -444,6 +448,7 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
         excerptKo: saved.excerpt_ko || null,
         url: saved.full_review_url,
         isManualScore: saved.manual_score != null,
+        verified: verifiedSources.has(saved.source_name),
       },
     });
   } catch (err) {
@@ -797,6 +802,7 @@ router.get('/:id/reviews', async (req, res) => {
     // on every first-visitor view of a pending album.
     const reviews = getCachedReviews(mbid);
     const koreanSummary = cached?.korean_summary || null;
+    const verifiedSources = getVerifiedSourceNames();
 
     const formattedReviews = (reviews || []).map((r: any) => ({
       id: r.id,
@@ -807,6 +813,7 @@ router.get('/:id/reviews', async (req, res) => {
       excerptKo: r.excerpt_ko || null,
       url: r.full_review_url,
       isManualScore: r.manual_score != null,
+      verified: verifiedSources.has(r.source_name),
     }));
 
     const scoredReviews = formattedReviews.filter(
