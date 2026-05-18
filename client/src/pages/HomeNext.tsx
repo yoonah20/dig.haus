@@ -768,9 +768,11 @@ const RATING_THUMB: Record<'up' | 'down' | 'soso', string> = {
 // its own compositor layer on iOS Safari, and backface-visibility
 // is a per-layer property — applying it to an outer wrapper alone
 // leaves this layer rotating into a visible mirrored chip on the
-// back face when the flip card rotates 180°. translateZ(0) makes
-// the layer-isation explicit so the property lands consistently
-// across browsers rather than being a layer-promotion accident.
+// back face when AlbumCard flips. translateZ(0) makes the
+// layer-isation explicit so the property lands consistently across
+// browsers rather than being a layer-promotion accident. (The
+// BlurredReviewCard card no longer flips, but AlbumCard does and
+// it accepts TimeChip via topRightChip, so the defense stays.)
 function TimeChip({ iso }: { iso: string }) {
   const label = formatRelativeKo(iso);
   if (!label) return null;
@@ -869,8 +871,7 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
       <TimeChip iso={item.createdAt} />
       <Link
         to={albumHref}
-        className="relative block flex-[4_1_0%] min-h-0"
-        style={{ perspective: '1000px' }}
+        className="relative block flex-[4_1_0%] min-h-0 overflow-hidden bg-ink"
         onTouchStart={tap.handlers.onTouchStart}
         onTouchMove={tap.handlers.onTouchMove}
         onTouchCancel={tap.handlers.onTouchCancel}
@@ -879,87 +880,55 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
         }
         onClick={tap.handlers.onClick}
       >
+        {/* Cover wash that gradually sharpens on hover: blur 10→3px,
+            brightness 0.55→0.85 over 700ms. The text + gradient above
+            fade out faster (300ms) so the comment gets out of the way
+            before the cover finishes surfacing — staged rather than a
+            single-beat reveal. Replaces an earlier 3D flip whose
+            before/after both showed a blurred cover, making the
+            payoff hard to read. */}
         <div
-          className={`relative w-full h-full [transform-style:preserve-3d] transition-transform duration-500 ease-out group-hover/card:[transform:rotateY(180deg)] ${
-            tap.isActive ? '[transform:rotateY(180deg)]' : ''
+          className={`absolute inset-0 flex items-center justify-center transition-[filter] duration-700 ease-out ${
+            tap.isActive
+              ? '[filter:blur(3px)_brightness(0.85)]'
+              : '[filter:blur(10px)_brightness(0.55)] group-hover/card:[filter:blur(3px)_brightness(0.85)]'
+          }`}
+          aria-hidden
+        >
+          {item.albumCoverUrl ? (
+            <CoverArt
+              src={item.albumCoverUrl}
+              fallbacks={item.albumCoverFallbacks}
+              alt=""
+              className="max-w-full max-h-full w-auto h-auto object-contain"
+            />
+          ) : (
+            <div className="w-full h-full bg-ink" />
+          )}
+        </div>
+        <div
+          className={`absolute inset-0 transition-opacity duration-300 ease-out ${
+            tap.isActive
+              ? 'opacity-0'
+              : 'opacity-100 group-hover/card:opacity-0'
           }`}
         >
-          {/* Front: letterboxed blurred cover + comment. Same
-              object-contain treatment as the back face so the
-              cover doesn't get top/bottom-cropped on non-square
-              art. The blur is heavier here (8 px vs 4) since
-              the cover's job up front is to be a colour wash
-              behind the comment, not a recognisable image. */}
-          <div
-            className="absolute inset-0 overflow-hidden"
-            style={{
-              backfaceVisibility: 'hidden',
-              WebkitBackfaceVisibility: 'hidden',
-            }}
-          >
-            <div
-              className="absolute inset-0 flex items-center justify-center bg-ink"
-              style={{ filter: 'blur(8px) saturate(1.1) brightness(0.55)' }}
-              aria-hidden
-            >
-              {item.albumCoverUrl ? (
-                <CoverArt
-                  src={item.albumCoverUrl}
-                  fallbacks={item.albumCoverFallbacks}
-                  alt=""
-                  className="max-w-full max-h-full w-auto h-auto object-contain"
-                />
-              ) : (
-                <div className="w-full h-full bg-ink" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/15 to-black/55" />
+          <div className="relative h-full flex items-center px-2.5">
+            <p className="text-[12px] md:text-[13px] text-gray-50 font-medium leading-snug line-clamp-4">
+              {item.body}
+              {hasBadges && (
+                <span className="whitespace-nowrap" aria-hidden>
+                  {' '}
+                  {ratingThumb && (
+                    <span className="leading-none">{ratingThumb}</span>
+                  )}
+                  {feelingEmoji && (
+                    <span className="leading-none">{feelingEmoji}</span>
+                  )}
+                </span>
               )}
-            </div>
-            <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/15 to-black/55" />
-            <div className="relative h-full flex items-center px-2.5">
-              <p className="text-[12px] md:text-[13px] text-gray-50 font-medium leading-snug line-clamp-4">
-                {item.body}
-                {hasBadges && (
-                  <span className="whitespace-nowrap" aria-hidden>
-                    {' '}
-                    {ratingThumb && (
-                      <span className="leading-none">{ratingThumb}</span>
-                    )}
-                    {feelingEmoji && (
-                      <span className="leading-none">{feelingEmoji}</span>
-                    )}
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
-
-          {/* Back: full cover with the same 4-px blur the front
-              face wears. object-contain keeps the cover from
-              being top/bottom-cropped by the square frame; the
-              blur stays so the album identity remains a tease
-              rather than a giveaway. The flip's payoff is
-              "comment fades, cover surfaces" — not "album
-              revealed". */}
-          <div
-            className="absolute inset-0 overflow-hidden bg-ink flex items-center justify-center"
-            style={{
-              backfaceVisibility: 'hidden',
-              WebkitBackfaceVisibility: 'hidden',
-              transform: 'rotateY(180deg)',
-            }}
-          >
-            {item.albumCoverUrl && (
-              <div
-                className="flex items-center justify-center w-full h-full"
-                style={{ filter: 'blur(4px) brightness(0.85)' }}
-              >
-                <CoverArt
-                  src={item.albumCoverUrl}
-                  fallbacks={item.albumCoverFallbacks}
-                  alt=""
-                  className="max-w-full max-h-full w-auto h-auto object-contain"
-                />
-              </div>
-            )}
+            </p>
           </div>
         </div>
       </Link>
