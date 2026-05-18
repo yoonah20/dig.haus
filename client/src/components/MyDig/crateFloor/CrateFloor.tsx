@@ -250,12 +250,16 @@ export default function CrateFloor({ username, isOwner }: Props) {
         // layout overrides server until the refetch lands. Bump the
         // record's z so it stays on top of the records it now
         // overlaps — the owner just placed it there, it should win.
+        // Each drop re-rolls the rotation in [-2, +2]° so the act
+        // of placing the record visibly handles it — mimicking
+        // physically picking up an LP and tossing it back down.
+        const droppedRotation = (Math.random() - 0.5) * 4;
         setLocalLayouts((prev) => {
           const next = new Map(prev);
           next.set(cur.albumId, {
             x: cur.currentX,
             y: cur.currentY,
-            rotation: cur.rotation,
+            rotation: droppedRotation,
           });
           return next;
         });
@@ -272,7 +276,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
             albumId: cur.albumId,
             positionX: cur.currentX,
             positionY: cur.currentY,
-            rotation: cur.rotation,
+            rotation: droppedRotation,
           });
         }
       }

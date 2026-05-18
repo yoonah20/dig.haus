@@ -11,21 +11,12 @@ import type { CrateItem } from '../../../hooks/useCrates';
 // -50% -50%) so the coordinate maps cleanly to "where the cover sits
 // on the floor."
 //
-// 2026-05-18 thickness iter: covers gained a bevelled paper-edge
-// (inset box-shadow stack — top highlight, bottom + side dark
-// lines) plus a deterministic ±3° rotation per album so the carpet
-// reads as "physical sleeves placed by hand" instead of pasted
-// thumbnails. Rotation pivots around the centre (because the outer
-// transform already anchors translate(-50%, -50%)), so the layout
-// coordinate the owner placed still lands at the cover's centre.
-
-// Deterministic [-1, 1] pseudo-random from an integer seed —
-// reused from the layout flow's jitter so rotation feels of-a-piece
-// with the default-flow placement noise.
-function jitter(seed: number, salt: number): number {
-  const x = Math.sin(seed * 9301 + salt * 49297) * 233280;
-  return (x - Math.floor(x)) * 2 - 1;
-}
+// 2026-05-18 thickness iter: covers get an inset paper-edge bevel
+// PLUS a stack of 0-blur sharp shadows below them that read as the
+// LP's physical thickness (edge of the sleeve seen from above at a
+// slight angle). Rotation comes from the layout prop — deterministic
+// for never-touched records, re-rolled on every drag-and-drop so
+// placing a record physically handles it. Range capped at ±2°.
 
 interface Props {
   item: CrateItem;
@@ -50,6 +41,7 @@ export default function FloorRecord({
   item,
   x,
   y,
+  rotation,
   sizePx,
   isOwner,
   isDragging,
@@ -70,13 +62,12 @@ export default function FloorRecord({
   const lift = isDragging ? 0 : hover ? -6 : 0;
   const scale = isDragging ? 1.05 : hover ? 1.04 : 1;
   const z = isDragging ? 1000 : hover ? 500 : zOrder;
-  // Deterministic ±3° rotation per album. Just enough to look
-  // hand-placed without breaking the sort-by-position contract
-  // (rotation doesn't affect the position_y banding). Pulled to
-  // 0° while dragging so the grab feels precise, and partially
-  // unwound on hover so the cover straightens for reading.
-  const baseRotation = jitter(item.id, 7) * 3;
-  const rot = isDragging ? 0 : hover ? baseRotation * 0.25 : baseRotation;
+  // Rotation prop comes from layout — deterministic ±2° per album
+  // for never-touched records, or the random ±2° committed at the
+  // last drop. Pulled to 0° while dragging so the grab feels
+  // precise, and partially unwound on hover (×0.3) so the cover
+  // straightens for reading without snapping back fully.
+  const rot = isDragging ? 0 : hover ? rotation * 0.3 : rotation;
 
   const inner = (
     <div
@@ -92,17 +83,34 @@ export default function FloorRecord({
           height: sizePx,
           overflow: 'hidden',
           background: '#111',
-          // Paper-sleeve bevel — four inset 1px lines per side at
-          // different tones (top brightest, bottom darkest, sides
-          // mid-dark) so the cover reads as a printed sleeve with
-          // edge thickness instead of a flat thumbnail. All inset
-          // so the bevel never extends past the cover footprint
-          // and crowds neighbours.
+          // Cover thickness = TWO shadow stacks working together:
+          //
+          // (a) Inset bevel — four 1-2px lines that read as the
+          //     printed paper edge of the sleeve. Top is brightest
+          //     (light hitting the upper edge), bottom is darkest
+          //     (recessed shadow underneath), sides are mid-dark.
+          //     Stronger than the first attempt — operator said it
+          //     wasn't reading as thickness so we bumped opacity +
+          //     made bottom + right 2px instead of 1px so the
+          //     darkest edges actually visibly catch the eye.
+          //
+          // (b) Outer 0-blur stacked drop shadow — three sharp
+          //     1px-tall layers in descending opacity directly
+          //     beneath the cover. Reads as the SIDE of the LP
+          //     sleeve peeking out from underneath the front face,
+          //     i.e. the physical thickness of the cardboard. Not
+          //     a blurry floating shadow (operator vetoed that) —
+          //     these are sharp lines that look like real material.
           boxShadow: [
-            'inset 0 1px 0 rgba(255, 245, 225, 0.16)',
-            'inset 0 -1px 0 rgba(0, 0, 0, 0.45)',
-            'inset 1px 0 0 rgba(0, 0, 0, 0.22)',
-            'inset -1px 0 0 rgba(0, 0, 0, 0.28)',
+            // Inset bevel
+            'inset 0 1px 0 rgba(255, 245, 225, 0.22)',
+            'inset 0 -2px 0 rgba(0, 0, 0, 0.55)',
+            'inset 1px 0 0 rgba(0, 0, 0, 0.28)',
+            'inset -2px 0 0 rgba(0, 0, 0, 0.32)',
+            // Outer thickness stack (sharp, no blur)
+            '0 1px 0 rgba(0, 0, 0, 0.55)',
+            '0 2px 0 rgba(0, 0, 0, 0.42)',
+            '0 3px 0 rgba(0, 0, 0, 0.28)',
           ].join(', '),
         }}
       >

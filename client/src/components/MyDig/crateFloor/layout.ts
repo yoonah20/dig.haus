@@ -58,14 +58,18 @@ export function defaultFlowPosition(index: number, albumId: number): FlowPositio
   // Per-cell jitter magnitude — kept tiny (~6% / cell) so the first
   // spill reads as "organised, slightly handmade" instead of
   // scattered. Owner can still drag any record into a freer position.
-  // Rotation stays 0 (rotation prop kept on FlowPosition for layout-
-  // data shape compatibility only).
   const jx = jitter(albumId, 1) * colSpan * 0.06;
   const jy = jitter(albumId, 2) * rowSpan * 0.05;
+  // Initial rotation — deterministic ±2° per album so a never-
+  // touched carpet still has the slightly-tossed look. Each drag-
+  // and-drop overrides this with a fresh random value (see the
+  // pointerup handler in CrateFloor) so the act of placing a
+  // record re-rolls its angle, mimicking handling it physically.
+  const rotation = jitter(albumId, 7) * 2;
 
   return {
     positionX: Math.max(X_CLAMP_MIN, Math.min(X_CLAMP_MAX, X_MIN + col * colSpan + jx)),
     positionY: Math.max(Y_CLAMP_MIN, Math.min(Y_CLAMP_MAX, Y_MIN + row * rowSpan + jy)),
-    rotation: 0,
+    rotation,
   };
 }
