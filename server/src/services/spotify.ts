@@ -8,6 +8,14 @@ const httpsAgent = new https.Agent({ family: 4 });
 let accessToken: string | null = null;
 let tokenExpiry = 0;
 
+// Reset the cached token. Call from a request's 401 path so the next
+// request fetches a fresh one — otherwise an externally-revoked token
+// silently fails every call until natural expiry (up to ~1h).
+function invalidateToken() {
+  accessToken = null;
+  tokenExpiry = 0;
+}
+
 async function getToken(): Promise<string | null> {
   if (accessToken && Date.now() < tokenExpiry) return accessToken;
 
@@ -165,7 +173,8 @@ export async function searchAlbumsByLabel(
     );
 
     return results;
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.response?.status === 401) invalidateToken();
     console.warn(`[spotify] searchAlbumsByLabel failed for "${labelName}":`, (err as Error).message);
     return [];
   }
@@ -221,7 +230,8 @@ export async function fetchAlbumPreview(
       }
     }
     return null;
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.response?.status === 401) invalidateToken();
     console.warn(
       '[spotify] fetchAlbumPreview failed:',
       (err as Error).message
@@ -258,7 +268,8 @@ export async function fetchSpotifyAlbumCover(
       images[0]?.url ||
       null
     );
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.response?.status === 401) invalidateToken();
     console.warn(
       '[spotify] fetchSpotifyAlbumCover failed:',
       (err as Error).message
@@ -346,6 +357,11 @@ async function trySpotifyAlbumSearch(
       spotifyRateLimitedUntil = Date.now() + wait * 1000;
       console.warn(
         `[spotify] 429 — cooldown ${wait}s (until ${new Date(spotifyRateLimitedUntil).toISOString()}). All Spotify search calls suspended until then.`
+      );
+    } else if (err.response?.status === 401) {
+      invalidateToken();
+      console.warn(
+        `[spotify] 401 on search q="${q}" — cached token invalidated`
       );
     } else {
       console.warn(
