@@ -11,37 +11,53 @@ import type { CrateItem } from '../../../hooks/useCrates';
 // the export will pick and in what order. The downloaded PNG still
 // carries the full text treatment (header / captions / stamp).
 //
-// Sort mirrors server crateToToasterSlots: y bucketed into 0.25-
-// wide bands (one band per visible row of the default-flow grid),
-// within a band x decides, unplaced records last by addedAt DESC.
+// Sort mirrors server crateToToasterSlots: adaptive row clustering
+// (anchor each row to its first record's y, group items within
+// ROW_THRESHOLD of the anchor, sort each row by x). Unplaced
+// records sort last by addedAt DESC.
 
 interface Props {
   items: CrateItem[];
 }
 
-// Must stay in sync with server/src/routes/mydig.ts → toaster sort
-// (CAST(position_y / 0.25 AS INTEGER)) and with the default-flow
-// row positions in ./layout.ts. Touching one without the other will
-// desync the preview from the download, and tuning this without
-// re-checking the row positions can re-introduce the "tiny drag
-// flips a band" bug (see server-side history comment).
-const Y_BAND = 0.25;
+// Must stay in sync with server/src/routes/mydig.ts → sortForToaster.
+// Fixed-band cuts were dropped 2026-05-18 after an operator-reported
+// case where three visually-co-rowed records straddled a band
+// boundary and split apart in the toaster. ROW_THRESHOLD ≈ half a
+// default-flow row spacing: small drift within a row stays grouped,
+// a deliberate move to the next row crosses.
+const ROW_THRESHOLD = 0.13;
 
 function sortForToaster(items: CrateItem[]): CrateItem[] {
-  return [...items].sort((a, b) => {
-    const aPlaced = a.positionY != null;
-    const bPlaced = b.positionY != null;
-    if (aPlaced !== bPlaced) return aPlaced ? -1 : 1;
-    if (aPlaced && bPlaced) {
-      const aBand = Math.floor(a.positionY! / Y_BAND);
-      const bBand = Math.floor(b.positionY! / Y_BAND);
-      if (aBand !== bBand) return aBand - bBand;
-      const ax = a.positionX ?? 0;
-      const bx = b.positionX ?? 0;
-      if (ax !== bx) return ax - bx;
+  const placed = items.filter((i) => i.positionY != null);
+  const unplaced = items.filter((i) => i.positionY == null);
+
+  placed.sort((a, b) => (a.positionY as number) - (b.positionY as number));
+
+  const result: CrateItem[] = [];
+  let row: CrateItem[] = [];
+  let anchorY: number | null = null;
+  const flushRow = () => {
+    row.sort((a, b) => (a.positionX ?? 0) - (b.positionX ?? 0));
+    result.push(...row);
+    row = [];
+    anchorY = null;
+  };
+  for (const item of placed) {
+    const y = item.positionY as number;
+    if (anchorY === null || y - anchorY < ROW_THRESHOLD) {
+      if (anchorY === null) anchorY = y;
+      row.push(item);
+    } else {
+      flushRow();
+      anchorY = y;
+      row.push(item);
     }
-    return (b.addedAt ?? '').localeCompare(a.addedAt ?? '');
-  });
+  }
+  flushRow();
+
+  unplaced.sort((a, b) => (b.addedAt ?? '').localeCompare(a.addedAt ?? ''));
+  return result.concat(unplaced);
 }
 
 const COLS = 3;

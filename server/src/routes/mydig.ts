@@ -1007,23 +1007,74 @@ async function rowsToSlots(rows: ToasterRow[]): Promise<ToasterSlot[]> {
 
 // Pull the 15 toaster items from a crate in reading order that
 // matches the owner's floor arrangement: top → bottom by visual
-// row, left → right within each row. Y_BAND should put the band
-// boundaries between the default-flow row positions in
-// client/layout.ts. With the current bounds (Y_MIN=0.13, Y_MAX=
-// 0.87, FLOOR_ROWS=4), default rows land at y=0.13, 0.377, 0.623,
-// 0.87. Band cuts at multiples of 0.25 → boundaries 0.25, 0.5,
-// 0.75, each ~0.12 from every row → a record needs ~12% of carpet
-// height of drag before a band flips. History worth remembering
-// before the next tuning:
-//   0.16 — too sensitive, default rows landed in non-consecutive
-//          bands (0,2,3,5) and tiny drift fired a reorder.
-//   0.33 — rows 1+2 collapsed into one band, lost the cue mid-
-//          column.
-//   x-only — lost rows entirely; default 5×4 sorted column-major.
-//   0.22 — tuned against the older Y_MIN/Y_MAX=0.16/0.84 bounds;
-//          after the bounds widened to 0.13/0.87 (49bc2e5), rows
-//          1 and 2 sat 0.04-0.06 from their next band boundary,
-//          so a tiny drag flipped the band. Re-tuned to 0.25.
+// row, left → right within each row. The earlier approach bucketed
+// position_y into fixed-width bands (0.16 → 0.33 → x-only → 0.22 →
+// 0.25 across May 2026 tunings). Every fixed band shape had the
+// same failure mode: a record sitting near a band boundary gets
+// flipped into the next band by a drag of a few percent, even
+// though visually it's still in the same row as its neighbours.
+// Operator hit it again 2026-05-18 with three records all visually
+// in one row, one of them straddling 0.25 / 0.5 — the toaster
+// split them apart.
+//
+// Replacement is adaptive row clustering: sort placed records by
+// y, then walk the list grouping records whose y is within
+// ROW_THRESHOLD of the row's first record. The row's "top" anchors
+// where it starts; the boundary moves with the data instead of
+// living at fixed multiples of some Y_BAND. Within a row, x decides.
+// Threshold 0.13 ≈ half a default-flow row spacing — comfortably
+// bigger than the jitter any single drag introduces, comfortably
+// smaller than the full row span so default-flow rows still split
+// into separate groups.
+const ROW_THRESHOLD = 0.13;
+
+interface PlacedRow {
+  album_id: number;
+  mbid: string;
+  title: string;
+  artist_name: string;
+  cover_art_url: string | null;
+  cover_art_fallbacks: string | null;
+  position_x: number | null;
+  position_y: number | null;
+  created_at: string;
+}
+
+function sortForToaster(rows: PlacedRow[]): PlacedRow[] {
+  const placed = rows.filter((r) => r.position_y != null);
+  const unplaced = rows.filter((r) => r.position_y == null);
+
+  placed.sort((a, b) => (a.position_y as number) - (b.position_y as number));
+
+  const result: PlacedRow[] = [];
+  let row: PlacedRow[] = [];
+  let anchorY: number | null = null;
+  const flushRow = () => {
+    row.sort((a, b) => (a.position_x ?? 0) - (b.position_x ?? 0));
+    result.push(...row);
+    row = [];
+    anchorY = null;
+  };
+  for (const item of placed) {
+    const y = item.position_y as number;
+    if (anchorY === null || y - anchorY < ROW_THRESHOLD) {
+      if (anchorY === null) anchorY = y;
+      row.push(item);
+    } else {
+      flushRow();
+      anchorY = y;
+      row.push(item);
+    }
+  }
+  flushRow();
+
+  // Unplaced records fall in by recency last — same as the previous
+  // SQL ordering. Gives a brand-new vote a chance of surfacing in
+  // the toaster without the owner having to drag it.
+  unplaced.sort((a, b) => b.created_at.localeCompare(a.created_at));
+  return result.concat(unplaced);
+}
+
 async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
   const rows = queryAll(
     `SELECT a.id AS album_id, a.mbid, a.title, a.artist_name,
@@ -1031,30 +1082,15 @@ async function crateToToasterSlots(crateId: number): Promise<ToasterSlot[]> {
             ci.position_x, ci.position_y, ci.created_at
      FROM crate_items ci
      JOIN albums a ON a.id = ci.album_id
-     WHERE ci.crate_id = ?
-     ORDER BY
-       CASE WHEN ci.position_y IS NULL THEN 1 ELSE 0 END ASC,
-       CAST(ci.position_y / 0.25 AS INTEGER) ASC,
-       ci.position_x ASC,
-       ci.created_at DESC
-     LIMIT 15`,
+     WHERE ci.crate_id = ?`,
     [crateId]
-  ) as Array<{
-    album_id: number;
-    mbid: string;
-    title: string;
-    artist_name: string;
-    cover_art_url: string | null;
-    cover_art_fallbacks: string | null;
-    position_x: number | null;
-    position_y: number | null;
-    created_at: string;
-  }>;
+  ) as PlacedRow[];
+  const sorted = sortForToaster(rows).slice(0, 15);
   // Renderer expects positions 0-14 in reading order. We assign by
   // the visual sort above — the floor's positions feed the sort but
   // the renderer slot grid is fixed 3×5 regardless of where on the
   // floor each record sat.
-  const withPos = rows.map((r, i) => ({ ...r, position: i }));
+  const withPos = sorted.map((r, i) => ({ ...r, position: i }));
   return rowsToSlots(withPos);
 }
 
