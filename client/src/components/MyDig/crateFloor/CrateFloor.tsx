@@ -550,7 +550,7 @@ export default function CrateFloor({ username, isOwner }: Props) {
           // a minHeight here — it would override the aspect ratio at
           // narrow widths and break the "same picture, different
           // size" promise.
-          aspectRatio: '16 / 11',
+          aspectRatio: '7 / 5',
           backgroundImage: [
             // Carpet asset (cover-fit). Falls through to the
             // gradient layers below when the file is missing — no
