@@ -162,10 +162,16 @@ function Header({
     : (viewerPublic.data?.stats.followingCount ?? 0);
   const [followingOpen, setFollowingOpen] = useState(false);
 
+  // Signature uses hover:text-accent (gold) instead of the old
+  // hover:text-ink — ink (#1a1208) was a near-black left over from
+  // the painted-wall backdrop era and made the title vanish on the
+  // current dark mydig bg when hovered. Underline-offset gives a
+  // subtle "hoverable" cue at rest too, so the hover hit area is
+  // discoverable instead of invisible.
   const signature =
     userId != null ? (
       <UserHoverCard userId={userId}>
-        <span className="cursor-help hover:text-ink transition-colors">
+        <span className="cursor-help text-gray-200 hover:text-accent underline decoration-dotted decoration-white/15 hover:decoration-accent/50 underline-offset-4 transition-colors">
           {displayLabel}의 마이딕
         </span>
       </UserHoverCard>

@@ -566,7 +566,6 @@ export default function CrateFloor({ username, isOwner }: Props) {
             pointerEvents: 'none',
             zIndex: 30,
             opacity: 0.92,
-            filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.45))',
           }}
         />
         {detail.isLoading && (
