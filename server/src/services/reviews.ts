@@ -832,6 +832,22 @@ function detectWpProductReviewRating(html: string): number | null {
 // the editorial widget doesn't. Skip any match whose preceding 300
 // chars contain that attribute.
 function detectWpReviewPluginRating(html: string): number | null {
+  // When the plugin renders both sub-ratings AND an overall total
+  // (thedarkmelody.com's Tiara review: four width-encoded sub-ratings
+  // + <span class="review-total-box">9.1/10</span>), the first width
+  // match is Production = 90, not the editorial 91 the page declares.
+  // Prefer the total-box text if present.
+  const totalBox = html.match(
+    /class\s*=\s*"[^"]*\breview-total(?:-box)?\b[^"]*"[^>]*>\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*\/\s*(5|10|100)\b/i
+  );
+  if (totalBox) {
+    const score = parseFloat(totalBox[1].replace(',', '.'));
+    const scale = parseInt(totalBox[2], 10);
+    if (score >= 0 && score <= scale) {
+      return Math.max(0, Math.min(100, Math.round((score / scale) * 100)));
+    }
+  }
+
   const re = /class\s*=\s*"review-result"[^>]*style\s*=\s*"[^"]*width\s*:\s*(\d{1,3})%/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html)) !== null) {
