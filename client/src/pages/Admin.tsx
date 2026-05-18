@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import ApiConsole from './ApiConsole';
-import LlmCompare from './LlmCompare';
+// Embedded on /admin/api only. Lazy so /admin (dashboard) and
+// /admin/curation don't ship the api-console + llm-compare bundles
+// — both are independently route-lazy in App.tsx already, but the
+// static imports here defeated that for any visit to /admin.
+const ApiConsole = lazy(() => import('./ApiConsole'));
+const LlmCompare = lazy(() => import('./LlmCompare'));
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -1248,7 +1252,7 @@ export default function Admin() {
       )}
 
       {activeTab === 'api' && (
-        <>
+        <Suspense fallback={<div className="text-sm text-gray-400">로딩 중…</div>}>
           {/* Live usage console (polls /api/admin/api-console every
               15s). Same view as /admin/api-console; the standalone
               route stays available for pinned-tab workflows. */}
@@ -1263,7 +1267,7 @@ export default function Admin() {
           <section className="mt-6">
             <LlmCompare embedded />
           </section>
-        </>
+        </Suspense>
       )}
     </main>
   );
