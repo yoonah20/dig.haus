@@ -880,18 +880,20 @@ function BlurredReviewCard({ item }: { item: UserReviewFeedItem }) {
         }
         onClick={tap.handlers.onClick}
       >
-        {/* Cover wash that gradually sharpens on hover: blur 10→3px,
-            brightness 0.55→0.85 over 700ms. The text + gradient above
-            fade out faster (300ms) so the comment gets out of the way
-            before the cover finishes surfacing — staged rather than a
-            single-beat reveal. Replaces an earlier 3D flip whose
-            before/after both showed a blurred cover, making the
-            payoff hard to read. */}
+        {/* Cover wash that gradually sharpens on hover: blur 10→5px,
+            brightness 0.55→0.85 over 700ms. 5px stops the cover from
+            reading too "revealed" — the album identity stays a tease,
+            in line with the original 8/4px flip's intent. The text +
+            gradient above fade out faster (300ms) so the comment gets
+            out of the way before the cover finishes surfacing —
+            staged rather than a single-beat reveal. Replaces an
+            earlier 3D flip whose before/after both showed a blurred
+            cover, making the payoff hard to read. */}
         <div
           className={`absolute inset-0 flex items-center justify-center transition-[filter] duration-700 ease-out ${
             tap.isActive
-              ? '[filter:blur(3px)_brightness(0.85)]'
-              : '[filter:blur(10px)_brightness(0.55)] group-hover/card:[filter:blur(3px)_brightness(0.85)]'
+              ? '[filter:blur(5px)_brightness(0.85)]'
+              : '[filter:blur(10px)_brightness(0.55)] group-hover/card:[filter:blur(5px)_brightness(0.85)]'
           }`}
           aria-hidden
         >
