@@ -408,9 +408,20 @@ export default function DigPage() {
         )
           return;
         setNextBatchPending(true);
+        nextBatchPendingRef.current = true;
         q.fetchNextPage().finally(() => {
           setTimeout(() => {
             setNextBatchPending(false);
+            // Sync the ref alongside the state setter — useEffect
+            // only catches up after the next render, but the
+            // unobserve+observe below fires the IO callback before
+            // that render commits. Without this line the callback
+            // sees nextBatchPendingRef.current still true and
+            // early-returns, which silently stalls infinite scroll
+            // on viewports where each new batch lands inside the
+            // existing 400px rootMargin (typical phone case: a 3×3
+            // batch is ~415 px tall, almost exactly the margin).
+            nextBatchPendingRef.current = false;
             // Force the IO to re-emit the sentinel's current
             // intersection state. Without this, infinite-scroll
             // silently stops after one batch on phone-tall
