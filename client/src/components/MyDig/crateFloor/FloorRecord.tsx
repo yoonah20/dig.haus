@@ -9,14 +9,23 @@ import type { CrateItem } from '../../../hooks/useCrates';
 //
 // Position is absolute, anchored by the centre (transform translate
 // -50% -50%) so the coordinate maps cleanly to "where the cover sits
-// on the floor." Records lie flat — rotation was an early experiment
-// that read as broken; the rotation prop is accepted for layout-data
-// compatibility but no longer applied to the render transform.
+// on the floor."
 //
-// 2026-05-17 iter: shrink-wrap raster overlay tried briefly, pulled
-// back out — the texture that worked on the home hero (covers nested
-// in dark sleeves) read as wrong on the carpet (covers sit isolated).
-// Covers render bare; the carpet behind provides the surface cue.
+// 2026-05-18 thickness iter: covers gained a bevelled paper-edge
+// (inset box-shadow stack — top highlight, bottom + side dark
+// lines) plus a deterministic ±3° rotation per album so the carpet
+// reads as "physical sleeves placed by hand" instead of pasted
+// thumbnails. Rotation pivots around the centre (because the outer
+// transform already anchors translate(-50%, -50%)), so the layout
+// coordinate the owner placed still lands at the cover's centre.
+
+// Deterministic [-1, 1] pseudo-random from an integer seed —
+// reused from the layout flow's jitter so rotation feels of-a-piece
+// with the default-flow placement noise.
+function jitter(seed: number, salt: number): number {
+  const x = Math.sin(seed * 9301 + salt * 49297) * 233280;
+  return (x - Math.floor(x)) * 2 - 1;
+}
 
 interface Props {
   item: CrateItem;
@@ -61,6 +70,13 @@ export default function FloorRecord({
   const lift = isDragging ? 0 : hover ? -6 : 0;
   const scale = isDragging ? 1.05 : hover ? 1.04 : 1;
   const z = isDragging ? 1000 : hover ? 500 : zOrder;
+  // Deterministic ±3° rotation per album. Just enough to look
+  // hand-placed without breaking the sort-by-position contract
+  // (rotation doesn't affect the position_y banding). Pulled to
+  // 0° while dragging so the grab feels precise, and partially
+  // unwound on hover so the cover straightens for reading.
+  const baseRotation = jitter(item.id, 7) * 3;
+  const rot = isDragging ? 0 : hover ? baseRotation * 0.25 : baseRotation;
 
   const inner = (
     <div
@@ -76,6 +92,18 @@ export default function FloorRecord({
           height: sizePx,
           overflow: 'hidden',
           background: '#111',
+          // Paper-sleeve bevel — four inset 1px lines per side at
+          // different tones (top brightest, bottom darkest, sides
+          // mid-dark) so the cover reads as a printed sleeve with
+          // edge thickness instead of a flat thumbnail. All inset
+          // so the bevel never extends past the cover footprint
+          // and crowds neighbours.
+          boxShadow: [
+            'inset 0 1px 0 rgba(255, 245, 225, 0.16)',
+            'inset 0 -1px 0 rgba(0, 0, 0, 0.45)',
+            'inset 1px 0 0 rgba(0, 0, 0, 0.22)',
+            'inset -1px 0 0 rgba(0, 0, 0, 0.28)',
+          ].join(', '),
         }}
       >
         <CoverArt
@@ -139,7 +167,7 @@ export default function FloorRecord({
         position: 'absolute',
         left: `${x * 100}%`,
         top: `${y * 100}%`,
-        transform: `translate(-50%, ${lift - 50}%) scale(${scale})`,
+        transform: `translate(-50%, ${lift - 50}%) rotate(${rot}deg) scale(${scale})`,
         transition: isDragging ? 'none' : 'transform 180ms ease-out',
         cursor: isOwner ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
         zIndex: z,
