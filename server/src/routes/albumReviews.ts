@@ -9,7 +9,7 @@ import {
   getVerifiedSourceNames,
   normalizeReviewUrl,
 } from '../services/reviews.js';
-import { searchReviewUrls } from '../services/braveSearch.js';
+import { searchReviewUrls } from '../services/serper.js';
 import {
   generateKoreanSummary,
   selectEditorialReviewUrls,

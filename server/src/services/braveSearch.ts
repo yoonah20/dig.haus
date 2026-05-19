@@ -3,15 +3,17 @@ import { memoAsync } from '../utils/memoCache.js';
 
 // Brave Search Web API — independent search index. Pricing is
 // $5/1k queries with $5 of monthly credit auto-applied, so the
-// first ~1k queries each month are effectively free; admin volume
-// (~600 queries/mo at the steady-state pace of 50 albums/week × 3
-// pages each) sits comfortably under that ceiling. Replaced
-// Serper.dev 2026-05-18 after that account's one-time free credit
-// ran out; functional shape (issue a query, get back ~10 organic-
-// style blue-link URLs we can hand to the editorial picker LLM)
-// is the same, so the swap is contained to this file plus its
-// callers. services/serper.ts is kept dormant in the tree as a
-// fast revert path if Brave underperforms.
+// first ~1k queries each month are effectively free.
+//
+// DORMANT: discovery flipped back to services/serper.ts on 2026-
+// 05-18 because the operator wanted a no-spend interim until Google
+// Custom Search Engine (services/googleCse.ts) is configured. This
+// file stays in the tree as a fallback — set BRAVE_SEARCH_API_KEY
+// and swap the import in routes/albumReviews.ts + services/auto-
+// Curation.ts back to './braveSearch.js' to flip on. Functional
+// shape (issue a query, get back ~10 organic-style blue-link URLs)
+// is the same as the active service, so the swap is contained to
+// this file plus those two import lines.
 //
 // We hit /res/v1/web/search and read `web.results`. Brave doesn't
 // ship a 1:1 "organic" key like Google SERP scrapers do — the web

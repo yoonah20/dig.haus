@@ -1,4 +1,4 @@
-import { searchReviewUrls } from './braveSearch.js';
+import { searchReviewUrls } from './serper.js';
 import {
   scrapeReviewFromUrl,
   EXCLUDED_URL_PATH_PATTERNS,

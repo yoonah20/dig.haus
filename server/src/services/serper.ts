@@ -4,14 +4,17 @@ import { memoAsync } from '../utils/memoCache.js';
 // Serper.dev — lightweight Google SERP proxy. Free tier 2.5k one-
 // time credits (not monthly), then $50/mo for 50k. We hit the
 // /search endpoint with the raw query; the response's `organic`
-// array is the normal 10 blue-link search results.
+// array is the normal 10 blue-link search results. Used by the
+// review-URL discovery flow: admin clicks 🔎 자동 검색, we Google
+// the album and Haiku picks editorial candidates downstream.
 //
-// DORMANT: discovery is on Brave Search as of 2026-05-18 after the
-// Serper free credits ran out. This file is kept as a working
-// fallback — if Brave quality or quota disappoints, swap the import
-// in routes/albumReviews.ts + services/autoCuration.ts back to
-// './serper.js' and set SERPER_API_KEY. No call sites import from
-// here today.
+// Active again as of 2026-05-18 short-term while Google Custom
+// Search Engine is being set up. Operator is rotating in a second
+// Serper account's free credits to bridge the gap. Long-term path
+// is services/googleCse.ts once GOOGLE_CSE_API_KEY + GOOGLE_CSE_ID
+// are configured — at that point swap the imports in routes/
+// albumReviews.ts + services/autoCuration.ts to './googleCse.js'.
+// services/braveSearch.ts is the other revert target kept dormant.
 
 export interface SerperResult {
   url: string;
