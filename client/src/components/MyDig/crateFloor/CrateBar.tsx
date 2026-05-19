@@ -327,26 +327,62 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
       // Rewritten 2026-05-18: the prior "nearest-chip-centre" logic
       // got confused once the dragged chip moved, since chipsRef
       // also reported its own (floated) position. Now: collect the
-      // OTHER chips' rects only, sort by visual left edge, then
-      // pick the insertion index from cursor x vs each chip's
-      // centre. The dragged chip goes at the first index whose
-      // chip centre is past the cursor.
-      const others: Array<{ id: number; left: number; centreX: number }> = [];
+      // OTHER chips' rects only, cluster them into visual rows by
+      // top, locate the cursor's row, then pick the in-row index
+      // from cursor x vs each chip's centre. The two-pass approach
+      // matters once the bar wraps (mobile, 4-per-row layout) —
+      // sorting purely by left interleaves row 1 chips with row 0
+      // by x and causes draftOrder to flip every time the cursor
+      // crosses an x-only neighbour's centre, which the operator
+      // saw as a flickering reflow.
+      const others: Array<{ id: number; rect: DOMRect }> = [];
       for (const [id, el] of chipsRef.current) {
         if (id === cur.id) continue;
-        const r = el.getBoundingClientRect();
-        others.push({ id, left: r.left, centreX: r.left + r.width / 2 });
+        others.push({ id, rect: el.getBoundingClientRect() });
       }
-      others.sort((a, b) => a.left - b.left);
-      let insertIdx = others.length;
-      for (let i = 0; i < others.length; i++) {
-        if (e.clientX < others[i].centreX) {
-          insertIdx = i;
+      // Cluster into rows. Items whose top is within half a chip's
+      // height of the row's first item belong to that row. Half a
+      // height is generous enough to tolerate inter-row gaps and
+      // sub-pixel rounding without merging adjacent rows.
+      const byTop = [...others].sort((a, b) => a.rect.top - b.rect.top);
+      const rows: Array<Array<{ id: number; rect: DOMRect }>> = [];
+      for (const o of byTop) {
+        const last = rows[rows.length - 1];
+        if (!last || o.rect.top - last[0].rect.top > o.rect.height * 0.5) {
+          rows.push([o]);
+        } else {
+          last.push(o);
+        }
+      }
+      for (const row of rows) row.sort((a, b) => a.rect.left - b.rect.left);
+      // Locate the cursor's target row: the first row whose bottom
+      // is below the cursor, or the last row if the cursor is below
+      // them all.
+      let targetRow = rows.length - 1;
+      for (let i = 0; i < rows.length; i++) {
+        if (e.clientY < rows[i][0].rect.bottom) {
+          targetRow = i;
           break;
         }
       }
-      const next = others.map((o) => o.id);
-      next.splice(insertIdx, 0, cur.id);
+      const row = rows[targetRow] ?? [];
+      // In-row insertion: first chip whose centre x is past the
+      // cursor wins; otherwise append at the end of the row.
+      let inRowIdx = row.length;
+      for (let i = 0; i < row.length; i++) {
+        const r = row[i].rect;
+        if (e.clientX < r.left + r.width / 2) {
+          inRowIdx = i;
+          break;
+        }
+      }
+      // Global index = sum of items in earlier rows + in-row idx.
+      let globalIdx = 0;
+      for (let i = 0; i < targetRow; i++) globalIdx += rows[i].length;
+      globalIdx += inRowIdx;
+      const flat = rows.flat().map((o) => o.id);
+      const next = flat.slice();
+      next.splice(globalIdx, 0, cur.id);
       // Only push state when the draft order actually changes —
       // avoids pointermove storms re-rendering every frame at rest.
       const same =
