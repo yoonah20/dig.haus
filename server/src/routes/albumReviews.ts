@@ -68,6 +68,16 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
       albumRow.artist_name,
       albumRow.title
     );
+    // Debug dump (2026-05-18) — Serper returning unexpectedly empty
+    // candidate lists for albums that obviously have editorial
+    // coverage on KR Google. Logs the raw Serper hit set so we can
+    // see whether a missing URL fell out at the Serper layer (not
+    // here) vs the domain-filter / already-saved / picker layers
+    // (below). Drop the line once the gl: kr tuning has settled.
+    console.log(
+      `[discover-debug] ${albumRow.artist_name} / ${albumRow.title}: serper returned ${candidates.length} URLs:`
+    );
+    for (const c of candidates) console.log(`  ${c.url}`);
     if (candidates.length === 0) {
       return res.json({
         urls: [],
