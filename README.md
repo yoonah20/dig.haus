@@ -28,7 +28,7 @@ Tagline positioning: dig.haus is for people who already know what algorithms fee
 | **Catalog APIs** | MusicBrainz, Last.fm, Discogs, Spotify, YouTube, Bandcamp, Cover Art Archive |
 | **LLM (hot path)** | DeepSeek v4 Flash via env-driven router for review extraction, editorial pick, Korean summary, similar-album descriptions, pronunciation |
 | **LLM (ad-hoc)** | Anthropic Claude Sonnet — available via the same router for one-off cases and the `/admin/compare` blind shadow comparator |
-| **Review pipeline** | Serper.dev (URL discovery) → Jina Reader (`r.jina.ai/` proxy for JS-rendered markdown) → DeepSeek (extract + summarise) |
+| **Review pipeline** | Brave Search API (URL discovery) → Jina Reader (`r.jina.ai/` proxy for JS-rendered markdown) → DeepSeek (extract + summarise) |
 | **Streaming embed** | Spotify iframe pinned at the bottom of the mydig page; ▶ chips swap tracks without losing playback context |
 
 Per-album curation runs at roughly **~$0.01** for a typical 9–15 review pull (~$0.001 per review). The pipeline is built around that ceiling — see *API Cost Discipline* below.
@@ -56,7 +56,7 @@ Per-album curation runs at roughly **~$0.01** for a typical 9–15 review pull (
 - **Community 구매처 links** with currency-aware prices (USD / JPY / GBP / EUR / KRW) and a reporting flow
 - **Record-shop price-tag stickers** overlaid on album artwork (NEW / HOT / PRE-ORDER / SALE / SOLD OUT)
 - **Admin dashboard** at `/admin` (auto-promoted via `ADMIN_EMAILS`): pending request triage, Claude usage panel, scrape failures, excerpt edits, review pipeline controls, LLM compare
-- **Cost-controlled review pipeline**: Serper for URL discovery, Jina for fetch, DeepSeek for extract + summary, manual scrape-from-URL as the only automated review path
+- **Cost-controlled review pipeline**: Brave Search for URL discovery, Jina for fetch, DeepSeek for extract + summary, manual scrape-from-URL as the only automated review path
 
 ### Phase 3 — 마이딕 (done, 2026-04-25)
 
@@ -121,7 +121,7 @@ cd client && npm install && cd ..
 | **YouTube Data API** | https://console.cloud.google.com/apis/library/youtube.googleapis.com | Enable API, create API key |
 | **DeepSeek** | https://platform.deepseek.com/ | API key — primary LLM |
 | **Anthropic Claude** | https://console.anthropic.com/ | API key — ad-hoc / fallback |
-| **Serper.dev** | https://serper.dev/ | Google search API for review URL discovery |
+| **Brave Search API** | https://api-dashboard.search.brave.com/ | Web search API for review URL discovery (2k/mo free) |
 | **Google OAuth** | https://console.cloud.google.com/ | See *Google OAuth 설정* below |
 
 > **No auth required:** MusicBrainz, Cover Art Archive, Jina Reader (`r.jina.ai/`), Bandcamp metadata.
@@ -199,7 +199,7 @@ dig.haus/
         │                           # llmCompare, claudeBudget, reviews,
         │                           # albumUrlExtract, musicbrainz, lastfm,
         │                           # discogs, spotify, youtube, bandcamp,
-        │                           # serper, exchangeRates, avatarHost,
+        │                           # braveSearch, exchangeRates, avatarHost,
         │                           # customCoverHost, email, toasterRenderer
         ├── jobs/                   # rankScheduler, labelFeedPoller, usageLogPruner
         ├── db/                     # index (init + helpers), schema (CREATE TABLE
@@ -221,7 +221,7 @@ Phase 1 originally spent ~$0.50/album via Claude's `web_search` tool ($5/session
 
 Current per-album cost is **~$0.01** for a typical 9–15 review pull (~$0.001 per review), via:
 
-1. **Serper.dev** for URL discovery (admin clicks 🔎 자동 검색 → 10–20 candidates)
+1. **Brave Search API** for URL discovery (admin clicks 🔎 자동 검색 → 10–20 candidates)
 2. **Editorial-picker LLM** narrows to the actually-editorial URLs (~$0.0003 per pick call)
 3. **Jina Reader** (`r.jina.ai/` proxy) renders the page and converts to clean markdown — free, JS-rendering, removes HTML boilerplate before the LLM sees it
 4. **DeepSeek v4 Flash** extracts the review prose, scores it, and summarises in Korean

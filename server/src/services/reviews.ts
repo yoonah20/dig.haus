@@ -158,10 +158,10 @@ function clampScore(raw: unknown): number | null {
 }
 
 // Domains to exclude from review URLs. Used both by scrapeReviewFromUrl
-// (defensive; admin shouldn't be pasting these) and by the Serper
+// (defensive; admin shouldn't be pasting these) and by the Brave Search
 // discovery pipeline (primary filter on search results). Substring
 // match over the hostname — covers amazon.com/.co.jp/.de etc. Exported
-// so services/serper.ts can apply the same allowlist definition.
+// so services/braveSearch.ts can apply the same allowlist definition.
 // Structural baseline blacklist — categories that will NEVER carry
 // editorial album reviews no matter what admin curates. Kept in code
 // (not the DB) because they're platform shapes rather than editorial

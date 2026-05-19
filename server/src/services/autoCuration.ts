@@ -1,4 +1,4 @@
-import { searchReviewUrls } from './serper.js';
+import { searchReviewUrls } from './braveSearch.js';
 import {
   scrapeReviewFromUrl,
   EXCLUDED_URL_PATH_PATTERNS,
@@ -105,8 +105,8 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
   // Step 1: discover. Mirrors /api/albums/:id/reviews/discover.
   let candidates: string[] = [];
   try {
-    const serperResults = await searchReviewUrls(artist, title);
-    const domainFiltered = serperResults.filter((c) => {
+    const searchResults = await searchReviewUrls(artist, title);
+    const domainFiltered = searchResults.filter((c) => {
       try {
         const parsed = new URL(c.url);
         const host = parsed.hostname.toLowerCase();

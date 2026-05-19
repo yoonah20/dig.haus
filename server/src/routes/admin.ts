@@ -57,8 +57,8 @@ const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
   // ceiling); cache-hit input is $0.0028 but billing it accurately
   // would need cache_hit metadata we don't track yet. Used for
   // scrape extraction (Jina markdown → JSON), pronunciation,
-  // similar-album descriptions, serper picks, and Korean review
-  // summaries.
+  // similar-album descriptions, editorial URL picks, and Korean
+  // review summaries.
   'deepseek-v4-flash': { input: 0.14, output: 0.28 },
   // Legacy log rows logged under model='deepseek-chat' all pre-date
   // 2026-04-24 — V3-era pricing.
@@ -1283,6 +1283,9 @@ router.get('/llm-comparisons', (req, res) => {
     const KNOWN_OPS: Array<{ operation: string; defaultModel: string }> = [
       { operation: 'pronunciation', defaultModel: 'claude-haiku-4-5-20251001' },
       { operation: 'similar_descriptions', defaultModel: 'claude-haiku-4-5-20251001' },
+      // Op name is historical — kept as 'serper_pick' so any admin
+      // routing overrides persisted in DB under this key keep working
+      // even though discovery moved off Serper to Brave Search.
       { operation: 'serper_pick', defaultModel: 'claude-haiku-4-5-20251001' },
       { operation: 'summary_fallback', defaultModel: 'claude-haiku-4-5-20251001' },
     ];

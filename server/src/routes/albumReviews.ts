@@ -9,7 +9,7 @@ import {
   getVerifiedSourceNames,
   normalizeReviewUrl,
 } from '../services/reviews.js';
-import { searchReviewUrls } from '../services/serper.js';
+import { searchReviewUrls } from '../services/braveSearch.js';
 import {
   generateKoreanSummary,
   selectEditorialReviewUrls,
@@ -112,7 +112,7 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
 
     if (filtered.length === 0) {
       console.log(
-        `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=0 (nothing new)`
+        `[discover] ${albumRow.artist_name} / ${albumRow.title}: search=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=0 (nothing new)`
       );
       return res.json({
         urls: [],
@@ -156,7 +156,7 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
     // Stage counts so we can see where candidates drop off when a known-
     // reviewed album comes back short.
     console.log(
-      `[discover] ${albumRow.artist_name} / ${albumRow.title}: serper=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=${picked.length} (whitelisted=${whitelistedCount})`
+      `[discover] ${albumRow.artist_name} / ${albumRow.title}: search=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=${picked.length} (whitelisted=${whitelistedCount})`
     );
     // whitelistedCount tells the client how many of the returned URLs
     // come from admin-trusted hosts. The auto-curation UI ("자동
