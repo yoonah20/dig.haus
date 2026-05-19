@@ -61,7 +61,7 @@ async function runSerperPage(
 async function _searchReviewUrls(
   artist: string,
   album: string,
-  pages = 1
+  pages = 2
 ): Promise<SerperResult[]> {
   const apiKey = getApiKey();
   if (!apiKey) {
@@ -78,14 +78,17 @@ async function _searchReviewUrls(
   // The zero-new early-stop below handles less-popular albums
   // gracefully: if page 2 brings no fresh URLs, we don't waste page 3.
   //
-  // Default trimmed to 1 page (2026-05-18, operator iter) while
+  // Default trimmed to 2 pages (2026-05-18, operator iter) while
   // running on a bridge Serper account's one-time 2.5k free credits.
-  // Each page = 1 credit, so 1 page/album = ~2500 albums of headroom
-  // before the account runs dry, vs ~833 at the original pages=3.
-  // The trade is page-2/3 indie-zine coverage; admin can still paste
-  // those URLs by hand on albums that need deeper coverage. Bump back
-  // to 3 once services/googleCse.ts is live (100/day free, no per-
-  // call cost) — callers pass pages explicitly if they want different.
+  // Each page = 1 credit, so 2 pages/album = ~1250 albums of head-
+  // room vs ~833 at the original pages=3. Keeps the page-2 mid-tier
+  // editorial blogs (atthebarrier, louderthanwar, markusheavymusic-
+  // blog) — dig.haus's bread-and-butter source band — and drops only
+  // the page-3 indie-zine layer, which admin can still cover by
+  // pasting URLs manually for any album that needs deeper sourcing.
+  // Bump back to 3 once services/googleCse.ts is live (100/day free,
+  // no per-call cost) — callers pass pages explicitly if they want
+  // different.
   //
   // The earlier "quoted album" two-tier strategy was dropped: Serper
   // rejects quoted queries combined with num>=40 ("Query not allowed.
