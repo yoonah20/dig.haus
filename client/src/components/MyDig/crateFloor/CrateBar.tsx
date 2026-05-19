@@ -61,6 +61,10 @@ function CrateChip({
   onPointerDown,
   chipRef,
   onEdit,
+  bodyWidth,
+  bodyHeight,
+  thumbSize,
+  titleMaxWidth,
 }: {
   crate: CrateSummary;
   isActive: boolean;
@@ -75,6 +79,12 @@ function CrateChip({
   // button fires this; visitor chips leave it undefined and the
   // button doesn't render.
   onEdit?: () => void;
+  // Sizing passed from CrateBar so mobile can shrink the chip foot-
+  // print enough to fit 4 chips per row on a 375 px viewport.
+  bodyWidth: number;
+  bodyHeight: number;
+  thumbSize: number;
+  titleMaxWidth: number;
 }) {
   const front = crate.coverThumbs?.[0];
   const [hover, setHover] = useState(false);
@@ -143,8 +153,8 @@ function CrateChip({
       {/* Crate body — a small wooden bin with the front record peeking. */}
       <div
         style={{
-          width: 88,
-          height: 70,
+          width: bodyWidth,
+          height: bodyHeight,
           background: isActive
             ? 'linear-gradient(180deg, #6a4423 0%, #4a2d15 100%)'
             : 'linear-gradient(180deg, #523620 0%, #3a2310 100%)',
@@ -174,8 +184,8 @@ function CrateChip({
         {front?.url ? (
           <div
             style={{
-              width: 56,
-              height: 56,
+              width: thumbSize,
+              height: thumbSize,
               boxShadow: '0 2px 4px rgba(0,0,0,0.5)',
               borderRadius: 1,
               overflow: 'hidden',
@@ -192,8 +202,8 @@ function CrateChip({
         ) : (
           <div
             style={{
-              width: 56,
-              height: 56,
+              width: thumbSize,
+              height: thumbSize,
               background: 'rgba(0,0,0,0.3)',
               border: '1px dashed rgba(255,255,255,0.18)',
               borderRadius: 1,
@@ -208,7 +218,7 @@ function CrateChip({
           fontSize: 12,
           fontWeight: isActive ? 700 : 500,
           color: isActive ? '#f0c060' : '#c8b89a',
-          maxWidth: 96,
+          maxWidth: titleMaxWidth,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -408,19 +418,27 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
     return drag.currentClientX - (r.left + r.width / 2);
   })();
 
+  // Mobile shrinks the chip footprint enough that the + chip lands
+  // on the same row as the first 3 crates on a 375 px viewport
+  // (4 × (70+8) + 3 × 8 + 24 = 360 px). Desktop keeps the original
+  // bigger chip — there's room for it in the side-column grid.
+  const chipDims = isMobile
+    ? { bodyWidth: 70, bodyHeight: 56, thumbSize: 44, titleMaxWidth: 78, plusFont: 22 }
+    : { bodyWidth: 88, bodyHeight: 70, thumbSize: 56, titleMaxWidth: 96, plusFont: 26 };
+
   return (
     <div
       style={{
         display: 'flex',
-        gap: 14,
-        padding: '12px 16px 16px',
-        // Mobile: wrap to the next row when chips don't fit (chip
-        // width ~88px + 14 gap → ~3–4 per row on typical phones).
-        // Desktop: keep horizontal scroll so the bar stays one
-        // continuous row inside the side-by-side grid.
+        gap: isMobile ? 8 : 14,
+        padding: isMobile ? '10px 12px 12px' : '12px 16px 16px',
+        // Mobile: wrap to the next row when chips don't fit. Chip
+        // sizing below targets exactly 4 chips (incl. the + chip) on
+        // a 375 px viewport. Desktop: keep horizontal scroll so the
+        // bar stays one continuous row inside the side-by-side grid.
         flexWrap: isMobile ? 'wrap' : 'nowrap',
         overflowX: isMobile ? 'visible' : 'auto',
-        rowGap: 14,
+        rowGap: isMobile ? 10 : 14,
         // Matches the meta ribbon above the carpet (neutral
         // panel-strong) so the two crate-info bands read as one
         // matched frame bracketing the floor — same tone the album
@@ -453,6 +471,10 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
                 ? () => onEditCrate(c.id)
                 : undefined
             }
+            bodyWidth={chipDims.bodyWidth}
+            bodyHeight={chipDims.bodyHeight}
+            thumbSize={chipDims.thumbSize}
+            titleMaxWidth={chipDims.titleMaxWidth}
           />
         );
       })}
@@ -474,14 +496,14 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
               onClick={() => setNewCrateTitle('')}
               title="새 박스 만들기"
               style={{
-                width: 88,
-                height: 70,
+                width: chipDims.bodyWidth,
+                height: chipDims.bodyHeight,
                 background:
                   'linear-gradient(180deg, rgba(60,42,24,0.4) 0%, rgba(40,28,18,0.4) 100%)',
                 border: '2px dashed rgba(200,184,154,0.35)',
                 borderRadius: 4,
                 color: 'rgba(220,200,160,0.7)',
-                fontSize: 26,
+                fontSize: chipDims.plusFont,
                 fontWeight: 400,
                 cursor: 'pointer',
                 display: 'flex',
@@ -495,8 +517,8 @@ const CrateBar = forwardRef<CrateBarHandle, Props>(function CrateBar(
           ) : (
             <div
               style={{
-                width: 88,
-                height: 70,
+                width: chipDims.bodyWidth,
+                height: chipDims.bodyHeight,
                 background:
                   'linear-gradient(180deg, #523620 0%, #3a2310 100%)',
                 border: '2px solid #d9a559',
