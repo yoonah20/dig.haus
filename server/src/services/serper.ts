@@ -31,24 +31,26 @@ async function runSerperPage(
   q: string,
   page: number
 ): Promise<SerperResult[]> {
-  // gl (geo) + hl (interface language) shape which Google SERP we
-  // get back. Defaults match what the dig.haus operator sees when
-  // they manually google an album from Korea — KR-localized ranking
-  // surfaces editorial review sites (blabbermouth, chroniclesof-
-  // chaos, deadrhetoric and similar) on page 1-2 reliably, whereas
-  // Serper's own un-set default (gl: us) consistently buries them on
-  // page 3+. The Sylosis "Conclusion of an Age" trigger
-  // (2026-05-18): four whitelisted review hosts all on page 1-2 of
-  // KR Google, none in our gl: us Serper pages 1-2. hl: en keeps
-  // English snippets coming back so the picker LLM doesn't have to
-  // wade through Korean UI fragments. Env-overridable so the knob
-  // is reachable without a code change.
+  // gl (country) + hl (interface language) + location (city-level
+  // precision) shape which Google SERP we get back. Defaults match
+  // what the dig.haus operator sees when they manually google an
+  // album from Korea — Serper's own un-set defaults (gl: us, no
+  // location) consistently bury KR-ranked editorial review sites
+  // on page 3+. The 2026-05-18 trigger: Sylosis "Conclusion of an
+  // Age" lost four whitelisted hosts at gl: us, and Be'lakor
+  // "Coherence" lost an angrymetalguy URL that is rank 1 on the
+  // operator's actual KR Google even after gl: kr alone — adding
+  // explicit location: "Seoul, South Korea" gives Serper city-
+  // level precision so the SERP it returns is closer to a real KR
+  // user's. gl/hl/location all env-overridable so further tuning
+  // doesn't need a redeploy.
   const gl = process.env.SERPER_GL ?? 'kr';
   const hl = process.env.SERPER_HL ?? 'en';
+  const location = process.env.SERPER_LOCATION ?? 'Seoul, South Korea';
   try {
     const resp = await axios.post(
       'https://google.serper.dev/search',
-      { q, num: 10, page, gl, hl },
+      { q, num: 10, page, gl, hl, location },
       {
         headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
         timeout: 10000,
