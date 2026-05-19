@@ -1,12 +1,17 @@
 import axios from 'axios';
 import { memoAsync } from '../utils/memoCache.js';
 
-// Brave Search Web API — independent search index, generous free
-// tier (2k queries/month, no card required), $3 per 1k after.
-// Replaced Serper.dev 2026-05-18 after that account's quota ran
-// out; functional shape (issue a query, get back ~10 organic-style
-// blue-link URLs we can hand to the editorial picker LLM) is the
-// same, so the swap is contained to this file plus its callers.
+// Brave Search Web API — independent search index. Pricing is
+// $5/1k queries with $5 of monthly credit auto-applied, so the
+// first ~1k queries each month are effectively free; admin volume
+// (~600 queries/mo at the steady-state pace of 50 albums/week × 3
+// pages each) sits comfortably under that ceiling. Replaced
+// Serper.dev 2026-05-18 after that account's one-time free credit
+// ran out; functional shape (issue a query, get back ~10 organic-
+// style blue-link URLs we can hand to the editorial picker LLM)
+// is the same, so the swap is contained to this file plus its
+// callers. services/serper.ts is kept dormant in the tree as a
+// fast revert path if Brave underperforms.
 //
 // We hit /res/v1/web/search and read `web.results`. Brave doesn't
 // ship a 1:1 "organic" key like Google SERP scrapers do — the web

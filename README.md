@@ -121,7 +121,7 @@ cd client && npm install && cd ..
 | **YouTube Data API** | https://console.cloud.google.com/apis/library/youtube.googleapis.com | Enable API, create API key |
 | **DeepSeek** | https://platform.deepseek.com/ | API key — primary LLM |
 | **Anthropic Claude** | https://console.anthropic.com/ | API key — ad-hoc / fallback |
-| **Brave Search API** | https://api-dashboard.search.brave.com/ | Web search API for review URL discovery (2k/mo free) |
+| **Brave Search API** | https://api-dashboard.search.brave.com/ | Web search API for review URL discovery ($5/1k with $5/mo free credit ≈ first 1k/mo free) |
 | **Google OAuth** | https://console.cloud.google.com/ | See *Google OAuth 설정* below |
 
 > **No auth required:** MusicBrainz, Cover Art Archive, Jina Reader (`r.jina.ai/`), Bandcamp metadata.
