@@ -44,11 +44,22 @@ async function runGoogleCsePage(
   q: string,
   start: number
 ): Promise<SearchResult[]> {
+  // gl boosts results from sources in that country; hl sets the
+  // interface language. Defaults mirror the active Serper service
+  // (gl: kr, hl: en) so flipping the import target across doesn't
+  // shift the SERP locale out from under the operator. CSE has no
+  // direct equivalent of Serper's `location` param — the
+  // Programmable Search Engine's own console-side "Region" setting
+  // is where to set city-or-country precision if the gl param
+  // alone proves insufficient. Env-overridable so the knobs match
+  // Serper's naming pattern.
+  const gl = process.env.GOOGLE_CSE_GL ?? 'kr';
+  const hl = process.env.GOOGLE_CSE_HL ?? 'en';
   try {
     const resp = await axios.get(
       'https://www.googleapis.com/customsearch/v1',
       {
-        params: { key: creds.key, cx: creds.cx, q, num: 10, start },
+        params: { key: creds.key, cx: creds.cx, q, num: 10, start, gl, hl },
         timeout: 10000,
       }
     );
