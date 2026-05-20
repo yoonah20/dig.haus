@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { useUpdateCrate, type CrateSummary } from '../../../hooks/useCrates';
+import {
+  useUpdateCrate,
+  useDeleteCrate,
+  type CrateSummary,
+} from '../../../hooks/useCrates';
 
 // Modal overlay for editing a crate's title + description. Opened
 // from the ✏️ chip on the active crate in the bar; saves via the
@@ -18,9 +22,26 @@ interface Props {
 
 export default function CrateEditModal({ crate, onClose }: Props) {
   const update = useUpdateCrate();
+  const remove = useDeleteCrate();
   const [title, setTitle] = useState(crate.title);
   const [description, setDescription] = useState(crate.description ?? '');
   const titleRef = useRef<HTMLInputElement>(null);
+
+  const handleDelete = async () => {
+    if (
+      !window.confirm(
+        `'${crate.title}' 박스를 삭제할까요? 박스 안 앨범은 빠지지만 콜렉션엔 그대로 남아요.`
+      )
+    ) {
+      return;
+    }
+    try {
+      await remove.mutateAsync(crate.id);
+      onClose();
+    } catch (err: any) {
+      alert(err?.response?.data?.error || '삭제 실패');
+    }
+  };
 
   useEffect(() => {
     titleRef.current?.focus();
@@ -131,26 +152,47 @@ export default function CrateEditModal({ crate, onClose }: Props) {
         <div
           style={{
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             gap: 10,
             marginTop: 4,
           }}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-[12px] text-gray-400 hover:text-gray-200 cursor-pointer px-3 py-1"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={update.isPending || !title.trim()}
-            className="text-[12px] text-accent hover:text-accent-hover disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border border-accent/60 rounded-full px-3 py-1"
-          >
-            저장
-          </button>
+          {/* Delete on the left, separated from cancel/save on the
+              right so the destructive action doesn't sit next to
+              the confirm button by accident. Default crates (굿굿
+              / 별루) are server-locked from deletion (returns 403);
+              hide the button on those too so the operator doesn't
+              get a misleading affordance. */}
+          {!crate.isDefault ? (
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={remove.isPending || update.isPending}
+              className="text-[12px] text-red-400/80 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer px-2 py-1"
+            >
+              🗑️ 박스 삭제
+            </button>
+          ) : (
+            <span />
+          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[12px] text-gray-400 hover:text-gray-200 cursor-pointer px-3 py-1"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={update.isPending || !title.trim()}
+              className="text-[12px] text-accent hover:text-accent-hover disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer border border-accent/60 rounded-full px-3 py-1"
+            >
+              저장
+            </button>
+          </div>
         </div>
       </div>
     </div>
