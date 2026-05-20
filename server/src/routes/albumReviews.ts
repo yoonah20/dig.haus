@@ -9,7 +9,9 @@ import {
   getVerifiedSourceNames,
   normalizeReviewUrl,
 } from '../services/reviews.js';
-import { searchReviewUrls } from '../services/serper.js';
+import { searchReviewUrls as searchSerper } from '../services/serper.js';
+import { searchReviewUrls as searchBrave } from '../services/braveSearch.js';
+import { searchReviewUrls as searchTavily } from '../services/tavilySearch.js';
 import {
   generateKoreanSummary,
   selectEditorialReviewUrls,
@@ -63,19 +65,36 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
     return res.status(404).json({ error: 'Album not found' });
   }
 
+  // Engine selector — admin UI sends ?engine=serper|tavily|brave so
+  // the operator can A/B the three discovery backends against each
+  // other on the same album. Unknown / missing values fall through
+  // to serper, which is the current default. Tavily and Brave keep
+  // their own caches keyed by engine name so flipping back and
+  // forth in the same session doesn't reuse the wrong response.
+  const rawEngine = String(req.query.engine || 'serper').toLowerCase();
+  const engine: 'serper' | 'tavily' | 'brave' =
+    rawEngine === 'tavily' || rawEngine === 'brave' ? rawEngine : 'serper';
+  const dispatchSearch =
+    engine === 'tavily'
+      ? searchTavily
+      : engine === 'brave'
+        ? searchBrave
+        : searchSerper;
+
   try {
-    const candidates = await searchReviewUrls(
+    const candidates = await dispatchSearch(
       albumRow.artist_name,
       albumRow.title
     );
     // Debug dump (2026-05-18) — Serper returning unexpectedly empty
     // candidate lists for albums that obviously have editorial
-    // coverage on KR Google. Logs the raw Serper hit set so we can
-    // see whether a missing URL fell out at the Serper layer (not
-    // here) vs the domain-filter / already-saved / picker layers
-    // (below). Drop the line once the gl: kr tuning has settled.
+    // coverage on KR Google. Logs the raw hit set per engine so we
+    // can see whether a missing URL fell out at the search layer
+    // (not here) vs the domain-filter / already-saved / picker
+    // layers (below). Drop the line once the SERP knobs have
+    // settled across engines.
     console.log(
-      `[discover-debug] ${albumRow.artist_name} / ${albumRow.title}: serper returned ${candidates.length} URLs:`
+      `[discover-debug] ${albumRow.artist_name} / ${albumRow.title}: ${engine} returned ${candidates.length} URLs:`
     );
     for (const c of candidates) console.log(`  ${c.url}`);
     if (candidates.length === 0) {
@@ -122,7 +141,7 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
 
     if (filtered.length === 0) {
       console.log(
-        `[discover] ${albumRow.artist_name} / ${albumRow.title}: search=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=0 (nothing new)`
+        `[discover] ${albumRow.artist_name} / ${albumRow.title}: ${engine}=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=0 (nothing new)`
       );
       return res.json({
         urls: [],
@@ -166,7 +185,7 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
     // Stage counts so we can see where candidates drop off when a known-
     // reviewed album comes back short.
     console.log(
-      `[discover] ${albumRow.artist_name} / ${albumRow.title}: search=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=${picked.length} (whitelisted=${whitelistedCount})`
+      `[discover] ${albumRow.artist_name} / ${albumRow.title}: ${engine}=${candidates.length} → domain-filter=${domainFiltered.length} → already-saved=${alreadySaved} → haiku-pick=${picked.length} (whitelisted=${whitelistedCount})`
     );
     // whitelistedCount tells the client how many of the returned URLs
     // come from admin-trusted hosts. The auto-curation UI ("자동

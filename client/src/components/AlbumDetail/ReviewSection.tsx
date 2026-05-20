@@ -5,7 +5,11 @@ import axios from '../../lib/axios';
 import type { Review } from '../../types';
 import { getScoreColor as scoreColor, getScoreBgColor as scoreBgColor } from '../../utils/score';
 import { useAuth } from '../../contexts/AuthContext';
-import { useGenerateReviewSummary, useDiscoverReviewUrls } from '../../hooks/useAlbum';
+import {
+  useGenerateReviewSummary,
+  useDiscoverReviewUrls,
+  type DiscoveryEngine,
+} from '../../hooks/useAlbum';
 import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 import CardOverlayButton from '../CardOverlayButton';
 import { Field, DigmanEmpty, Button, Popover } from '../ui';
@@ -656,6 +660,22 @@ export default function ReviewSection({
   const scoredCount = reviews.filter(r => r.score !== null).length;
   const regenSummary = useGenerateReviewSummary(slug ?? '');
   const discover = useDiscoverReviewUrls(slug ?? '');
+  // Engine selector for the 🔎 URL 자동 검색 button. localStorage
+  // persists across album navigations so admin doesn't re-pick
+  // every time. Initialised lazily so SSR-rendered first paint
+  // doesn't touch window.localStorage; falls back to serper if the
+  // stored value is missing or corrupt.
+  const [discoverEngine, setDiscoverEngine] = useState<DiscoveryEngine>(
+    () => {
+      if (typeof window === 'undefined') return 'serper';
+      const saved = window.localStorage.getItem('admin:discoverEngine');
+      return saved === 'tavily' || saved === 'brave' ? saved : 'serper';
+    }
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem('admin:discoverEngine', discoverEngine);
+  }, [discoverEngine]);
   const [expanded, setExpanded] = useState(false);
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
@@ -1214,12 +1234,28 @@ export default function ReviewSection({
                         <label className="block text-xs text-gray-400">
                           리뷰 URL <span className="text-gray-600">(여러 개는 한 줄에 하나씩)</span>
                         </label>
-                        <button
+                        <div className="flex items-center gap-1.5">
+                          <select
+                            value={discoverEngine}
+                            onChange={(e) =>
+                              setDiscoverEngine(e.target.value as DiscoveryEngine)
+                            }
+                            disabled={discover.isPending || savingReview}
+                            className="text-[11px] bg-panel-strong border border-white/15 hover:border-white/30 rounded-md px-1.5 py-0.5 text-gray-300 outline-none focus:border-accent/60 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            title="검색 엔진 선택"
+                          >
+                            <option value="serper">Serper</option>
+                            <option value="tavily">Tavily</option>
+                            <option value="brave">Brave</option>
+                          </select>
+                          <button
                           type="button"
                           onClick={async () => {
                             if (discover.isPending || savingReview) return;
                             try {
-                              const result = await discover.mutateAsync();
+                              const result = await discover.mutateAsync({
+                                engine: discoverEngine,
+                              });
                               const found = result.urls ?? [];
                               const alreadySaved = result.alreadySavedCount ?? 0;
                               // Dedup note gets appended to any admin-
@@ -1271,13 +1307,14 @@ export default function ReviewSection({
                           }}
                           disabled={discover.isPending || savingReview}
                           className="text-[11px] text-accent/80 hover:text-accent border border-accent/40 hover:border-accent/70 rounded-md px-2 py-0.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors inline-flex items-center gap-1.5"
-                          title="Serper로 구글 검색 → Haiku가 editorial 리뷰 URL 선별 (~$0.001)"
+                          title={`${discoverEngine}로 검색 → Haiku가 editorial 리뷰 URL 선별 (~$0.001)`}
                         >
                           {discover.isPending && (
                             <span className="w-3 h-3 border-2 border-gray-500 border-t-accent rounded-full animate-spin" />
                           )}
                           {discover.isPending ? '검색 중…' : '🔎 URL 자동 검색'}
                         </button>
+                        </div>
                       </div>
                       <textarea
                         value={addUrl}
