@@ -1507,6 +1507,28 @@ function SourcesPanel() {
     () => new Set((data?.blacklist ?? []).map((b) => b.host)),
     [data]
   );
+  // Per-host lookup of accumulated review counts + verified status,
+  // shared by the whitelist + blacklist columns so an already-curated
+  // host still shows its progress. Operator workflow context: many
+  // bot-blocked hosts get added to the blacklist (to stop the
+  // scraper trying) but are still actively contributing reviews via
+  // manual paste. Hiding their counts inside the blacklist column
+  // made those silent — surfacing the badge here lets the operator
+  // see verified progress at a glance regardless of curation state.
+  const successByHost = useMemo(() => {
+    const map = new Map<
+      string,
+      { hits: number; verified: boolean; threshold: number }
+    >();
+    for (const h of data?.successHosts ?? []) {
+      map.set(h.host, {
+        hits: h.hits,
+        verified: h.verified,
+        threshold: h.threshold,
+      });
+    }
+    return map;
+  }, [data]);
   const totalCount = (data?.whitelist.length ?? 0) + (data?.blacklist.length ?? 0);
 
   return (
@@ -1591,11 +1613,15 @@ function SourcesPanel() {
             subheader="discover 결과에서 우선 정렬"
             emptyText="비어 있음"
             placeholder="예: pitchfork.com"
-            items={(data?.whitelist ?? []).map((w) => ({
-              host: w.host,
-              sub: w.note || null,
-              title: w.addedAt,
-            }))}
+            items={(data?.whitelist ?? []).map((w) => {
+              const s = successByHost.get(w.host);
+              return {
+                host: w.host,
+                badge: s ? (s.verified ? `×${s.hits} ✓` : `×${s.hits}`) : undefined,
+                sub: w.note || null,
+                title: w.addedAt,
+              };
+            })}
             onAdd={(host) => addWhitelist.mutate({ host })}
             onRemove={(host) => removeWhitelist.mutate(host)}
             isBusy={addWhitelist.isPending || removeWhitelist.isPending}
@@ -1604,17 +1630,30 @@ function SourcesPanel() {
 
           {/* Blacklist — curated refusal list. Same runtime effect as
               EXCLUDED_URL_DOMAINS (hard fail at scrape time) but
-              editable without a deploy. */}
+              editable without a deploy. Many entries here are bot-
+              blocked publications the operator still contributes to
+              via manual paste, so showing accumulated review counts
+              + verified status is the same workflow signal the
+              success column gives — just for hosts that already
+              made a curation decision. */}
           <ManagedHostList
             header="🚫 블랙리스트"
             subheader="스크랩 단계에서 거부"
             emptyText="비어 있음"
             placeholder="예: somebadsite.com"
-            items={(data?.blacklist ?? []).map((b) => ({
-              host: b.host,
-              sub: b.reason || null,
-              title: b.addedAt,
-            }))}
+            items={(data?.blacklist ?? []).map((b) => {
+              const s = successByHost.get(b.host);
+              return {
+                host: b.host,
+                badge: s ? (s.verified ? `×${s.hits} ✓` : `×${s.hits}`) : undefined,
+                sub:
+                  b.reason ||
+                  (s && !s.verified
+                    ? `verified까지 ${Math.max(0, s.threshold - s.hits)}개`
+                    : null),
+                title: b.addedAt,
+              };
+            })}
             onAdd={(host) => addBlacklist.mutate({ host })}
             onRemove={(host) => removeBlacklist.mutate(host)}
             isBusy={addBlacklist.isPending || removeBlacklist.isPending}
@@ -2093,15 +2132,22 @@ function ManagedHostList({
           items.map((it) => (
             <div key={it.host} className="px-3 py-2 flex items-center gap-2">
               <div className="flex-1 min-w-0">
-                <a
-                  href={`https://${it.host}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-white truncate block hover:text-accent transition-colors"
-                  title={it.title ?? `${it.host} 열기`}
-                >
-                  {it.host}
-                </a>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <a
+                    href={`https://${it.host}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-white truncate hover:text-accent transition-colors"
+                    title={it.title ?? `${it.host} 열기`}
+                  >
+                    {it.host}
+                  </a>
+                  {it.badge && (
+                    <span className="text-[10px] text-gray-500 tabular-nums">
+                      {it.badge}
+                    </span>
+                  )}
+                </div>
                 {it.sub && (
                   <div className="text-[10px] text-gray-600 truncate mt-0.5">
                     {it.sub}
