@@ -256,6 +256,7 @@ export function bustSourceListCaches(): void {
   blacklistCache = null;
   whitelistCache = null;
   verifiedSourcesCache = null;
+  verifiedHostsCache = null;
 }
 
 // "Verified" source = the publication is editorial enough that the
@@ -263,25 +264,96 @@ export function bustSourceListCaches(): void {
 // the album page so the long tail of one-off personal-blog rows is
 // visually distinct from established outlets.
 //
-// A source_name is verified when EITHER:
+// A source_name is verified when ANY of:
 //   1. Its dominant host (most common full_review_url hostname for
 //      that source_name) appears in source_whitelist, OR
 //   2. It has been collected at least VERIFIED_REVIEW_COUNT_THRESHOLD
-//      times across the catalogue.
+//      times across the catalogue under that source_name string, OR
+//   3. Its dominant host accumulates VERIFIED_REVIEW_COUNT_THRESHOLD
+//      reviews total across the catalogue (regardless of source_name
+//      string consistency).
 //
-// Two paths because the whitelist is admin-curated for specific
-// editorial outlets (Pitchfork, Kerrang!, Sputnikmusic) while the
-// count rule auto-catches lesser-curated-but-clearly-real publications
+// Three paths: the whitelist is admin-curated for specific editorial
+// outlets (Pitchfork, Kerrang!, Sputnikmusic); the source-name count
+// rule auto-catches lesser-curated-but-clearly-real publications
 // (AllMusic, PopMatters, Metal Hammer) that landed in the catalogue
-// repeatedly without being added to the whitelist by hand.
+// repeatedly with a consistent source_name string; the host count
+// rule (added 2026-05-18) catches the same outlets when manual paste
+// entries spelled their source_name inconsistently — angrymetalguy
+// dot com URLs entered as "Angry Metal Guy" vs "AngryMetalGuy" vs
+// "AMG" wouldn't aggregate under rule 2 but DO aggregate under rule
+// 3 since the URL host is mechanically reliable.
 //
 // Cache shape mirrors the blacklist/whitelist caches: TTL refresh, no
 // explicit invalidation on review writes (60s drift on a "is this site
 // recognised?" badge is fine), busted by bustSourceListCaches() when
 // admin edits source_whitelist so whitelist changes propagate fast.
-const VERIFIED_REVIEW_COUNT_THRESHOLD = 50;
+export const VERIFIED_REVIEW_COUNT_THRESHOLD = 50;
 type VerifiedCache = { set: Set<string>; expiresAt: number };
 let verifiedSourcesCache: VerifiedCache | null = null;
+type VerifiedHostsCache = { set: Set<string>; expiresAt: number };
+let verifiedHostsCache: VerifiedHostsCache | null = null;
+
+// Returns every host that qualifies as verified under rules 1 or 3 —
+// in source_whitelist (suffix match), or accumulated >=
+// VERIFIED_REVIEW_COUNT_THRESHOLD reviews lifetime. Reused by both
+// getVerifiedSourceNames (for the per-source check) and by the admin
+// sources panel (for the per-host badge). Same 60s TTL as the source-
+// name verified cache.
+export function getVerifiedHosts(): Set<string> {
+  if (verifiedHostsCache && verifiedHostsCache.expiresAt > Date.now()) {
+    return verifiedHostsCache.set;
+  }
+  const whitelist = getWhitelistedHostsFromDb();
+  const rows = queryAll(
+    `SELECT full_review_url FROM reviews
+     WHERE full_review_url IS NOT NULL AND full_review_url != ''`
+  ) as Array<{ full_review_url: string }>;
+  const hostCounts = new Map<string, number>();
+  for (const r of rows) {
+    try {
+      const h = new URL(r.full_review_url).hostname
+        .toLowerCase()
+        .replace(/^www\./, '');
+      hostCounts.set(h, (hostCounts.get(h) || 0) + 1);
+    } catch {
+      // Malformed URL — ignored.
+    }
+  }
+  const verified = new Set<string>();
+  for (const [host, n] of hostCounts) {
+    if (n >= VERIFIED_REVIEW_COUNT_THRESHOLD) verified.add(host);
+  }
+  // Whitelist entries are always verified, even if not yet accumulated.
+  for (const w of whitelist) verified.add(w);
+  verifiedHostsCache = {
+    set: verified,
+    expiresAt: Date.now() + SOURCE_CACHE_TTL_MS,
+  };
+  return verified;
+}
+
+// Returns per-host counts for the admin sources panel — same scan
+// the verified rollup does, exposed so the panel can render
+// "47/50" style progress without re-aggregating client-side.
+export function getHostReviewCounts(): Map<string, number> {
+  const rows = queryAll(
+    `SELECT full_review_url FROM reviews
+     WHERE full_review_url IS NOT NULL AND full_review_url != ''`
+  ) as Array<{ full_review_url: string }>;
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    try {
+      const h = new URL(r.full_review_url).hostname
+        .toLowerCase()
+        .replace(/^www\./, '');
+      counts.set(h, (counts.get(h) || 0) + 1);
+    } catch {
+      // ignore malformed
+    }
+  }
+  return counts;
+}
 
 export function getVerifiedSourceNames(): Set<string> {
   if (verifiedSourcesCache && verifiedSourcesCache.expiresAt > Date.now()) {
@@ -313,8 +385,19 @@ export function getVerifiedSourceNames(): Set<string> {
     }
   }
 
+  // Rule 3 needs total per-host counts across the catalogue,
+  // independent of source_name string. Build once, reuse for every
+  // source's dominant-host lookup.
+  const totalHostCounts = new Map<string, number>();
+  for (const inner of hostCounts.values()) {
+    for (const [h, c] of inner) {
+      totalHostCounts.set(h, (totalHostCounts.get(h) || 0) + c);
+    }
+  }
+
   const verified = new Set<string>();
   for (const [source, n] of counts) {
+    // Rule 2: source_name itself has enough reviews.
     if (n >= VERIFIED_REVIEW_COUNT_THRESHOLD) {
       verified.add(source);
       continue;
@@ -329,7 +412,17 @@ export function getVerifiedSourceNames(): Set<string> {
         topHost = h;
       }
     }
-    if (topHost && isHostInWhitelist(topHost, whitelist)) {
+    if (!topHost) continue;
+    // Rule 1: dominant host is whitelisted.
+    if (isHostInWhitelist(topHost, whitelist)) {
+      verified.add(source);
+      continue;
+    }
+    // Rule 3: dominant host accumulated >= threshold reviews under
+    // any source_name spelling — catches manually pasted entries
+    // where admin's source_name string wasn't consistent run to run
+    // but the underlying URL host was.
+    if ((totalHostCounts.get(topHost) || 0) >= VERIFIED_REVIEW_COUNT_THRESHOLD) {
       verified.add(source);
     }
   }

@@ -1454,7 +1454,13 @@ function ScrapeFailuresPanel() {
 // effect as the hardcoded EXCLUDED_URL_DOMAINS in reviews.ts.
 
 interface SourcesResp {
-  successHosts: Array<{ host: string; hits: number; lastUrl: string }>;
+  successHosts: Array<{
+    host: string;
+    hits: number;
+    lastUrl: string;
+    verified: boolean;
+    threshold: number;
+  }>;
   failureHosts: Array<{ host: string; hits: number; lastFailedAt: string }>;
   whitelist: Array<{ host: string; addedAt: string; note: string | null }>;
   blacklist: Array<{ host: string; addedAt: string; reason: string | null }>;
@@ -1525,8 +1531,14 @@ function SourcesPanel() {
               .filter((h) => !whitelistSet.has(h.host) && !blacklistSet.has(h.host))
               .map((h) => ({
                 host: h.host,
-                badge: `×${h.hits}`,
-                sub: null,
+                badge: h.verified ? `×${h.hits} ✓` : `×${h.hits}`,
+                // Progress note — "verified" once accumulated past
+                // threshold, otherwise count remaining. Helps the
+                // operator see which hosts are close to graduating
+                // and which need an explicit whitelist promotion.
+                sub: h.verified
+                  ? 'verified'
+                  : `verified까지 ${Math.max(0, h.threshold - h.hits)}개`,
                 title: h.lastUrl,
               }))}
             renderAction={(host) => (

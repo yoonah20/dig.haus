@@ -11,7 +11,11 @@ import {
   ROLLING_24H_USD_CAP,
 } from '../services/claudeBudget.js';
 import { describeOperationRoutes } from '../services/llmRouter.js';
-import { bustSourceListCaches } from '../services/reviews.js';
+import {
+  bustSourceListCaches,
+  getVerifiedHosts,
+  VERIFIED_REVIEW_COUNT_THRESHOLD,
+} from '../services/reviews.js';
 import { invalidateTagBlacklistCache } from './albums.js';
 import {
   searchTrack,
@@ -921,8 +925,26 @@ router.get('/sources', requireAdmin, (_req, res) => {
         // Malformed URL — ignore.
       }
     }
+    // Verified rollup for the panel — a host is verified if it's
+    // whitelisted (suffix match) or has accumulated at least the
+    // threshold count of reviews. Same rule that backs the badge on
+    // the album page so the panel and the public view stay in sync.
+    const verifiedHosts = getVerifiedHosts();
+    const isVerifiedHost = (h: string): boolean => {
+      if (verifiedHosts.has(h)) return true;
+      for (const entry of verifiedHosts) {
+        if (h === entry || h.endsWith(`.${entry}`)) return true;
+      }
+      return false;
+    };
     const successHosts = Array.from(successMap.entries())
-      .map(([host, v]) => ({ host, hits: v.hits, lastUrl: v.lastUrl }))
+      .map(([host, v]) => ({
+        host,
+        hits: v.hits,
+        lastUrl: v.lastUrl,
+        verified: isVerifiedHost(host),
+        threshold: VERIFIED_REVIEW_COUNT_THRESHOLD,
+      }))
       .sort((a, b) => b.hits - a.hits || a.host.localeCompare(b.host));
 
     // Cumulative failure rollup (lifetime, not the 30-day window that
