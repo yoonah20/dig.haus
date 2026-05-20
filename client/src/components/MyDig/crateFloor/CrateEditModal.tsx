@@ -160,22 +160,19 @@ export default function CrateEditModal({ crate, onClose }: Props) {
         >
           {/* Delete on the left, separated from cancel/save on the
               right so the destructive action doesn't sit next to
-              the confirm button by accident. Default crates (굿굿
-              / 별루) are server-locked from deletion (returns 403);
-              hide the button on those too so the operator doesn't
-              get a misleading affordance. */}
-          {!crate.isDefault ? (
-            <button
-              type="button"
-              onClick={() => void handleDelete()}
-              disabled={remove.isPending || update.isPending}
-              className="text-[12px] text-red-400/80 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer px-2 py-1"
-            >
-              🗑️ 박스 삭제
-            </button>
-          ) : (
-            <span />
-          )}
+              the confirm button by accident. The old 굿굿/별루
+              default-crate carve-out is gone — that migration ran
+              2026-05-17 and the DB no longer carries any rows with
+              is_default = 1. The server-side 403 guard for default
+              crates stays as a defensive backstop. */}
+          <button
+            type="button"
+            onClick={() => void handleDelete()}
+            disabled={remove.isPending || update.isPending}
+            className="text-[12px] text-red-400/80 hover:text-red-300 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer px-2 py-1"
+          >
+            🗑️ 박스 삭제
+          </button>
           <div style={{ display: 'flex', gap: 10 }}>
             <button
               type="button"
