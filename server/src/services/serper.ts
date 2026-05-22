@@ -31,26 +31,27 @@ async function runSerperPage(
   q: string,
   page: number
 ): Promise<SerperResult[]> {
-  // gl (country) + hl (interface language) + location (city-level
-  // precision) shape which Google SERP we get back. Defaults match
-  // what the dig.haus operator sees when they manually google an
-  // album from Korea — Serper's own un-set defaults (gl: us, no
-  // location) consistently bury KR-ranked editorial review sites
-  // on page 3+. The 2026-05-18 trigger: Sylosis "Conclusion of an
-  // Age" lost four whitelisted hosts at gl: us, and Be'lakor
-  // "Coherence" lost an angrymetalguy URL that is rank 1 on the
-  // operator's actual KR Google even after gl: kr alone — adding
-  // explicit location: "Seoul, South Korea" gives Serper city-
-  // level precision so the SERP it returns is closer to a real KR
-  // user's. gl/hl/location all env-overridable so further tuning
-  // doesn't need a redeploy.
-  const gl = process.env.SERPER_GL ?? 'kr';
-  const hl = process.env.SERPER_HL ?? 'en';
-  const location = process.env.SERPER_LOCATION ?? 'Seoul, South Korea';
+  // No explicit gl/hl/location — Serper's own defaults (gl: us,
+  // hl: en) consistently surfaced more editorial review URLs than
+  // the gl: kr + location: Seoul tuning we ran for a few days. The
+  // hypothesis was that KR-locale would match what the operator
+  // sees in their own browser, but in practice the operator-noted
+  // recall dropped on the catalog as a whole — KR-localized SERP
+  // buries English editorial blogs that don't have strong KR-side
+  // signals. Reverted 2026-05-22 after operator review. Knobs kept
+  // env-overridable in case a future experiment wants to tune
+  // either direction without a redeploy.
+  const gl = process.env.SERPER_GL;
+  const hl = process.env.SERPER_HL;
+  const location = process.env.SERPER_LOCATION;
+  const params: Record<string, unknown> = { q, num: 10, page };
+  if (gl) params.gl = gl;
+  if (hl) params.hl = hl;
+  if (location) params.location = location;
   try {
     const resp = await axios.post(
       'https://google.serper.dev/search',
-      { q, num: 10, page, gl, hl, location },
+      params,
       {
         headers: { 'X-API-KEY': apiKey, 'Content-Type': 'application/json' },
         timeout: 10000,
