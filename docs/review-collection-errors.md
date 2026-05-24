@@ -8,6 +8,17 @@ Add new entries to the top.
 
 ---
 
+## 2026-05-18 — metalexpressradio.com user-rating 위젯이 항상 0점으로 잡힘
+
+- **URL**: https://www.metalexpressradio.com/2003/09/08/dimmu-borgir-death-cult-armageddon/ (+ 기존 DB에 같은 패턴 2건: house-of-lords/world-upside-down, starbreaker/starbreaker)
+- **Expected**: `null` (editor가 점수를 채우지 않은 wp-review 페이지)
+- **Observed**: `0/100`
+- **Cause**: MER 페이지는 wp-review 플러그인을 쓰는데 editor가 점수 widget을 빈 채로 두면 (`data-originalrating="0.0"` + `<div class="review-result" style="width:0%">`) `detectWpReviewPluginRating` 가 가드로 정확히 null 반환. 다음 detector로 fall-through — `detectExplicitNumericScore` 의 rule 5 (bare fraction LAST match) 가 페이지 끝의 user-rating widget 텍스트 `<span class="review-total-box"> <span ...>0/10</span> <small>(0 votes)</small></span>` 를 stripHtml 한 결과 `0/10 ( 0 votes)` 의 `0/10` 을 잡아서 **0점** 반환. 페이지 사이드바에 다른 앨범의 실제 editorial score (e.g. 8.2/10) 가 있어도 마찬가지로 오염될 수 있음 — last-match 휴리스틱이 사이드바 / 위젯 contamination에 취약.
+- **Fix**: `detectExplicitNumericScore` rule 5 시작 부분에 두 단계 가드 — (a) raw HTML 에 `wp-review-user-rating` / `data-originalrating=` markup 이 있으면 rule 5 skip 후 null 반환 (rules 1–4 의 labelled score 매치는 그 전에 이미 return 되므로 영향 없음); (b) 그게 없는 페이지에서도 bare-fraction 매치 뒤 40 chars 안에 `vote(s)` 단어가 따라오면 그 매치는 skip. 6개 synthetic 케이스 (editorial sign-off / 사인오프 + user widget / data-originalrating 단독 / wp-review 없음 + sign-off / 위젯 없는 stray votes / labelled 우선) + 실제 MER 페이지 → 전부 expect 와 일치. 기존 DB 의 0-score MER row 2건은 코드 fix 만 적용 (재수집 시 자동으로 null 로 정정됨).
+- **Status**: fixed
+
+---
+
 ## 2026-05-18 — vm-underground /band/<slug>/ archive 페이지가 등록됨
 
 - **URL**: https://www.vm-underground.com/band/ebony-tears/

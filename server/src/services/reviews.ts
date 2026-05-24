@@ -1295,10 +1295,39 @@ function detectExplicitNumericScore(html: string): number | null {
   // picked over the actual "2.5/5" review score). Labelled /20 still
   // works via rule (1) — unlabelled /20 is too collision-prone with
   // dates and track numbers to stay in the bare-fraction whitelist.
+  // Two-layer guard against user-rating widget contamination:
+  //
+  // (a) If the page is a wp-review-plugin page that has a user-rating
+  //     widget but its editorial widget came back unfilled (wp-review
+  //     detector returned null because every "review-result" sat behind
+  //     data-originalrating), skip rule 5 entirely. The bare-fraction
+  //     LAST-match heuristic was designed for editorial sign-offs at
+  //     the end of the article body, but on wp-review pages the user
+  //     widget AND/OR a "Latest Reviews" sidebar both appear AFTER the
+  //     body — picking the last fraction lands on the user widget's
+  //     0/10 (becomes score=0) or some sidebar review of a different
+  //     album. metalexpressradio.com's Dimmu Borgir Death Cult
+  //     Armageddon page is the prototype: editor never filled in a
+  //     score, sidebar mentioned another Dimmu album at 8.2/10. Trust
+  //     the plugin or return null.
+  //
+  // (b) Otherwise still apply the per-match "followed by vote(s)" skip
+  //     so a stray user widget on a non-wp-review page also doesn't
+  //     pollute the result.
+  const hasUserRatingWidget =
+    /wp-review-user-rating|data-originalrating\s*=/i.test(html);
+  if (hasUserRatingWidget) {
+    return null;
+  }
+
   const bareRe = /(?:^|[\s(])(\d{1,2}(?:[.,]\d{1,2})?)\s*\/\s*(5|10|100)(?=\s|[.,)]|$)/g;
   let lastMatch: RegExpExecArray | null = null;
   let m: RegExpExecArray | null;
-  while ((m = bareRe.exec(text)) !== null) lastMatch = m;
+  while ((m = bareRe.exec(text)) !== null) {
+    const tail = text.slice(m.index + m[0].length, m.index + m[0].length + 40);
+    if (/^\s*\(?\s*\d*\s*votes?\b/i.test(tail)) continue;
+    lastMatch = m;
+  }
   if (lastMatch) {
     const score = parseFloat(lastMatch[1].replace(',', '.'));
     const scale = parseInt(lastMatch[2], 10);
