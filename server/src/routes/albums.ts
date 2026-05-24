@@ -699,6 +699,15 @@ const ALBUM_ROW_SELECT = `
 
 router.get('/', async (req, res) => {
   try {
+    // Public home grid — response is identical for every viewer with
+    // the same query string (sort / page / lens / seed all live in
+    // the URL, so cache keys split cleanly). New album registrations
+    // become visible within s-maxage seconds. Kept shorter than the
+    // home features TTL because the newest sort surfaces fresh
+    // registrations and 30s feels closer to "live" without giving up
+    // the edge-cache win.
+    res.set('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+
     const sortKey = (req.query.sort as string) || 'release_date_desc';
     const isPriceSort = sortKey === 'price_asc' || sortKey === 'price_desc';
     // Random sort is seeded — the client passes a per-session seed (int) so

@@ -17,6 +17,12 @@ const router = Router();
 // `limit` is soft-capped server-side so a malicious query can't
 // pull the whole table. The client typically asks for 3-ish.
 router.get('/home/snapshots', (req, res) => {
+  // Anonymous-equivalent read: response doesn't vary by viewer. Let
+  // Cloudflare hold it at the edge so KR users don't pay the trans-
+  // Pacific RTT to us-west2 for every homepage load. New public
+  // snapshots become visible within s-maxage seconds.
+  res.set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+
   const rawLimit = Number(req.query.limit);
   const limit =
     Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.floor(rawLimit), 20) : 6;

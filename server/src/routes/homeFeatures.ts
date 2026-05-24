@@ -17,6 +17,13 @@ import { getWallVisual } from '../utils/heroWalls.js';
 const router = Router();
 
 router.get('/home/features', async (_req, res) => {
+  // Admin-curated hero walls — same response for every viewer, low
+  // edit frequency. Edge cache absorbs the hot path so the homepage
+  // hero doesn't pay us-west2 RTT on every load. After an admin
+  // edit, the new state propagates within s-maxage seconds (manual
+  // CF purge if instant visibility is needed).
+  res.set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+
   // Pull every wall row + every feature row in two batched queries,
   // then group features by wall_id in memory. Cheaper than per-wall
   // round trips and lets the album / purchase-link enrichment below

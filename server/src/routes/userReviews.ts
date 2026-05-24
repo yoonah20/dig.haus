@@ -118,6 +118,14 @@ function serialize(row: Row) {
 // so the ticker never shows a blank bubble.
 
 router.get('/user-reviews/feed', (req, res) => {
+  // Public ticker feed — same response for every viewer. Cached for
+  // 30s at the edge: the weighted-random ordering becomes "sticky"
+  // within each 30s window, but the ticker rotates client-side and
+  // the random reshuffle still happens often enough to feel alive.
+  // Shorter than home/features TTL because new 50자 평 should reach
+  // the ticker within ~30s of posting.
+  res.set('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+
   const limitRaw = parseInt((req.query.limit as string) || '', 10);
   const limit =
     Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 60) : 30;
