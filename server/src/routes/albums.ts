@@ -1065,6 +1065,11 @@ router.get('/lens-options', (_req, res) => {
 
 router.get('/neighbors', (req, res) => {
   try {
+    // Prev/next pointers depend only on the current album + sort key
+    // (both in the URL). No per-user state. Same TTL as the album
+    // grid since the same data drives both surfaces.
+    res.set('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+
     const sortKey = (req.query.sort as string) || 'release_date_desc';
     const albumId = req.query.id as string;
     if (!albumId) return res.json({ prev: null, next: null });
@@ -1850,6 +1855,19 @@ router.delete('/:id', requireAuth, async (req, res) => {
 // ─── GET /api/albums/:id — fast: base info + discography ─────────────────
 
 router.get('/:id', async (req, res) => {
+  // Anonymous viewers see an album response with userVote=null and no
+  // other per-user fields, so the response is identical across anon
+  // visitors and safe to edge-cache. Logged-in viewers get userVote
+  // populated, which would poison neighbouring users if cached — so
+  // we only set Cache-Control for anonymous requests, and CF (which
+  // is configured to honor origin Cache-Control) bypasses the cache
+  // for the logged-in branch. Cold path (first visit to an album)
+  // fires external enrichment and can take seconds; caching the warm
+  // response saves later anon visitors from re-paying that cost.
+  if (!req.user) {
+    res.set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+  }
+
   const param = (req.params.id as string);
   // Resolve slug or mbid to actual mbid
   const resolved = resolveAlbumId(param);
@@ -1986,6 +2004,13 @@ router.get('/:id', async (req, res) => {
 // ─── GET /api/albums/:mbid/similar — slow: similar albums ───────────────────
 
 router.get('/:id/similar', async (req, res) => {
+  // Similar-album picks are cached in the DB (similar_albums_lastfm
+  // column), regenerated only when the column is NULL or admin
+  // clears it. Same response for every viewer → safe to edge-cache.
+  // Longer TTL than most endpoints because the picks change rarely
+  // once seeded.
+  res.set('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=1200');
+
   const resolved = resolveAlbumId((req.params.id as string));
   const mbid = resolved?.mbid || (req.params.id as string);
 

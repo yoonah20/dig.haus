@@ -221,6 +221,11 @@ router.get('/user-reviews/feed', (req, res) => {
 
 // GET /api/albums/:id/user-reviews — public
 router.get('/albums/:id/user-reviews', (req, res) => {
+  // Public 50자 평 list for a single album — same response for every
+  // viewer. Short TTL because a fresh post should appear on the
+  // album page quickly (~30s) without needing a CF purge.
+  res.set('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+
   const albumPk = resolveAlbumPk(req.params.id as string);
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
 

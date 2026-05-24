@@ -818,6 +818,13 @@ router.post('/reviews/:reviewId/rescrape-paste', adminClaudeLimiter, requireAdmi
 // ─── GET /api/albums/:mbid/reviews — slow: reviews + summary ────────────────
 
 router.get('/:id/reviews', async (req, res) => {
+  // Editorial reviews + Korean summary — no per-user state. Cache
+  // duration chosen to absorb the spike when an album page is shared
+  // (multiple anon viewers in a short window) while still letting an
+  // admin score/excerpt edit propagate without a manual CF purge in
+  // a couple of minutes.
+  res.set('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
+
   const resolved = resolveAlbumId((req.params.id as string));
   const mbid = resolved?.mbid || (req.params.id as string);
 
