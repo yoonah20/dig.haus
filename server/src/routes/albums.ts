@@ -788,6 +788,20 @@ router.get('/', async (req, res) => {
           whereParts.push(`a.label_name = ? COLLATE NOCASE`);
           filterParams.push(lensVal);
         }
+      } else if (lensType === 'artist') {
+        // Same shape as the label lens: exact match on the text column
+        // the importer fills (a.artist_name), COLLATE NOCASE so casing
+        // variants fold together. Unlike label, the artist lens has no
+        // picker — it's reached only by clicking an artist name (search
+        // row / album card / album header), so there's no lens-options
+        // entry and no browsable list to grow unbounded. Multi-artist
+        // collaborations stored as a joined artist_name won't match a
+        // single member here; that's accepted until it's a real
+        // complaint (then artist_mbid becomes the upgrade path).
+        if (lensVal.length > 0 && lensVal.length <= 200) {
+          whereParts.push(`a.artist_name = ? COLLATE NOCASE`);
+          filterParams.push(lensVal);
+        }
       } else if (lensType === 'year') {
         const yNum = parseInt(lensVal, 10);
         if (Number.isFinite(yNum) && yNum > 1900 && yNum < 2200) {

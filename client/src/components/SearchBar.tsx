@@ -10,6 +10,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useCurationProgress } from '../contexts/CurationProgressContext';
 import type { AlbumSearchResult } from '../types';
+import { artistLensTo } from '../utils/lens';
 import { DigmanEmpty, Button } from './ui';
 
 // URL paste branch — when the input string looks like an http(s) URL we
@@ -138,6 +139,13 @@ export default function SearchBar({
     setQuery('');
     onSelect?.();
     navigate(path);
+  }
+
+  function handleArtistSelect(name: string) {
+    setInput('');
+    setQuery('');
+    onSelect?.();
+    navigate(artistLensTo(name));
   }
 
   async function handleRegister(
@@ -367,6 +375,7 @@ export default function SearchBar({
                   key={`db-${album.mbid}`}
                   album={album}
                   onSelect={() => handleDbSelect(`/album/${album.mbid}`)}
+                  onArtist={() => handleArtistSelect(album.artist)}
                 />
               ))}
             </section>
@@ -491,26 +500,39 @@ function SectionHeader({ label }: { label: string }) {
 function DbRow({
   album,
   onSelect,
+  onArtist,
 }: {
   album: AlbumSearchResult;
   onSelect: () => void;
+  onArtist: () => void;
 }) {
+  // Thumb + title navigate to the album; the artist name is a separate
+  // click target that opens the /dig artist lens. They're siblings (not
+  // nested) because a button-inside-button is invalid HTML — the row's
+  // hover:bg still gives whole-row feedback.
   return (
-    <button
-      onClick={onSelect}
-      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors text-left"
-    >
-      <Thumb album={album} />
+    <div className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 transition-colors">
+      <button onClick={onSelect} className="shrink-0" aria-label={album.title}>
+        <Thumb album={album} />
+      </button>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-gray-100 truncate">
+        <button
+          onClick={onSelect}
+          className="block w-full text-left text-sm font-semibold text-gray-100 truncate"
+        >
           {album.title}
-        </p>
+        </button>
         <p className="text-xs text-gray-400 truncate">
-          {album.artist}
+          <button
+            onClick={onArtist}
+            className="hover:text-accent hover:underline cursor-pointer"
+          >
+            {album.artist}
+          </button>
           {album.year && <span className="text-gray-500"> ({album.year})</span>}
         </p>
       </div>
-    </button>
+    </div>
   );
 }
 

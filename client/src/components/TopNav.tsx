@@ -38,12 +38,12 @@ export default function TopNav() {
   const { setPage } = useHomeState();
   const isDesktop = useIsDesktopNav();
   // Inline-search seed key + value. External openOverlay(query) calls
-  // (DigPage `?q=` redirect, ArtistCredit click) flow through the
-  // shared overlay context — on desktop we consume them by re-keying
-  // the inline SearchBar so it remounts with the new initialQuery and
-  // autoFocuses, mirroring how the mobile drop panel handles the same
-  // seed. closeOverlay clears the shared "open" flag so the same
-  // query can re-trigger if the user clicks the artist link twice.
+  // (e.g. DigPage's `?q=` redirect) flow through the shared overlay
+  // context — on desktop we consume them by re-keying the inline
+  // SearchBar so it remounts with the new initialQuery and autoFocuses,
+  // mirroring how the mobile drop panel handles the same seed.
+  // closeOverlay clears the shared "open" flag so the same query can
+  // re-trigger.
   const [inlineSeed, setInlineSeed] = useState({ query: '', key: 0 });
   useEffect(() => {
     if (!isDesktop || !searchOpen) return;

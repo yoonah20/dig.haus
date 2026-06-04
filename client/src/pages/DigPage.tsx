@@ -223,7 +223,7 @@ function paginationItems(current: number, total: number): Array<number | 'ellips
   return items;
 }
 
-type LensType = 'label' | 'year';
+type LensType = 'label' | 'year' | 'artist';
 type ActiveLens = { type: LensType; value: string };
 
 interface LensOptions {
@@ -241,7 +241,7 @@ function parseLensParam(raw: string | null): ActiveLens | null {
   if (colon <= 0) return null;
   const type = raw.slice(0, colon);
   const value = raw.slice(colon + 1);
-  if (type !== 'label' && type !== 'year') return null;
+  if (type !== 'label' && type !== 'year' && type !== 'artist') return null;
   if (!value) return null;
   return { type, value };
 }
@@ -348,6 +348,13 @@ export default function DigPage() {
     : desktopQuery.data?.albums ?? [];
   const totalPages = desktopQuery.data?.totalPages ?? 1;
   const isLoading = isMobile ? mobileQuery.isLoading : desktopQuery.isLoading;
+  // Total album count for the active lens — drives the artist header's
+  // "· N장". Desktop carries it on the page response; mobile's infinite
+  // query carries it on the first page. Undefined until the first
+  // response lands, so the header shows the name alone until then.
+  const lensTotal = isMobile
+    ? mobileQuery.data?.pages[0]?.total
+    : desktopQuery.data?.total;
 
   // Shuffle the reveal delays per page so the (up to 50) tiles don't
   // all land in a single sweep. Reshuffles whenever the rendered page
@@ -508,6 +515,27 @@ export default function DigPage() {
   return (
     <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-4">
       <section className="w-full max-w-[1280px] mx-auto">
+        {/* Artist lens header — the artist lens has no picker chip (it's
+            reached only by clicking an artist name), so this heading is
+            also where the lens is cleared. Label/year keep their own
+            LensTrigger chips in the toolbar below. */}
+        {activeLens?.type === 'artist' && (
+          <div className="mb-4 flex items-baseline gap-2">
+            <h1 className="text-lg font-semibold text-gray-200">
+              {activeLens.value}
+            </h1>
+            {lensTotal != null && (
+              <span className="text-sm text-gray-500">· {lensTotal}장</span>
+            )}
+            <button
+              onClick={clearLens}
+              className="ml-1 text-xs text-gray-500 hover:text-accent cursor-pointer"
+              aria-label="아티스트 필터 해제"
+            >
+              ×
+            </button>
+          </div>
+        )}
         {isMobile ? (
           // ─── Mobile: single unified infinite-scroll feed ────
           // 30 albums per batch (3 cols × 10 rows), each batch

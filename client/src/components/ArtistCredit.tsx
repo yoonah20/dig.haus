@@ -1,12 +1,16 @@
+import { useNavigate } from 'react-router-dom';
 import type { ArtistCreditEntry } from '../types';
-import { useSearchOverlay } from '../contexts/SearchOverlayContext';
+import { artistLensTo } from '../utils/lens';
 
 /**
  * Renders an album's artist credit as a list of clickable names
- * separated by ", ". Each name opens the search overlay scoped to
- * that artist — there's no per-artist page yet (entry 2 in the
- * post-Phase 3 roadmap), so a search-results view stands in as the
- * "all participations of X" surface for now.
+ * separated by ", ". Each name opens the /dig artist lens scoped to
+ * that name — a filtered catalog view of that artist's albums. (This
+ * used to open a search overlay as a stand-in; the lens replaced it.)
+ * Note the lens matches on albums.artist_name exactly, so for a
+ * multi-artist credit, clicking one member only finds albums where
+ * that member is the sole credited artist — the accepted text-match
+ * tradeoff until artist_mbid matching lands.
  *
  * Pass `credit` whenever it's available (server populates it on
  * fresh-fetched albums and lazily backfills legacy rows). When
@@ -27,7 +31,7 @@ export default function ArtistCredit({
    *  itself only carries layout (inline-flex, gap). */
   className?: string;
 }) {
-  const { openOverlay } = useSearchOverlay();
+  const navigate = useNavigate();
   const entries: ArtistCreditEntry[] =
     credit && credit.length > 0
       ? credit
@@ -43,7 +47,7 @@ export default function ArtistCredit({
         <span key={`${entry.name}-${entry.mbid ?? i}`}>
           <button
             type="button"
-            onClick={() => openOverlay(entry.name)}
+            onClick={() => navigate(artistLensTo(entry.name))}
             className={className ?? 'hover:underline cursor-pointer'}
           >
             {entry.name}

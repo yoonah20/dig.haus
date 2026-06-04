@@ -5,6 +5,7 @@ import CoverArt from './CoverArt';
 import PlayChip from './PlayChip';
 import PriceTagStack from './PriceTagSticker';
 import { getScoreColor, getScoreGlowRgb } from '../utils/score';
+import { artistLensTo } from '../utils/lens';
 import { MIN_SCORED_FOR_AVG } from '../lib/reviewThresholds';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -697,7 +698,22 @@ export default function AlbumCard({
                     marginTop: 'clamp(2px, 2cqw, 4px)',
                   }}
                 >
-                  {album.artist}
+                  {/* The whole card is a <Link> to the album; the artist
+                      name overrides that to open the /dig artist lens.
+                      stopPropagation + preventDefault keep the card's own
+                      tap/flip handler and anchor navigation from firing.
+                      Same nested-interactive pattern as the PlayChip
+                      below. */}
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigate(artistLensTo(album.artist));
+                    }}
+                    className="hover:text-accent hover:underline cursor-pointer text-left"
+                  >
+                    {album.artist}
+                  </button>
                   {!compact && album.year && <> · {album.year}</>}
                 </p>
                 {/* Compact (ultra density) strips the back face down
