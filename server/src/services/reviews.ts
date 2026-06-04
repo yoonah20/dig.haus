@@ -1432,24 +1432,39 @@ const BROWSER_UA =
 // at 20 req/min which is plenty for the single-operator manual flow.
 // r.jina.ai/ accepts the target URL appended raw (no encoding) per
 // Jina's docs.
-async function fetchJinaReader(url: string): Promise<string | null> {
+//
+// premium=true is the bot-wall recovery path: it adds the API key plus
+// X-Engine: browser (full headless render) and X-Proxy: auto (residential
+// proxy rotation). This combination clears Cloudflare challenges that the
+// free anonymous path returns as a "Just a moment..." interstitial. It
+// costs Jina tokens (and is slower), so the caller gates it to pages that
+// the cheap pass already confirmed are CF-challenged — never the default.
+async function fetchJinaReader(url: string, premium = false): Promise<string | null> {
+  const headers: Record<string, string> = {
+    // Hint Jina to skip their own telemetry banner at the top of
+    // the response. Without X-Return-Format we still get markdown
+    // but with a 2-3 line "Source URL:" preamble that Claude can
+    // handle fine — keep a safety truncation downstream regardless.
+    Accept: 'text/plain',
+    'X-Return-Format': 'markdown',
+  };
+  if (premium && process.env.JINA_API_KEY) {
+    headers.Authorization = `Bearer ${process.env.JINA_API_KEY}`;
+    headers['X-Engine'] = 'browser';
+    headers['X-Proxy'] = 'auto';
+  }
   try {
     const resp = await axios.get(`https://r.jina.ai/${url}`, {
-      timeout: 25000, // headless browser path can be slow on first hit
+      // Browser engine + residential proxy is materially slower than the
+      // default reader, so give the premium path a longer ceiling.
+      timeout: premium ? 60000 : 25000,
       responseType: 'text',
-      headers: {
-        // Hint Jina to skip their own telemetry banner at the top of
-        // the response. Without X-Return-Format we still get markdown
-        // but with a 2-3 line "Source URL:" preamble that Claude can
-        // handle fine — keep a safety truncation downstream regardless.
-        Accept: 'text/plain',
-        'X-Return-Format': 'markdown',
-      },
+      headers,
     });
     const body = typeof resp.data === 'string' ? resp.data : String(resp.data);
     return body.trim().length > 0 ? body : null;
   } catch (err) {
-    console.warn(`[jina] fetch failed for ${url}:`, (err as Error).message);
+    console.warn(`[jina${premium ? ':premium' : ''}] fetch failed for ${url}:`, (err as Error).message);
     return null;
   }
 }
@@ -1477,11 +1492,23 @@ function isJinaErrorPayload(text: string | null): boolean {
   );
 }
 
+// botBlockKind splits the two bot-wall shapes so the outer flow can treat
+// them differently. A Cloudflare *challenge* ("Just a moment...", cf-chl)
+// is an interstitial that a real human browser clears — so the citation
+// URL works for end users and we may safely recover the text via Jina's
+// premium browser engine. A bare 401/403 (musicwaves.org) blocks humans
+// too, so its citation would be broken and we must not recover it.
 async function fetchRawHtml(
   url: string
 ): Promise<
   | { ok: true; html: string }
-  | { ok: false; reason: ScrapeFailureReason; status?: number; message?: string }
+  | {
+      ok: false;
+      reason: ScrapeFailureReason;
+      status?: number;
+      message?: string;
+      botBlockKind?: 'cf-challenge' | 'forbidden';
+    }
 > {
   try {
     const resp = await axios.get(url, {
@@ -1492,7 +1519,13 @@ async function fetchRawHtml(
     });
     const html = typeof resp.data === 'string' ? resp.data : String(resp.data);
     if (isCloudflareChallenge(html)) {
-      return { ok: false, reason: 'bot-blocked', status: 200, message: 'cloudflare challenge on 200' };
+      return {
+        ok: false,
+        reason: 'bot-blocked',
+        status: 200,
+        message: 'cloudflare challenge on 200',
+        botBlockKind: 'cf-challenge',
+      };
     }
     return { ok: true, html };
   } catch (err) {
@@ -1505,11 +1538,12 @@ async function fetchRawHtml(
     // same wall. Treat as bot-blocked so the scrape outer flow can drop
     // the URL rather than save an unreachable citation.
     // (musicwaves.org returned 403 across all browser UAs + referers.)
+    const cfBody = isCloudflareChallenge(body);
     const reason: ScrapeFailureReason =
-      isCloudflareChallenge(body) || status === 401 || status === 403
-        ? 'bot-blocked'
-        : 'fetch-failed';
-    return { ok: false, reason, status, message: axiosErr.message ?? String(err) };
+      cfBody || status === 401 || status === 403 ? 'bot-blocked' : 'fetch-failed';
+    const botBlockKind =
+      reason === 'bot-blocked' ? (cfBody ? 'cf-challenge' : 'forbidden') : undefined;
+    return { ok: false, reason, status, message: axiosErr.message ?? String(err), botBlockKind };
   }
 }
 
@@ -1685,11 +1719,34 @@ export async function scrapeReviewFromUrl(
   // protection notice / Jina's own rate-limit error. These all
   // pass the "body length > 100" check but are meaningless text
   // that used to get sent to Claude and come back "not a review".
-  const jinaText = isJinaErrorPayload(jinaRaw) ? null : jinaRaw;
+  let jinaText = isJinaErrorPayload(jinaRaw) ? null : jinaRaw;
   if (jinaRaw && !jinaText) {
     console.log(`[jina] error-payload detected for ${url} — discarded`);
   }
-  const jinaAvailable = jinaText !== null && jinaText.length > 100;
+  let jinaAvailable = jinaText !== null && jinaText.length > 100;
+
+  // Premium recovery for Cloudflare-challenged pages. The cheap anonymous
+  // passes above both fail on a CF wall: the raw fetch 403s and Jina
+  // returns the "Just a moment..." interstitial. But a CF challenge is
+  // human-passable, so the citation URL stays valid for readers — only
+  // our static-UA bots are stopped. Retry through Jina's premium browser
+  // engine + residential proxy (token-billed, hence gated to confirmed CF
+  // challenges) to recover the article text. A bare 401/403 (forbidden for
+  // humans too) is deliberately NOT recovered — see the drop guard below.
+  const cfChallenged =
+    (!!jinaRaw && isCloudflareChallenge(jinaRaw)) ||
+    (!rawResult.ok && rawResult.botBlockKind === 'cf-challenge');
+  let cfRecovered = false;
+  if (!jinaAvailable && cfChallenged && process.env.JINA_API_KEY) {
+    const premiumRaw = await fetchJinaReader(url, true);
+    const premiumText = isJinaErrorPayload(premiumRaw) ? null : premiumRaw;
+    if (premiumText && premiumText.length > 100) {
+      jinaText = premiumText;
+      jinaAvailable = true;
+      cfRecovered = true;
+      console.log(`[jina:premium] recovered CF-challenged ${url}`);
+    }
+  }
 
   // If raw fetch reports the page as bot-blocked (401/403/Cloudflare
   // challenge), we refuse the scrape even when Jina managed to pull
@@ -1698,7 +1755,9 @@ export async function scrapeReviewFromUrl(
   // URL would hit the same wall — so storing a Jina-only review means
   // every reader sees a broken "read full review" link. The musicwaves.
   // org case (all external visitors see HTTP 403) was the trigger.
-  if (!rawResult.ok && rawResult.reason === 'bot-blocked') {
+  // Exception: a CF challenge we recovered via premium Jina IS reachable
+  // by human browsers, so its citation works — let it through.
+  if (!rawResult.ok && rawResult.reason === 'bot-blocked' && !cfRecovered) {
     recordScrapeFailure(url, albumMbid, 'bot-blocked', rawResult.message);
     emitTiming('bot-blocked');
     return { kind: 'fail', reason: 'bot-blocked', message: rawResult.message };
