@@ -845,7 +845,7 @@ export default function ReviewSection({
           return next;
         });
       }
-      await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+      await queryClient.invalidateQueries({ queryKey: ['album-reviews'] });
 
       if (failures.length === 0 && urls.length === 1) {
         // Single-URL success path stays quiet, matching the pre-batch UX.
@@ -918,7 +918,7 @@ export default function ReviewSection({
       // from the same site auto-fills the correct source name.
       const host = url ? parseHostname(url) : '';
       if (host) rememberSource(host, source);
-      await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+      await queryClient.invalidateQueries({ queryKey: ['album-reviews'] });
       setAddingReview(false);
       // Keep the last-used source as the default for the next entry —
       // admin often pastes multiple reviews from the same site back-to-back.
@@ -939,12 +939,12 @@ export default function ReviewSection({
   // inactive case while user is on the album page) so a back-nav lands on
   // fresh data without a manual reload.
   const handleScoreSaved = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+    queryClient.invalidateQueries({ queryKey: ['album-reviews'] });
     queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
   }, [queryClient, slug]);
 
   const handleDeleted = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+    queryClient.invalidateQueries({ queryKey: ['album-reviews'] });
     queryClient.invalidateQueries({ queryKey: ['album-list'], refetchType: 'all' });
   }, [queryClient, slug]);
 
@@ -982,7 +982,7 @@ export default function ReviewSection({
         korean_summary: summaryDraft,
       });
       await queryClient.invalidateQueries({ queryKey: ['album', slug] });
-      await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+      await queryClient.invalidateQueries({ queryKey: ['album-reviews'] });
       setEditingSummary(false);
     } catch (err) {
       console.error('Save korean summary error:', err);
@@ -1001,7 +1001,7 @@ export default function ReviewSection({
         korean_summary: null,
       });
       await queryClient.invalidateQueries({ queryKey: ['album', slug] });
-      await queryClient.invalidateQueries({ queryKey: ['album-reviews', slug] });
+      await queryClient.invalidateQueries({ queryKey: ['album-reviews'] });
     } catch (err) {
       console.error('Delete korean summary error:', err);
       alert('요약 삭제에 실패했습니다.');

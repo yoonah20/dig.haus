@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
+import { invalidateAlbumFeeds } from '../lib/albumFeeds';
 
 // Companion to the SearchBar text path: a Discogs / Bandcamp / Spotify /
 // Apple Music URL pasted into the field can be canonicalised to
@@ -101,14 +102,12 @@ export function useSubmitAlbumRequest() {
       // (no-op on non-admin clients but cheap).
       qc.invalidateQueries({ queryKey: ['me-album-requests'] });
       qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
-      // Also invalidate the home grid — a successful submit creates
-      // the album row immediately, and the user expects to see it
-      // there when they navigate back (browser-back or /-tap) without
-      // needing a manual refresh. Matches the pattern already used
-      // by useGenerateReviewSummary / useDeleteAllReviews /
-      // useMarkNoReviews for their album-state mutations.
-      qc.invalidateQueries({ queryKey: ['album-list'] });
-      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+      // Also refresh the home grid + /dig — a successful submit creates
+      // the album row immediately, and the user expects to see it there
+      // when they navigate back (browser-back or /-tap) without a manual
+      // refresh. Must hit the home-recent keys, not just album-list, or
+      // the home feed stays stale (the bug this helper exists to fix).
+      invalidateAlbumFeeds(qc);
     },
   });
 }
@@ -141,8 +140,7 @@ export function useSubmitManualAlbum() {
       // appear in the same admin pending queue + home grid.
       qc.invalidateQueries({ queryKey: ['me-album-requests'] });
       qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
-      qc.invalidateQueries({ queryKey: ['album-list'] });
-      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+      invalidateAlbumFeeds(qc);
     },
   });
 }
@@ -161,8 +159,7 @@ export function useDeletePendingAlbum() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['album-requests', 'pending'] });
-      qc.invalidateQueries({ queryKey: ['album-list'] });
-      qc.invalidateQueries({ queryKey: ['album-list-infinite'] });
+      invalidateAlbumFeeds(qc);
       qc.invalidateQueries({ queryKey: ['me-album-requests'] });
       qc.invalidateQueries({ queryKey: ['admin-stats'] });
     },
