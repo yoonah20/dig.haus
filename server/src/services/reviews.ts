@@ -1753,10 +1753,17 @@ export async function scrapeReviewFromUrl(
   //    the link works fine — only our datacenter-IP raw fetch is stopped.
   //    Keep it whenever we actually have the review text (free OR premium
   //    Jina). This is the common production case: Jina's proxy reaches the
-  //    page while our Railway IP gets the CF wall — previously that content
-  //    was thrown away here despite being perfectly usable.
-  const keepCfChallenge =
-    !rawResult.ok && rawResult.botBlockKind === 'cf-challenge' && jinaAvailable;
+  //    page while our Railway IP gets the CF wall.
+  //
+  // Crucially the keep decision keys off cfChallenged, NOT
+  // rawResult.botBlockKind. Cloudflare hands our datacenter IP a *bare* 403
+  // (no challenge markup → classified 'forbidden') for many sites that are
+  // really CF-challenged — metalreviews.com is the canonical case. Jina,
+  // hitting the same URL from a different IP, still sees the "Just a
+  // moment..." interstitial, so cfChallenged catches it. Gating on
+  // botBlockKind here would drop those premium-recovered reviews even
+  // though their citation link works fine for human readers.
+  const keepCfChallenge = cfChallenged && jinaAvailable;
   if (!rawResult.ok && rawResult.reason === 'bot-blocked' && !keepCfChallenge) {
     recordScrapeFailure(url, albumMbid, 'bot-blocked', rawResult.message);
     emitTiming('bot-blocked');
