@@ -1725,39 +1725,39 @@ export async function scrapeReviewFromUrl(
   }
   let jinaAvailable = jinaText !== null && jinaText.length > 100;
 
-  // Premium recovery for Cloudflare-challenged pages. The cheap anonymous
-  // passes above both fail on a CF wall: the raw fetch 403s and Jina
-  // returns the "Just a moment..." interstitial. But a CF challenge is
-  // human-passable, so the citation URL stays valid for readers — only
-  // our static-UA bots are stopped. Retry through Jina's premium browser
-  // engine + residential proxy (token-billed, hence gated to confirmed CF
-  // challenges) to recover the article text. A bare 401/403 (forbidden for
-  // humans too) is deliberately NOT recovered — see the drop guard below.
+  // Premium recovery for Cloudflare-challenged pages where even the free
+  // Jina pass came back empty (Jina's anonymous proxy got rate-limited or
+  // also hit the wall). Retry through Jina's premium browser engine +
+  // residential proxy (token-billed, hence gated to confirmed CF
+  // challenges) to recover the article text. When the free pass already
+  // has the text, this is skipped — the keep logic below handles it.
   const cfChallenged =
     (!!jinaRaw && isCloudflareChallenge(jinaRaw)) ||
     (!rawResult.ok && rawResult.botBlockKind === 'cf-challenge');
-  let cfRecovered = false;
   if (!jinaAvailable && cfChallenged && process.env.JINA_API_KEY) {
     const premiumRaw = await fetchJinaReader(url, true);
     const premiumText = isJinaErrorPayload(premiumRaw) ? null : premiumRaw;
     if (premiumText && premiumText.length > 100) {
       jinaText = premiumText;
       jinaAvailable = true;
-      cfRecovered = true;
       console.log(`[jina:premium] recovered CF-challenged ${url}`);
     }
   }
 
-  // If raw fetch reports the page as bot-blocked (401/403/Cloudflare
-  // challenge), we refuse the scrape even when Jina managed to pull
-  // content. Jina's proxy infrastructure can sometimes reach pages that
-  // ordinary browsers can't, but end-users clicking a saved review card
-  // URL would hit the same wall — so storing a Jina-only review means
-  // every reader sees a broken "read full review" link. The musicwaves.
-  // org case (all external visitors see HTTP 403) was the trigger.
-  // Exception: a CF challenge we recovered via premium Jina IS reachable
-  // by human browsers, so its citation works — let it through.
-  if (!rawResult.ok && rawResult.reason === 'bot-blocked' && !cfRecovered) {
+  // Bot-blocked raw fetch: refuse the scrape when keeping it would save a
+  // citation link readers can't open. The two wall shapes diverge:
+  //  - bare 401/403 (forbidden): humans are blocked too, so the saved
+  //    "read full review" link is broken for everyone → drop, even if Jina
+  //    pulled the text. (The musicwaves.org case.)
+  //  - Cloudflare challenge: a human browser clears the interstitial, so
+  //    the link works fine — only our datacenter-IP raw fetch is stopped.
+  //    Keep it whenever we actually have the review text (free OR premium
+  //    Jina). This is the common production case: Jina's proxy reaches the
+  //    page while our Railway IP gets the CF wall — previously that content
+  //    was thrown away here despite being perfectly usable.
+  const keepCfChallenge =
+    !rawResult.ok && rawResult.botBlockKind === 'cf-challenge' && jinaAvailable;
+  if (!rawResult.ok && rawResult.reason === 'bot-blocked' && !keepCfChallenge) {
     recordScrapeFailure(url, albumMbid, 'bot-blocked', rawResult.message);
     emitTiming('bot-blocked');
     return { kind: 'fail', reason: 'bot-blocked', message: rawResult.message };
