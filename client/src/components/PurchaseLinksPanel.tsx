@@ -506,6 +506,17 @@ function LinkForm({
 
   const canSubmit = url.trim().length > 0;
 
+  // Cents-first price entry: the typed digits are read as an integer
+  // number of cents, so "2499" lands as 24.99 and "10299" as 102.99 —
+  // matching how vinyl prices are spoken ("twenty-four ninety-nine")
+  // and sparing the trailing-decimal typing on the common .99 case.
+  // priceInput still holds the formatted decimal string, so submit and
+  // edit-mode prefill stay unchanged.
+  const handlePriceChange = (raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+    setPriceInput(digits === '' ? '' : (parseInt(digits, 10) / 100).toFixed(2));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
@@ -562,11 +573,10 @@ function LinkForm({
             </span>
             <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 focus-within:border-accent/60 divide-x divide-white/10">
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 value={priceInput}
-                onChange={(e) => setPriceInput(e.target.value)}
+                onChange={(e) => handlePriceChange(e.target.value)}
                 placeholder="0.00"
                 className="no-spinner flex-1 min-w-0 bg-transparent text-white text-sm px-2 outline-none tabular-nums"
               />
