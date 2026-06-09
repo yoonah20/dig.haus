@@ -506,15 +506,35 @@ function LinkForm({
 
   const canSubmit = url.trim().length > 0;
 
-  // Cents-first price entry: the typed digits are read as an integer
-  // number of cents, so "2499" lands as 24.99 and "10299" as 102.99 —
-  // matching how vinyl prices are spoken ("twenty-four ninety-nine")
-  // and sparing the trailing-decimal typing on the common .99 case.
-  // priceInput still holds the formatted decimal string, so submit and
-  // edit-mode prefill stay unchanged.
+  // Cents-first price entry for decimal currencies: the typed digits are
+  // read as an integer number of cents, so "2499" lands as 24.99 and
+  // "10299" as 102.99 — matching how prices are spoken ("twenty-four
+  // ninety-nine") and sparing the trailing-decimal typing on the common
+  // .99 case. JPY/KRW have no fractional unit in practice (mirrors
+  // formatPrice above), so their digits are taken as a whole number and
+  // never divided. priceInput holds the formatted value either way, so
+  // submit and edit-mode prefill stay unchanged.
+  const isWholeCurrency = (c: Currency) => c === 'JPY' || c === 'KRW';
+
   const handlePriceChange = (raw: string) => {
     const digits = raw.replace(/\D/g, '');
-    setPriceInput(digits === '' ? '' : (parseInt(digits, 10) / 100).toFixed(2));
+    if (digits === '') {
+      setPriceInput('');
+      return;
+    }
+    const n = parseInt(digits, 10);
+    setPriceInput(isWholeCurrency(currency) ? String(n) : (n / 100).toFixed(2));
+  };
+
+  // Switching currency re-presents the already-typed amount in the new
+  // convention (yen/won whole, others two decimals) without reinterpreting
+  // the digits, so the magnitude survives a wrong-currency-first pick.
+  const handleCurrencyChange = (c: Currency) => {
+    setCurrency(c);
+    const n = parseFloat(priceInput);
+    if (priceInput.trim() !== '' && isFinite(n)) {
+      setPriceInput(isWholeCurrency(c) ? String(Math.round(n)) : n.toFixed(2));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -574,17 +594,17 @@ function LinkForm({
             <div className="flex items-stretch h-9 bg-black/30 rounded-md overflow-hidden border border-white/10 focus-within:border-accent/60 divide-x divide-white/10">
               <input
                 type="text"
-                inputMode="decimal"
+                inputMode={isWholeCurrency(currency) ? 'numeric' : 'decimal'}
                 value={priceInput}
                 onChange={(e) => handlePriceChange(e.target.value)}
-                placeholder="0.00"
-                className="no-spinner flex-1 min-w-0 bg-transparent text-white text-sm px-2 outline-none tabular-nums"
+                placeholder={isWholeCurrency(currency) ? '0' : '0.00'}
+                className="flex-1 min-w-0 bg-transparent text-white text-sm px-2 outline-none tabular-nums"
               />
               {CURRENCIES.map((c) => (
                 <SegButton
                   key={c}
                   active={currency === c}
-                  onClick={() => setCurrency(c)}
+                  onClick={() => handleCurrencyChange(c)}
                   title={c}
                 >
                   {CURRENCY_SYMBOL[c]}
