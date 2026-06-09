@@ -506,41 +506,68 @@ function LinkForm({
 
   const canSubmit = url.trim().length > 0;
 
-  // Cents-first price entry for decimal currencies: the typed digits are
-  // read as an integer number of cents, so "2499" lands as 24.99 and
-  // "10299" as 102.99 — matching how prices are spoken ("twenty-four
-  // ninety-nine") and sparing the trailing-decimal typing on the common
-  // .99 case. JPY/KRW have no fractional unit in practice (mirrors
-  // formatPrice above), so their digits are taken as a whole number and
-  // never divided. priceInput holds the formatted value either way, so
-  // submit and edit-mode prefill stay unchanged.
   const isWholeCurrency = (c: Currency) => c === 'JPY' || c === 'KRW';
 
+  // Price entry resolves on blur / submit rather than per-keystroke so a
+  // literal decimal can actually be typed — live reformatting would
+  // auto-insert a dot and make the "." key unreachable. The resolution
+  // rule, for decimal currencies (USD/EUR/GBP):
+  //   - a dot was typed -> take it literally (24.99 -> 24.99); there's no
+  //     sub-cent unit, so it's clamped to two places.
+  //   - no dot -> cents-first, the spoken-price shorthand (2499 -> 24.99,
+  //     10299 -> 102.99).
+  // JPY/KRW have no fractional unit (mirrors formatPrice above), so any
+  // dot is dropped and the digits are a whole number (3000 -> 3000).
+  const resolvePrice = (raw: string, c: Currency): string => {
+    const s = raw.trim();
+    if (s === '') return '';
+    if (isWholeCurrency(c)) {
+      const digits = s.replace(/\D/g, '');
+      return digits === '' ? '' : String(parseInt(digits, 10));
+    }
+    if (s.includes('.')) {
+      const n = parseFloat(s);
+      return isFinite(n) ? n.toFixed(2) : '';
+    }
+    const cents = parseInt(s.replace(/\D/g, ''), 10);
+    return isFinite(cents) ? (cents / 100).toFixed(2) : '';
+  };
+
+  // While typing, keep the raw text (digits + at most one dot for decimal
+  // currencies) and defer interpretation to resolvePrice on blur.
   const handlePriceChange = (raw: string) => {
-    const digits = raw.replace(/\D/g, '');
-    if (digits === '') {
+    if (isWholeCurrency(currency)) {
+      setPriceInput(raw.replace(/\D/g, ''));
+      return;
+    }
+    let s = raw.replace(/[^\d.]/g, '');
+    const dot = s.indexOf('.');
+    if (dot !== -1) {
+      s = s.slice(0, dot + 1) + s.slice(dot + 1).replace(/\./g, '');
+    }
+    setPriceInput(s);
+  };
+
+  // Switching currency re-presents the already-entered amount in the new
+  // convention (yen/won whole, others two decimals) so the magnitude
+  // survives a wrong-currency-first pick. Resolve under the old currency
+  // first so a not-yet-blurred raw value carries its intended meaning.
+  const handleCurrencyChange = (c: Currency) => {
+    const resolved = resolvePrice(priceInput, currency);
+    setCurrency(c);
+    if (resolved === '') {
       setPriceInput('');
       return;
     }
-    const n = parseInt(digits, 10);
-    setPriceInput(isWholeCurrency(currency) ? String(n) : (n / 100).toFixed(2));
-  };
-
-  // Switching currency re-presents the already-typed amount in the new
-  // convention (yen/won whole, others two decimals) without reinterpreting
-  // the digits, so the magnitude survives a wrong-currency-first pick.
-  const handleCurrencyChange = (c: Currency) => {
-    setCurrency(c);
-    const n = parseFloat(priceInput);
-    if (priceInput.trim() !== '' && isFinite(n)) {
-      setPriceInput(isWholeCurrency(c) ? String(Math.round(n)) : n.toFixed(2));
-    }
+    const n = parseFloat(resolved);
+    setPriceInput(isWholeCurrency(c) ? String(Math.round(n)) : n.toFixed(2));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
-    const priceNum = priceInput.trim() === '' ? null : parseFloat(priceInput);
+    const resolved = resolvePrice(priceInput, currency);
+    const priceNum = resolved === '' ? null : parseFloat(resolved);
     await onSubmit({
       url: url.trim(),
       price: priceNum !== null && isFinite(priceNum) ? priceNum : null,
@@ -597,6 +624,7 @@ function LinkForm({
                 inputMode={isWholeCurrency(currency) ? 'numeric' : 'decimal'}
                 value={priceInput}
                 onChange={(e) => handlePriceChange(e.target.value)}
+                onBlur={() => setPriceInput(resolvePrice(priceInput, currency))}
                 placeholder={isWholeCurrency(currency) ? '0' : '0.00'}
                 className="flex-1 min-w-0 bg-transparent text-white text-sm px-2 outline-none tabular-nums"
               />
