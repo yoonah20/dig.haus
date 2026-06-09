@@ -568,7 +568,7 @@ function LinkForm({
                 value={priceInput}
                 onChange={(e) => setPriceInput(e.target.value)}
                 placeholder="0.00"
-                className="flex-1 min-w-0 bg-transparent text-white text-sm px-2 outline-none tabular-nums"
+                className="no-spinner flex-1 min-w-0 bg-transparent text-white text-sm px-2 outline-none tabular-nums"
               />
               {CURRENCIES.map((c) => (
                 <SegButton
