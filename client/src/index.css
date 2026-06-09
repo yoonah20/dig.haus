@@ -525,6 +525,22 @@ select:focus-visible {
   box-shadow: 0 0 0 3px rgba(232, 160, 32, 0.35);
 }
 
+/* Hide the browser's native up/down spinner on number inputs that opt
+   in via .no-spinner. The price field on the album page (구매 링크 추가)
+   takes free-form decimal money — the 1-step incrementer is noise there
+   and the arrows crowd the narrow field. WebKit/Blink render the spinner
+   as ::-webkit-(inner|outer)-spin-button; Firefox honours appearance on
+   the input itself. */
+.no-spinner::-webkit-outer-spin-button,
+.no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 /* Floating dust motes for the /my/:username scene.
    Each particle drifts diagonally upward-and-across very slowly,
    fading in/out so it doesn't "teleport" when the animation loops.
