@@ -178,17 +178,20 @@ export function useAlbumBase(id: string) {
 }
 
 /**
- * Reviews + similar queries wait for base to complete,
- * because the server needs cached album data (artist/title) to search.
+ * Fires in parallel with the base query — the server resolves the
+ * slug itself (resolveAlbumId) and the read is cache-only, so there
+ * is no reason to serialize behind base. (The old baseReady gate
+ * dated from when this endpoint could trigger a live review search
+ * needing warmed album data.)
  */
-export function useAlbumReviews(id: string, baseReady: boolean) {
+export function useAlbumReviews(id: string) {
   return useQuery<ReviewsData>({
     queryKey: ['album-reviews', id],
     queryFn: async () => {
       const { data } = await axios.get(`/api/albums/${id}/reviews`);
       return data;
     },
-    enabled: !!id && baseReady,
+    enabled: !!id,
     staleTime: 1000 * 60 * 60,
   });
 }
@@ -218,7 +221,9 @@ interface NeighborsData {
   next: AlbumNeighbor | null;
 }
 
-export function useAlbumNeighbors(id: string, sort: string, enabled: boolean) {
+// Fires in parallel with the base query — the server resolves the
+// slug itself, so the prev/next arrows don't need to wait for base.
+export function useAlbumNeighbors(id: string, sort: string) {
   return useQuery<NeighborsData>({
     queryKey: ['album-neighbors', id, sort],
     queryFn: async () => {
@@ -227,7 +232,7 @@ export function useAlbumNeighbors(id: string, sort: string, enabled: boolean) {
       });
       return data;
     },
-    enabled: !!id && enabled,
+    enabled: !!id,
     staleTime: 1000 * 60 * 5,
   });
 }

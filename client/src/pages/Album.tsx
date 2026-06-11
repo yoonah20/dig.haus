@@ -50,10 +50,10 @@ export default function Album() {
   const fromFeed = searchParams.get('n') === 'feed';
   const neighborSort = fromFeed ? 'registered_desc' : sort;
   const neighborLinkSuffix = fromFeed ? '?n=feed' : '';
-  const { data: neighbors } = useAlbumNeighbors(slug!, neighborSort, baseReady);
+  const { data: neighbors } = useAlbumNeighbors(slug!, neighborSort);
   // Use slug for sub-endpoints (server resolves slug→mbid)
   const albumId = base?.album?.slug || slug!;
-  const { data: reviewsData, isLoading: reviewsLoading } = useAlbumReviews(albumId, baseReady);
+  const { data: reviewsData, isLoading: reviewsLoading } = useAlbumReviews(albumId);
   // Poll auto-curation progress whenever the album is still pending —
   // a non-admin user who registered this album sees the progress live,
   // and queries auto-invalidate when the run finishes so the reviews
