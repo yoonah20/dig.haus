@@ -1,4 +1,7 @@
+import fs from 'fs';
+import path from 'path';
 import type Database from 'better-sqlite3';
+import { CUSTOM_COVERS_DIR } from '../services/customCoverHost.js';
 import { deriveUsernameFromEmail } from '../utils/username.js';
 
 /**
@@ -2684,6 +2687,48 @@ export function initializeDatabase(db: Database.Database): void {
         .run(album.id);
       console.log(
         `[migration] ${slug}: cleared ${delVotes.changes} votes, ${clearRatings.changes} review ratings`
+      );
+    }
+  });
+
+  // 15 early-registration albums point their primary cover at
+  // /api/custom-covers/<hash>.webp files that no longer exist on disk
+  // (lost before the current volume; confirmed 404 in production on
+  // 2026-06-12). The client's fallback chain papered over it, so every
+  // page render burned a 404 before showing the fallback. Promote the
+  // first *existing* fallback to primary and drop the dead reference.
+  // File-existence is checked per row so the migration is safe to ship
+  // everywhere: rows whose files are present are left untouched.
+  runOnce(db, 'promote-fallback-for-missing-custom-covers-2026-06-12', () => {
+    const coversDir = CUSTOM_COVERS_DIR;
+    const rows = db
+      .prepare(
+        `SELECT id, cover_art_url, cover_art_fallbacks FROM albums
+          WHERE cover_art_url LIKE '/api/custom-covers/%'`
+      )
+      .all() as Array<{ id: number; cover_art_url: string; cover_art_fallbacks: string | null }>;
+    for (const row of rows) {
+      const file = row.cover_art_url.split('/').pop()!;
+      if (fs.existsSync(path.join(coversDir, file))) continue;
+      let fallbacks: string[] = [];
+      try {
+        fallbacks = JSON.parse(row.cover_art_fallbacks || '[]');
+      } catch {
+        fallbacks = [];
+      }
+      // A fallback can itself be a dead custom-cover reference — skip those too.
+      while (
+        fallbacks.length > 0 &&
+        fallbacks[0].startsWith('/api/custom-covers/') &&
+        !fs.existsSync(path.join(coversDir, fallbacks[0].split('/').pop()!))
+      ) {
+        fallbacks.shift();
+      }
+      const next = fallbacks.shift() ?? null;
+      db.prepare('UPDATE albums SET cover_art_url = ?, cover_art_fallbacks = ? WHERE id = ?')
+        .run(next, JSON.stringify(fallbacks), row.id);
+      console.log(
+        `[migration] album ${row.id}: missing custom cover ${file} → ${next ?? 'NULL (no fallback left)'}`
       );
     }
   });
