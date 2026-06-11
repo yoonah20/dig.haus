@@ -24,6 +24,7 @@ import {
 } from '../utils/cache.js';
 import { execute, queryAll, queryGet } from '../db/index.js';
 import { resolveAlbumId } from '../utils/slug.js';
+import { setAnonEdgeCache } from '../utils/edgeCache.js';
 import { requireAdmin } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
 
@@ -818,12 +819,11 @@ router.post('/reviews/:reviewId/rescrape-paste', adminClaudeLimiter, requireAdmi
 // ─── GET /api/albums/:mbid/reviews — slow: reviews + summary ────────────────
 
 router.get('/:id/reviews', async (req, res) => {
-  // Editorial reviews + Korean summary — no per-user state. Cache
-  // duration chosen to absorb the spike when an album page is shared
-  // (multiple anon viewers in a short window) while still letting an
-  // admin score/excerpt edit propagate without a manual CF purge in
-  // a couple of minutes.
-  res.set('Cache-Control', 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
+  // Editorial reviews + Korean summary — no per-user state in the body,
+  // but only anon requests are edge-cached: the admin scrapes/deletes
+  // reviews from this very page and must see the result on the next
+  // refetch, not after the TTL.
+  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
 
   const resolved = resolveAlbumId((req.params.id as string));
   const mbid = resolved?.mbid || (req.params.id as string);

@@ -16,6 +16,7 @@ import {
 } from '../utils/cache.js';
 import { execute, queryAll, queryGet, transaction, getDb } from '../db/index.js';
 import { generateSlug, resolveAlbumId } from '../utils/slug.js';
+import { setAnonEdgeCache } from '../utils/edgeCache.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
 import { convertToKrw, convertToUsd, getRates, convertToKrwSync, convertToUsdSync } from '../services/exchangeRates.js';
@@ -701,12 +702,10 @@ router.get('/', async (req, res) => {
   try {
     // Public home grid — response is identical for every viewer with
     // the same query string (sort / page / lens / seed all live in
-    // the URL, so cache keys split cleanly). New album registrations
-    // become visible within s-maxage seconds. Kept shorter than the
-    // home features TTL because the newest sort surfaces fresh
-    // registrations and 30s feels closer to "live" without giving up
-    // the edge-cache win.
-    res.set('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+    // the URL, so cache keys split cleanly). Anon-only so a logged-in
+    // user who just registered an album sees it in the grid on the
+    // next refetch instead of after the TTL.
+    setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
 
     const sortKey = (req.query.sort as string) || 'release_date_desc';
     const isPriceSort = sortKey === 'price_asc' || sortKey === 'price_desc';
@@ -1082,7 +1081,7 @@ router.get('/neighbors', (req, res) => {
     // Prev/next pointers depend only on the current album + sort key
     // (both in the URL). No per-user state. Same TTL as the album
     // grid since the same data drives both surfaces.
-    res.set('Cache-Control', 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+    setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
 
     const sortKey = (req.query.sort as string) || 'release_date_desc';
     const albumId = req.query.id as string;
@@ -1872,15 +1871,11 @@ router.get('/:id', async (req, res) => {
   // Anonymous viewers see an album response with userVote=null and no
   // other per-user fields, so the response is identical across anon
   // visitors and safe to edge-cache. Logged-in viewers get userVote
-  // populated, which would poison neighbouring users if cached — so
-  // we only set Cache-Control for anonymous requests, and CF (which
-  // is configured to honor origin Cache-Control) bypasses the cache
-  // for the logged-in branch. Cold path (first visit to an album)
-  // fires external enrichment and can take seconds; caching the warm
-  // response saves later anon visitors from re-paying that cost.
-  if (!req.user) {
-    res.set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
-  }
+  // populated, which would poison neighbouring users if cached. Cold
+  // path (first visit to an album) fires external enrichment and can
+  // take seconds; caching the warm response saves later anon visitors
+  // from re-paying that cost.
+  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
 
   const param = (req.params.id as string);
   // Resolve slug or mbid to actual mbid
@@ -2020,10 +2015,10 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/similar', async (req, res) => {
   // Similar-album picks are cached in the DB (similar_albums_lastfm
   // column), regenerated only when the column is NULL or admin
-  // clears it. Same response for every viewer → safe to edge-cache.
-  // Longer TTL than most endpoints because the picks change rarely
-  // once seeded.
-  res.set('Cache-Control', 'public, max-age=0, s-maxage=300, stale-while-revalidate=1200');
+  // clears it. Longer TTL than most endpoints because the picks
+  // change rarely once seeded. Anon-only so the admin sees a
+  // clear/re-pick immediately.
+  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=300, stale-while-revalidate=1200');
 
   const resolved = resolveAlbumId((req.params.id as string));
   const mbid = resolved?.mbid || (req.params.id as string);

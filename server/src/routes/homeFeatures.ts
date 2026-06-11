@@ -3,6 +3,7 @@ import { getDb, queryAll } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { convertToKrwSync, getRates } from '../services/exchangeRates.js';
 import { getWallVisual } from '../utils/heroWalls.js';
+import { setAnonEdgeCache } from '../utils/edgeCache.js';
 
 // Admin-curated 15-album home wall (5-5-5 to match mydig). Mirrors
 // the mydig vinyl-wall data shape (album_id, position) minus the
@@ -16,13 +17,13 @@ import { getWallVisual } from '../utils/heroWalls.js';
 
 const router = Router();
 
-router.get('/home/features', async (_req, res) => {
+router.get('/home/features', async (req, res) => {
   // Admin-curated hero walls — same response for every viewer, low
   // edit frequency. Edge cache absorbs the hot path so the homepage
-  // hero doesn't pay us-west2 RTT on every load. After an admin
-  // edit, the new state propagates within s-maxage seconds (manual
-  // CF purge if instant visibility is needed).
-  res.set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+  // hero doesn't pay us-west2 RTT on every load. Anon-only so the
+  // editing admin sees their change on the next load instead of
+  // after the TTL.
+  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
 
   // Pull every wall row + every feature row in two batched queries,
   // then group features by wall_id in memory. Cheaper than per-wall

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { resolveAlbumPk } from '../utils/slug.js';
+import { setAnonEdgeCache } from '../utils/edgeCache.js';
 import { convertToKrw, getRates, convertToKrwSync } from '../services/exchangeRates.js';
 
 const router = Router();
@@ -57,9 +58,9 @@ function detectStore(url: string): { name: string; faviconUrl: string } {
 
 // GET /api/albums/:id/purchase-links (public)
 router.get('/albums/:id/purchase-links', async (req, res) => {
-  // Public buy links per album — no per-user state. Short TTL because
-  // a community-added link should surface within ~60s of being posted.
-  res.set('Cache-Control', 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+  // Public buy links per album — no per-user state. Anon-only so the
+  // logged-in contributor sees their own link right after posting.
+  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
 
   const albumPk = resolveAlbumPk((req.params.id as string));
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
