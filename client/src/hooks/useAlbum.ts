@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
+import { bumpEdgeGen } from '../lib/edgeGen';
 import type { ArtistCreditEntry } from '../types';
 
 export type AutoCurationPhase =
@@ -58,6 +59,11 @@ export function useAutoCurationStatus(id: string, enabled: boolean) {
     // ProgressContext does on the admin side, so the page picks up
     // the new reviews + cleared pending state on its next render.
     if (prev && !current) {
+      // The scrape ran server-side, so no client mutation bumped the
+      // edge generation since the album was registered — without this
+      // bump the refetches below would land on the pre-scrape edge
+      // entries seeded right after registration.
+      bumpEdgeGen();
       qc.invalidateQueries({ queryKey: ['album'] });
       qc.invalidateQueries({ queryKey: ['album-reviews'] });
       qc.invalidateQueries({ queryKey: ['album-similar'] });

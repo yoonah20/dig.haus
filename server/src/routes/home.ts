@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { queryAll } from '../db/index.js';
-import { setAnonEdgeCache } from '../utils/edgeCache.js';
+import { setEdgeCache } from '../utils/edgeCache.js';
 
 const router = Router();
 
@@ -21,9 +21,10 @@ router.get('/home/snapshots', (req, res) => {
   // Anonymous-equivalent read: response doesn't vary by viewer. Let
   // Cloudflare hold it at the edge so KR users don't pay the trans-
   // Pacific RTT to us-west2 for every homepage load. New public
-  // snapshots become visible within s-maxage seconds. Anon-only so
-  // a logged-in owner sees their freshly-published snapshot at once.
-  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+  // snapshots become visible within s-maxage seconds. A logged-in
+  // owner sees their freshly-published snapshot at once via the
+  // client's post-mutation cache-key bump.
+  setEdgeCache(res, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
 
   const rawLimit = Number(req.query.limit);
   const limit =

@@ -16,7 +16,7 @@ import {
 } from '../utils/cache.js';
 import { execute, queryAll, queryGet, transaction, getDb } from '../db/index.js';
 import { generateSlug, resolveAlbumId } from '../utils/slug.js';
-import { setAnonEdgeCache } from '../utils/edgeCache.js';
+import { setAnonEdgeCache, setEdgeCache } from '../utils/edgeCache.js';
 import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
 import { convertToKrw, convertToUsd, getRates, convertToKrwSync, convertToUsdSync } from '../services/exchangeRates.js';
@@ -702,10 +702,10 @@ router.get('/', async (req, res) => {
   try {
     // Public home grid — response is identical for every viewer with
     // the same query string (sort / page / lens / seed all live in
-    // the URL, so cache keys split cleanly). Anon-only so a logged-in
-    // user who just registered an album sees it in the grid on the
-    // next refetch instead of after the TTL.
-    setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+    // the URL, so cache keys split cleanly). A logged-in user who just
+    // registered an album sees it in the grid on the next refetch via
+    // the client's post-mutation cache-key bump.
+    setEdgeCache(res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
 
     const sortKey = (req.query.sort as string) || 'release_date_desc';
     const isPriceSort = sortKey === 'price_asc' || sortKey === 'price_desc';
@@ -1081,7 +1081,7 @@ router.get('/neighbors', (req, res) => {
     // Prev/next pointers depend only on the current album + sort key
     // (both in the URL). No per-user state. Same TTL as the album
     // grid since the same data drives both surfaces.
-    setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+    setEdgeCache(res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
 
     const sortKey = (req.query.sort as string) || 'release_date_desc';
     const albumId = req.query.id as string;
@@ -2016,9 +2016,9 @@ router.get('/:id/similar', async (req, res) => {
   // Similar-album picks are cached in the DB (similar_albums_lastfm
   // column), regenerated only when the column is NULL or admin
   // clears it. Longer TTL than most endpoints because the picks
-  // change rarely once seeded. Anon-only so the admin sees a
-  // clear/re-pick immediately.
-  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=300, stale-while-revalidate=1200');
+  // change rarely once seeded. The admin sees a clear/re-pick
+  // immediately via the client's post-mutation cache-key bump.
+  setEdgeCache(res, 'public, max-age=0, s-maxage=300, stale-while-revalidate=1200');
 
   const resolved = resolveAlbumId((req.params.id as string));
   const mbid = resolved?.mbid || (req.params.id as string);

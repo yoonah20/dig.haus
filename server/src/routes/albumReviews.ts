@@ -24,7 +24,7 @@ import {
 } from '../utils/cache.js';
 import { execute, queryAll, queryGet } from '../db/index.js';
 import { resolveAlbumId } from '../utils/slug.js';
-import { setAnonEdgeCache } from '../utils/edgeCache.js';
+import { setEdgeCache } from '../utils/edgeCache.js';
 import { requireAdmin } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
 
@@ -819,11 +819,11 @@ router.post('/reviews/:reviewId/rescrape-paste', adminClaudeLimiter, requireAdmi
 // ─── GET /api/albums/:mbid/reviews — slow: reviews + summary ────────────────
 
 router.get('/:id/reviews', async (req, res) => {
-  // Editorial reviews + Korean summary — no per-user state in the body,
-  // but only anon requests are edge-cached: the admin scrapes/deletes
-  // reviews from this very page and must see the result on the next
-  // refetch, not after the TTL.
-  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
+  // Editorial reviews + Korean summary — no per-user state in the body.
+  // The admin scrapes/deletes reviews from this very page and sees the
+  // result on the next refetch via the client's post-mutation cache-key
+  // bump (the auto-curation finish path bumps it explicitly too).
+  setEdgeCache(res, 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
 
   const resolved = resolveAlbumId((req.params.id as string));
   const mbid = resolved?.mbid || (req.params.id as string);

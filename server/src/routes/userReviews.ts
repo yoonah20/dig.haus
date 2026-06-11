@@ -3,7 +3,7 @@ import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { queryGet, queryAll, execute } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { resolveAlbumPk } from '../utils/slug.js';
-import { setAnonEdgeCache } from '../utils/edgeCache.js';
+import { setEdgeCache } from '../utils/edgeCache.js';
 import type { AppUser } from '../auth/passport.js';
 
 const router = Router();
@@ -124,9 +124,9 @@ router.get('/user-reviews/feed', (req, res) => {
   // within each 30s window, but the ticker rotates client-side and
   // the random reshuffle still happens often enough to feel alive.
   // Shorter than home/features TTL because new 50자 평 should reach
-  // the ticker within ~30s of posting. Anon-only so a logged-in
-  // poster sees their own 평 immediately.
-  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+  // the ticker within ~30s of posting. A logged-in poster sees their
+  // own 평 immediately via the client's post-mutation cache-key bump.
+  setEdgeCache(res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
 
   const limitRaw = parseInt((req.query.limit as string) || '', 10);
   const limit =
@@ -224,9 +224,9 @@ router.get('/user-reviews/feed', (req, res) => {
 // GET /api/albums/:id/user-reviews — public
 router.get('/albums/:id/user-reviews', (req, res) => {
   // Public 50자 평 list for a single album — same response for every
-  // viewer, but only anon requests are edge-cached so a logged-in
-  // poster's refetch shows their new 평 immediately.
-  setAnonEdgeCache(req, res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+  // viewer. A logged-in poster's refetch shows their new 평 immediately
+  // via the client's post-mutation cache-key bump.
+  setEdgeCache(res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
 
   const albumPk = resolveAlbumPk(req.params.id as string);
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
