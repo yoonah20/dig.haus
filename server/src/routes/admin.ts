@@ -1387,24 +1387,31 @@ router.post('/spotify/backfill', async (req, res) => {
   let scanned = 0;
   let filled = 0;
   let stoppedOnRateLimit = false;
-  for (const row of rows) {
-    if (isSpotifyRateLimited()) {
-      stoppedOnRateLimit = true;
-      break;
+  try {
+    for (const row of rows) {
+      if (isSpotifyRateLimited()) {
+        stoppedOnRateLimit = true;
+        break;
+      }
+      scanned++;
+      const result = await searchTrack(row.artist, row.title);
+      if (result.url) {
+        execute(
+          `UPDATE albums SET spotify_url = ? WHERE id = ?`,
+          [result.url, row.id]
+        );
+        filled++;
+      }
+      // Small inter-call delay so a multi-hundred-album scan doesn't
+      // burst into the 30s rate-limit bucket all at once. 250ms ≈ 4
+      // calls/sec, well under the per-token sustainable rate.
+      await new Promise((r) => setTimeout(r, 250));
     }
-    scanned++;
-    const result = await searchTrack(row.artist, row.title);
-    if (result.url) {
-      execute(
-        `UPDATE albums SET spotify_url = ? WHERE id = ?`,
-        [result.url, row.id]
-      );
-      filled++;
-    }
-    // Small inter-call delay so a multi-hundred-album scan doesn't
-    // burst into the 30s rate-limit bucket all at once. 250ms ≈ 4
-    // calls/sec, well under the per-token sustainable rate.
-    await new Promise((r) => setTimeout(r, 250));
+  } catch (err) {
+    // Express 4 doesn't forward async throws — without this the
+    // request would hang until the client gives up.
+    console.error('[spotify-backfill] failed:', err);
+    return res.status(500).json({ error: 'backfill failed', scanned, filled });
   }
 
   res.json({

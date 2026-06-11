@@ -1,4 +1,5 @@
 import express from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import dotenv from 'dotenv';
@@ -132,6 +133,16 @@ async function start() {
   app.use('/api/cover', coverRouter);
   app.use('/api/custom-covers', customCoversRouter);
   app.use(sitemapRouter);
+
+  // Last-resort safety net for errors that escape a route's own
+  // try/catch (Express 4 only forwards sync throws and next(err) here
+  // — async handlers still need their own catch). Without this,
+  // Express's default handler dumps a stack-trace HTML page.
+  app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+    console.error('[unhandled route error]', err);
+    if (res.headersSent) return next(err);
+    res.status(500).json({ error: 'Internal server error' });
+  });
 
   startRankScheduler();
   startLabelFeedPoller();
