@@ -819,11 +819,13 @@ router.post('/reviews/:reviewId/rescrape-paste', adminClaudeLimiter, requireAdmi
 // ─── GET /api/albums/:mbid/reviews — slow: reviews + summary ────────────────
 
 router.get('/:id/reviews', async (req, res) => {
-  // Editorial reviews + Korean summary — no per-user state in the body.
-  // The admin scrapes/deletes reviews from this very page and sees the
-  // result on the next refetch via the client's post-mutation cache-key
-  // bump (the auto-curation finish path bumps it explicitly too).
-  setEdgeCache(res, 'public, max-age=0, s-maxage=120, stale-while-revalidate=600');
+  // Editorial reviews + Korean summary — no per-user state in the body,
+  // and the content only changes through admin pipeline actions. The
+  // admin sees scrape/delete results on the next refetch via the
+  // client's post-mutation cache-key bump (the auto-curation finish
+  // path bumps it explicitly too), so the TTL only bounds how late an
+  // anon visitor can be — 10 minutes is nothing for review prose.
+  setEdgeCache(res, 'public, max-age=0, s-maxage=600, stale-while-revalidate=1800');
 
   const resolved = resolveAlbumId((req.params.id as string));
   const mbid = resolved?.mbid || (req.params.id as string);

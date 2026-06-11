@@ -24,7 +24,7 @@ router.get('/home/snapshots', (req, res) => {
   // snapshots become visible within s-maxage seconds. A logged-in
   // owner sees their freshly-published snapshot at once via the
   // client's post-mutation cache-key bump.
-  setEdgeCache(res, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+  setEdgeCache(res, 'public, max-age=0, s-maxage=300, stale-while-revalidate=900');
 
   const rawLimit = Number(req.query.limit);
   const limit =

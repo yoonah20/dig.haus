@@ -704,8 +704,10 @@ router.get('/', async (req, res) => {
     // the same query string (sort / page / lens / seed all live in
     // the URL, so cache keys split cleanly). A logged-in user who just
     // registered an album sees it in the grid on the next refetch via
-    // the client's post-mutation cache-key bump.
-    setEdgeCache(res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+    // the client's post-mutation cache-key bump; anon visitors seeing
+    // a new registration up to 5 minutes late is acceptable, and the
+    // longer TTL is what keeps the LAX-colo HIT rate high.
+    setEdgeCache(res, 'public, max-age=0, s-maxage=300, stale-while-revalidate=900');
 
     const sortKey = (req.query.sort as string) || 'release_date_desc';
     const isPriceSort = sortKey === 'price_asc' || sortKey === 'price_desc';
@@ -1081,7 +1083,7 @@ router.get('/neighbors', (req, res) => {
     // Prev/next pointers depend only on the current album + sort key
     // (both in the URL). No per-user state. Same TTL as the album
     // grid since the same data drives both surfaces.
-    setEdgeCache(res, 'public, max-age=0, s-maxage=30, stale-while-revalidate=300');
+    setEdgeCache(res, 'public, max-age=0, s-maxage=300, stale-while-revalidate=900');
 
     const sortKey = (req.query.sort as string) || 'release_date_desc';
     const albumId = req.query.id as string;
@@ -2018,7 +2020,7 @@ router.get('/:id/similar', async (req, res) => {
   // clears it. Longer TTL than most endpoints because the picks
   // change rarely once seeded. The admin sees a clear/re-pick
   // immediately via the client's post-mutation cache-key bump.
-  setEdgeCache(res, 'public, max-age=0, s-maxage=300, stale-while-revalidate=1200');
+  setEdgeCache(res, 'public, max-age=0, s-maxage=600, stale-while-revalidate=1800');
 
   const resolved = resolveAlbumId((req.params.id as string));
   const mbid = resolved?.mbid || (req.params.id as string);

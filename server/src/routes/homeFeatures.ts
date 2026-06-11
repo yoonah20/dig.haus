@@ -23,7 +23,7 @@ router.get('/home/features', async (req, res) => {
   // hero doesn't pay us-west2 RTT on every load. The editing admin
   // sees their change on the next load via the client's post-mutation
   // cache-key bump.
-  setEdgeCache(res, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+  setEdgeCache(res, 'public, max-age=0, s-maxage=600, stale-while-revalidate=1800');
 
   // Pull every wall row + every feature row in two batched queries,
   // then group features by wall_id in memory. Cheaper than per-wall

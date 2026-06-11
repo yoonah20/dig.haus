@@ -61,7 +61,7 @@ router.get('/albums/:id/purchase-links', async (req, res) => {
   // Public buy links per album — no per-user state. The logged-in
   // contributor sees their own link right after posting via the
   // client's post-mutation cache-key bump.
-  setEdgeCache(res, 'public, max-age=0, s-maxage=60, stale-while-revalidate=600');
+  setEdgeCache(res, 'public, max-age=0, s-maxage=300, stale-while-revalidate=900');
 
   const albumPk = resolveAlbumPk((req.params.id as string));
   if (!albumPk) return res.status(404).json({ error: 'Album not found' });
