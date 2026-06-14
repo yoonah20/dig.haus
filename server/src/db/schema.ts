@@ -835,6 +835,17 @@ export function initializeDatabase(db: Database.Database): void {
     // short title AND a sentence of context ("what I've been
     // hooked on this month") without cramming both into the h1.
     'vinyl_wall_description TEXT',
+    // Discogs account link (OAuth 1.0a). We store only the per-user
+    // access token + secret and the resolved Discogs username — NOT the
+    // user's 14k-item collection. Ownership/wantlist questions are
+    // answered by live, memo-cached Discogs API reads keyed off these
+    // credentials, so linking grows the DB by a handful of columns
+    // rather than tens of thousands of rows. linked_at doubles as the
+    // "is this account linked?" flag for the client.
+    'discogs_username TEXT',
+    'discogs_access_token TEXT',
+    'discogs_access_secret TEXT',
+    'discogs_linked_at TEXT',
   ]);
 
   // Partial unique index — enforces uniqueness only on rows that have

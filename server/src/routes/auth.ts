@@ -62,6 +62,10 @@ router.get('/me', (req, res) => {
       instagramHandle: user.instagram_handle,
       mydigUsername: user.username ?? null,
       isAdmin: !!user.is_admin,
+      // Discogs link status — only the username is exposed, never the
+      // stored tokens.
+      discogsUsername: user.discogs_username ?? null,
+      discogsLinkedAt: user.discogs_linked_at ?? null,
     },
   });
 });

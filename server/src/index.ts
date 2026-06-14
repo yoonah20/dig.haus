@@ -23,6 +23,7 @@ import albumsRouter from './routes/albums.js';
 import albumReviewsRouter from './routes/albumReviews.js';
 import labelsRouter from './routes/labels.js';
 import authRouter from './routes/auth.js';
+import discogsAuthRouter from './routes/discogsAuth.js';
 import votesRouter from './routes/votes.js';
 import purchaseLinksRouter from './routes/purchaseLinks.js';
 import adminRouter from './routes/admin.js';
@@ -106,6 +107,7 @@ async function start() {
   app.use(passport.session());
 
   app.use('/auth', authRouter);
+  app.use('/auth', discogsAuthRouter);
   app.use('/api/search', searchRouter);
   app.use('/api', votesRouter);
   app.use('/api', purchaseLinksRouter);

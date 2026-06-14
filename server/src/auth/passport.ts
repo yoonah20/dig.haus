@@ -20,6 +20,13 @@ export interface AppUser {
   // NULL until the user claims one via the onboarding modal.
   username: string | null;
   created_at: string | null;
+  // Discogs OAuth link. All NULL until the user connects their Discogs
+  // account; see the discogs_* columns in schema.ts for why we store
+  // credentials rather than the collection itself.
+  discogs_username: string | null;
+  discogs_access_token: string | null;
+  discogs_access_secret: string | null;
+  discogs_linked_at: string | null;
 }
 
 // Sentinel thrown by upsertGoogleUser when an un-invited email tries to

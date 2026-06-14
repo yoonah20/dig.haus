@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { Popover } from './ui';
-import { useUserPublic, type UserPublic } from '../hooks/useMe';
+import { useUserPublic, useUserDiscogs, type UserPublic } from '../hooks/useMe';
 import FollowButton from './FollowButton';
 import { resolveApiUrl } from '../utils/apiUrl';
 
@@ -43,6 +43,9 @@ export default function UserHoverCard({
   const qc = useQueryClient();
 
   const { data } = useUserPublic(userId, open);
+  // Discogs row — loaded lazily alongside the card; renders only when the
+  // user has linked an account.
+  const { data: discogs } = useUserDiscogs(userId, open);
 
   // Popover is rendered through a portal into document.body so
   // overflow-hidden / clip-path contexts along the DOM path (e.g.
@@ -320,6 +323,47 @@ export default function UserHoverCard({
                       <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
                     </svg>
                     <span className="truncate">@{data.user.instagramHandle}</span>
+                  </a>
+                )}
+
+                {/* Discogs row — an external-link row in the same family
+                    as @instagram / 마이딕 보기, not a revival of the
+                    pulled stats row. Shows the linked Discogs account and,
+                    once the lazy count resolves, its public collection
+                    size — a credibility signal that lands with this
+                    vinyl-collector audience. Hidden entirely when the user
+                    hasn't linked. */}
+                {discogs?.linked && discogs.username && (
+                  <a
+                    href={`https://www.discogs.com/user/${encodeURIComponent(
+                      discogs.username
+                    )}/collection`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-accent hover:text-accent-hover truncate"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {/* Vinyl-record glyph — outer disc + center label. */}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="w-3.5 h-3.5 shrink-0"
+                      aria-hidden
+                    >
+                      <circle cx="12" cy="12" r="9" />
+                      <circle cx="12" cy="12" r="2.5" />
+                    </svg>
+                    <span className="truncate">
+                      Discogs
+                      {typeof discogs.collectionCount === 'number' && (
+                        <> · {discogs.collectionCount.toLocaleString()}장</>
+                      )}
+                    </span>
                   </a>
                 )}
 

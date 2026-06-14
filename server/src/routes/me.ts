@@ -6,6 +6,7 @@ import { queryGet, queryAll, execute, transaction } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
 import { hostAvatarFromBuffer, AvatarError, AVATARS_DIR, AVATARS_ROUTE } from '../services/avatarHost.js';
 import { USERNAME_RE, RESERVED_USERNAMES } from '../utils/username.js';
+import { getPublicCollectionCount } from '../services/discogs.js';
 import type { AppUser } from '../auth/passport.js';
 
 const router = Router();
@@ -492,6 +493,30 @@ router.get('/users/:id/public', (req, res) => {
       submittedAlbumCount,
     },
     followingByViewer,
+  });
+});
+
+// ─── GET /api/users/:id/discogs — member-card Discogs row ──────────────────
+//
+// Split out from /public so the fast DB-only card payload isn't coupled to
+// an external API call. The hover card fetches this lazily on open and
+// only when the user has a linked Discogs account. The count is read with
+// the app token (public-only view) and memo-cached upstream.
+
+router.get('/users/:id/discogs', async (req, res) => {
+  const id = parseInt(req.params.id as string, 10);
+  if (!Number.isFinite(id) || id <= 0) {
+    return res.status(400).json({ error: 'Invalid user id' });
+  }
+  const row = queryGet(`SELECT discogs_username FROM users WHERE id = ?`, [id]);
+  if (!row) return res.status(404).json({ error: 'User not found' });
+  if (!row.discogs_username) return res.json({ linked: false });
+
+  const collectionCount = await getPublicCollectionCount(row.discogs_username);
+  res.json({
+    linked: true,
+    username: row.discogs_username,
+    collectionCount,
   });
 });
 

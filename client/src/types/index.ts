@@ -97,6 +97,10 @@ export interface AuthUser {
   // /my/<username> directly.
   mydigUsername?: string | null;
   isAdmin: boolean;
+  // Discogs link. discogsUsername is null until the user connects their
+  // Discogs account via OAuth; only the username surfaces client-side.
+  discogsUsername?: string | null;
+  discogsLinkedAt?: string | null;
 }
 
 export interface PurchaseLink {

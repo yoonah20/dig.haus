@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import axios from '../lib/axios';
 import CoverArt from '../components/CoverArt';
 import { Button } from '../components/ui';
 import { resolveApiUrl } from '../utils/apiUrl';
@@ -295,6 +296,142 @@ function ProfileFields({
   );
 }
 
+// Discogs account link. The OAuth start is a top-level browser redirect
+// straight to the backend (not an axios call) because the handshake
+// bounces through discogs.com and back to /auth/discogs/callback, which
+// sets the session and redirects here with ?discogs=<result>. We only
+// ever see the resolved Discogs username — never the stored tokens.
+function DiscogsLinkCard({
+  discogsUsername,
+  onRefresh,
+}: {
+  discogsUsername: string | null | undefined;
+  onRefresh: () => Promise<void> | void;
+}) {
+  const [params, setParams] = useSearchParams();
+  const [unlinking, setUnlinking] = useState(false);
+  const [stats, setStats] = useState<{
+    collectionCount: number;
+    wantlistCount: number;
+  } | null>(null);
+  const result = params.get('discogs');
+
+  // Pull live collection/wantlist counts when linked. One cheap call,
+  // nothing stored — purely to populate the "컬렉션 N장" line.
+  useEffect(() => {
+    if (!discogsUsername) {
+      setStats(null);
+      return;
+    }
+    let cancelled = false;
+    axios
+      .get('/auth/discogs/stats')
+      .then(({ data }) => {
+        if (!cancelled && data?.linked) {
+          setStats({
+            collectionCount: data.collectionCount ?? 0,
+            wantlistCount: data.wantlistCount ?? 0,
+          });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [discogsUsername]);
+
+  // Clear the ?discogs=… flag once we've read it so a refresh doesn't
+  // re-show the banner.
+  useEffect(() => {
+    if (!result) return;
+    const next = new URLSearchParams(params);
+    next.delete('discogs');
+    setParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result]);
+
+  const handleUnlink = async () => {
+    if (!confirm('Discogs 연동을 해제할까요?')) return;
+    setUnlinking(true);
+    try {
+      await axios.delete('/auth/discogs');
+      await onRefresh();
+    } catch {
+      alert('연동 해제에 실패했습니다.');
+    } finally {
+      setUnlinking(false);
+    }
+  };
+
+  const banner =
+    result === 'failed'
+      ? '연동에 실패했습니다. 다시 시도해주세요.'
+      : result === 'denied'
+        ? '연동이 취소되었습니다.'
+        : result === 'not_configured'
+          ? 'Discogs 연동이 아직 설정되지 않았습니다.'
+          : null;
+
+  return (
+    <section className="bg-panel rounded-2xl p-4 sm:p-5 border border-white/5 space-y-3">
+      <div className="text-[11px] uppercase tracking-wider text-gray-500">
+        Discogs 연동
+      </div>
+      {banner && <div className="text-red-400 text-sm">{banner}</div>}
+      {discogsUsername ? (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-gray-300">
+              <span className="text-gray-500">연결됨 · </span>
+              <a
+                href={`https://www.discogs.com/user/${encodeURIComponent(discogsUsername)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-brand hover:underline font-medium"
+              >
+                {discogsUsername}
+              </a>
+            </span>
+            <Button
+              variant="ghost"
+              onClick={handleUnlink}
+              disabled={unlinking}
+              className="text-xs"
+            >
+              {unlinking ? '해제 중…' : '연동 해제'}
+            </Button>
+          </div>
+          {stats && (
+            <div className="text-sm text-gray-400">
+              컬렉션{' '}
+              <span className="text-gray-200 font-medium">
+                {stats.collectionCount.toLocaleString()}
+              </span>
+              장 · 위시리스트{' '}
+              <span className="text-gray-200 font-medium">
+                {stats.wantlistCount.toLocaleString()}
+              </span>
+              장
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-sm text-gray-400">
+            Discogs 계정을 연결하면 앨범 페이지에서 내 컬렉션 보유 여부가
+            표시됩니다.
+          </p>
+          <a href={resolveApiUrl('/auth/discogs') ?? '/auth/discogs'}>
+            <Button variant="primary" className="text-sm">
+              Discogs 계정 연결
+            </Button>
+          </a>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function Profile() {
   const { user, loading, refresh } = useAuth();
   const navigate = useNavigate();
@@ -474,6 +611,11 @@ export default function Profile() {
           )}
         </section>
       )}
+
+      <DiscogsLinkCard
+        discogsUsername={user.discogsUsername}
+        onRefresh={refresh}
+      />
 
       {/* The 샀음 / 살거 grids that used to live here were replaced
           when collections + wants were absorbed into crates

@@ -1,6 +1,7 @@
 import axios from 'axios';
 import https from 'https';
 import { memoAsync } from '../utils/memoCache.js';
+import { signedGet } from './discogsOauth.js';
 
 const DISCOGS_MEMO_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -691,3 +692,68 @@ export async function getLabelReleases(
     return [];
   }
 }
+
+/**
+ * Collection + wantlist counts for a linked user. One cheap call each:
+ * the folder-0 endpoint reports the total count directly, and a
+ * per_page=1 wants page carries the total in its pagination block. No
+ * collection contents are stored or held — just the two integers the
+ * profile card displays. Uses the user's own OAuth credentials so private
+ * collections still report correctly. Memo-cached for 30 minutes.
+ *
+ * Per-release/master ownership matching deliberately lives nowhere here:
+ * a correct "do I own this album" badge needs the full collection
+ * enumerated (Discogs has no per-master membership endpoint), which is
+ * the auto-sync milestone, not this lightweight link.
+ */
+/**
+ * Public collection count for any Discogs username — read with the
+ * app-level token (no OAuth), so it only ever sees what's publicly
+ * visible. Used by the avatar-hover member card, where the viewer is
+ * someone else: exposing a private collection's size would be wrong, and
+ * the app token naturally can't. Returns null when the collection is
+ * private or the lookup fails. Memo-cached 30 minutes; the app token's
+ * 60/min limit is shared site-wide, so the cache is what keeps a burst of
+ * hovers from exhausting it.
+ */
+export const getPublicCollectionCount = memoAsync(
+  'discogs-pub-count',
+  async (username: string): Promise<number | null> => {
+    try {
+      const res = await axios.get(
+        `${DISCOGS_BASE}/users/${encodeURIComponent(
+          username
+        )}/collection/folders/0`,
+        { headers: getHeaders(), httpsAgent }
+      );
+      return typeof res.data?.count === 'number' ? res.data.count : null;
+    } catch (err) {
+      console.warn(
+        `[discogs] getPublicCollectionCount failed for ${username}:`,
+        (err as Error).message
+      );
+      return null;
+    }
+  },
+  30 * 60 * 1000
+);
+
+export const getDiscogsCollectionStats = memoAsync(
+  'discogs-stats',
+  async (
+    username: string,
+    accessToken: string,
+    accessSecret: string
+  ): Promise<{ collectionCount: number; wantlistCount: number }> => {
+    const base = `${DISCOGS_BASE}/users/${encodeURIComponent(username)}`;
+    const [folder, wants] = await Promise.all([
+      signedGet(`${base}/collection/folders/0`, accessToken, accessSecret),
+      signedGet(`${base}/wants?per_page=1`, accessToken, accessSecret),
+    ]);
+    return {
+      collectionCount: folder?.count ?? 0,
+      wantlistCount: wants?.pagination?.items ?? 0,
+    };
+  },
+  30 * 60 * 1000
+);

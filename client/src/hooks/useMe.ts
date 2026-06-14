@@ -208,3 +208,28 @@ export function useUserPublic(id: number | null | undefined, enabled = true) {
     staleTime: 1000 * 60 * 5,
   });
 }
+
+export interface UserDiscogs {
+  linked: boolean;
+  username?: string;
+  /** Public collection size; null when the collection is private or the
+   *  Discogs lookup failed. */
+  collectionCount?: number | null;
+}
+
+// Member-card Discogs row data. Fetched separately from useUserPublic so
+// the card's identity payload stays a fast DB read while the external
+// Discogs count loads lazily. Longer staleTime since the server already
+// memo-caches the upstream call for 30 minutes.
+export function useUserDiscogs(id: number | null | undefined, enabled = true) {
+  return useQuery<UserDiscogs>({
+    queryKey: ['user-discogs', id],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/users/${id}/discogs`);
+      return data;
+    },
+    enabled: !!id && enabled,
+    staleTime: 1000 * 60 * 30,
+    retry: false,
+  });
+}
