@@ -73,3 +73,19 @@ export function defaultFlowPosition(index: number, albumId: number): FlowPositio
     rotation,
   };
 }
+
+// Snap a normalised floor coordinate back to its nearest default-flow
+// grid cell index. Used to mark which cells owner-placed records sit
+// on so a freshly added (not-yet-placed) record can flow into a
+// genuinely empty cell instead of stacking on top of whatever already
+// occupies the top-left — the server returns items created_at DESC,
+// so without this the newest record always resolves to cell 0.
+export function nearestCell(x: number, y: number): number {
+  const colSpan = (X_MAX - X_MIN) / (FLOOR_COLS - 1);
+  const rowSpan = (Y_MAX - Y_MIN) / (FLOOR_ROWS - 1);
+  const col = Math.round((x - X_MIN) / colSpan);
+  const row = Math.round((y - Y_MIN) / rowSpan);
+  const c = Math.max(0, Math.min(FLOOR_COLS - 1, col));
+  const r = Math.max(0, Math.min(FLOOR_ROWS - 1, row));
+  return r * FLOOR_COLS + c;
+}

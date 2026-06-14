@@ -13,7 +13,7 @@ import {
 } from '../../../hooks/useCrates';
 import FloorRecord from './FloorRecord';
 import CrateBar, { type CrateBarHandle } from './CrateBar';
-import { defaultFlowPosition } from './layout';
+import { defaultFlowPosition, nearestCell } from './layout';
 import ToasterButton from '../ToasterButton';
 import LiveToasterPreview from './LiveToasterPreview';
 import AddAlbumSearch from './AddAlbumSearch';
@@ -317,8 +317,17 @@ export default function CrateFloor({ username, isOwner }: Props) {
 
   // Compute the rendered floor positions for the active crate's
   // items. Priority: local optimistic > server-stored > default flow.
+  //
+  // Default-flow records (no owner-placed position yet) are routed to
+  // the first EMPTY grid cell rather than their array index. The
+  // server returns items created_at DESC, so a freshly added record
+  // is always index 0 — keying the flow on the index dropped every
+  // new record onto cell 0 (top-left), stacking them on top of
+  // whatever was already placed there. Snapping placed records to
+  // their nearest cell and skipping those occupied cells lets new
+  // records fall into the genuine gaps instead.
   const renderItems = useMemo(() => {
-    return items.map((item, index) => {
+    const resolved = items.map((item) => {
       const local = localLayouts.get(item.id);
       if (local) {
         return {
@@ -327,23 +336,50 @@ export default function CrateFloor({ username, isOwner }: Props) {
           y: local.y,
           rotation: local.rotation,
           isPersisted: true,
+          placed: true,
         };
       }
-      if (
-        item.positionX != null &&
-        item.positionY != null
-      ) {
+      if (item.positionX != null && item.positionY != null) {
         return {
           item,
           x: item.positionX,
           y: item.positionY,
           rotation: item.rotation ?? 0,
           isPersisted: true,
+          placed: true,
         };
       }
-      const flow = defaultFlowPosition(index, item.id);
+      return { item, x: 0, y: 0, rotation: 0, isPersisted: false, placed: false };
+    });
+
+    // Cells already taken by owner-placed records.
+    const occupied = new Set<number>();
+    for (const r of resolved) {
+      if (r.placed) occupied.add(nearestCell(r.x, r.y));
+    }
+
+    // Walk the grid in reading order, handing each unplaced record the
+    // next free cell. Bounded by the floor cap (items ≤ FLOOR_CAP), so
+    // the scan can't run away even when placed records collide onto
+    // fewer distinct cells.
+    let cursor = 0;
+    return resolved.map((r) => {
+      if (r.placed) {
+        return {
+          item: r.item,
+          x: r.x,
+          y: r.y,
+          rotation: r.rotation,
+          isPersisted: true,
+        };
+      }
+      while (occupied.has(cursor)) cursor++;
+      const cell = cursor;
+      occupied.add(cell);
+      cursor++;
+      const flow = defaultFlowPosition(cell, r.item.id);
       return {
-        item,
+        item: r.item,
         x: flow.positionX,
         y: flow.positionY,
         rotation: flow.rotation,
@@ -351,6 +387,20 @@ export default function CrateFloor({ username, isOwner }: Props) {
       };
     });
   }, [items, localLayouts]);
+
+  // Stable key of the not-yet-placed record ids. Drives the persist
+  // effect below so newly added records get pinned to their resolved
+  // free cell promptly (a same-crate add wouldn't otherwise re-fire
+  // the crate-scoped effect, leaving the new record unpersisted until
+  // the next crate switch).
+  const unplacedKey = useMemo(
+    () =>
+      renderItems
+        .filter((r) => !r.isPersisted)
+        .map((r) => r.item.id)
+        .join(','),
+    [renderItems]
+  );
 
   // First-time owner-side persistence of default-flow positions —
   // so the next visitor sees a stable, owner-curated-or-defaulted
@@ -382,11 +432,13 @@ export default function CrateFloor({ username, isOwner }: Props) {
     return () => {
       cancelled = true;
     };
-    // Intentionally omit renderItems from deps — we react to crate
-    // change only. Within a crate the items array is stable enough
-    // that this would otherwise re-fire on every state tweak.
+    // React to crate change AND to a change in the set of unplaced
+    // records (unplacedKey) so a same-crate add persists its resolved
+    // free-cell position right away. renderItems itself is omitted —
+    // it changes identity on every drag tweak, but unplacedKey only
+    // moves when a record actually enters/leaves the unplaced set.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCrateId, isOwner]);
+  }, [activeCrateId, isOwner, unplacedKey]);
 
   // Record size — bigger than the preview's covers so the floor
   // reads as the working surface and the preview as the export
