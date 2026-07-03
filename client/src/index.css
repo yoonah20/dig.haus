@@ -33,25 +33,29 @@
 }
 
 @theme {
-  /* Slight-lift warm palette — Step 1 of the design-system pass. The
-     pre-lift values (page #120c05 / panel #1a1a1a / panel-strong
-     #0f0f0f) were a "basement at night" tone that didn't match the
-     bright daytime digman mascot living on top of it. Each tier
-     bumps ~5-10% in lightness and pulls toward the amber undertone
-     so the surface palette + the illustrations belong to the same
-     world — "황혼의 카운터" instead of "basement at night". Accent
-     yellow (#e8a020) is intentionally unchanged; it's the brand
-     anchor and the rest of the palette rotates around it.
+  /* Recede-the-ground pass — Step 2 of the design-system pass. Step 1
+     lifted the page toward "황혼의 카운터" (page #241c10 / panel
+     #2c2824 / panel-strong #181410) to match the bright daytime
+     digman mascot. But this is a record shop, and in a record shop
+     the *covers* are the color — the chrome has to recede or the
+     album art doesn't pop. A lighter, warmer ground put every warm-
+     toned cover on a same-temperature backdrop and muddied the grid.
+     Step 2 pulls the ground back down (darker) and toward neutral
+     (much lower chroma) so covers read as lit objects on a dim
+     counter. A whisper of warmth stays in every tier so the amber
+     accent + the wood/tape furniture vocabulary still belong to the
+     same world — this is neutral-*warm*, not cold grey. Accent
+     yellow (#e8a020) is unchanged; it's the brand anchor.
 
-     Pre-lift values kept in commit history for one-line rollback if
-     the operator decides this lift went too far. */
-  --color-background: #241c10;
+     Step-1 lift values kept in commit history for one-line rollback
+     if the operator decides this went too dark. */
+  --color-background: #15120d;
   --color-accent: #e8a020;
   --color-accent-hover: #f0b040;
   --color-accent-muted: #e8a02033;
   --color-foreground: #ede4d0;
   --color-foreground-muted: #a89c84;
-  --color-border: #3a2a18;
+  --color-border: #2e281f;
 
   /* Dark ink for text on light / amber surfaces — primary button
      labels, post-it / sticky-note text, graffiti on tape, anything
@@ -68,14 +72,16 @@
      the recessed / sunken tier used for inputs and dim overlays.
      Step 1 lifted them all toward amber, which read as "the cards
      are too warm" against the (still-too-dark) page background.
-     Step 1b pulls panels back toward warm-neutral (much lower
-     saturation) while pushing the background lift further — so
-     the page is the warm canvas and the cards sit on it as
-     near-neutral album-sleeve-style surfaces, like dark cardstock
-     on a manila counter. */
-  --color-panel: #2c2824;
-  --color-panel-hover: #383330;
-  --color-panel-strong: #181410;
+     Step 1b pulled panels back toward warm-neutral; Step 2 pulls
+     the whole ground darker (see --color-background above) and
+     re-seats these tiers on it: panel stays clearly elevated above
+     the darker page so cards still separate, panel-strong drops
+     below the page for recessed inputs/wells, and both shed a little
+     more chroma so they read as dark cardstock on a dim counter
+     rather than warm brown slabs. */
+  --color-panel: #201c17;
+  --color-panel-hover: #2a2620;
+  --color-panel-strong: #100e0a;
 
   /* MyDig storefront vocabulary hoisted into site-wide tokens so the
      album page can reuse the same wood / lamp / tape colors for its
@@ -103,6 +109,35 @@
      (#2a1a0c) so the circle reads as a small object on either
      surface tier without blending in. */
   --color-avatar-bg: #2a1f10;
+
+  /* Functional / semantic palette — the "verdict" colors that were
+     scattered as stock Tailwind classes (score tiers) and raw hex
+     (cover stickers) across score.ts and AlbumCard. Hoisted here so
+     a future recolor edits one file instead of hunting component
+     internals, and so the score tiers stop being the last cold,
+     off-the-shelf colors on an otherwise hand-tuned warm palette.
+     Values are unchanged from their previous inline definitions —
+     this promotion is plumbing, not a recolor. (Vote pills and
+     샀음/살거 already live as single tuned gradients in their own
+     components, so they're intentionally NOT hoisted here — hoisting
+     is for colors that were duplicated across surfaces.)
+
+     Score tiers: 명반 86+ / 수작 76-85 / 평작 51-75 / 혹평 0-50.
+     Mirror the Tailwind *-400 values score.ts used before so the
+     badge color identity (cyan=명반 … red=혹평) carries over; the
+     rgb triplets for the glow composition still live in score.ts. */
+  --color-score-masterpiece: #22d3ee;
+  --color-score-great: #4ade80;
+  --color-score-fair: #facc15;
+  --color-score-poor: #f87171;
+
+  /* Cover stickers — record-shop signal chips. SOON electric violet
+     / HOT red / DATE sky-blue. Matches STICKER_PALETTE's former
+     inline hex; the sticker text (fg) stays paired inline since it's
+     a per-chip contrast choice, not a palette hue. */
+  --color-sticker-hot: #e84a3b;
+  --color-sticker-soon: #b78bff;
+  --color-sticker-date: #5aa9e6;
 
   /* Radius scale — pin three values for the chrome system so cards
      / inputs / pills stop inventing their own. Album page audit

@@ -132,15 +132,19 @@ interface StickerSpec {
   minWidth?: string;
 }
 
+// Sticker identity hues live as --color-sticker-* tokens in index.css
+// (Functional / semantic palette block); referenced via var() here so
+// the record-shop signal colors are recolored in the token file. fg
+// stays inline — it's a per-chip contrast pairing, not a palette hue.
 const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
   soon: {
-    bg: '#b78bff',
+    bg: 'var(--color-sticker-soon)',
     fg: '#15001f',
     lines: ['SOON'],
     aria: '발매 예정',
   },
   hot: {
-    bg: '#e84a3b',
+    bg: 'var(--color-sticker-hot)',
     fg: '#ffffff',
     lines: ['HOT'],
     aria: '굿굿 또는 별루 상위 10',
@@ -153,7 +157,7 @@ const STICKER_PALETTE: Record<CoverStickerKind, StickerSpec> = {
   // Default footprint matches 'soon' / 'hot'; the home hero
   // 새 앨범 section bumps with `large` for a bigger primary badge.
   date: {
-    bg: '#5aa9e6',
+    bg: 'var(--color-sticker-date)',
     fg: '#0b1d2e',
     lines: [],
     aria: '발매일',
