@@ -62,6 +62,13 @@ export default function SearchBar({
   // would otherwise unmount mid-event).
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Pending "collapse the panel" timer. Held in a ref so a refocus can
+  // cancel it: Safari/Firefox don't focus a <button> on click, so the
+  // 직접 등록 click blurs the input with relatedTarget=null and schedules
+  // a close — the manual form's autoFocus then refocuses a field, and
+  // without this cancel the stale timer would still fire and collapse
+  // the just-opened form.
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAdmin = !!user?.isAdmin;
@@ -252,7 +259,40 @@ export default function SearchBar({
     : 'w-5 h-5 border-2 border-gray-500 border-t-accent rounded-full animate-spin';
 
   return (
-    <div className={outerCls}>
+    // Focus tracking lives on the container, not the bare <input>, so
+    // that clicking the "직접 등록" button or tabbing into a manual-form
+    // field — both separate focusable elements inside the dropdown —
+    // doesn't blur the input and collapse the panel out from under the
+    // click. onFocus/onBlur bubble (focusin/focusout), so focusing any
+    // descendant keeps the panel open; only focus leaving the container
+    // entirely schedules the close.
+    <div
+      className={outerCls}
+      onFocus={() => {
+        // Any focus arriving inside the search bar cancels a pending
+        // close — this is what saves the 직접 등록 flow on browsers that
+        // don't focus the button on click (the form's autoFocus lands
+        // here and clears the timer the input's blur just set).
+        if (blurTimer.current) {
+          clearTimeout(blurTimer.current);
+          blurTimer.current = null;
+        }
+        setFocused(true);
+      }}
+      onBlur={(e) => {
+        // relatedTarget is the element gaining focus. If it's still
+        // inside the search bar, focus just moved between children —
+        // keep the panel open. Delay the real close so a click on a
+        // non-focusable dropdown row commits before the unmount.
+        if (
+          e.relatedTarget &&
+          e.currentTarget.contains(e.relatedTarget as Node)
+        ) {
+          return;
+        }
+        blurTimer.current = setTimeout(() => setFocused(false), 150);
+      }}
+    >
       <div className="relative">
         <svg
           className={iconCls}
@@ -274,12 +314,6 @@ export default function SearchBar({
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onFocus={() => setFocused(true)}
-          // Delay closure so a click on a dropdown row commits before
-          // the dropdown unmounts. 150ms covers React's event flush
-          // without leaving a perceptible "ghost" of the panel after
-          // clicking elsewhere on the page.
-          onBlur={() => setTimeout(() => setFocused(false), 150)}
           placeholder="아티스트 또는 앨범 검색..."
           className={inputCls}
         />
