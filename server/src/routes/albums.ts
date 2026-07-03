@@ -21,6 +21,8 @@ import { requireAdmin, requireAuth } from '../middleware/auth.js';
 import type { AppUser } from '../auth/passport.js';
 import { convertToKrw, convertToUsd, getRates, convertToKrwSync, convertToUsdSync } from '../services/exchangeRates.js';
 import { searchAlbumsInDb } from '../utils/albumSearch.js';
+import { syncSingleAlbumRelease } from '../jobs/releaseSyncJob.js';
+import { enqueueAutoCuration } from '../services/autoCuration.js';
 
 const router = Router();
 
@@ -1517,6 +1519,41 @@ router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('Refresh discogs error:', error);
     res.status(500).json({ error: 'Failed to refresh Discogs data' });
+  }
+});
+
+// ─── POST /api/albums/:id/sync-release — admin release-day resync ────────
+//
+// Manual counterpart to the daily releaseSyncJob: re-resolves the
+// Discogs / Spotify links (overwriting a wrong pre-release match) and,
+// if the album was never crawled, kicks off the review-collection
+// pipeline. Lets the admin recover an album that aged past the job's
+// 7-day auto-retry window, or force the whole release-day flow on
+// demand.
+
+router.post('/:id/sync-release', requireAdmin, async (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const row = queryGet(
+    'SELECT mbid, reviews_crawled_at FROM albums WHERE mbid = ?',
+    [mbid]
+  );
+  if (!row) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+
+  try {
+    const links = await syncSingleAlbumRelease(mbid);
+    let reviewQueued = false;
+    if (!row.reviews_crawled_at) {
+      enqueueAutoCuration(mbid);
+      reviewQueued = true;
+    }
+    res.json({ ok: true, ...links, reviewQueued });
+  } catch (error) {
+    console.error('Sync release error:', error);
+    res.status(500).json({ error: 'Failed to sync release data' });
   }
 });
 

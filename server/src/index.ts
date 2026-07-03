@@ -15,6 +15,7 @@ import { initDb, closeDb, getDb } from './db/index.js';
 import { configurePassport } from './auth/passport.js';
 import { startRankScheduler } from './jobs/rankScheduler.js';
 import { startLabelFeedPoller } from './jobs/labelFeedPoller.js';
+import { startReleaseSyncScheduler } from './jobs/releaseSyncJob.js';
 import { startUsageLogPruneScheduler } from './jobs/usageLogPruner.js';
 import { startCoverCachePruneScheduler } from './jobs/coverCachePruner.js';
 import { warmExchangeRates } from './services/exchangeRates.js';
@@ -148,6 +149,7 @@ async function start() {
 
   startRankScheduler();
   startLabelFeedPoller();
+  startReleaseSyncScheduler();
   startUsageLogPruneScheduler();
   startCoverCachePruneScheduler();
   warmExchangeRates();
