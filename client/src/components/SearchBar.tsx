@@ -141,10 +141,24 @@ export default function SearchBar({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trimmedInput, isUrlMode, loggedIn]);
 
+  // Collapse the dropdown on a completed selection. Needed because the
+  // panel now stays open while focus is anywhere inside the search bar
+  // (so the 직접 등록 form survives a click) — a result row is inside
+  // that container too, so navigating away no longer blurs the panel
+  // shut on its own. Also clears any pending blur-close timer.
+  function closeDropdown() {
+    if (blurTimer.current) {
+      clearTimeout(blurTimer.current);
+      blurTimer.current = null;
+    }
+    setFocused(false);
+  }
+
   function handleDbSelect(path: string) {
     setInput('');
     setQuery('');
     onSelect?.();
+    closeDropdown();
     navigate(path);
   }
 
@@ -152,6 +166,7 @@ export default function SearchBar({
     setInput('');
     setQuery('');
     onSelect?.();
+    closeDropdown();
     navigate(artistLensTo(name));
   }
 
@@ -182,6 +197,7 @@ export default function SearchBar({
       onSelect?.();
       setInput('');
       setQuery('');
+      closeDropdown();
       // Auto-curation: admin-only shortcut for releases with known-
       // stable review coverage. Fire-and-forget via the global
       // CurationProgressContext — the floating panel tracks progress
@@ -498,6 +514,7 @@ export default function SearchBar({
                       setInput('');
                       setQuery('');
                       setManualOpen(false);
+                      closeDropdown();
                       navigate(`/album/${result.slug}`);
                     } catch (err: any) {
                       const apiMessage = err?.response?.data?.error;
