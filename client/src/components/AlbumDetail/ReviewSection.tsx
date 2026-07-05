@@ -669,7 +669,9 @@ export default function ReviewSection({
     () => {
       if (typeof window === 'undefined') return 'tavily';
       const saved = window.localStorage.getItem('admin:discoverEngine');
-      return saved === 'serper' || saved === 'tavily' ? saved : 'tavily';
+      return saved === 'serper' || saved === 'tavily' || saved === 'jina'
+        ? saved
+        : 'tavily';
     }
   );
   useEffect(() => {
@@ -1246,6 +1248,7 @@ export default function ReviewSection({
                           >
                             <option value="tavily">Tavily</option>
                             <option value="serper">Serper</option>
+                            <option value="jina">Jina</option>
                           </select>
                           <button
                           type="button"

@@ -283,13 +283,13 @@ export function useDeleteAllReviews(id: string) {
   });
 }
 
-export type DiscoveryEngine = 'serper' | 'tavily';
+export type DiscoveryEngine = 'serper' | 'tavily' | 'jina';
 
 // Admin-only URL discovery — returns 0–5 editorial review URL
 // candidates for this album. No DB writes; the caller uses the
 // URLs to populate the URL-batch textarea so admin can review /
 // edit / save through the existing add-url flow. `engine` picks
-// which search backend the server dispatches to (serper / tavily);
+// which search backend the server dispatches to (serper / tavily / jina);
 // admin UI persists last choice in localStorage so the next click
 // reuses the same backend without re-selecting.
 export function useDiscoverReviewUrls(id: string) {
