@@ -7,9 +7,11 @@ import {
 } from './claude.js';
 import {
   callDeepSeek,
+  DEEPSEEK_MODEL,
   isDeepSeekConfigured,
   logDeepSeekUsage,
 } from './deepseek.js';
+import { resolvePrimaryModel } from './llmRouter.js';
 import { execute, queryAll } from '../db/index.js';
 
 // Ask DeepSeek first for a JSON extraction, fall back to Haiku if
@@ -30,9 +32,17 @@ async function extractJsonWithFallback(
   // within its capability.
   if (isDeepSeekConfigured()) {
     try {
+      // Route through the same per-op override the llm router uses so
+      // extraction can be flipped to a pricier tier
+      // (LLM_PRIMARY_MODEL_SCRAPE_REVIEW=deepseek-v4-pro) independently
+      // of the summary op. Extraction picks the 2-sentence excerpt the
+      // summary later synthesises, so its selection quality caps the
+      // summary's ceiling — worth its own knob. Defaults to the flash
+      // alias, preserving today's behaviour when no override is set.
+      const model = resolvePrimaryModel(operation, DEEPSEEK_MODEL);
       const ds = await callDeepSeek(
         [{ role: 'user', content: prompt }],
-        { jsonMode: true, maxTokens }
+        { jsonMode: true, maxTokens, model }
       );
       logDeepSeekUsage(operation, ds);
       return ds.content;
