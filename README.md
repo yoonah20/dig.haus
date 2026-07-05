@@ -121,7 +121,8 @@ cd client && npm install && cd ..
 | **YouTube Data API** | https://console.cloud.google.com/apis/library/youtube.googleapis.com | Enable API, create API key |
 | **DeepSeek** | https://platform.deepseek.com/ | API key — primary LLM |
 | **Anthropic Claude** | https://console.anthropic.com/ | API key — ad-hoc / fallback |
-| **Serper.dev** | https://serper.dev/ | Google SERP proxy for review URL discovery (2.5k free credits one-time; Google CSE swap pending in `services/googleCse.ts`) |
+| **Tavily** | https://tavily.com/ | Default review URL discovery engine (1000 searches/mo recurring free, no card) |
+| **Serper.dev** | https://serper.dev/ | Google SERP proxy — admin-selectable A/B discovery alternative (2.5k free credits one-time, then $50/mo) |
 | **Google OAuth** | https://console.cloud.google.com/ | See *Google OAuth 설정* below |
 
 > **No auth required:** MusicBrainz, Cover Art Archive, Jina Reader (`r.jina.ai/`), Bandcamp metadata.
@@ -199,7 +200,7 @@ dig.haus/
         │                           # llmCompare, claudeBudget, reviews,
         │                           # albumUrlExtract, musicbrainz, lastfm,
         │                           # discogs, spotify, youtube, bandcamp,
-        │                           # serper / braveSearch / googleCse,
+        │                           # discovery / tavilySearch / serper,
         │                           # exchangeRates, avatarHost,
         │                           # customCoverHost, email, toasterRenderer
         ├── jobs/                   # rankScheduler, labelFeedPoller, usageLogPruner

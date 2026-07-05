@@ -283,15 +283,15 @@ export function useDeleteAllReviews(id: string) {
   });
 }
 
-export type DiscoveryEngine = 'serper' | 'tavily' | 'brave';
+export type DiscoveryEngine = 'serper' | 'tavily';
 
 // Admin-only URL discovery — returns 0–5 editorial review URL
 // candidates for this album. No DB writes; the caller uses the
 // URLs to populate the URL-batch textarea so admin can review /
 // edit / save through the existing add-url flow. `engine` picks
-// which search backend the server dispatches to (serper / tavily
-// / brave); admin UI persists last choice in localStorage so the
-// next click reuses the same backend without re-selecting.
+// which search backend the server dispatches to (serper / tavily);
+// admin UI persists last choice in localStorage so the next click
+// reuses the same backend without re-selecting.
 export function useDiscoverReviewUrls(id: string) {
   return useMutation<
     {
@@ -304,7 +304,7 @@ export function useDiscoverReviewUrls(id: string) {
     { engine: DiscoveryEngine } | void
   >({
     mutationFn: async (vars) => {
-      const engine = vars?.engine ?? 'serper';
+      const engine = vars?.engine ?? 'tavily';
       const { data } = await axios.post(
         `/api/albums/${encodeURIComponent(id)}/reviews/discover?engine=${engine}`
       );

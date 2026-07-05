@@ -663,13 +663,13 @@ export default function ReviewSection({
   // Engine selector for the 🔎 URL 자동 검색 button. localStorage
   // persists across album navigations so admin doesn't re-pick
   // every time. Initialised lazily so SSR-rendered first paint
-  // doesn't touch window.localStorage; falls back to serper if the
-  // stored value is missing or corrupt.
+  // doesn't touch window.localStorage; falls back to tavily (the
+  // default engine) if the stored value is missing or corrupt.
   const [discoverEngine, setDiscoverEngine] = useState<DiscoveryEngine>(
     () => {
-      if (typeof window === 'undefined') return 'serper';
+      if (typeof window === 'undefined') return 'tavily';
       const saved = window.localStorage.getItem('admin:discoverEngine');
-      return saved === 'tavily' || saved === 'brave' ? saved : 'serper';
+      return saved === 'serper' || saved === 'tavily' ? saved : 'tavily';
     }
   );
   useEffect(() => {
@@ -1244,9 +1244,8 @@ export default function ReviewSection({
                             className="text-[11px] bg-panel-strong border border-white/15 hover:border-white/30 rounded-md px-1.5 py-0.5 text-gray-300 outline-none focus:border-accent/60 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                             title="검색 엔진 선택"
                           >
-                            <option value="serper">Serper</option>
                             <option value="tavily">Tavily</option>
-                            <option value="brave">Brave</option>
+                            <option value="serper">Serper</option>
                           </select>
                           <button
                           type="button"

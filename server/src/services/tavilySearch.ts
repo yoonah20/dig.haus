@@ -11,8 +11,8 @@ import { memoAsync } from '../utils/memoCache.js';
 // the dig.haus operator is on the bridge Serper credits.
 //
 // Endpoint takes a single `query` string and returns up to 20
-// results in one call (no pagination), so unlike Serper/Brave/CSE
-// the `pages` param maps to max_results here (pages=1 → 10
+// results in one call (no pagination), so unlike Serper the
+// `pages` param maps to max_results here (pages=1 → 10
 // results, pages=2 → 20 results). That also means 1 credit per
 // album discovery, vs 2 credits for Serper at the current pages=2
 // default — at the operator's ~600 album/month pace, free tier

@@ -1307,7 +1307,7 @@ router.get('/llm-comparisons', (req, res) => {
       { operation: 'similar_descriptions', defaultModel: 'claude-haiku-4-5-20251001' },
       // Op name is historical — kept as 'serper_pick' so any admin
       // routing overrides persisted in DB under this key keep working
-      // even though discovery moved off Serper to Brave Search.
+      // regardless of which discovery engine (Serper / Tavily) is active.
       { operation: 'serper_pick', defaultModel: 'claude-haiku-4-5-20251001' },
       { operation: 'summary_fallback', defaultModel: 'claude-haiku-4-5-20251001' },
     ];

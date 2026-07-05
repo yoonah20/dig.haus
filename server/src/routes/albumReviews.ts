@@ -9,9 +9,12 @@ import {
   getVerifiedSourceNames,
   normalizeReviewUrl,
 } from '../services/reviews.js';
-import { searchReviewUrls as searchSerper } from '../services/serper.js';
-import { searchReviewUrls as searchBrave } from '../services/braveSearch.js';
-import { searchReviewUrls as searchTavily } from '../services/tavilySearch.js';
+import {
+  searchReviewUrls as searchByEngine,
+  isDiscoveryEngine,
+  defaultDiscoveryEngine,
+  type DiscoveryEngine,
+} from '../services/discovery.js';
 import {
   generateKoreanSummary,
   selectEditorialReviewUrls,
@@ -40,12 +43,12 @@ const router = Router();
 
 // ─── POST /api/albums/:id/reviews/discover — admin URL discovery ────────
 //
-// Serper (Google SERP proxy) + Haiku URL picker. Admin hits this from
-// the manual-add form's URL tab; we return 0-5 editorial review URLs
-// the admin can review, edit, and save through the existing batch
-// scrape flow. No DB writes here — pure discovery.
+// Discovery engine (Serper / Tavily) + Haiku URL picker. Admin hits
+// this from the manual-add form's URL tab; we return 0-5 editorial
+// review URLs the admin can review, edit, and save through the existing
+// batch scrape flow. No DB writes here — pure discovery.
 //
-// Flow: Serper fetches ~40 organic results → we filter hostnames
+// Flow: the engine fetches ~20-40 organic results → we filter hostnames
 // against EXCLUDED_URL_DOMAINS (shops, aggregators) → what's left goes
 // to Haiku for editorial-only selection. Haiku's call is cheap
 // (~$0.0003, just URL+title+snippet as input) and runs even if we end
@@ -66,24 +69,20 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
     return res.status(404).json({ error: 'Album not found' });
   }
 
-  // Engine selector — admin UI sends ?engine=serper|tavily|brave so
-  // the operator can A/B the three discovery backends against each
-  // other on the same album. Unknown / missing values fall through
-  // to serper, which is the current default. Tavily and Brave keep
-  // their own caches keyed by engine name so flipping back and
-  // forth in the same session doesn't reuse the wrong response.
-  const rawEngine = String(req.query.engine || 'serper').toLowerCase();
-  const engine: 'serper' | 'tavily' | 'brave' =
-    rawEngine === 'tavily' || rawEngine === 'brave' ? rawEngine : 'serper';
-  const dispatchSearch =
-    engine === 'tavily'
-      ? searchTavily
-      : engine === 'brave'
-        ? searchBrave
-        : searchSerper;
+  // Engine selector — admin UI sends ?engine=serper|tavily so the
+  // operator can A/B the two discovery backends on the same album.
+  // Unknown / missing values fall through to the configured default
+  // (defaultDiscoveryEngine, driven by the DISCOVERY_ENGINE env). Each
+  // engine keeps its own cache keyed by name so flipping back and forth
+  // in the same session doesn't reuse the wrong response.
+  const rawEngine = String(req.query.engine || '').toLowerCase();
+  const engine: DiscoveryEngine = isDiscoveryEngine(rawEngine)
+    ? rawEngine
+    : defaultDiscoveryEngine();
 
   try {
-    const candidates = await dispatchSearch(
+    const candidates = await searchByEngine(
+      engine,
       albumRow.artist_name,
       albumRow.title
     );
@@ -101,7 +100,7 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
     if (candidates.length === 0) {
       return res.json({
         urls: [],
-        message: '검색 결과가 없습니다. Serper 키가 설정되어 있는지, 이 앨범이 Google에 색인되어 있는지 확인해주세요.',
+        message: `검색 결과가 없습니다. ${engine} 키가 설정되어 있는지, 이 앨범이 색인되어 있는지 확인해주세요.`,
       });
     }
 

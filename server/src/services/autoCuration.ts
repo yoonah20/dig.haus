@@ -1,4 +1,7 @@
-import { searchReviewUrls } from './serper.js';
+import {
+  searchReviewUrls as searchByEngine,
+  defaultDiscoveryEngine,
+} from './discovery.js';
 import {
   scrapeReviewFromUrl,
   EXCLUDED_URL_PATH_PATTERNS,
@@ -80,7 +83,7 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
   }
   // Defensive guard: if something curated this album between enqueue
   // and pickup (admin clicked ⚡, or a previous queued run for the
-  // same mbid already finished), skip. Avoids burning a Serper +
+  // same mbid already finished), skip. Avoids burning a discovery +
   // Haiku-pick call to discover URLs we already have.
   if (album.reviews_crawled_at) {
     return emptyResult(mbid, 'skipped-already-curated');
@@ -105,7 +108,11 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
   // Step 1: discover. Mirrors /api/albums/:id/reviews/discover.
   let candidates: string[] = [];
   try {
-    const searchResults = await searchReviewUrls(artist, title);
+    const searchResults = await searchByEngine(
+      defaultDiscoveryEngine(),
+      artist,
+      title
+    );
     const domainFiltered = searchResults.filter((c) => {
       try {
         const parsed = new URL(c.url);
@@ -372,7 +379,7 @@ export function enqueueAutoCuration(mbid: string): void {
     return;
   }
   // Unreleased albums: pre-orders / future-dated rows have no reviews
-  // out there yet, so Serper would burn a query for zero return and
+  // out there yet, so discovery would burn a query for zero return and
   // the album would still get reviews_crawled_at stamped, hiding it
   // from a future re-run on release day. Skip entirely and let the
   // existing admin-pending queue pick it up after release. Parses
@@ -402,7 +409,7 @@ export function enqueueAutoCuration(mbid: string): void {
     // Detach from the caller (the album-requests POST) so it can
     // respond immediately. setImmediate yields the event loop once
     // first, ensuring the HTTP response flushes before we start
-    // burning Claude + Serper time.
+    // burning Claude + discovery time.
     setImmediate(() => {
       drain().catch((err) =>
         console.error('[auto-curation] queue drain error:', err)

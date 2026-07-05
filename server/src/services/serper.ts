@@ -8,13 +8,10 @@ import { memoAsync } from '../utils/memoCache.js';
 // review-URL discovery flow: admin clicks 🔎 자동 검색, we Google
 // the album and Haiku picks editorial candidates downstream.
 //
-// Active again as of 2026-05-18 short-term while Google Custom
-// Search Engine is being set up. Operator is rotating in a second
-// Serper account's free credits to bridge the gap. Long-term path
-// is services/googleCse.ts once GOOGLE_CSE_API_KEY + GOOGLE_CSE_ID
-// are configured — at that point swap the imports in routes/
-// albumReviews.ts + services/autoCuration.ts to './googleCse.js'.
-// services/braveSearch.ts is the other revert target kept dormant.
+// One of two live discovery engines behind services/discovery.ts;
+// Tavily (services/tavilySearch.ts) is the default. Serper's $50/mo
+// paid floor once the one-time free credits run out is why it's no
+// longer the default — kept as the admin-selectable A/B alternative.
 
 export interface SerperResult {
   url: string;
@@ -103,9 +100,7 @@ async function _searchReviewUrls(
   // blog) — dig.haus's bread-and-butter source band — and drops only
   // the page-3 indie-zine layer, which admin can still cover by
   // pasting URLs manually for any album that needs deeper sourcing.
-  // Bump back to 3 once services/googleCse.ts is live (100/day free,
-  // no per-call cost) — callers pass pages explicitly if they want
-  // different.
+  // Callers pass pages explicitly if they want different.
   //
   // The earlier "quoted album" two-tier strategy was dropped: Serper
   // rejects quoted queries combined with num>=40 ("Query not allowed.
