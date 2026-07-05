@@ -59,7 +59,7 @@ export async function callLlmByModel(opts: CallOpts): Promise<LlmResult> {
     const t0 = Date.now();
     const ds = await callDeepSeek(
       [{ role: 'user', content: prompt }],
-      { maxTokens, jsonMode }
+      { maxTokens, jsonMode, model }
     );
     const latencyMs = Date.now() - t0;
     execute(

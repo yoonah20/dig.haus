@@ -36,6 +36,10 @@ interface CallOptions {
   jsonMode?: boolean;
   temperature?: number;
   timeoutMs?: number;
+  // API model string. Defaults to the deepseek-chat alias (→ v4-flash).
+  // Pass an explicit id (e.g. 'deepseek-v4-pro') to route a single op to
+  // a pricier tier via the llm router's per-op env override.
+  model?: string;
 }
 
 export function isDeepSeekConfigured(): boolean {
@@ -57,7 +61,7 @@ export async function callDeepSeek(
   }
 
   const body: Record<string, unknown> = {
-    model: DEEPSEEK_MODEL,
+    model: opts.model ?? DEEPSEEK_MODEL,
     messages,
     max_tokens: opts.maxTokens ?? 2000,
     temperature: opts.temperature ?? 0.3,
