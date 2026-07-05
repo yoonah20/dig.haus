@@ -213,13 +213,26 @@ export default function SearchBar({
     }
   }
 
-  const dbAlbums = isUrlMode ? [] : (dbSearch.data?.albums ?? []).slice(0, 8);
-  const dbMbids = new Set(dbAlbums.map((a) => a.mbid));
+  const allDbAlbums = isUrlMode ? [] : (dbSearch.data?.albums ?? []);
+  const dbAlbums = allDbAlbums.slice(0, 8);
   // Hide externals that are already in the DB list to avoid "same
-  // album twice, one with a register button".
+  // album twice, one with a register button". Dedupe on normalised
+  // artist+title, NOT mbid: DB rows expose their slug in the mbid
+  // field (searchAlbumsInDb returns `slug || mbid`), while external
+  // candidates carry a real MusicBrainz mbid or a `discogs-master-*`
+  // id — the two id spaces never intersect, so an mbid-keyed filter
+  // always misses and a registered album reappears here with a [+]
+  // button. This key mirrors searchExternalMerged's own internal
+  // dedupe. Built from the full DB result, not the sliced top-8, so a
+  // match ranked below the visible cut still filters its external twin.
+  const albumKey = (a: AlbumSearchResult) =>
+    `${a.artist.toLowerCase().replace(/[^a-z0-9]/g, '')}::${a.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '')}`;
+  const dbKeys = new Set(allDbAlbums.map(albumKey));
   const externalAlbums = isUrlMode
     ? []
-    : (externalSearch.data?.albums ?? []).filter((a) => !dbMbids.has(a.mbid));
+    : (externalSearch.data?.albums ?? []).filter((a) => !dbKeys.has(albumKey(a)));
 
   // Build a synthetic AlbumSearchResult for the URL-extract row so it
   // can flow through the same ExternalRow component as text-search
