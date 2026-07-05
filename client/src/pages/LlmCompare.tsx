@@ -62,6 +62,8 @@ const PRICING: Record<string, { input: number; output: number }> = {
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
   'claude-sonnet-4-5': { input: 3, output: 15 },
   'claude-sonnet-4-5-20250929': { input: 3, output: 15 },
+  'deepseek-v4-flash': { input: 0.14, output: 0.28 },
+  'deepseek-v4-pro': { input: 0.435, output: 0.87 },
   'deepseek-chat': { input: 0.27, output: 1.1 },
   'claude-3-haiku-20240307': { input: 0.25, output: 1.25 },
 };
@@ -85,6 +87,8 @@ function shortModel(model: string): string {
   if (model.startsWith('claude-haiku')) return 'haiku';
   if (model.startsWith('claude-sonnet')) return 'sonnet';
   if (model.startsWith('claude-3-haiku')) return 'haiku3';
+  if (model === 'deepseek-v4-flash') return 'flash';
+  if (model === 'deepseek-v4-pro') return 'pro';
   if (model === 'deepseek-chat') return 'deepseek';
   return model;
 }

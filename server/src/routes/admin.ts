@@ -64,6 +64,12 @@ const PRICING_PER_1M: Record<string, { input: number; output: number }> = {
   // similar-album descriptions, editorial URL picks, and Korean
   // review summaries.
   'deepseek-v4-flash': { input: 0.14, output: 0.28 },
+  // DeepSeek V4 Pro — reserved for the pricier per-op routes (Korean
+  // review summary is the first candidate) via LLM_PRIMARY_MODEL_<OP> /
+  // shadow. Same cache-miss-as-ceiling convention as flash; the current
+  // promo cache-miss rate ($0.435/$0.87) is what we're billed today —
+  // the pre-discount list price is ~4x ($1.74/$3.48).
+  'deepseek-v4-pro': { input: 0.435, output: 0.87 },
   // Legacy log rows logged under model='deepseek-chat' all pre-date
   // 2026-04-24 — V3-era pricing.
   'deepseek-chat': { input: 0.27, output: 1.1 },
