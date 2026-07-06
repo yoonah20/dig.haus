@@ -193,6 +193,7 @@ export default function App() {
                   <Route path="/admin" element={<Admin />} />
                   <Route path="/admin/curation" element={<Admin />} />
                   <Route path="/admin/api" element={<Admin />} />
+                  <Route path="/admin/maintenance" element={<Admin />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/my/:username" element={<MyDig />} />
                   {/* Snapshot viewing is now in-page via #<slug>

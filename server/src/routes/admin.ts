@@ -4,8 +4,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { queryGet, queryAll, execute } from '../db/index.js';
+import { queryGet, queryAll, execute, getDb } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
+import {
+  findDuplicates,
+  deleteDeletableDuplicates,
+} from '../services/albumDedupe.js';
 import {
   getRollingDailyClaudeSpendUsd,
   ROLLING_24H_USD_CAP,
@@ -1659,6 +1663,25 @@ router.delete('/review-reports/:id', (req, res) => {
   if (isNaN(reportId)) return res.status(400).json({ error: 'Invalid id' });
   execute(`DELETE FROM review_reports WHERE id = ?`, [reportId]);
   res.json({ ok: true });
+});
+
+// Duplicate-album cleanup. Report groups the `-N` counter-suffix
+// duplicates by what can be safely removed; the delete endpoint re-checks
+// the deletable gate server-side so the client can never force-remove a
+// duplicate that carries data. See services/albumDedupe.ts.
+router.get('/duplicates', (_req, res) => {
+  res.json({ duplicates: findDuplicates(getDb()) });
+});
+
+router.post('/duplicates/delete', (req, res) => {
+  const ids = Array.isArray(req.body?.ids)
+    ? req.body.ids.filter((n: unknown) => Number.isInteger(n))
+    : null;
+  if (!ids || ids.length === 0) {
+    return res.status(400).json({ error: 'ids (number[]) required' });
+  }
+  const result = deleteDeletableDuplicates(getDb(), ids);
+  res.json(result);
 });
 
 export default router;

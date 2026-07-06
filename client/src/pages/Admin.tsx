@@ -732,11 +732,12 @@ function MODEL_LABEL(model: string): string {
 // routes /admin/api-console and /admin/compare still exist (see
 // App.tsx) for pinned-tab use; their content is also embedded in the
 // API tab.
-type AdminTab = 'dashboard' | 'curation' | 'api';
+type AdminTab = 'dashboard' | 'curation' | 'api' | 'maintenance';
 
 function deriveTabFromPath(pathname: string): AdminTab {
   if (pathname.startsWith('/admin/curation')) return 'curation';
   if (pathname.startsWith('/admin/api')) return 'api';
+  if (pathname.startsWith('/admin/maintenance')) return 'maintenance';
   return 'dashboard';
 }
 
@@ -745,6 +746,7 @@ function AdminTabBar({ active }: { active: AdminTab }) {
     { id: 'dashboard', to: '/admin', label: '대시보드', icon: '📊' },
     { id: 'curation', to: '/admin/curation', label: '리뷰 큐레이션', icon: '🔖' },
     { id: 'api', to: '/admin/api', label: 'API & LLM', icon: '🪙' },
+    { id: 'maintenance', to: '/admin/maintenance', label: '정리', icon: '🧹' },
   ];
   return (
     <nav
@@ -1269,7 +1271,249 @@ export default function Admin() {
           </section>
         </Suspense>
       )}
+
+      {activeTab === 'maintenance' && <DuplicatesPanel />}
     </main>
+  );
+}
+
+// Duplicate-album cleanup. A duplicate is a `base-N` (N>=2) slug whose base
+// is another album's slug — the counter suffix generateSlug adds when the
+// same record is registered twice under different mbids. See
+// server/src/services/albumDedupe.ts for the detection + delete gate.
+interface DuplicateEntry {
+  id: number;
+  slug: string;
+  mbid: string;
+  artist: string | null;
+  title: string | null;
+  year: number | null;
+  cover: string | null;
+  canonicalId: number;
+  canonicalSlug: string;
+  canonicalMbid: string;
+  canonicalArtist: string | null;
+  canonicalTitle: string | null;
+  canonicalCover: string | null;
+  status: 'deletable' | 'has_data' | 'suspicious';
+  blocking: { table: string; count: number }[];
+  similarCount: number;
+}
+
+function DupCover({ src, label }: { src: string | null; label: string }) {
+  return (
+    <CoverArt
+      src={src}
+      alt={label}
+      className="w-12 h-12 rounded object-cover flex-shrink-0 bg-panel-strong"
+    />
+  );
+}
+
+function DuplicatesPanel() {
+  const qc = useQueryClient();
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const { data, isLoading, isError } = useQuery<{ duplicates: DuplicateEntry[] }>({
+    queryKey: ['admin-duplicates'],
+    queryFn: async () => (await axios.get('/api/admin/duplicates')).data,
+  });
+
+  const del = useMutation({
+    mutationFn: async (ids: number[]) =>
+      (await axios.post('/api/admin/duplicates/delete', { ids })).data as {
+        deleted: number[];
+        refused: { id: number; reason: string }[];
+      },
+    onSuccess: (result) => {
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ['admin-duplicates'] });
+      if (result.refused.length > 0) {
+        alert(
+          `${result.deleted.length}개 삭제됨. ${result.refused.length}개는 삭제되지 않음 (데이터가 붙어 있거나 이미 처리됨).`
+        );
+      }
+    },
+  });
+
+  const dups = data?.duplicates ?? [];
+  const deletable = dups.filter((d) => d.status === 'deletable');
+  const hasData = dups.filter((d) => d.status === 'has_data');
+  const suspicious = dups.filter((d) => d.status === 'suspicious');
+
+  const toggle = (id: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const allSelected =
+    deletable.length > 0 && deletable.every((d) => selected.has(d.id));
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(deletable.map((d) => d.id)));
+
+  const runDelete = () => {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    if (
+      !window.confirm(
+        `선택한 중복 앨범 ${ids.length}개를 삭제합니다. 되돌릴 수 없습니다. 진행할까요?`
+      )
+    )
+      return;
+    del.mutate(ids);
+  };
+
+  return (
+    <div className="max-w-4xl">
+      <SubSection
+        title="중복 앨범 정리"
+        hint="같은 앨범이 서로 다른 mbid로 두 번 등록되어 slug 끝에 -2, -3 가 붙은 경우"
+      >
+        {isError && (
+          <EmptyRow>중복 목록을 불러오지 못했습니다.</EmptyRow>
+        )}
+        {isLoading && <EmptyRow>불러오는 중…</EmptyRow>}
+
+        {data && dups.length === 0 && (
+          <EmptyRow>중복으로 검출된 앨범이 없습니다.</EmptyRow>
+        )}
+
+        {deletable.length > 0 && (
+          <Panel
+            title="삭제 가능 (붙은 데이터 없음)"
+            icon="✅"
+            count={deletable.length}
+            headerAction={
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleAll}
+                  className="text-xs text-gray-400 hover:text-white px-2 py-1"
+                >
+                  {allSelected ? '전체 해제' : '전체 선택'}
+                </button>
+                <button
+                  onClick={runDelete}
+                  disabled={selected.size === 0 || del.isPending}
+                  className="text-xs font-semibold px-3 py-1 rounded bg-red-500/90 hover:bg-red-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {del.isPending
+                    ? '삭제 중…'
+                    : `선택 삭제 (${selected.size})`}
+                </button>
+              </div>
+            }
+          >
+            {deletable.map((d) => (
+              <label
+                key={d.id}
+                className="flex items-center gap-3 p-3 cursor-pointer hover:bg-white/5"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(d.id)}
+                  onChange={() => toggle(d.id)}
+                  className="flex-shrink-0"
+                />
+                <DupCover src={d.cover} label={d.slug} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-white truncate">
+                    {d.artist} — {d.title}
+                    {d.year ? ` (${d.year})` : ''}
+                  </div>
+                  <div className="text-[11px] text-gray-500 truncate">
+                    삭제: <span className="text-red-400">{d.slug}</span>
+                    {d.similarCount > 0 &&
+                      ` · similar ${d.similarCount}개도 함께 정리`}
+                  </div>
+                </div>
+                <div className="text-gray-600 text-lg flex-shrink-0">→</div>
+                <DupCover src={d.canonicalCover} label={d.canonicalSlug} />
+                <div className="min-w-0 hidden sm:block w-40">
+                  <div className="text-[11px] text-gray-500">유지</div>
+                  <Link
+                    to={`/album/${d.canonicalSlug}`}
+                    className="text-[11px] text-gray-400 hover:text-accent truncate block"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {d.canonicalSlug}
+                  </Link>
+                </div>
+              </label>
+            ))}
+          </Panel>
+        )}
+
+        {hasData.length > 0 && (
+          <Panel
+            title="데이터가 붙어 있어 보류 (수동 병합 필요)"
+            icon="⚠️"
+            count={hasData.length}
+          >
+            {hasData.map((d) => (
+              <div key={d.id} className="flex items-center gap-3 p-3">
+                <DupCover src={d.cover} label={d.slug} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-white truncate">
+                    {d.artist} — {d.title}
+                    {d.year ? ` (${d.year})` : ''}
+                  </div>
+                  <Link
+                    to={`/album/${d.slug}`}
+                    className="text-[11px] text-gray-500 hover:text-accent truncate block"
+                  >
+                    {d.slug}
+                  </Link>
+                  <div className="text-[11px] text-amber-400/90 mt-0.5">
+                    {d.blocking
+                      .map((b) => `${b.table} ${b.count}`)
+                      .join(' · ')}
+                  </div>
+                </div>
+                <div className="text-[11px] text-gray-600 hidden sm:block w-40 truncate">
+                  → {d.canonicalSlug}
+                </div>
+              </div>
+            ))}
+          </Panel>
+        )}
+
+        {suspicious.length > 0 && (
+          <Panel
+            title="슬러그만 닮음 (실제 다른 앨범일 수 있음)"
+            icon="❓"
+            count={suspicious.length}
+          >
+            {suspicious.map((d) => (
+              <div key={d.id} className="p-3 text-[12px]">
+                <div className="text-gray-300">
+                  <span className="text-gray-500">이 앨범:</span> {d.artist} —{' '}
+                  {d.title}{' '}
+                  <Link
+                    to={`/album/${d.slug}`}
+                    className="text-gray-500 hover:text-accent"
+                  >
+                    ({d.slug})
+                  </Link>
+                </div>
+                <div className="text-gray-400 mt-0.5">
+                  <span className="text-gray-500">원본 후보:</span>{' '}
+                  {d.canonicalArtist} — {d.canonicalTitle}{' '}
+                  <Link
+                    to={`/album/${d.canonicalSlug}`}
+                    className="text-gray-500 hover:text-accent"
+                  >
+                    ({d.canonicalSlug})
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </Panel>
+        )}
+      </SubSection>
+    </div>
   );
 }
 
