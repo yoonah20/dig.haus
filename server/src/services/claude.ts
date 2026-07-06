@@ -90,7 +90,7 @@ titleMeaning 규칙:
       operation: 'pronunciation',
       prompt: promptText,
       maxTokens: 200,
-      defaultModel: HAIKU_LITE,
+      defaultModel: 'deepseek-chat',
       jsonMode: true,
       albumTitle: `${artist} - ${album}`,
     });
@@ -337,7 +337,7 @@ JSON array only: [{"title":"","artist":"","descriptionKo":""}]`;
       operation: 'similar_descriptions',
       prompt: promptText,
       maxTokens: 1000,
-      defaultModel: HAIKU,
+      defaultModel: 'deepseek-chat',
       jsonMode: true,
       albumTitle: `${baseArtist} - ${baseAlbum}`,
     });
@@ -414,7 +414,7 @@ ${list}
       operation: 'serper_pick',
       prompt: promptText,
       maxTokens: 1200,
-      defaultModel: HAIKU,
+      defaultModel: 'deepseek-chat',
       jsonMode: true,
       albumTitle: `${artist} - ${album}`,
     });

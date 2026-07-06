@@ -6,7 +6,7 @@ import { searchVideo } from '../services/youtube.js';
 import { searchBandcamp } from '../services/bandcamp.js';
 import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases, getDiscogsMasterMainRelease } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
-import { generateSimilarDescriptions, generatePronunciation, HAIKU } from '../services/claude.js';
+import { generateSimilarDescriptions, generatePronunciation } from '../services/claude.js';
 import { invokeLlm } from '../services/llmRouter.js';
 import { hostCustomCover, CustomCoverError } from '../services/customCoverHost.js';
 import {
@@ -2444,15 +2444,16 @@ router.post('/:id/similar', adminClaudeLimiter, requireAdmin, async (req, res) =
       || `https://www.discogs.com/search/?q=${encodeURIComponent(`${artist} ${title}`)}&type=master`;
 
     // Route through invokeLlm so the env-driven model router can swap
-    // this onto DeepSeek (default hot path) instead of pinning Anthropic
-    // directly. HAIKU stays as the safety-net default if no override.
+    // this per-op. Defaults to DeepSeek flash (the hot path); an env
+    // override can still promote it, but Anthropic is no longer the
+    // safety-net default.
     let reason = '';
     try {
       const result = await invokeLlm({
         operation: 'similar_manual_reason',
         prompt: `"${baseTitle}" by ${baseArtist} 팬을 위한 비슷한 앨범 설명 1-2문장 한국어.\n앨범: "${title}" by ${artist}\nJSON only: {"reason":"한국어 설명"}`,
         maxTokens: 200,
-        defaultModel: HAIKU,
+        defaultModel: 'deepseek-chat',
         jsonMode: true,
         albumTitle: `${artist} - ${title}`,
       });

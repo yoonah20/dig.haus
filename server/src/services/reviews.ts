@@ -1,10 +1,5 @@
 import axios from 'axios';
-import {
-  getClient,
-  HAIKU,
-  logClaudeUsage,
-  normaliseKoreanTerms,
-} from './claude.js';
+import { normaliseKoreanTerms } from './claude.js';
 import {
   callDeepSeek,
   DEEPSEEK_MODEL,
@@ -14,62 +9,54 @@ import {
 import { resolvePrimaryModel } from './llmRouter.js';
 import { execute, queryAll } from '../db/index.js';
 
-// Ask DeepSeek first for a JSON extraction, fall back to Haiku if
-// DeepSeek isn't configured, throws, or returns an unparseable body.
-// Both paths log into claude_usage_log via their respective loggers
-// (keyed by model string) so the admin dashboard can compare cost
-// between the two providers. Returns the raw content string — JSON
-// parsing + schema validation lives at the call site where the
-// expected shape differs per use case.
+// JSON extraction, DeepSeek only. The per-op override (via the llm
+// router) picks the tier: extraction picks the 2-sentence excerpt the
+// summary later synthesises, so its selection quality caps the summary's
+// ceiling — worth its own knob (LLM_PRIMARY_MODEL_SCRAPE_REVIEW). Defaults
+// to the flash alias when no override is set. Anthropic is no longer a
+// fallback: when the resolved tier fails we degrade to flash within
+// DeepSeek (a pro-tier hiccup shouldn't drop extraction), and if flash
+// itself fails we return null rather than reach for Haiku. Logs into
+// claude_usage_log via logDeepSeekUsage keyed by the response model.
+// Returns the raw content string — JSON parsing + schema validation
+// lives at the call site where the expected shape differs per use case.
 async function extractJsonWithFallback(
   operation: string,
   prompt: string,
   maxTokens: number
 ): Promise<string | null> {
-  // Primary: DeepSeek. Input-heavy extraction (Jina markdown → JSON)
-  // is exactly where DeepSeek's ~73%-cheaper input pricing vs Haiku
-  // earns the most, and JSON-mode on a structured schema is well
-  // within its capability.
-  if (isDeepSeekConfigured()) {
-    try {
-      // Route through the same per-op override the llm router uses so
-      // extraction can be flipped to a pricier tier
-      // (LLM_PRIMARY_MODEL_SCRAPE_REVIEW=deepseek-v4-pro) independently
-      // of the summary op. Extraction picks the 2-sentence excerpt the
-      // summary later synthesises, so its selection quality caps the
-      // summary's ceiling — worth its own knob. Defaults to the flash
-      // alias, preserving today's behaviour when no override is set.
-      const model = resolvePrimaryModel(operation, DEEPSEEK_MODEL);
-      const ds = await callDeepSeek(
-        [{ role: 'user', content: prompt }],
-        { jsonMode: true, maxTokens, model }
-      );
-      logDeepSeekUsage(operation, ds);
-      return ds.content;
-    } catch (err) {
-      console.warn(
-        `[${operation}] deepseek failed, falling back to Haiku:`,
-        (err as Error).message
-      );
-    }
+  if (!isDeepSeekConfigured()) return null;
+
+  const model = resolvePrimaryModel(operation, DEEPSEEK_MODEL);
+  try {
+    const ds = await callDeepSeek(
+      [{ role: 'user', content: prompt }],
+      { jsonMode: true, maxTokens, model }
+    );
+    logDeepSeekUsage(operation, ds);
+    return ds.content;
+  } catch (err) {
+    console.warn(
+      `[${operation}] deepseek ${model} failed:`,
+      (err as Error).message
+    );
   }
 
-  // Fallback: Haiku. Identical prompt; the model's own JSON fidelity
-  // handles the "Return ONLY JSON" instruction without response_format.
-  try {
-    const resp = await getClient().messages.create({
-      model: HAIKU,
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }],
-    });
-    logClaudeUsage(`${operation}_haiku_fallback`, resp);
-    const block = resp.content.find((b) => b.type === 'text');
-    if (!block || block.type !== 'text') return null;
-    return block.text;
-  } catch (err) {
-    console.error(`[${operation}] Haiku fallback also failed:`, (err as Error).message);
-    return null;
+  // Degrade within DeepSeek (pro → flash), not to Anthropic. Nothing to
+  // retry if the resolved tier was already flash.
+  if (model !== DEEPSEEK_MODEL) {
+    try {
+      const ds = await callDeepSeek(
+        [{ role: 'user', content: prompt }],
+        { jsonMode: true, maxTokens, model: DEEPSEEK_MODEL }
+      );
+      logDeepSeekUsage(`${operation}_flash_fallback`, ds);
+      return ds.content;
+    } catch (err) {
+      console.error(`[${operation}] deepseek flash fallback also failed:`, (err as Error).message);
+    }
   }
+  return null;
 }
 
 // Append-only log of URL scrapes that didn't yield a review.

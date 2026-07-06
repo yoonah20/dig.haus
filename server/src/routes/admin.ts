@@ -1309,13 +1309,18 @@ router.get('/llm-comparisons', (req, res) => {
     // invokeLlm call-site IDs; keep in sync with the shadow-wrapped
     // operations in services/claude.ts.
     const KNOWN_OPS: Array<{ operation: string; defaultModel: string }> = [
-      { operation: 'pronunciation', defaultModel: 'claude-haiku-4-5-20251001' },
-      { operation: 'similar_descriptions', defaultModel: 'claude-haiku-4-5-20251001' },
+      { operation: 'pronunciation', defaultModel: 'deepseek-chat' },
+      { operation: 'similar_descriptions', defaultModel: 'deepseek-chat' },
       // Op name is historical — kept as 'serper_pick' so any admin
       // routing overrides persisted in DB under this key keep working
       // regardless of which discovery engine (Serper / Tavily) is active.
-      { operation: 'serper_pick', defaultModel: 'claude-haiku-4-5-20251001' },
-      { operation: 'summary_fallback', defaultModel: 'claude-haiku-4-5-20251001' },
+      { operation: 'serper_pick', defaultModel: 'deepseek-chat' },
+      { operation: 'summary_fallback', defaultModel: 'deepseek-chat' },
+      // Extraction ops — router-controlled since they feed the summary.
+      // Surfaced here so the resolved-primary column confirms whether the
+      // LLM_PRIMARY_MODEL_SCRAPE_REVIEW=deepseek-v4-pro override took.
+      { operation: 'scrape_review', defaultModel: 'deepseek-chat' },
+      { operation: 'manual_review', defaultModel: 'deepseek-chat' },
     ];
     const routes = describeOperationRoutes(KNOWN_OPS);
     const shadowConfigured = routes.some((r) => r.shadowModel !== null);
