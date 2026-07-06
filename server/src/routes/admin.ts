@@ -9,7 +9,15 @@ import { requireAdmin } from '../middleware/auth.js';
 import {
   findDuplicates,
   deleteDeletableDuplicates,
+  mergeDuplicate,
 } from '../services/albumDedupe.js';
+import { adminClaudeLimiter } from '../middleware/adminRateLimit.js';
+import { generateKoreanSummary } from '../services/claude.js';
+import {
+  getCachedAlbum,
+  getCachedReviews,
+  updateAlbumFields,
+} from '../utils/cache.js';
 import {
   getRollingDailyClaudeSpendUsd,
   ROLLING_24H_USD_CAP,
@@ -1682,6 +1690,64 @@ router.post('/duplicates/delete', (req, res) => {
   }
   const result = deleteDeletableDuplicates(getDb(), ids);
   res.json(result);
+});
+
+// Merge duplicates into their canonical album (reviews combined, same-source
+// reviews deduped keeping the earlier one), then re-run the Korean review
+// summary per affected canonical so it reflects the merged review set. The
+// summary regen is one generateKoreanSummary call per canonical (DeepSeek v4
+// Flash, well under $0.001 each) — admin-triggered, one-time cleanup, so
+// gated behind adminClaudeLimiter like the other summary path.
+router.post('/duplicates/merge', adminClaudeLimiter, async (req, res) => {
+  const ids = Array.isArray(req.body?.ids)
+    ? req.body.ids.filter((n: unknown) => Number.isInteger(n))
+    : null;
+  if (!ids || ids.length === 0) {
+    return res.status(400).json({ error: 'ids (number[]) required' });
+  }
+
+  const db = getDb();
+  const results: Array<{ id: number; ok: boolean; reason?: string }> = [];
+  const canonicalMbids = new Set<string>();
+  for (const id of ids) {
+    const r = mergeDuplicate(db, id);
+    results.push({ id, ok: r.ok, reason: r.reason });
+    if (r.ok && r.canonicalMbid) canonicalMbids.add(r.canonicalMbid);
+  }
+
+  const summaries: Array<{ mbid: string; regenerated: boolean }> = [];
+  for (const mbid of canonicalMbids) {
+    const cached = getCachedAlbum(mbid);
+    const reviews = getCachedReviews(mbid) || [];
+    if (!cached || reviews.length < 2) {
+      summaries.push({ mbid, regenerated: false });
+      continue;
+    }
+    const summary = await generateKoreanSummary(
+      cached.title,
+      cached.artist_name,
+      reviews.map((r: any) => ({
+        source: r.source_name,
+        score: r.manual_score ?? r.score,
+        excerpt: r.excerpt,
+      }))
+    );
+    const fields: Record<string, any> = {
+      reviews_crawled_at: new Date().toISOString(),
+    };
+    if (summary) {
+      fields.korean_summary = summary;
+      fields.korean_summary_generated_at = new Date().toISOString();
+    }
+    updateAlbumFields(mbid, fields);
+    summaries.push({ mbid, regenerated: !!summary });
+  }
+
+  res.json({
+    merged: results.filter((r) => r.ok).map((r) => r.id),
+    results,
+    summaries,
+  });
 });
 
 export default router;

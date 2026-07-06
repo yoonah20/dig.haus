@@ -54,7 +54,9 @@ for (const e of deletable) {
 }
 
 if (blocked.length) {
-  console.log(`\n== SKIPPED — has data, needs manual merge: ${blocked.length} ==`);
+  console.log(
+    `\n== has data — merge via /admin/maintenance (not auto-deleted): ${blocked.length} ==`
+  );
   for (const e of blocked) {
     console.log(line(e));
     console.log(

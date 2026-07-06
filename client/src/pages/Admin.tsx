@@ -1336,6 +1336,26 @@ function DuplicatesPanel() {
     },
   });
 
+  const merge = useMutation({
+    mutationFn: async (ids: number[]) =>
+      (await axios.post('/api/admin/duplicates/merge', { ids })).data as {
+        merged: number[];
+        results: { id: number; ok: boolean; reason?: string }[];
+        summaries: { mbid: string; regenerated: boolean }[];
+      },
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ['admin-duplicates'] });
+      const failed = result.results.filter((r) => !r.ok);
+      if (failed.length > 0) {
+        alert(
+          `${result.merged.length}개 병합됨. ${failed.length}개는 실패: ${failed
+            .map((f) => `#${f.id}(${f.reason})`)
+            .join(', ')}`
+        );
+      }
+    },
+  });
+
   const dups = data?.duplicates ?? [];
   const deletable = dups.filter((d) => d.status === 'deletable');
   const hasData = dups.filter((d) => d.status === 'has_data');
@@ -1364,6 +1384,18 @@ function DuplicatesPanel() {
     )
       return;
     del.mutate(ids);
+  };
+
+  const runMerge = (d: DuplicateEntry) => {
+    if (
+      !window.confirm(
+        `"${d.artist} — ${d.title}"의 데이터를 원본(${d.canonicalSlug})으로 병합합니다.\n` +
+          `리뷰는 합쳐지고(같은 매체는 먼저 만들어진 쪽만 남김), 리뷰 요약은 다시 생성됩니다. ` +
+          `중복 앨범은 삭제됩니다. 되돌릴 수 없습니다. 진행할까요?`
+      )
+    )
+      return;
+    merge.mutate([d.id]);
   };
 
   return (
@@ -1448,7 +1480,7 @@ function DuplicatesPanel() {
 
         {hasData.length > 0 && (
           <Panel
-            title="데이터가 붙어 있어 보류 (수동 병합 필요)"
+            title="데이터가 붙어 있음 (병합)"
             icon="⚠️"
             count={hasData.length}
           >
@@ -1472,9 +1504,22 @@ function DuplicatesPanel() {
                       .join(' · ')}
                   </div>
                 </div>
-                <div className="text-[11px] text-gray-600 hidden sm:block w-40 truncate">
-                  → {d.canonicalSlug}
+                <div className="min-w-0 hidden sm:block w-32">
+                  <div className="text-[11px] text-gray-500">병합 대상</div>
+                  <Link
+                    to={`/album/${d.canonicalSlug}`}
+                    className="text-[11px] text-gray-400 hover:text-accent truncate block"
+                  >
+                    {d.canonicalSlug}
+                  </Link>
                 </div>
+                <button
+                  onClick={() => runMerge(d)}
+                  disabled={merge.isPending}
+                  className="text-xs font-semibold px-3 py-1.5 rounded bg-accent/90 hover:bg-accent text-white disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                >
+                  {merge.isPending ? '병합 중…' : '병합'}
+                </button>
               </div>
             ))}
           </Panel>

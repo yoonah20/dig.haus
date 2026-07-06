@@ -175,6 +175,138 @@ export function findDuplicates(db: Database.Database): DuplicateEntry[] {
   return entries;
 }
 
+// UNIQUE indexes on `table` that include `keyCol`, returned as the *other*
+// columns of each such index — i.e. the columns that (together with the
+// album key) define what "the same row" means, so we can detect a collision
+// before re-pointing a row at the canonical album. An index that is unique
+// on keyCol alone comes back as [].
+function uniqueConflictGroups(
+  db: Database.Database,
+  table: string,
+  keyCol: string
+): string[][] {
+  const groups: string[][] = [];
+  for (const idx of db.prepare(`PRAGMA index_list("${table}")`).all() as any[]) {
+    if (!idx.unique) continue;
+    const cols = (
+      db.prepare(`PRAGMA index_info("${idx.name}")`).all() as any[]
+    ).map((c) => c.name);
+    if (cols.includes(keyCol)) groups.push(cols.filter((c) => c !== keyCol));
+  }
+  return groups;
+}
+
+// Re-point every row that links to `dupKey` so it links to `canonKey`
+// instead. Where moving a row would collide with an existing canonical row
+// on a UNIQUE constraint (same user's vote, same review source, ...), the
+// earlier-created row wins — rowid is monotonic with insertion, so the
+// smaller rowid is the one made first ("먼저 만들어진 것 우선") — and the
+// loser is dropped. Reports and other child rows ride along on rowid, or
+// cascade-delete with their parent.
+function moveRows(
+  db: Database.Database,
+  table: string,
+  keyCol: string,
+  dupKey: string | number,
+  canonKey: string | number
+): void {
+  const groups = uniqueConflictGroups(db, table, keyCol);
+  if (groups.length === 0) {
+    db.prepare(`UPDATE "${table}" SET "${keyCol}" = ? WHERE "${keyCol}" = ?`).run(
+      canonKey,
+      dupKey
+    );
+    return;
+  }
+
+  const dupRows = db
+    .prepare(`SELECT rowid AS _rid, * FROM "${table}" WHERE "${keyCol}" = ?`)
+    .all(dupKey) as any[];
+  const moveOne = db.prepare(
+    `UPDATE "${table}" SET "${keyCol}" = ? WHERE rowid = ?`
+  );
+  const dropByRowid = db.prepare(`DELETE FROM "${table}" WHERE rowid = ?`);
+
+  for (const row of dupRows) {
+    const conflicts: number[] = [];
+    for (const others of groups) {
+      if (others.length === 0) {
+        const ex = db
+          .prepare(`SELECT rowid AS r FROM "${table}" WHERE "${keyCol}" = ?`)
+          .all(canonKey) as any[];
+        conflicts.push(...ex.map((e) => e.r));
+        continue;
+      }
+      const where = others.map((c) => `"${c}" IS ?`).join(' AND ');
+      const ex = db
+        .prepare(
+          `SELECT rowid AS r FROM "${table}" WHERE "${keyCol}" = ? AND ${where}`
+        )
+        .all(canonKey, ...others.map((c) => row[c])) as any[];
+      conflicts.push(...ex.map((e) => e.r));
+    }
+
+    if (conflicts.length === 0) {
+      moveOne.run(canonKey, row._rid);
+    } else if (row._rid < Math.min(...conflicts)) {
+      // Duplicate's row was created first → it wins; drop the canonical
+      // collisions, then move it over.
+      for (const r of conflicts) dropByRowid.run(r);
+      moveOne.run(canonKey, row._rid);
+    } else {
+      dropByRowid.run(row._rid);
+    }
+  }
+}
+
+// Merge a duplicate into its canonical album: move every referencing row
+// (reviews, votes, 50자 평, purchase links, crate/wall/home refs, ...) onto
+// the canonical album, drop the regenerable similar_albums rows, then delete
+// the now-empty duplicate. Suspicious entries (artist/title diverge) are
+// refused — those are probably genuinely different albums. Returns the
+// canonical mbid so the caller can re-run the Korean review summary now that
+// the reviews are combined.
+export function mergeDuplicate(
+  db: Database.Database,
+  id: number
+): {
+  ok: boolean;
+  canonicalMbid?: string;
+  canonicalId?: number;
+  reason?: string;
+} {
+  const entry = findDuplicates(db).find((e) => e.id === id);
+  if (!entry) return { ok: false, reason: 'not a duplicate' };
+  if (entry.status === 'suspicious') return { ok: false, reason: 'suspicious' };
+
+  const { fkRefs, mbidTables } = referencingTables(db);
+
+  const run = db.transaction(() => {
+    for (const t of mbidTables) {
+      if (NON_BLOCKING_MBID_TABLES.has(t)) {
+        db.prepare(`DELETE FROM "${t}" WHERE album_mbid = ?`).run(entry.mbid);
+        continue;
+      }
+      moveRows(db, t, 'album_mbid', entry.mbid, entry.canonicalMbid);
+    }
+    for (const fk of fkRefs) {
+      moveRows(db, fk.table, fk.col, entry.id, entry.canonicalId);
+    }
+    db.prepare('DELETE FROM albums WHERE id = ?').run(entry.id);
+  });
+
+  try {
+    run();
+  } catch (err: any) {
+    return { ok: false, reason: err.message };
+  }
+  return {
+    ok: true,
+    canonicalMbid: entry.canonicalMbid,
+    canonicalId: entry.canonicalId,
+  };
+}
+
 // Delete the given album ids, but ONLY those currently classified
 // `deletable` — the safety gate is re-evaluated here so a stale or
 // hand-crafted request can never remove a duplicate that carries data.
