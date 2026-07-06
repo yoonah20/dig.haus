@@ -1340,19 +1340,42 @@ function DuplicatesPanel() {
     mutationFn: async (ids: number[]) =>
       (await axios.post('/api/admin/duplicates/merge', { ids })).data as {
         merged: number[];
-        results: { id: number; ok: boolean; reason?: string }[];
+        results: {
+          id: number;
+          ok: boolean;
+          reason?: string;
+          reviewsMoved?: number;
+          reviewsDropped?: number;
+          canonicalReviewTotal?: number;
+        }[];
         summaries: { mbid: string; regenerated: boolean }[];
       },
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['admin-duplicates'] });
+      // The reviews moved server-side; mark the album pages stale so a
+      // visit to the canonical refetches the combined review set instead
+      // of a cached pre-merge response.
+      qc.invalidateQueries({ queryKey: ['album'] });
+      qc.invalidateQueries({ queryKey: ['album-reviews'] });
+      const ok = result.results.filter((r) => r.ok);
       const failed = result.results.filter((r) => !r.ok);
+      const moved = ok.reduce((s, r) => s + (r.reviewsMoved ?? 0), 0);
+      const dropped = ok.reduce((s, r) => s + (r.reviewsDropped ?? 0), 0);
+      const lines: string[] = [];
+      if (ok.length > 0) {
+        lines.push(
+          `${ok.length}개 병합됨 · 리뷰 ${moved}개 이동` +
+            (dropped > 0 ? `, 같은 매체 중복 ${dropped}개 제외` : '')
+        );
+      }
       if (failed.length > 0) {
-        alert(
-          `${result.merged.length}개 병합됨. ${failed.length}개는 실패: ${failed
+        lines.push(
+          `${failed.length}개 실패: ${failed
             .map((f) => `#${f.id}(${f.reason})`)
             .join(', ')}`
         );
       }
+      if (lines.length > 0) alert(lines.join('\n'));
     },
   });
 

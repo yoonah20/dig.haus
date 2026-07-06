@@ -1707,11 +1707,25 @@ router.post('/duplicates/merge', adminClaudeLimiter, async (req, res) => {
   }
 
   const db = getDb();
-  const results: Array<{ id: number; ok: boolean; reason?: string }> = [];
+  const results: Array<{
+    id: number;
+    ok: boolean;
+    reason?: string;
+    reviewsMoved?: number;
+    reviewsDropped?: number;
+    canonicalReviewTotal?: number;
+  }> = [];
   const canonicalMbids = new Set<string>();
   for (const id of ids) {
     const r = mergeDuplicate(db, id);
-    results.push({ id, ok: r.ok, reason: r.reason });
+    results.push({
+      id,
+      ok: r.ok,
+      reason: r.reason,
+      reviewsMoved: r.reviewsMoved,
+      reviewsDropped: r.reviewsDropped,
+      canonicalReviewTotal: r.canonicalReviewTotal,
+    });
     if (r.ok && r.canonicalMbid) canonicalMbids.add(r.canonicalMbid);
   }
 

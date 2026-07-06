@@ -23,9 +23,18 @@
 
 import type Database from 'better-sqlite3';
 
-// similar_albums is cheap auto-regenerated data — its presence doesn't
-// justify keeping a duplicate around, and it's cleaned up on delete.
-const NON_BLOCKING_MBID_TABLES = new Set(['similar_albums']);
+// mbid-keyed tables that are NOT user content: similar_albums is cheap
+// auto-regenerated data, and scrape_failures / curation_runs /
+// llm_comparison_log are diagnostic logs. None justify keeping a duplicate
+// around, none should count as "data" that blocks a delete, and on a
+// delete-or-merge they are dropped rather than moved (moving a log onto the
+// canonical would pollute its diagnostics).
+const REGENERABLE_MBID_TABLES = new Set([
+  'similar_albums',
+  'scrape_failures',
+  'curation_runs',
+  'llm_comparison_log',
+]);
 
 export type DuplicateStatus = 'deletable' | 'has_data' | 'suspicious';
 
@@ -142,7 +151,8 @@ export function findDuplicates(db: Database.Database): DuplicateEntry[] {
     for (const t of mbidTables) {
       const c = countByMbid(t, a.mbid);
       if (c === 0) continue;
-      if (NON_BLOCKING_MBID_TABLES.has(t)) similarCount += c;
+      if (t === 'similar_albums') similarCount += c;
+      else if (REGENERABLE_MBID_TABLES.has(t)) continue; // diagnostic logs — ignore
       else blocking.push({ table: t, count: c });
     }
 
@@ -273,6 +283,12 @@ export function mergeDuplicate(
   ok: boolean;
   canonicalMbid?: string;
   canonicalId?: number;
+  // How the duplicate's reviews landed: `moved` = new sources added to the
+  // canonical, `dropped` = same-source reviews the canonical already had (a
+  // same album reviewed by the same site twice), kept as the earlier one.
+  reviewsMoved?: number;
+  reviewsDropped?: number;
+  canonicalReviewTotal?: number;
   reason?: string;
 } {
   const entry = findDuplicates(db).find((e) => e.id === id);
@@ -280,10 +296,19 @@ export function mergeDuplicate(
   if (entry.status === 'suspicious') return { ok: false, reason: 'suspicious' };
 
   const { fkRefs, mbidTables } = referencingTables(db);
+  const reviewCount = (mbid: string): number =>
+    (
+      db
+        .prepare('SELECT COUNT(*) n FROM reviews WHERE album_mbid = ?')
+        .get(mbid) as any
+    ).n;
+
+  const dupReviews = reviewCount(entry.mbid);
+  const canonReviewsBefore = reviewCount(entry.canonicalMbid);
 
   const run = db.transaction(() => {
     for (const t of mbidTables) {
-      if (NON_BLOCKING_MBID_TABLES.has(t)) {
+      if (REGENERABLE_MBID_TABLES.has(t)) {
         db.prepare(`DELETE FROM "${t}" WHERE album_mbid = ?`).run(entry.mbid);
         continue;
       }
@@ -300,10 +325,16 @@ export function mergeDuplicate(
   } catch (err: any) {
     return { ok: false, reason: err.message };
   }
+
+  const canonReviewsAfter = reviewCount(entry.canonicalMbid);
+  const reviewsMoved = canonReviewsAfter - canonReviewsBefore;
   return {
     ok: true,
     canonicalMbid: entry.canonicalMbid,
     canonicalId: entry.canonicalId,
+    reviewsMoved,
+    reviewsDropped: dupReviews - reviewsMoved,
+    canonicalReviewTotal: canonReviewsAfter,
   };
 }
 
@@ -322,12 +353,15 @@ export function deleteDeletableDuplicates(
   const deleted: number[] = [];
   const refused: { id: number; reason: string }[] = [];
 
-  const delSimilar = db.prepare(
-    'DELETE FROM similar_albums WHERE album_mbid = ?'
-  );
+  // Regenerable/diagnostic mbid rows aren't FK-cascaded, so drop them
+  // explicitly before the album row or they orphan.
+  const { mbidTables } = referencingTables(db);
+  const cleanupTables = mbidTables.filter((t) => REGENERABLE_MBID_TABLES.has(t));
   const delAlbum = db.prepare('DELETE FROM albums WHERE id = ?');
   const runOne = db.transaction((e: DuplicateEntry) => {
-    delSimilar.run(e.mbid);
+    for (const t of cleanupTables) {
+      db.prepare(`DELETE FROM "${t}" WHERE album_mbid = ?`).run(e.mbid);
+    }
     delAlbum.run(e.id);
   });
 
