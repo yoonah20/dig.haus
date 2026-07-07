@@ -7,11 +7,23 @@ export function extractSpotifyId(url: string): string | null {
 }
 
 /**
- * Open Spotify album: try app URI first, fallback to web after 1s.
+ * Open Spotify album: try the app URI first, fall back to the web player
+ * after 1s for devices without the app.
  *
- * The fallback must be cancelled when the app actually opens: on mobile the
- * tab goes hidden and the timer freezes, then fires on return — at that point
- * there's no user gesture, so window.open trips the popup-blocker prompt.
+ * The web fallback must NOT run when the app actually opened, or the
+ * deferred window.open fires with no user gesture behind it and trips the
+ * popup allow/deny prompt when the user returns to the browser. We detect
+ * the app takeover three ways, because no single signal is reliable
+ * everywhere:
+ *   - visibilitychange → hidden (most mobile browsers background the tab)
+ *   - pagehide (iOS Safari fires this instead when handing off to the app)
+ *   - frozen-timer overshoot: a backgrounded tab freezes the timer, so on
+ *     return the real elapsed time far exceeds the delay. This is the only
+ *     signal that survives Korean in-app browsers (KakaoTalk / Naver /
+ *     Instagram webviews), which routinely open the external app WITHOUT
+ *     firing visibilitychange or pagehide.
+ * Desktop without the app is unaffected: the tab never hides, the timer
+ * fires on schedule, and the web player opens in a new tab as before.
  */
 export function openSpotifyAlbum(spotifyUrl: string): void {
   const spotifyId = extractSpotifyId(spotifyUrl);
@@ -20,24 +32,37 @@ export function openSpotifyAlbum(spotifyUrl: string): void {
     return;
   }
 
-  const timer = setTimeout(() => {
-    cleanup();
-    window.open(`https://open.spotify.com/album/${spotifyId}`, '_blank');
-  }, 1000);
-  const cancel = () => {
-    clearTimeout(timer);
-    cleanup();
-  };
-  const onVisibilityChange = () => {
-    if (document.visibilityState === 'hidden') cancel();
-  };
+  const webUrl = `https://open.spotify.com/album/${spotifyId}`;
+  const DELAY = 1000;
+  const startedAt = Date.now();
+  let handled = false;
+
   const cleanup = () => {
-    document.removeEventListener('visibilitychange', onVisibilityChange);
-    window.removeEventListener('pagehide', cancel);
+    document.removeEventListener('visibilitychange', onHide);
+    window.removeEventListener('pagehide', markHandled);
   };
-  document.addEventListener('visibilitychange', onVisibilityChange);
-  // iOS Safari fires pagehide instead of visibilitychange when the app opens.
-  window.addEventListener('pagehide', cancel);
+  const markHandled = () => {
+    handled = true;
+    cleanup();
+  };
+  const onHide = () => {
+    if (document.visibilityState === 'hidden') markHandled();
+  };
+
+  document.addEventListener('visibilitychange', onHide);
+  window.addEventListener('pagehide', markHandled);
+
+  setTimeout(() => {
+    cleanup();
+    if (
+      handled ||
+      document.visibilityState === 'hidden' ||
+      Date.now() - startedAt > DELAY + 400
+    ) {
+      return;
+    }
+    window.open(webUrl, '_blank');
+  }, DELAY);
 
   window.location.href = `spotify:album:${spotifyId}`;
 }
