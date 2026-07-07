@@ -365,15 +365,43 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
     }
   };
 
-  // When editing or pasting, render a plain div (no outer <a>) to keep
-  // the inline form usable.
-  const Wrapper = formActive ? 'div' : (review.url ? 'a' : 'div');
-  const wrapperProps = !formActive && review.url
-    ? { href: review.url, target: '_blank', rel: 'noopener noreferrer' }
-    : {};
+  const header = (
+    <div className="flex items-center gap-3 mb-2">
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="text-white font-semibold text-sm truncate">{review.source}</span>
+        {review.verified && (
+          <span
+            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[#1DB954] flex-shrink-0"
+            title="검증된 매체"
+            aria-label="검증된 매체"
+          >
+            <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" aria-hidden="true">
+              <path d="M2.5 6.2 L5 8.5 L9.5 3.8" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+        )}
+      </div>
+      <ScoreBadge review={review} onSaved={onScoreSaved} />
+    </div>
+  );
 
+  const excerpt = (review.excerptKo || review.excerpt) ? (
+    <p className="text-gray-300 text-sm leading-normal tracking-tight">
+      {retranslating ? '원문 다시 읽는 중...' : (review.excerptKo || review.excerpt)}
+    </p>
+  ) : null;
+
+  // Card root is a <div>; the review-URL <a> wraps only the header +
+  // excerpt, and the admin/report overlay buttons sit as siblings of it
+  // — never inside the anchor. On touch devices a tap that lands even
+  // slightly off a 24px overlay button (they overhang the top-right
+  // corner) used to fall through to a card-spanning <a target="_blank">
+  // and open the review instead of firing the button, so delete/edit
+  // read as "broken" on mobile. Scoping the anchor to the content means
+  // an imprecise tap hits the non-navigating <div>, not the link. Mirrors
+  // PurchaseLinksPanel's card structure.
   return (
-    <Wrapper {...wrapperProps} className={`relative block bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${formActive ? '' : 'hover:bg-panel-hover cursor-pointer'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
+    <div className={`relative bg-panel rounded-lg p-4 transition-colors duration-200 group/card ${formActive ? '' : 'hover:bg-panel-hover'} ${justAdded ? 'ring-2 ring-accent/70 shadow-[0_0_24px_rgba(232,160,32,0.35)]' : ''}`}>
       {loggedIn && !isAdmin && !formActive && (
         // Non-admin can't delete/rescrape/edit, but they can flag a
         // card that came in wrong. ⚑ matches the purchase-link report
@@ -429,96 +457,92 @@ function ReviewCard({ review, onScoreSaved, onRetranslated, onDeleted, justAdded
         </div>
       )}
 
-      <div className="flex items-center gap-3 mb-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <span className="text-white font-semibold text-sm truncate">{review.source}</span>
-          {review.verified && (
-            <span
-              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[#1DB954] flex-shrink-0"
-              title="검증된 매체"
-              aria-label="검증된 매체"
-            >
-              <svg viewBox="0 0 12 12" className="w-2.5 h-2.5" fill="none" aria-hidden="true">
-                <path d="M2.5 6.2 L5 8.5 L9.5 3.8" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </span>
-          )}
-        </div>
-        <ScoreBadge review={review} onSaved={onScoreSaved} />
-      </div>
-
-      {editing ? (
-        <div className="space-y-2">
-          <textarea
-            value={excerptDraft}
-            onChange={(e) => setExcerptDraft(e.target.value)}
-            disabled={savingExcerpt}
-            rows={4}
-            autoFocus
-            className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60 resize-y"
-          />
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={cancelEditExcerpt}
-              disabled={savingExcerpt}
-              className="px-2 py-0.5 text-xs text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
-              aria-label="취소"
-            >
-              ✕
-            </button>
-            <button
-              onClick={saveEditExcerpt}
-              disabled={savingExcerpt}
-              className="px-2 py-0.5 text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
-              aria-label="저장"
-            >
-              {savingExcerpt ? '...' : '✓'}
-            </button>
-          </div>
-        </div>
-      ) : pasting ? (
-        <div className="space-y-2">
-          <textarea
-            value={pasteDraft}
-            onChange={(e) => setPasteDraft(e.target.value)}
-            disabled={extracting}
-            rows={10}
-            autoFocus
-            placeholder="원문 페이지에서 리뷰 본문을 복사해 붙여넣으세요. score / 발쳐 / 한국어 요약을 다시 추출합니다."
-            className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-sm text-gray-200 placeholder:text-gray-500 focus:border-accent focus:outline-none disabled:opacity-60 resize-y"
-          />
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[11px] text-gray-500">
-              {extracting ? '추출 중...' : `${pasteDraft.trim().length}자 (최소 50자)`}
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={cancelPaste}
-                disabled={extracting}
-                className="px-2 py-0.5 text-xs text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
-                aria-label="취소"
-              >
-                ✕
-              </button>
-              <button
-                onClick={submitPaste}
-                disabled={extracting || pasteDraft.trim().length < 50}
-                className="px-2 py-0.5 text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
-                aria-label="추출"
-              >
-                {extracting ? '...' : '↻'}
-              </button>
+      {formActive ? (
+        <>
+          {header}
+          {editing ? (
+            <div className="space-y-2">
+              <textarea
+                value={excerptDraft}
+                onChange={(e) => setExcerptDraft(e.target.value)}
+                disabled={savingExcerpt}
+                rows={4}
+                autoFocus
+                className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-sm text-gray-200 focus:border-accent focus:outline-none disabled:opacity-60 resize-y"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={cancelEditExcerpt}
+                  disabled={savingExcerpt}
+                  className="px-2 py-0.5 text-xs text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
+                  aria-label="취소"
+                >
+                  ✕
+                </button>
+                <button
+                  onClick={saveEditExcerpt}
+                  disabled={savingExcerpt}
+                  className="px-2 py-0.5 text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
+                  aria-label="저장"
+                >
+                  {savingExcerpt ? '...' : '✓'}
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
+          ) : (
+            <div className="space-y-2">
+              <textarea
+                value={pasteDraft}
+                onChange={(e) => setPasteDraft(e.target.value)}
+                disabled={extracting}
+                rows={10}
+                autoFocus
+                placeholder="원문 페이지에서 리뷰 본문을 복사해 붙여넣으세요. score / 발쳐 / 한국어 요약을 다시 추출합니다."
+                className="w-full bg-panel-strong border border-white/10 rounded-md px-2 py-1 text-sm text-gray-200 placeholder:text-gray-500 focus:border-accent focus:outline-none disabled:opacity-60 resize-y"
+              />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] text-gray-500">
+                  {extracting ? '추출 중...' : `${pasteDraft.trim().length}자 (최소 50자)`}
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={cancelPaste}
+                    disabled={extracting}
+                    className="px-2 py-0.5 text-xs text-gray-400 hover:text-white disabled:opacity-40 cursor-pointer"
+                    aria-label="취소"
+                  >
+                    ✕
+                  </button>
+                  <button
+                    onClick={submitPaste}
+                    disabled={extracting || pasteDraft.trim().length < 50}
+                    className="px-2 py-0.5 text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
+                    aria-label="추출"
+                  >
+                    {extracting ? '...' : '↻'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : review.url ? (
+        <a
+          href={review.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block cursor-pointer"
+        >
+          {header}
+          {excerpt}
+        </a>
       ) : (
-        (review.excerptKo || review.excerpt) && (
-          <p className="text-gray-300 text-sm leading-normal tracking-tight">
-            {retranslating ? '원문 다시 읽는 중...' : (review.excerptKo || review.excerpt)}
-          </p>
-        )
+        <>
+          {header}
+          {excerpt}
+        </>
       )}
-    </Wrapper>
+    </div>
   );
 }
 
