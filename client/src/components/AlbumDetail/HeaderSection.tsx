@@ -9,7 +9,6 @@ import CoverArt from '../CoverArt';
 import PlayChip from '../PlayChip';
 import VoteButtons from '../VoteButtons';
 import CrateButton from './CrateButton';
-import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import CopyTitleButton from '../CopyTitleButton';
 
@@ -336,21 +335,16 @@ const linkServices = [
   },
 ];
 
+// Every service link — Spotify included — is a plain anchor to its
+// https URL. On mobile the OS's universal / app links open the native
+// app straight from the tap; with no app the web player opens in a new
+// tab. Spotify used to be special-cased through a spotify: scheme +
+// timed window.open fallback, but on iOS Safari that deferred
+// window.open always tripped the "attempting to open a pop-up window"
+// allow/deny prompt (the app opened fine, then the frozen fallback
+// fired on return). A real anchor click has none of that — same path
+// YouTube / Bandcamp already take.
 function LinkButton({ link }: { link: { key: string; name: string; color: string; icon: React.ReactNode; url: string } }) {
-  if (link.key === 'spotify') {
-    return (
-      <button
-        onClick={() => openSpotifyAlbum(link.url)}
-        className="flex items-center gap-2 bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2 transition-colors group cursor-pointer"
-      >
-        <span style={{ color: link.color }}>{link.icon}</span>
-        <span className="text-xs text-gray-400 group-hover:text-white transition-colors">
-          {link.name}
-        </span>
-      </button>
-    );
-  }
-
   return (
     <a
       href={link.url}

@@ -158,7 +158,7 @@ Known-but-deliberately-deferred items. Each is functional today — don't fix ju
 - `client/src/hooks/` — data hooks keyed by domain (`useAlbum`, `useMe`, `useAlbumRequests`, `useOwnership`, `usePurchaseLinks`, `useUserReviews`, `useUserReviewsFeed`, `useSearch`, mydig hooks)
 - `client/src/contexts/` — `AuthContext`, `HomeStateContext`, `SearchOverlayContext`, persistent-player context
 - `client/src/lib/` — `homeSort`, `adminSeen` (localStorage seenAt helpers)
-- `client/src/utils/` — `apiUrl`, `relativeTime`, `score`, `spotify`
+- `client/src/utils/` — `apiUrl`, `relativeTime`, `score`
 
 ### Server
 

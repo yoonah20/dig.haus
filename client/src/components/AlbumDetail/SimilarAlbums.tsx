@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../../lib/axios';
 import type { SimilarAlbum } from '../../types';
-import { openSpotifyAlbum } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import CardOverlayButton from '../CardOverlayButton';
 import PlayChip from '../PlayChip';
@@ -56,23 +55,21 @@ function ServiceIcons({ album }: { album: SimilarAlbum }) {
   // black/70 disc that was easy to miss on dark covers.
   return (
     <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-pill bg-black/75 backdrop-blur-sm ring-1 ring-white/10">
-      {links.map(({ key, url, color, Icon }) =>
-        key === 'spotify' ? (
-          <button
-            key={key}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              openSpotifyAlbum(url!);
-            }}
-            className="flex items-center justify-center w-4 h-4 transition-opacity hover:opacity-100 opacity-90 cursor-pointer"
-            style={{ color }}
-            title="Spotify에서 듣기"
-            aria-label="Spotify에서 듣기"
-          >
-            <Icon />
-          </button>
-        ) : (
+      {links.map(({ key, url, color, Icon }) => {
+        // All three are plain anchors — the OS opens the native app from
+        // a real tap via universal / app links, no JS. Spotify was a
+        // <button> firing a spotify: scheme + timed window.open fallback,
+        // which on iOS Safari always tripped the pop-up allow/deny prompt
+        // when the fallback fired on return from the app. stopPropagation
+        // keeps the card's own navigate() from firing; the anchor's
+        // default navigation is what triggers the app hand-off.
+        const label =
+          key === 'spotify'
+            ? 'Spotify에서 듣기'
+            : key === 'youtube'
+              ? 'YouTube에서 듣기'
+              : 'Bandcamp에서 듣기';
+        return (
           <a
             key={key}
             href={url!}
@@ -81,13 +78,13 @@ function ServiceIcons({ album }: { album: SimilarAlbum }) {
             onClick={(e) => e.stopPropagation()}
             className="flex items-center justify-center w-4 h-4 transition-opacity hover:opacity-100 opacity-90"
             style={{ color }}
-            title={key === 'youtube' ? 'YouTube에서 듣기' : 'Bandcamp에서 듣기'}
-            aria-label={key === 'youtube' ? 'YouTube에서 듣기' : 'Bandcamp에서 듣기'}
+            title={label}
+            aria-label={label}
           >
             <Icon />
           </a>
-        )
-      )}
+        );
+      })}
     </div>
   );
 }
