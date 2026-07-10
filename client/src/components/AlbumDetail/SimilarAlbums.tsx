@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import axios from '../../lib/axios';
 import type { SimilarAlbum } from '../../types';
+import { tryOpenSpotifyDesktopApp } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import CardOverlayButton from '../CardOverlayButton';
 import PlayChip from '../PlayChip';
@@ -56,13 +57,13 @@ function ServiceIcons({ album }: { album: SimilarAlbum }) {
   return (
     <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-pill bg-black/75 backdrop-blur-sm ring-1 ring-white/10">
       {links.map(({ key, url, color, Icon }) => {
-        // All three are plain anchors — the OS opens the native app from
-        // a real tap via universal / app links, no JS. Spotify was a
-        // <button> firing a spotify: scheme + timed window.open fallback,
-        // which on iOS Safari always tripped the pop-up allow/deny prompt
-        // when the fallback fired on return from the app. stopPropagation
-        // keeps the card's own navigate() from firing; the anchor's
-        // default navigation is what triggers the app hand-off.
+        // Plain anchors — on mobile the OS opens the native app from a
+        // real tap via universal / app links. stopPropagation keeps the
+        // card's own navigate() from firing. Spotify additionally hands
+        // off to the desktop app via the spotify: protocol on desktop
+        // only (mobile relies on the anchor's default https navigation;
+        // the protocol + window.open dance there trips iOS Safari's
+        // pop-up prompt).
         const label =
           key === 'spotify'
             ? 'Spotify에서 듣기'
@@ -75,7 +76,12 @@ function ServiceIcons({ album }: { album: SimilarAlbum }) {
             href={url!}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (key === 'spotify' && tryOpenSpotifyDesktopApp(url!)) {
+                e.preventDefault();
+              }
+            }}
             className="flex items-center justify-center w-4 h-4 transition-opacity hover:opacity-100 opacity-90"
             style={{ color }}
             title={label}

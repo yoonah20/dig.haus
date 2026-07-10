@@ -9,6 +9,7 @@ import CoverArt from '../CoverArt';
 import PlayChip from '../PlayChip';
 import VoteButtons from '../VoteButtons';
 import CrateButton from './CrateButton';
+import { tryOpenSpotifyDesktopApp } from '../../utils/spotify';
 import { useAuth } from '../../contexts/AuthContext';
 import CopyTitleButton from '../CopyTitleButton';
 
@@ -335,21 +336,26 @@ const linkServices = [
   },
 ];
 
-// Every service link — Spotify included — is a plain anchor to its
-// https URL. On mobile the OS's universal / app links open the native
-// app straight from the tap; with no app the web player opens in a new
-// tab. Spotify used to be special-cased through a spotify: scheme +
-// timed window.open fallback, but on iOS Safari that deferred
-// window.open always tripped the "attempting to open a pop-up window"
-// allow/deny prompt (the app opened fine, then the frozen fallback
-// fired on return). A real anchor click has none of that — same path
-// YouTube / Bandcamp already take.
+// Every service link is a plain anchor to its https URL. On mobile the
+// OS's universal / app links open the native app straight from the tap;
+// with no app the web player opens in a new tab. Spotify additionally
+// hands off to the desktop app via the spotify: protocol on desktop only
+// (see tryOpenSpotifyDesktopApp) — desktop has no universal-link path to
+// the app, and doing the protocol + window.open dance on mobile is what
+// tripped iOS Safari's "attempting to open a pop-up window" prompt.
 function LinkButton({ link }: { link: { key: string; name: string; color: string; icon: React.ReactNode; url: string } }) {
   return (
     <a
       href={link.url}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={
+        link.key === 'spotify'
+          ? (e) => {
+              if (tryOpenSpotifyDesktopApp(link.url)) e.preventDefault();
+            }
+          : undefined
+      }
       className="flex items-center gap-2 bg-white/5 hover:bg-white/10 rounded-lg px-3 py-2 transition-colors group"
     >
       <span style={{ color: link.color }}>{link.icon}</span>
