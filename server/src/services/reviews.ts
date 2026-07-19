@@ -982,6 +982,44 @@ function detectSiteSpecificScore(html: string, url: string): number | null {
   return null;
 }
 
+// Text-path counterpart to detectSiteSpecificScore for sites whose raw
+// HTML routinely never reaches us: Cloudflare walls our datacenter IP,
+// the page arrives as Jina markdown only, and every raw-HTML detector
+// is skipped. On that path the LLM used to be the only score source,
+// and it guesses when the visible scale is ambiguous — lambgoat renders
+// its /10 editorial score as a bare number under an "Our score" label,
+// and the LLM applied a /5 assumption to it, storing a 4/10 review as
+// 80/100 (Boundaries 'Yearning: The unbeautiful after', 2026-07).
+// Runs on pageText (Jina markdown, or stripped HTML when the raw fetch
+// worked but the markup detectors all missed), keyed by hostname so a
+// per-site scale convention can't false-positive elsewhere.
+function detectKnownSiteTextScore(text: string, url: string): number | null {
+  let host = '';
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+  } catch {
+    return null;
+  }
+
+  // lambgoat.com — album pages label the editorial score "Our score"
+  // followed by a bare number on a /10 scale ("Our score: N/A" on
+  // unscored pages — the digit requirement skips those). The bounded
+  // non-alphanumeric gap tolerates markdown artefacts (colons, line
+  // breaks, pipes) between label and number without letting the match
+  // jump into unrelated prose.
+  if (host === 'lambgoat.com') {
+    const m = text.match(
+      /Our\s+score[^\dA-Za-z]{0,20}(\d{1,2}(?:\.\d{1,2})?)\b/i
+    );
+    if (m) {
+      const score = parseFloat(m[1]);
+      if (score >= 0 && score <= 10) return Math.round(score * 10);
+    }
+  }
+
+  return null;
+}
+
 // WordPress "WP Product Review" plugin encodes the score directly in
 // a class name: `wppr-pNN` where NN is 0-100 (already on a /100 scale).
 // The main article's review widget appears first in document order;
@@ -1064,8 +1102,10 @@ function detectWpReviewPluginRating(html: string): number | null {
 // that rendered star icons near the top of the document (the ramzine
 // case: multiple <span class="entry-review-stars"> blocks with
 // DIFFERENT scores, only the last was the current review; star
-// detector grabbed the first). If bestRating is missing, falls back
-// to 5 (the only common default for star-system reviews).
+// detector grabbed the first). If bestRating is missing, the microdata
+// form falls back to 5 (the common default for star-system widgets);
+// the JSON-LD form requires bestRating near the match instead — see
+// the Form 2 comment in detectSchemaOrgRating.
 // Pull a microdata-tagged numeric value out of HTML. Tries the
 // `<meta itemprop="X" content="N">` form first (the schema.org
 // canonical encoding), then falls back to `<span itemprop="X">N</span>`
@@ -1127,18 +1167,34 @@ function detectSchemaOrgRating(html: string): number | null {
   //      (JSON serialised into an attribute — inner quotes escape-slashed)
   // The pattern tolerates both via a small non-digit run between the
   // key and its number. Same zero-sentinel rule as Form 1.
+  //
+  // Unlike Form 1 there is NO /5 default here, and bestRating must sit
+  // near the matched ratingValue (same rating object) rather than
+  // anywhere on the page. JSON-LD ratings on /10 sites frequently omit
+  // bestRating, so assuming /5 silently doubles their scores (a 4-of-10
+  // review becomes 80/100), and a whole-page bestRating lookup can pair
+  // the editorial ratingValue with an unrelated widget's scale. No
+  // bestRating nearby → not trustworthy → fall through to the next
+  // detector / the LLM.
   const jsonValue = html.match(/ratingValue[^\d]{1,10}(\d+(?:\.\d+)?)/);
-  if (jsonValue) {
+  if (jsonValue && jsonValue.index !== undefined) {
     const value = parseFloat(jsonValue[1]);
     if (Number.isFinite(value) && value > 0) {
-      const jsonBest = html.match(/bestRating[^\d]{1,10}(\d+(?:\.\d+)?)/);
-      const scale = jsonBest ? parseFloat(jsonBest[1]) : 5;
-      if (
-        [5, 10, 20, 100].includes(scale) &&
-        value >= 0 &&
-        value <= scale
-      ) {
-        return Math.max(0, Math.min(100, Math.round((value / scale) * 100)));
+      const windowStart = Math.max(0, jsonValue.index - 600);
+      const window = html.slice(
+        windowStart,
+        jsonValue.index + jsonValue[0].length + 600
+      );
+      const jsonBest = window.match(/bestRating[^\d]{1,10}(\d+(?:\.\d+)?)/);
+      if (jsonBest) {
+        const scale = parseFloat(jsonBest[1]);
+        if (
+          [5, 10, 20, 100].includes(scale) &&
+          value >= 0 &&
+          value <= scale
+        ) {
+          return Math.max(0, Math.min(100, Math.round((value / scale) * 100)));
+        }
       }
     }
   }
@@ -1920,6 +1976,18 @@ export async function scrapeReviewFromUrl(
     return { kind: 'fail', reason: 'text-too-short' };
   }
 
+  // Text-path site-specific score. Fills the gap when the raw fetch was
+  // bot-walled (the raw-HTML detector cascade above never ran) or when
+  // every markup detector missed. Same precedence as the raw detectors:
+  // a known-site label beats whatever the LLM infers from the prose.
+  if (detectedScore === null) {
+    const textScore = detectKnownSiteTextScore(pageText, url);
+    if (textScore !== null) {
+      detectedScore = textScore;
+      console.log(`[reviews] detected text-label score ${textScore}/100 for ${url}`);
+    }
+  }
+
   // Q&A structure guard. Catches interview pages whose URL slug
   // couldn't be regex'd (cryptic shorthand like /avralizeint1/). The
   // editorial-refusal rule in the Claude prompt does flag interviews,
@@ -1978,8 +2046,8 @@ Score: find the review's explicit rating and convert to a /100 integer. Follow t
    - 3/5 → 60
    - 85/100 → 85
 3. Percentages like "Rating: 85%" → 85 (already /100).
-4. "Album Rating: 4.0" (Sputnikmusic style, no visible denominator) → treat as /5. So 4.0 → 80, 3.5 → 70, 5.0 → 100.
-5. If you see numbers in the text that are NOT the album's rating — track lengths, release years, "5 of 10 songs are great" style prose, "4 stars" about a different album — do NOT use them. score = null is correct.
+4. "Album Rating: 4.0" (Sputnikmusic style, no visible denominator) → treat as /5. So 4.0 → 80, 3.5 → 70, 5.0 → 100. This /5 assumption applies ONLY to a literal "Album Rating:" label. For ANY other bare number without a visible denominator ("Our score 4", "Rating 7", a lone "8" in a score box) do NOT guess the scale — sites use /5, /10 and /100 and a wrong guess doubles or halves the score. Set score to null instead.
+5. If you see numbers in the text that are NOT the reviewer's rating — track lengths, release years, "5 of 10 songs are great" style prose, "4 stars" about a different album, or user/community/reader scores ("User score", "Community rating", reader votes, comment ratings, aggregate averages) — do NOT use them. Only the publication's own editorial review score counts. score = null is correct.
 6. QUALITATIVE ratings map to null — never guess a number. This includes:
    - Letter grades (A+, B-, etc.)
    - Word ratings like "Great!", "Excellent", "Good", "Okay", "Mediocre", "Disappointing"

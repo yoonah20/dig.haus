@@ -8,6 +8,20 @@ Add new entries to the top.
 
 ---
 
+## 2026-07-19 — lambgoat /albums/<id>/ 4/10 리뷰가 80점으로 저장됨
+
+- **URL**: https://lambgoat.com/albums/3443/boundaries-yearning-the-unbeautiful-after
+- **Expected**: `40/100` (Lambgoat editorial "Our score" = 4, /10 스케일. AOTY 집계에서도 Lambgoat = 40으로 확인)
+- **Observed**: `80/100` — 정확히 2배. "4"를 /5로 해석 (4/5 = 80).
+- **Cause**: lambgoat은 Cloudflare가 datacenter IP를 막는 사이트라 raw HTML fetch가 bot-walled → `rawResult.ok === false` → **raw-HTML detector cascade 전체가 스킵**되고 Jina markdown만으로 진행. 이 경로에서 점수는 `clampScore(parsed.score)` — 즉 LLM 추출값이 유일한 소스인데 교차 검증이 없음. lambgoat 점수 박스는 Jina markdown에서 분모 없는 bare "4"로 렌더링되고, 프롬프트 rule 4가 "분모 없는 숫자 → /5" 관행(Sputnik "Album Rating:" 용)을 가르치고 있어 LLM이 이를 일반화해 4 → 80으로 환산. (같은 페이지의 유저 평점 ~8/10을 집었을 가능성도 동일한 80을 만들지만, /5 오환산이 더 단순한 설명. 판별하려면 Railway 로그에 `[reviews] detected … score 80/100` 라인이 있는지 확인 — 있으면 detector 경로, 없으면 LLM 경로. 이 세션 환경에서는 lambgoat 접근이 차단되어 실페이지 마크업 미확인.)
+- **Fix**: 3중 —
+  1. `detectKnownSiteTextScore` 신설: hostname-키 텍스트 경로 detector. lambgoat의 "Our score: N" 라벨을 /10로 환산 (N/A는 digit 요구로 자동 스킵). raw fetch가 bot-walled여도 pageText(Jina markdown)에서 동작하며, LLM 추출값보다 우선.
+  2. scrape 프롬프트 rule 4를 literal "Album Rating:" 라벨로 명시적으로 제한 + "분모 안 보이면 null" 강조, rule 5에 유저/커뮤니티 평점 무시 명시.
+  3. `detectSchemaOrgRating` Form 2(JSON-LD)의 bestRating-부재 시 /5 기본값 제거 — 같은 2배 오류 패턴. bestRating이 ratingValue 매치 ±600자 window 안에 있을 때만 환산, 없으면 다음 detector/LLM으로 fall-through. (Form 1 microdata의 /5 기본값은 유지 — star widget 관행.)
+- **Status**: fixed (synthetic 케이스 검증; 실페이지 재수집 확인은 프로덕션에서 필요. 기존 DB의 80점 row는 재수집 또는 admin 수동 정정 필요)
+
+---
+
 ## 2026-05-18 — metalexpressradio.com user-rating 위젯이 항상 0점으로 잡힘
 
 - **URL**: https://www.metalexpressradio.com/2003/09/08/dimmu-borgir-death-cult-armageddon/ (+ 기존 DB에 같은 패턴 2건: house-of-lords/world-upside-down, starbreaker/starbreaker)
