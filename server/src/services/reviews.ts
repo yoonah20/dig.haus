@@ -1646,7 +1646,12 @@ export async function scrapeReviewFromUrl(
   url: string,
   artist: string,
   album: string,
-  albumMbid: string | null = null
+  albumMbid: string | null = null,
+  // avoidExcerpt: set by the admin rescrape flow. Without it, the same
+  // page at low temperature converges on the same "best two sentences"
+  // every run — the very symptom 원문 다시 읽기 exists to fix. Fresh
+  // scrapes (add-url, autoCuration, releaseSyncJob) never pass it.
+  opts: { avoidExcerpt?: string | null } = {}
 ): Promise<ScrapeOutcome> {
   console.log(`[reviews] scrapeReviewFromUrl: ${url}`);
   // Per-stage timers so we can profile where each scrape spends its
@@ -1934,6 +1939,17 @@ export async function scrapeReviewFromUrl(
     // ignore
   }
 
+  // Re-extraction nudge — steer the model away from the sentences it
+  // picked last time so 다시 읽기 actually produces a new excerpt.
+  // Temperature stays at the low default: raising it would jeopardise
+  // the score-conversion rules below, and even at high temperature the
+  // "evaluative sentences first" instruction pulls every run back to
+  // the same two sentences anyway.
+  const avoidExcerpt = opts.avoidExcerpt?.trim();
+  const avoidBlock = avoidExcerpt
+    ? `\nThis is a RE-extraction requested by the admin. The previous run picked these sentences:\n"${avoidExcerpt.slice(0, 600)}"\nPick DIFFERENT sentences from the review body this time — a different passage or angle (production, mood, standout tracks, comparisons, context). Reuse a previous sentence only if the review body is genuinely too short to offer alternatives. Score rules are unaffected: extract the same explicit rating as always.\n`
+    : '';
+
   const prompt = `Extract a single album review's info from this page about "${album}" by ${artist}.
 
 URL: ${url}
@@ -1974,7 +1990,7 @@ Score: find the review's explicit rating and convert to a /100 integer. Follow t
 Language: the review may be in English, Dutch, German, French, Spanish, Italian, Portuguese, Swedish, Korean, Japanese, or any other language. Non-English reviews are valid. Extract the excerpt in the review's original language; still produce a Korean excerptKo regardless of the source language.
 
 Excerpt: pick whatever prose about the album you can find from the main review body. Evaluative sentences first, but if the page only has descriptive prose (release context, band history, track-by-track discussion) include that instead. Skip pure navigation text, ads, and tracklists-only pages. "[Read more...]" preview links or aggregator-style listings with a short paragraph still count — extract what's there. If the page has a short highlighted pull-quote, teaser, or summary blurb that appears before the main review body, ignore it and extract from the main body instead.
-
+${avoidBlock}
 Be AGGRESSIVE about extracting when the page IS an album review. The cost of refusing a genuine review is higher than saving a weak excerpt.
 
 BUT: strictly refuse the following non-review page types, even when they mention the album by name. Return {"error":"not an album review"} with no prose:

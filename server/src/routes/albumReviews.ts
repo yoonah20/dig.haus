@@ -698,7 +698,7 @@ router.post('/reviews/:reviewId/rescrape', adminClaudeLimiter, requireAdmin, asy
 
   try {
     const review = queryGet(
-      'SELECT id, album_mbid, source_name, full_review_url FROM reviews WHERE id = ?',
+      'SELECT id, album_mbid, source_name, full_review_url, excerpt FROM reviews WHERE id = ?',
       [reviewId]
     );
     if (!review) {
@@ -719,7 +719,11 @@ router.post('/reviews/:reviewId/rescrape', adminClaudeLimiter, requireAdmin, asy
       review.full_review_url,
       album.artist_name || '',
       album.title || '',
-      review.album_mbid
+      review.album_mbid,
+      // Steer the re-extraction away from the currently stored excerpt —
+      // without this the LLM picks the same two sentences every click
+      // and the button appears to do nothing.
+      { avoidExcerpt: review.excerpt }
     );
 
     if (outcome.kind !== 'ok') {
