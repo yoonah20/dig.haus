@@ -34,10 +34,13 @@ import { enqueueAutoCuration } from '../services/autoCuration.js';
 //   cost ~$0.01/album, so we do not want an accidental daily retry.
 //
 // KST/UTC note: the cron fires at 04:00 Asia/Seoul (= 19:00 UTC the
-// day before), so date('now') is the prior UTC calendar day. An album
-// released on KST day D therefore first matches on the run held at
-// 04:00 KST of D+1 — a natural ~28h settle that gives Discogs/Spotify
-// time to index and reviews time to publish. Intentional, not a bug.
+// day before), so a bare date('now') resolves to the PRIOR UTC calendar
+// day — an album released on KST day D would not match until the 04:00
+// KST run of D+1. We compare against date('now', '+9 hours') instead so
+// the gate is anchored to the KST calendar day: an album released on KST
+// day D first matches on the 04:00 KST run of D itself. The JS-side
+// isUnreleased() guard in autoCuration uses the same KST boundary so the
+// review enqueue isn't skipped as "not out yet" on that 04:00 run.
 
 interface AlbumRow {
   mbid: string;
@@ -127,8 +130,8 @@ export async function runReleaseSync(): Promise<{
     `SELECT mbid
      FROM albums
      WHERE date(release_date) IS NOT NULL
-       AND date(release_date) <= date('now')
-       AND date(release_date) >= date('now', '-7 days')
+       AND date(release_date) <= date('now', '+9 hours')
+       AND date(release_date) >= date('now', '+9 hours', '-7 days')
        AND artist_name IS NOT NULL
        AND title IS NOT NULL
      ORDER BY release_date DESC`
@@ -155,7 +158,7 @@ export async function runReleaseSync(): Promise<{
   // so the count reflects real enqueues.
   const reviewCandidates = queryAll(
     `SELECT mbid FROM albums
-     WHERE date(release_date) = date('now')
+     WHERE date(release_date) = date('now', '+9 hours')
        AND reviews_crawled_at IS NULL`
   ) as Array<{ mbid: string }>;
 

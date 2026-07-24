@@ -325,13 +325,20 @@ function updateProgress(mbid: string, patch: Partial<CurationProgress>): void {
   progressByMbid.set(mbid, { ...current, ...patch });
 }
 
+// release_date is a bare calendar day with no timezone; we treat it as a
+// KST release — available from 00:00 KST of that day. The release-sync
+// job fires at 04:00 KST and its SQL gate is anchored to the KST calendar
+// day, so this guard must use the same KST boundary. A UTC-midnight
+// boundary would read the album as still unreleased at 04:00 KST (which
+// is the prior UTC day) and skip the very enqueue the job just selected.
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 function isUnreleased(releaseDate: string | null | undefined): boolean {
   if (!releaseDate) return false;
   const match = releaseDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return false;
   const ts = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
   if (Number.isNaN(ts)) return false;
-  return ts > Date.now();
+  return ts - KST_OFFSET_MS > Date.now();
 }
 
 function emptyResult(
