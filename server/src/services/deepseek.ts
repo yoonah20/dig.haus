@@ -72,13 +72,40 @@ export async function callDeepSeek(
     body.response_format = { type: 'json_object' };
   }
 
-  const resp = await axios.post(`${DEEPSEEK_BASE_URL}/chat/completions`, body, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    timeout: opts.timeoutMs ?? 30000,
-  });
+  let resp;
+  try {
+    resp = await axios.post(`${DEEPSEEK_BASE_URL}/chat/completions`, body, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: opts.timeoutMs ?? 30000,
+    });
+  } catch (err) {
+    // Surface the real reason instead of the opaque "Request failed with
+    // status code 4xx". DeepSeek returns the cause in the JSON body
+    // (e.g. 402 Insufficient Balance, 401 auth, 400/404 unknown model) —
+    // without it these all look identical downstream ("검색 결과 없음"),
+    // which is exactly why an account/key/model problem is hard to spot.
+    // The .response is preserved so retry logic can still gate on status.
+    const ax = err as {
+      response?: { status?: number; data?: { error?: { message?: string } | string; message?: string } };
+    };
+    if (ax?.response) {
+      const status = ax.response.status;
+      const body = ax.response.data;
+      const apiMsg =
+        (typeof body?.error === 'object' ? body?.error?.message : body?.error) ||
+        body?.message ||
+        '';
+      const e = new Error(
+        `DeepSeek API ${status}${apiMsg ? `: ${apiMsg}` : ''}`
+      ) as Error & { response?: unknown };
+      e.response = ax.response;
+      throw e;
+    }
+    throw err; // network error / timeout — no response body to enrich
+  }
 
   const data = resp.data ?? {};
   const content: string | undefined = data.choices?.[0]?.message?.content;

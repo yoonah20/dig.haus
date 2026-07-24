@@ -171,7 +171,11 @@ export async function generateKoreanSummary(
       `[reviews/timing] op=summary reviews=${reviews.length} ms=${ms} outcome=error`
     );
     console.warn(`[claude] generateKoreanSummary failed for "${artist} - ${albumTitle}":`, (err as Error).message);
-    return null;
+    // Propagate the real reason (auth / balance / unknown model) so the
+    // admin generate-summary route can surface it and skip stamping the
+    // album as crawled during an outage. Callers that want a soft failure
+    // (autoCuration's retry loop) already wrap this in their own catch.
+    throw err;
   }
 }
 
@@ -385,7 +389,7 @@ export async function selectEditorialReviewUrls(
    요약: ${c.snippet}`
     )
     .join('\n');
-  try {
+  {
     const promptText = `"${album}" by ${artist} 에 대한 editorial 음악 리뷰 URL 후보를 골라주세요.
 
 후보:
@@ -430,11 +434,10 @@ ${list}
     } catch {
       return [];
     }
-  } catch (err) {
-    console.warn(
-      `[claude] selectEditorialReviewUrls failed for "${artist} - ${album}":`,
-      (err as Error).message
-    );
-    return [];
+    // LLM / transport errors are deliberately NOT caught here — they
+    // propagate so the discover route surfaces the real reason (auth,
+    // balance, unknown model) instead of it looking like "no editorial
+    // URLs found". A genuinely empty or unparseable response still
+    // returns [] above.
   }
 }

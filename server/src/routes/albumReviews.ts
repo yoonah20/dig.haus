@@ -204,8 +204,12 @@ router.post('/:id/reviews/discover', adminClaudeLimiter, requireAdmin, async (re
     // an otherwise-trusted URL didn't reappear.
     res.json({ urls: reordered, whitelistedCount, alreadySavedCount: alreadySaved });
   } catch (err) {
+    // Surface the underlying reason (e.g. "DeepSeek API 402: Insufficient
+    // Balance") so the admin curation log shows why discovery failed
+    // instead of a generic message that reads like "no results".
+    const msg = (err as Error)?.message || 'unknown';
     console.error('[discover] failed:', err);
-    res.status(500).json({ error: 'URL 검색에 실패했습니다.' });
+    res.status(500).json({ error: `URL 검색에 실패했습니다: ${msg}` });
   }
 });
 
@@ -514,15 +518,26 @@ router.post(
       });
     }
 
-    const summary = await generateKoreanSummary(
-      cached.title,
-      cached.artist_name,
-      existing.map((r: any) => ({
-        source: r.source_name,
-        score: r.manual_score ?? r.score,
-        excerpt: r.excerpt,
-      }))
-    );
+    let summary: string | null;
+    try {
+      summary = await generateKoreanSummary(
+        cached.title,
+        cached.artist_name,
+        existing.map((r: any) => ({
+          source: r.source_name,
+          score: r.manual_score ?? r.score,
+          excerpt: r.excerpt,
+        }))
+      );
+    } catch (err) {
+      // Do NOT stamp reviews_crawled_at on a real failure — that would
+      // mark the album "curated" during a DeepSeek outage. Surface the
+      // reason so the admin sees e.g. "DeepSeek API 402: Insufficient
+      // Balance" instead of a silent no-op.
+      const msg = (err as Error)?.message || 'unknown';
+      console.error('[generate-summary] failed:', err);
+      return res.status(502).json({ error: `요약 생성에 실패했습니다: ${msg}` });
+    }
 
     const fields: Record<string, any> = {
       // Stamp the crawl marker regardless of summary success — admin
