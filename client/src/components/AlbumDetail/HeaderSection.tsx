@@ -400,6 +400,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const [editingAlbum, setEditingAlbum] = useState(false);
   const [savingAlbum, setSavingAlbum] = useState(false);
   const [refreshingDiscogs, setRefreshingDiscogs] = useState(false);
+  const [refreshingLinks, setRefreshingLinks] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [resettingReviews, setResettingReviews] = useState(false);
   const [regeneratingSimilar, setRegeneratingSimilar] = useState(false);
@@ -418,6 +419,31 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
   const { user } = useAuth();
 
   const albumId = album.slug || album.mbid;
+
+  // Re-resolve every store/streaming link from scratch — the same
+  // discovery that runs on first registration. Fixes pre-order rows that
+  // were registered before the album existed on Spotify/Discogs or got
+  // matched to the wrong release.
+  const handleRefreshLinks = useCallback(async () => {
+    if (refreshingLinks) return;
+    setRefreshingLinks(true);
+    try {
+      const { data } = await axios.post(`/api/albums/${albumId}/refresh-links`);
+      await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
+      await queryClient.invalidateQueries({ queryKey: ['purchase-links', albumId] });
+      const found = ['discogs', 'spotify', 'youtube', 'bandcamp'].filter(
+        (k) => data?.[k]
+      );
+      if (found.length === 0) {
+        alert('갱신된 링크가 없습니다. (검색 결과 없음)');
+      }
+    } catch (err) {
+      console.error('Refresh links error:', err);
+      alert('링크 갱신에 실패했습니다.');
+    } finally {
+      setRefreshingLinks(false);
+    }
+  }, [albumId, queryClient, refreshingLinks]);
 
   const handleRefreshDiscogs = useCallback(async () => {
     if (refreshingDiscogs) return;
@@ -806,6 +832,12 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
               role="menu"
               className="absolute right-0 mt-1 w-48 bg-[#111] border border-white/10 rounded-md shadow-xl py-1 z-30"
             >
+              <AdminMenuItem
+                onClick={() => { setAdminMenuOpen(false); void handleRefreshLinks(); }}
+                disabled={refreshingLinks}
+              >
+                {refreshingLinks ? '갱신 중...' : '🔗 링크 갱신'}
+              </AdminMenuItem>
               <AdminMenuItem
                 onClick={() => { setAdminMenuOpen(false); void handleRefreshDiscogs(); }}
                 disabled={refreshingDiscogs}

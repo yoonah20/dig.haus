@@ -1522,6 +1522,61 @@ router.post('/:id/refresh-discogs', requireAdmin, async (req, res) => {
   }
 });
 
+// ─── POST /api/albums/:id/refresh-links — admin re-resolve all links ─────
+//
+// On-demand counterpart to the first-registration link discovery
+// (getOrFetchAlbumBase fetches Spotify / YouTube / Bandcamp / Discogs in
+// parallel). Pre-orders often get registered before these exist or land
+// on the wrong release, so this re-searches every store/streaming link
+// from scratch. Same "overwrite only on a hit" rule everywhere: a null
+// lookup leaves the existing link intact rather than blanking a good one
+// on a transient miss. Discogs + Spotify go through the shared release-
+// sync resolver (which also refreshes market formats); YouTube + Bandcamp
+// are resolved here with the identical rule.
+//
+// No LLM cost — these are the same external APIs already hit on every
+// album registration (Spotify/Discogs/YouTube/Bandcamp), just re-invoked
+// once per admin click.
+
+router.post('/:id/refresh-links', requireAdmin, async (req, res) => {
+  const resolved = resolveAlbumId(req.params.id as string);
+  const mbid = resolved?.mbid || (req.params.id as string);
+
+  const row = queryGet(
+    'SELECT mbid, artist_name, title FROM albums WHERE mbid = ?',
+    [mbid]
+  ) as { mbid: string; artist_name: string | null; title: string | null } | undefined;
+  if (!row) {
+    return res.status(404).json({ error: 'Album not found' });
+  }
+  if (!row.artist_name || !row.title) {
+    return res.status(400).json({ error: 'Album is missing artist or title' });
+  }
+
+  try {
+    const links = await syncSingleAlbumRelease(mbid);
+    const found = { ...links, youtube: false, bandcamp: false };
+
+    const [ytRes, bcRes] = await Promise.allSettled([
+      searchVideo(row.artist_name, row.title),
+      searchBandcamp(row.artist_name, row.title),
+    ]);
+    if (ytRes.status === 'fulfilled' && ytRes.value) {
+      updateAlbumFields(mbid, { youtube_url: ytRes.value });
+      found.youtube = true;
+    }
+    if (bcRes.status === 'fulfilled' && bcRes.value?.url) {
+      updateAlbumFields(mbid, { bandcamp_url: bcRes.value.url });
+      found.bandcamp = true;
+    }
+
+    res.json({ ok: true, ...found });
+  } catch (error) {
+    console.error('Refresh links error:', error);
+    res.status(500).json({ error: 'Failed to refresh links' });
+  }
+});
+
 // ─── POST /api/albums/:id/sync-release — admin release-day resync ────────
 //
 // Manual counterpart to the daily releaseSyncJob: re-resolves the
