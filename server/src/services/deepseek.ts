@@ -93,6 +93,48 @@ export async function callDeepSeek(
   };
 }
 
+// Bounded retry around callDeepSeek for the transient failure modes we
+// actually see: an empty content body (DeepSeek intermittently answers
+// with choices[0].message.content === '' and callDeepSeek throws "no
+// content"), network errors / timeouts, and 5xx. A 4xx is never retried —
+// a bad request or auth failure won't fix itself on a repeat. Kept as an
+// explicit opt-in wrapper so callDeepSeek itself stays the raw single-
+// shot call described in the module header; callers that want resilience
+// (the review-extraction and invokeLlm paths) reach for this instead.
+// Throws the last error on exhaustion, so existing caller try/catch and
+// logging keep working unchanged.
+const DEEPSEEK_RETRY_ATTEMPTS = 3;
+
+function isTransientDeepSeekError(err: unknown): boolean {
+  const e = err as { message?: string; response?: { status?: number } };
+  if (e?.message === 'DeepSeek returned no content') return true;
+  if (e?.response?.status != null) return e.response.status >= 500;
+  // No response object on the error → network error / timeout.
+  return true;
+}
+
+export async function callDeepSeekWithRetry(
+  messages: DeepSeekMessage[],
+  opts: CallOptions = {}
+): Promise<DeepSeekResponse> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < DEEPSEEK_RETRY_ATTEMPTS; attempt++) {
+    try {
+      return await callDeepSeek(messages, opts);
+    } catch (err) {
+      lastErr = err;
+      const transient = isTransientDeepSeekError(err);
+      console.warn(
+        `[deepseek] ${opts.model ?? DEEPSEEK_MODEL} attempt ${attempt + 1}/${DEEPSEEK_RETRY_ATTEMPTS} failed${transient ? '' : ' (non-retryable)'}:`,
+        (err as Error).message
+      );
+      if (!transient || attempt === DEEPSEEK_RETRY_ATTEMPTS - 1) break;
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+  }
+  throw lastErr;
+}
+
 // Mirrors logClaudeUsage shape — same table, different provider. The
 // admin dashboard + rolling-24h budget gate both already read from
 // claude_usage_log keyed by model, so a deepseek-chat row shows up

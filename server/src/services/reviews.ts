@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { normaliseKoreanTerms } from './claude.js';
 import {
-  callDeepSeek,
+  callDeepSeekWithRetry,
   DEEPSEEK_MODEL,
   isDeepSeekConfigured,
   logDeepSeekUsage,
@@ -20,51 +20,6 @@ import { execute, queryAll } from '../db/index.js';
 // claude_usage_log via logDeepSeekUsage keyed by the response model.
 // Returns the raw content string — JSON parsing + schema validation
 // lives at the call site where the expected shape differs per use case.
-// Up to 3 attempts per tier. DeepSeek intermittently answers with an
-// empty content body (callDeepSeek throws "no content") and long pages
-// occasionally trip the request timeout — both transient, and both
-// previously fell straight through to claude-no-text because the default
-// flash tier had no retry at all. 4xx (auth / bad request) is never
-// retried; it won't fix itself on a repeat.
-const LLM_RETRY_ATTEMPTS = 3;
-
-function isTransientLlmError(err: unknown): boolean {
-  const e = err as { message?: string; response?: { status?: number } };
-  // Empty content body — the documented "API blip".
-  if (e?.message === 'DeepSeek returned no content') return true;
-  // HTTP response present: retry 5xx (server-side), not 4xx (our request).
-  if (e?.response?.status != null) return e.response.status >= 500;
-  // No response object → network error / timeout → transient.
-  return true;
-}
-
-async function callDeepSeekWithRetry(
-  operation: string,
-  prompt: string,
-  maxTokens: number,
-  model: string
-): Promise<string | null> {
-  for (let attempt = 0; attempt < LLM_RETRY_ATTEMPTS; attempt++) {
-    try {
-      const ds = await callDeepSeek(
-        [{ role: 'user', content: prompt }],
-        { jsonMode: true, maxTokens, model }
-      );
-      logDeepSeekUsage(operation, ds);
-      return ds.content;
-    } catch (err) {
-      const transient = isTransientLlmError(err);
-      console.warn(
-        `[${operation}] deepseek ${model} attempt ${attempt + 1}/${LLM_RETRY_ATTEMPTS} failed${transient ? '' : ' (non-retryable)'}:`,
-        (err as Error).message
-      );
-      if (!transient || attempt === LLM_RETRY_ATTEMPTS - 1) break;
-      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
-    }
-  }
-  return null;
-}
-
 async function extractJsonWithFallback(
   operation: string,
   prompt: string,
@@ -72,20 +27,37 @@ async function extractJsonWithFallback(
 ): Promise<string | null> {
   if (!isDeepSeekConfigured()) return null;
 
+  // callDeepSeekWithRetry absorbs the transient failures (empty content
+  // body, timeout, 5xx) that used to drop straight through to
+  // claude-no-text — the default flash tier previously had no retry.
   const model = resolvePrimaryModel(operation, DEEPSEEK_MODEL);
-  const primary = await callDeepSeekWithRetry(operation, prompt, maxTokens, model);
-  if (primary !== null) return primary;
+  try {
+    const ds = await callDeepSeekWithRetry(
+      [{ role: 'user', content: prompt }],
+      { jsonMode: true, maxTokens, model }
+    );
+    logDeepSeekUsage(operation, ds);
+    return ds.content;
+  } catch (err) {
+    console.warn(
+      `[${operation}] deepseek ${model} failed after retries:`,
+      (err as Error).message
+    );
+  }
 
   // Degrade within DeepSeek (pro → flash), not to Anthropic. Nothing to
   // retry if the resolved tier was already flash.
   if (model !== DEEPSEEK_MODEL) {
-    const flash = await callDeepSeekWithRetry(
-      `${operation}_flash_fallback`,
-      prompt,
-      maxTokens,
-      DEEPSEEK_MODEL
-    );
-    if (flash !== null) return flash;
+    try {
+      const ds = await callDeepSeekWithRetry(
+        [{ role: 'user', content: prompt }],
+        { jsonMode: true, maxTokens, model: DEEPSEEK_MODEL }
+      );
+      logDeepSeekUsage(`${operation}_flash_fallback`, ds);
+      return ds.content;
+    } catch (err) {
+      console.error(`[${operation}] deepseek flash fallback also failed after retries:`, (err as Error).message);
+    }
   }
   return null;
 }

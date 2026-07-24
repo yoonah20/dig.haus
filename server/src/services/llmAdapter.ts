@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { callDeepSeek } from './deepseek.js';
+import { callDeepSeekWithRetry } from './deepseek.js';
 import { execute } from '../db/index.js';
 
 // Unified model-agnostic adapter. Given a model ID string, routes the
@@ -57,7 +57,7 @@ export async function callLlmByModel(opts: CallOpts): Promise<LlmResult> {
 
   if (model.startsWith('deepseek-')) {
     const t0 = Date.now();
-    const ds = await callDeepSeek(
+    const ds = await callDeepSeekWithRetry(
       [{ role: 'user', content: prompt }],
       { maxTokens, jsonMode, model }
     );
