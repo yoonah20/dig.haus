@@ -46,12 +46,20 @@ const TAP_MAX_MS = 350;
 // the badge stops feeling informative.
 const NEW_BADGE_DAYS = 30;
 
+// release_date is a bare calendar day with no timezone. We anchor it to
+// 00:00 Asia/Seoul (UTC+9) so the SOON→NEW / "released" transition flips
+// on the KST release day, matching the server's release-sync job which
+// gates on the KST calendar day. A bare UTC-midnight anchor flipped 9h
+// late (09:00 KST), leaving a window where the server had already synced
+// the album but the card still showed "곧 발매".
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 function parseReleaseTimestamp(releaseDate: string | null | undefined): number | null {
   if (!releaseDate) return null;
   const match = releaseDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!match) return null;
-  const ts = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  return Number.isNaN(ts) ? null : ts;
+  const utcMidnight = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(utcMidnight)) return null;
+  return utcMidnight - KST_OFFSET_MS;
 }
 
 export function isRecentRelease(releaseDate: string | null | undefined): boolean {
