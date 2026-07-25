@@ -22,7 +22,8 @@ import {
   getRollingDailyClaudeSpendUsd,
   ROLLING_24H_USD_CAP,
 } from '../services/claudeBudget.js';
-import { describeOperationRoutes } from '../services/llmRouter.js';
+import { describeOperationRoutes, PRIMARY_MODEL_SETTING_KEY } from '../services/llmRouter.js';
+import { getSetting, setSetting, clearSetting } from '../utils/settings.js';
 import {
   bustSourceListCaches,
   getVerifiedHosts,
@@ -1321,18 +1322,18 @@ router.get('/llm-comparisons', (req, res) => {
     // invokeLlm call-site IDs; keep in sync with the shadow-wrapped
     // operations in services/claude.ts.
     const KNOWN_OPS: Array<{ operation: string; defaultModel: string }> = [
-      { operation: 'pronunciation', defaultModel: 'deepseek-chat' },
-      { operation: 'similar_descriptions', defaultModel: 'deepseek-chat' },
+      { operation: 'pronunciation', defaultModel: 'deepseek-v4-flash' },
+      { operation: 'similar_descriptions', defaultModel: 'deepseek-v4-flash' },
       // Op name is historical — kept as 'serper_pick' so any admin
       // routing overrides persisted in DB under this key keep working
       // regardless of which discovery engine (Serper / Tavily) is active.
-      { operation: 'serper_pick', defaultModel: 'deepseek-chat' },
-      { operation: 'summary_fallback', defaultModel: 'deepseek-chat' },
+      { operation: 'serper_pick', defaultModel: 'deepseek-v4-flash' },
+      { operation: 'summary_fallback', defaultModel: 'deepseek-v4-flash' },
       // Extraction ops — router-controlled since they feed the summary.
       // Surfaced here so the resolved-primary column confirms whether the
       // LLM_PRIMARY_MODEL_SCRAPE_REVIEW=deepseek-v4-pro override took.
-      { operation: 'scrape_review', defaultModel: 'deepseek-chat' },
-      { operation: 'manual_review', defaultModel: 'deepseek-chat' },
+      { operation: 'scrape_review', defaultModel: 'deepseek-v4-flash' },
+      { operation: 'manual_review', defaultModel: 'deepseek-v4-flash' },
     ];
     const routes = describeOperationRoutes(KNOWN_OPS);
     const shadowConfigured = routes.some((r) => r.shadowModel !== null);
@@ -1348,6 +1349,42 @@ router.get('/llm-comparisons', (req, res) => {
     console.error('[llm-comparisons] list failed:', err);
     res.status(500).json({ error: 'failed to list llm comparisons' });
   }
+});
+
+// ─── LLM primary model — admin-editable blanket routing ─────────────────
+//
+// The blanket DeepSeek model every default op runs on. Persisted in
+// app_settings so the operator can switch (e.g. flash ↔ pro, or a future
+// renamed id) from /admin/api without a redeploy — added after DeepSeek
+// retired the `deepseek-chat` alias and every LLM feature 400'd at once.
+// Env overrides (LLM_PRIMARY_MODEL[_<OP>]) still win, so this is disabled
+// display-wise when one is set.
+const ALLOWED_PRIMARY_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+
+router.get('/llm-model', (_req, res) => {
+  res.json({
+    configured: getSetting(PRIMARY_MODEL_SETTING_KEY),
+    envOverride: process.env.LLM_PRIMARY_MODEL || null,
+    codeDefault: 'deepseek-v4-flash',
+    options: ALLOWED_PRIMARY_MODELS,
+  });
+});
+
+router.post('/llm-model', (req, res) => {
+  const raw = req.body?.model;
+  // Empty / null clears the override → falls back to the code default.
+  if (raw == null || String(raw).trim() === '') {
+    clearSetting(PRIMARY_MODEL_SETTING_KEY);
+    return res.json({ ok: true, configured: null });
+  }
+  const model = String(raw).trim();
+  if (!ALLOWED_PRIMARY_MODELS.includes(model)) {
+    return res
+      .status(400)
+      .json({ error: `지원하지 않는 모델입니다: ${model}` });
+  }
+  setSetting(PRIMARY_MODEL_SETTING_KEY, model);
+  res.json({ ok: true, configured: model });
 });
 
 // ─── GET /api/admin/spotify/status ────────────────────────────────────

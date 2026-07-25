@@ -335,6 +335,19 @@ export function initializeDatabase(db: Database.Database): void {
     )
   `);
 
+  // Generic admin-editable key-value settings. Currently holds
+  // 'llm_primary_model' (the blanket DeepSeek model the admin picks in
+  // /admin/api) but kept generic so future single-operator toggles don't
+  // each need their own table. Empty by default — an absent key means
+  // "use the code default", so a fresh DB behaves exactly as before.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+
   // Curation runs — one row per album processed by the admin one-click
   // or batch curation pipeline (discover → add-url × N → summary).
   // Used for the "큐레이션 이력" panel in /admin: shows per-album

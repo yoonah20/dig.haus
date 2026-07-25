@@ -27,7 +27,7 @@ export function resolveShadowModel(operation: string): string | null {
   // Backward compat — pre-refactor the only option was DeepSeek via
   // a binary flag. Keep that working so existing env setups don't
   // silently stop logging.
-  if (process.env.LLM_COMPARE === '1') return 'deepseek-chat';
+  if (process.env.LLM_COMPARE === '1') return 'deepseek-v4-flash';
   return null;
 }
 

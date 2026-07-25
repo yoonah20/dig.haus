@@ -16,7 +16,13 @@ import { execute } from '../db/index.js';
 // surfaces errors via thrown exceptions so the caller can branch
 // cleanly.
 
-export const DEEPSEEK_MODEL = 'deepseek-chat';
+// DeepSeek retired the `deepseek-chat` alias — the API now rejects it
+// (400: supported names are deepseek-v4-pro / deepseek-v4-flash), so the
+// code default is the explicit flash id. The admin can switch the blanket
+// model at runtime via the app_settings 'llm_primary_model' key
+// (/admin/api) without a redeploy; this constant is only the last-resort
+// fallback when neither that setting nor an env override is present.
+export const DEEPSEEK_MODEL = 'deepseek-v4-flash';
 const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 
 interface DeepSeekMessage {

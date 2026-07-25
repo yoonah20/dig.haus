@@ -1255,6 +1255,12 @@ export default function Admin() {
 
       {activeTab === 'api' && (
         <Suspense fallback={<div className="text-sm text-gray-400">로딩 중…</div>}>
+          {/* Blanket LLM model selector — the one knob that fixes an
+              outage like the deepseek-chat rename without a redeploy. */}
+          <section className="mb-6">
+            <LlmModelPanel />
+          </section>
+
           {/* Live usage console (polls /api/admin/api-console every
               15s). Same view as /admin/api-console; the standalone
               route stays available for pinned-tab workflows. */}
@@ -1274,6 +1280,98 @@ export default function Admin() {
 
       {activeTab === 'maintenance' && <DuplicatesPanel />}
     </main>
+  );
+}
+
+// Blanket primary-LLM model selector. Reads/writes the app_settings
+// 'llm_primary_model' key via /api/admin/llm-model. The one control that
+// lets the operator swap the DeepSeek tier (or a future renamed model id)
+// without a redeploy — added after DeepSeek retired the `deepseek-chat`
+// alias and every LLM feature 400'd at once.
+interface LlmModelResp {
+  configured: string | null;
+  envOverride: string | null;
+  codeDefault: string;
+  options: string[];
+}
+
+function LlmModelPanel() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useQuery<LlmModelResp>({
+    queryKey: ['admin', 'llm-model'],
+    queryFn: async () => (await axios.get('/api/admin/llm-model')).data,
+  });
+
+  const save = useMutation({
+    mutationFn: async (model: string) =>
+      (await axios.post('/api/admin/llm-model', { model })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'llm-model'] });
+    },
+    onError: (err: any) => {
+      alert(err?.response?.data?.error ?? '모델 변경에 실패했습니다.');
+    },
+  });
+
+  if (isLoading) return <div className="text-sm text-gray-400">모델 정보 로딩 중…</div>;
+  if (isError || !data)
+    return <div className="text-sm text-red-400">모델 정보를 불러오지 못했습니다.</div>;
+
+  // The env override, when present, wins over the DB setting in
+  // resolvePrimaryModel — reflect that so the dropdown doesn't look
+  // authoritative when it isn't.
+  const effective = data.envOverride ?? data.configured ?? data.codeDefault;
+  const selectValue = data.configured ?? data.codeDefault;
+  const envLocked = !!data.envOverride;
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#111] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-200">메인 LLM 모델</h3>
+          <p className="mt-0.5 text-xs text-gray-500">
+            리뷰 큐레이션 · 요약 · 스크랩 등 모든 기본 LLM 작업이 쓰는 모델.
+          </p>
+        </div>
+        <span className="shrink-0 rounded-md bg-white/5 px-2 py-1 font-mono text-xs text-accent">
+          {effective}
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <select
+          value={selectValue}
+          disabled={envLocked || save.isPending}
+          onChange={(e) => save.mutate(e.target.value)}
+          className="rounded-md border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-gray-200 disabled:opacity-50"
+        >
+          {data.options.map((m) => (
+            <option key={m} value={m}>
+              {m}
+              {m === data.codeDefault ? ' (기본)' : ''}
+            </option>
+          ))}
+        </select>
+        {save.isPending && <span className="text-xs text-gray-400">저장 중…</span>}
+        {data.configured && !envLocked && (
+          <button
+            onClick={() => save.mutate('')}
+            disabled={save.isPending}
+            className="text-xs text-gray-500 hover:text-accent"
+            title="DB 설정을 지우고 코드 기본값으로 되돌립니다."
+          >
+            기본값으로 초기화
+          </button>
+        )}
+      </div>
+
+      {envLocked && (
+        <p className="mt-2 text-xs text-amber-400/80">
+          환경변수 LLM_PRIMARY_MODEL={data.envOverride} 이(가) 설정돼 있어 이 값이
+          우선합니다. 드롭다운으로 바꾸려면 Railway에서 해당 변수를 먼저 지워주세요.
+        </p>
+      )}
+    </div>
   );
 }
 

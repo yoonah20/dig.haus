@@ -90,7 +90,7 @@ titleMeaning 규칙:
       operation: 'pronunciation',
       prompt: promptText,
       maxTokens: 200,
-      defaultModel: 'deepseek-chat',
+      defaultModel: 'deepseek-v4-flash',
       jsonMode: true,
       albumTitle: `${artist} - ${album}`,
     });
@@ -154,7 +154,7 @@ export async function generateKoreanSummary(
       operation: 'summary_fallback',
       prompt: promptText,
       maxTokens: 500,
-      defaultModel: 'deepseek-chat',
+      defaultModel: 'deepseek-v4-flash',
       albumTitle: `${artist} - ${albumTitle}`,
     });
     const ms = Math.round(performance.now() - start);
@@ -341,7 +341,7 @@ JSON array only: [{"title":"","artist":"","descriptionKo":""}]`;
       operation: 'similar_descriptions',
       prompt: promptText,
       maxTokens: 1000,
-      defaultModel: 'deepseek-chat',
+      defaultModel: 'deepseek-v4-flash',
       jsonMode: true,
       albumTitle: `${baseArtist} - ${baseAlbum}`,
     });
@@ -418,7 +418,7 @@ ${list}
       operation: 'serper_pick',
       prompt: promptText,
       maxTokens: 1200,
-      defaultModel: 'deepseek-chat',
+      defaultModel: 'deepseek-v4-flash',
       jsonMode: true,
       albumTitle: `${artist} - ${album}`,
     });

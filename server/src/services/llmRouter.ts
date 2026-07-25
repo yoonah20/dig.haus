@@ -1,5 +1,13 @@
 import { callLlmByModel, type LlmResult } from './llmAdapter.js';
 import { fireShadowComparison } from './llmCompare.js';
+import { getSetting } from '../utils/settings.js';
+
+// app_settings key holding the admin-picked blanket primary model. Set
+// from /admin/api; absent means "use the code default". Sits below the
+// env overrides so LLM_PRIMARY_MODEL[_<OP>] still win for debugging, but
+// above the hardcoded defaultModel so the operator can switch models
+// (e.g. deepseek-v4-flash ↔ deepseek-v4-pro) without a redeploy.
+export const PRIMARY_MODEL_SETTING_KEY = 'llm_primary_model';
 
 // The single entry point that claude.ts / reviews.ts / routes call
 // when they want an LLM response. Two responsibilities:
@@ -40,6 +48,8 @@ export function resolvePrimaryModel(
   if (perOp === 'default') return defaultModel;
   const global = process.env.LLM_PRIMARY_MODEL;
   if (global) return global;
+  const configured = getSetting(PRIMARY_MODEL_SETTING_KEY);
+  if (configured) return configured;
   return defaultModel;
 }
 

@@ -2508,7 +2508,7 @@ router.post('/:id/similar', adminClaudeLimiter, requireAdmin, async (req, res) =
         operation: 'similar_manual_reason',
         prompt: `"${baseTitle}" by ${baseArtist} 팬을 위한 비슷한 앨범 설명 1-2문장 한국어.\n앨범: "${title}" by ${artist}\nJSON only: {"reason":"한국어 설명"}`,
         maxTokens: 200,
-        defaultModel: 'deepseek-chat',
+        defaultModel: 'deepseek-v4-flash',
         jsonMode: true,
         albumTitle: `${artist} - ${title}`,
       });
