@@ -126,23 +126,37 @@ export async function callDeepSeek(
   };
 }
 
-// Bounded retry around callDeepSeek for the transient failure modes we
-// actually see: an empty content body (DeepSeek intermittently answers
-// with choices[0].message.content === '' and callDeepSeek throws "no
-// content"), network errors / timeouts, and 5xx. A 4xx is never retried —
-// a bad request or auth failure won't fix itself on a repeat. Kept as an
-// explicit opt-in wrapper so callDeepSeek itself stays the raw single-
-// shot call described in the module header; callers that want resilience
-// (the review-extraction and invokeLlm paths) reach for this instead.
-// Throws the last error on exhaustion, so existing caller try/catch and
-// logging keep working unchanged.
-const DEEPSEEK_RETRY_ATTEMPTS = 3;
+// Bounded retry around callDeepSeek for the FAST transient failure modes:
+// an empty content body (DeepSeek intermittently answers with
+// choices[0].message.content === '' and callDeepSeek throws "no content"),
+// a 5xx, or a connection-level network error. All of those fail quickly,
+// so one retry costs little.
+//
+// Timeouts (ECONNABORTED) are deliberately NOT retried: the request
+// already burned the full ~30s budget, and retrying would triple the
+// latency of an already-slow scrape — enough to push a single add-url
+// past the upstream (Cloudflare/Railway) request timeout and turn a slow
+// page into a hard failure. That regression is exactly why curation felt
+// far slower and dropped reviews after the retry landed. A 4xx is never
+// retried either — a bad request / auth / unknown-model error won't fix
+// itself on a repeat.
+//
+// Kept as an explicit opt-in wrapper so callDeepSeek stays the raw single-
+// shot call described in the module header. Throws the last error on
+// exhaustion, so existing caller try/catch and logging keep working.
+const DEEPSEEK_RETRY_ATTEMPTS = 2;
 
 function isTransientDeepSeekError(err: unknown): boolean {
-  const e = err as { message?: string; response?: { status?: number } };
+  const e = err as {
+    code?: string;
+    message?: string;
+    response?: { status?: number };
+  };
+  // Timeout — already cost the full budget; a retry only compounds it.
+  if (e?.code === 'ECONNABORTED') return false;
   if (e?.message === 'DeepSeek returned no content') return true;
   if (e?.response?.status != null) return e.response.status >= 500;
-  // No response object on the error → network error / timeout.
+  // No response object and not a timeout → connection reset/refused → retry.
   return true;
 }
 
