@@ -114,9 +114,21 @@ export async function callDeepSeek(
   }
 
   const data = resp.data ?? {};
-  const content: string | undefined = data.choices?.[0]?.message?.content;
+  const choice = data.choices?.[0];
+  const content: string | undefined = choice?.message?.content;
   if (typeof content !== 'string' || content.length === 0) {
-    throw new Error('DeepSeek returned no content');
+    // Keep the "returned no content" substring (the retry gate matches on
+    // it) but carry the diagnostics that actually explain WHY: which model
+    // answered, the finish_reason (length = truncated / reasoning ate the
+    // budget; content_filter = blocked; stop = model chose to say nothing),
+    // and whether a reasoning_content block is present (a hint the model
+    // is running in a thinking mode that starved the content field).
+    const usedModel = data.model || opts.model || DEEPSEEK_MODEL;
+    const finish = choice?.finish_reason ?? 'unknown';
+    const hasReasoning = !!choice?.message?.reasoning_content;
+    throw new Error(
+      `DeepSeek (${usedModel}) returned no content [finish_reason=${finish}${hasReasoning ? ', reasoning_content present' : ''}]`
+    );
   }
   return {
     content,
@@ -154,7 +166,7 @@ function isTransientDeepSeekError(err: unknown): boolean {
   };
   // Timeout — already cost the full budget; a retry only compounds it.
   if (e?.code === 'ECONNABORTED') return false;
-  if (e?.message === 'DeepSeek returned no content') return true;
+  if (e?.message?.includes('returned no content')) return true;
   if (e?.response?.status != null) return e.response.status >= 500;
   // No response object and not a timeout → connection reset/refused → retry.
   return true;
