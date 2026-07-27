@@ -1225,7 +1225,9 @@ router.post('/:id/regenerate-pronunciation', adminClaudeLimiter, requireAdmin, a
   try {
     const result = await generatePronunciation(cached.artist_name, cached.title);
     if (!result) {
-      return res.status(502).json({ error: 'Claude failed to generate pronunciation' });
+      return res
+        .status(502)
+        .json({ error: 'LLM이 빈 응답/파싱 불가 결과를 반환했습니다.' });
     }
     updateAlbumFields(mbid, {
       artist_ko: result.artistKo,
@@ -1239,8 +1241,12 @@ router.post('/:id/regenerate-pronunciation', adminClaudeLimiter, requireAdmin, a
       titleMeaning: result.titleMeaning,
     });
   } catch (error) {
+    // Surface the underlying reason (e.g. "DeepSeek API 400: ... you passed
+    // deepseek-chat") so the admin can tell an env/model problem apart from
+    // a transient one instead of a generic "failed".
+    const msg = (error as Error)?.message || 'unknown';
     console.error('Regenerate pronunciation error:', error);
-    res.status(500).json({ error: 'Failed to regenerate pronunciation' });
+    res.status(500).json({ error: `번역 재생성 실패: ${msg}` });
   }
 });
 

@@ -72,7 +72,7 @@ async function _generatePronunciation(
   artist: string,
   album: string
 ): Promise<{ artistKo: string; titleKo: string; titleMeaning: string } | null> {
-  try {
+  {
     const promptText = `JSON only: {"artistKo":"${artist} 한국어 발음","titleKo":"${album} 한국어 발음","titleMeaning":"${album} 한국어 뜻"}
 
 titleMeaning 규칙:
@@ -89,15 +89,28 @@ titleMeaning 규칙:
     const result = await invokeLlm({
       operation: 'pronunciation',
       prompt: promptText,
-      maxTokens: 200,
+      // Was 200 — the smallest cap of any op and the only one that broke
+      // while the others (500–2000) worked. Bumped so a slightly longer
+      // JSON body (or a little model overhead) can't truncate the output
+      // into unparseable/empty. Output-cap only; billed on actual tokens.
+      maxTokens: 500,
       defaultModel: 'deepseek-v4-flash',
       jsonMode: true,
       albumTitle: `${artist} - ${album}`,
     });
+    // LLM / transport errors are NOT caught here — they propagate so the
+    // admin regenerate endpoint can surface the real reason (a per-op env
+    // still pinned to deepseek-chat, auth, balance) instead of a generic
+    // "failed". Only genuinely empty or unparseable output degrades to null.
     if (!result.text) return null;
     const match = result.text.match(/\{[\s\S]*\}/);
     if (!match) return null;
-    const parsed = JSON.parse(match[0]);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
     // Defensive: if the model still emits "A/B" despite instructions,
     // keep only the first option.
     const rawMeaning = parsed.titleMeaning || '';
@@ -109,9 +122,6 @@ titleMeaning 규칙:
       titleKo: parsed.titleKo || '',
       titleMeaning,
     };
-  } catch (err) {
-    console.warn(`[claude] generatePronunciation failed for "${artist} - ${album}":`, (err as Error).message);
-    return null;
   }
 }
 

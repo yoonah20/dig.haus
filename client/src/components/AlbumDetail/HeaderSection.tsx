@@ -558,9 +558,9 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     try {
       await axios.post(`/api/albums/${albumId}/regenerate-pronunciation`);
       await queryClient.invalidateQueries({ queryKey: ['album', albumId] });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Regenerate pronunciation error:', err);
-      alert('번역 재생성에 실패했습니다.');
+      alert(err?.response?.data?.error ?? '번역 재생성에 실패했습니다.');
     } finally {
       setRegeneratingKo(false);
     }
