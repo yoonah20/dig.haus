@@ -1256,9 +1256,11 @@ export default function Admin() {
       {activeTab === 'api' && (
         <Suspense fallback={<div className="text-sm text-gray-400">로딩 중…</div>}>
           {/* Blanket LLM model selector — the one knob that fixes an
-              outage like the deepseek-chat rename without a redeploy. */}
-          <section className="mb-6">
+              outage like the deepseek-chat rename without a redeploy —
+              plus the default review-discovery engine right below it. */}
+          <section className="mb-6 space-y-3">
             <LlmModelPanel />
+            <DiscoveryEnginePanel />
           </section>
 
           {/* Live usage console (polls /api/admin/api-console every
@@ -1297,6 +1299,7 @@ interface LlmModelResp {
 
 function LlmModelPanel() {
   const qc = useQueryClient();
+  const [custom, setCustom] = useState('');
   const { data, isLoading, isError } = useQuery<LlmModelResp>({
     queryKey: ['admin', 'llm-model'],
     queryFn: async () => (await axios.get('/api/admin/llm-model')).data,
@@ -1306,6 +1309,7 @@ function LlmModelPanel() {
     mutationFn: async (model: string) =>
       (await axios.post('/api/admin/llm-model', { model })).data,
     onSuccess: () => {
+      setCustom('');
       qc.invalidateQueries({ queryKey: ['admin', 'llm-model'] });
     },
     onError: (err: any) => {
@@ -1323,6 +1327,9 @@ function LlmModelPanel() {
   const effective = data.envOverride ?? data.configured ?? data.codeDefault;
   const selectValue = data.configured ?? data.codeDefault;
   const envLocked = !!data.envOverride;
+  // Include a custom-configured value in the dropdown so it shows as
+  // selected even when it isn't one of the suggested quick-picks.
+  const selectOptions = Array.from(new Set([...data.options, selectValue]));
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#111] p-4">
@@ -1331,6 +1338,120 @@ function LlmModelPanel() {
           <h3 className="text-sm font-semibold text-gray-200">메인 LLM 모델</h3>
           <p className="mt-0.5 text-xs text-gray-500">
             리뷰 큐레이션 · 요약 · 스크랩 등 모든 기본 LLM 작업이 쓰는 모델.
+          </p>
+        </div>
+        <span className="shrink-0 rounded-md bg-white/5 px-2 py-1 font-mono text-xs text-accent">
+          {effective}
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <select
+          value={selectValue}
+          disabled={envLocked || save.isPending}
+          onChange={(e) => save.mutate(e.target.value)}
+          className="rounded-md border border-white/10 bg-black/40 px-2 py-1.5 text-sm text-gray-200 disabled:opacity-50"
+        >
+          {selectOptions.map((m) => (
+            <option key={m} value={m}>
+              {m}
+              {m === data.codeDefault ? ' (기본)' : ''}
+            </option>
+          ))}
+        </select>
+        {save.isPending && <span className="text-xs text-gray-400">저장 중…</span>}
+        {data.configured && !envLocked && (
+          <button
+            onClick={() => save.mutate('')}
+            disabled={save.isPending}
+            className="text-xs text-gray-500 hover:text-accent"
+            title="DB 설정을 지우고 코드 기본값으로 되돌립니다."
+          >
+            기본값으로 초기화
+          </button>
+        )}
+      </div>
+
+      {/* Free-text entry for a model id not in the quick-picks, so a future
+          model can be adopted without a code change. */}
+      <div className="mt-2 flex items-center gap-2">
+        <input
+          type="text"
+          value={custom}
+          onChange={(e) => setCustom(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && custom.trim()) save.mutate(custom.trim());
+          }}
+          placeholder="직접 입력 (예: deepseek-v5, claude-opus-4-8)"
+          disabled={envLocked || save.isPending}
+          className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/40 px-2 py-1.5 font-mono text-xs text-gray-200 disabled:opacity-50"
+        />
+        <button
+          onClick={() => custom.trim() && save.mutate(custom.trim())}
+          disabled={envLocked || save.isPending || !custom.trim()}
+          className="shrink-0 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-gray-200 hover:border-accent hover:text-accent disabled:opacity-40"
+        >
+          적용
+        </button>
+      </div>
+      <p className="mt-1 text-[11px] text-gray-600">
+        deepseek-* 는 DeepSeek로, 그 외 이름은 Anthropic로 라우팅됩니다 (해당 키 필요).
+      </p>
+
+      {envLocked && (
+        <p className="mt-2 text-xs text-amber-400/80">
+          환경변수 LLM_PRIMARY_MODEL={data.envOverride} 이(가) 설정돼 있어 이 값이
+          우선합니다. 드롭다운으로 바꾸려면 Railway에서 해당 변수를 먼저 지워주세요.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Default discovery engine selector (review-URL search). Reads/writes the
+// app_settings 'discovery_engine' key via /api/admin/discovery-engine.
+// Fixed option set — each engine maps to a wired implementation, so unlike
+// the model field there is no free-text entry.
+interface DiscoveryEngineResp {
+  configured: string | null;
+  envOverride: string | null;
+  codeDefault: string;
+  options: string[];
+}
+
+function DiscoveryEnginePanel() {
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useQuery<DiscoveryEngineResp>({
+    queryKey: ['admin', 'discovery-engine'],
+    queryFn: async () => (await axios.get('/api/admin/discovery-engine')).data,
+  });
+
+  const save = useMutation({
+    mutationFn: async (engine: string) =>
+      (await axios.post('/api/admin/discovery-engine', { engine })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'discovery-engine'] });
+    },
+    onError: (err: any) => {
+      alert(err?.response?.data?.error ?? '엔진 변경에 실패했습니다.');
+    },
+  });
+
+  if (isLoading) return <div className="text-sm text-gray-400">엔진 정보 로딩 중…</div>;
+  if (isError || !data)
+    return <div className="text-sm text-red-400">엔진 정보를 불러오지 못했습니다.</div>;
+
+  const effective = data.envOverride ?? data.configured ?? data.codeDefault;
+  const selectValue = data.configured ?? data.codeDefault;
+  const envLocked = !!data.envOverride;
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#111] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-200">리뷰 검색 엔진 (Discovery)</h3>
+          <p className="mt-0.5 text-xs text-gray-500">
+            자동 큐레이션 배치와 🔎 자동 검색의 기본 엔진.
           </p>
         </div>
         <span className="shrink-0 rounded-md bg-white/5 px-2 py-1 font-mono text-xs text-accent">
@@ -1358,7 +1479,7 @@ function LlmModelPanel() {
             onClick={() => save.mutate('')}
             disabled={save.isPending}
             className="text-xs text-gray-500 hover:text-accent"
-            title="DB 설정을 지우고 코드 기본값으로 되돌립니다."
+            title="DB 설정을 지우고 코드 기본값(tavily)으로 되돌립니다."
           >
             기본값으로 초기화
           </button>
@@ -1367,7 +1488,7 @@ function LlmModelPanel() {
 
       {envLocked && (
         <p className="mt-2 text-xs text-amber-400/80">
-          환경변수 LLM_PRIMARY_MODEL={data.envOverride} 이(가) 설정돼 있어 이 값이
+          환경변수 DISCOVERY_ENGINE={data.envOverride} 이(가) 설정돼 있어 이 값이
           우선합니다. 드롭다운으로 바꾸려면 Railway에서 해당 변수를 먼저 지워주세요.
         </p>
       )}

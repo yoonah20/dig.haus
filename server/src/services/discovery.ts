@@ -1,6 +1,11 @@
 import { searchReviewUrls as searchSerper } from './serper.js';
 import { searchReviewUrls as searchTavily } from './tavilySearch.js';
 import { searchReviewUrls as searchJina } from './jinaSearch.js';
+import { getSetting } from '../utils/settings.js';
+
+// app_settings key holding the admin-picked default discovery engine.
+// Set from /admin/api; absent means "use the code default (tavily)".
+export const DISCOVERY_ENGINE_SETTING_KEY = 'discovery_engine';
 
 // Single source of truth for review-URL discovery engine selection.
 // The engines share the same searchReviewUrls(artist, album) signature
@@ -51,8 +56,15 @@ export function isDiscoveryEngine(v: string): v is DiscoveryEngine {
 // without the operator having to remember to set the env var; set
 // DISCOVERY_ENGINE=serper to flip back without a code change.
 export function defaultDiscoveryEngine(): DiscoveryEngine {
+  // Precedence mirrors resolvePrimaryModel: env override wins (for
+  // debugging), then the admin-picked app_settings value, then the code
+  // default. Keeps DISCOVERY_ENGINE working while letting the operator
+  // switch the batch/default engine from /admin/api without a redeploy.
   const env = (process.env.DISCOVERY_ENGINE || '').toLowerCase();
-  return isDiscoveryEngine(env) ? env : 'tavily';
+  if (isDiscoveryEngine(env)) return env;
+  const configured = (getSetting(DISCOVERY_ENGINE_SETTING_KEY) || '').toLowerCase();
+  if (isDiscoveryEngine(configured)) return configured;
+  return 'tavily';
 }
 
 export function searchReviewUrls(

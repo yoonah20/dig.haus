@@ -24,6 +24,7 @@ import {
 } from '../services/claudeBudget.js';
 import { describeOperationRoutes, PRIMARY_MODEL_SETTING_KEY } from '../services/llmRouter.js';
 import { getSetting, setSetting, clearSetting } from '../utils/settings.js';
+import { DISCOVERY_ENGINE_SETTING_KEY, isDiscoveryEngine } from '../services/discovery.js';
 import {
   bustSourceListCaches,
   getVerifiedHosts,
@@ -1353,20 +1354,26 @@ router.get('/llm-comparisons', (req, res) => {
 
 // ─── LLM primary model — admin-editable blanket routing ─────────────────
 //
-// The blanket DeepSeek model every default op runs on. Persisted in
-// app_settings so the operator can switch (e.g. flash ↔ pro, or a future
-// renamed id) from /admin/api without a redeploy — added after DeepSeek
-// retired the `deepseek-chat` alias and every LLM feature 400'd at once.
-// Env overrides (LLM_PRIMARY_MODEL[_<OP>]) still win, so this is disabled
-// display-wise when one is set.
-const ALLOWED_PRIMARY_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+// The blanket model every default op runs on. Persisted in app_settings so
+// the operator can switch from /admin/api without a redeploy — added after
+// DeepSeek retired the `deepseek-chat` alias and every LLM feature 400'd.
+// Env overrides (LLM_PRIMARY_MODEL[_<OP>]) still win, so the panel disables
+// itself when one is set. SUGGESTED_PRIMARY_MODELS are the dropdown quick-
+// picks, not a hard allowlist — a custom id can be typed in so a future
+// model can be adopted without a code change. Validation is a loose id
+// shape only, so a typo can't take everything down silently (it's still
+// visible + editable in the same panel). llmAdapter routes deepseek-* to
+// DeepSeek and everything else to Anthropic, so a non-deepseek id needs a
+// valid Anthropic key at call time.
+const SUGGESTED_PRIMARY_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{1,63}$/;
 
 router.get('/llm-model', (_req, res) => {
   res.json({
     configured: getSetting(PRIMARY_MODEL_SETTING_KEY),
     envOverride: process.env.LLM_PRIMARY_MODEL || null,
     codeDefault: 'deepseek-v4-flash',
-    options: ALLOWED_PRIMARY_MODELS,
+    options: SUGGESTED_PRIMARY_MODELS,
   });
 });
 
@@ -1378,13 +1385,44 @@ router.post('/llm-model', (req, res) => {
     return res.json({ ok: true, configured: null });
   }
   const model = String(raw).trim();
-  if (!ALLOWED_PRIMARY_MODELS.includes(model)) {
+  if (!MODEL_ID_RE.test(model)) {
     return res
       .status(400)
-      .json({ error: `지원하지 않는 모델입니다: ${model}` });
+      .json({ error: `잘못된 모델 형식입니다: ${model}` });
   }
   setSetting(PRIMARY_MODEL_SETTING_KEY, model);
   res.json({ ok: true, configured: model });
+});
+
+// ─── Discovery engine — admin-editable default for review-URL search ────
+//
+// The engine the auto-curation batch and the discover route's fallback use
+// (defaultDiscoveryEngine). Persisted in app_settings; DISCOVERY_ENGINE env
+// still wins. Fixed option set — each name maps to a wired implementation,
+// so unlike the model field this is not free-text.
+const DISCOVERY_ENGINE_OPTIONS = ['tavily', 'serper', 'jina'];
+
+router.get('/discovery-engine', (_req, res) => {
+  res.json({
+    configured: getSetting(DISCOVERY_ENGINE_SETTING_KEY),
+    envOverride: process.env.DISCOVERY_ENGINE || null,
+    codeDefault: 'tavily',
+    options: DISCOVERY_ENGINE_OPTIONS,
+  });
+});
+
+router.post('/discovery-engine', (req, res) => {
+  const raw = req.body?.engine;
+  if (raw == null || String(raw).trim() === '') {
+    clearSetting(DISCOVERY_ENGINE_SETTING_KEY);
+    return res.json({ ok: true, configured: null });
+  }
+  const engine = String(raw).trim().toLowerCase();
+  if (!isDiscoveryEngine(engine)) {
+    return res.status(400).json({ error: `지원하지 않는 엔진입니다: ${engine}` });
+  }
+  setSetting(DISCOVERY_ENGINE_SETTING_KEY, engine);
+  res.json({ ok: true, configured: engine });
 });
 
 // ─── GET /api/admin/spotify/status ────────────────────────────────────
