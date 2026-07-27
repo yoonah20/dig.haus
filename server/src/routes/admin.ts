@@ -25,6 +25,7 @@ import {
 import { describeOperationRoutes, PRIMARY_MODEL_SETTING_KEY } from '../services/llmRouter.js';
 import { getSetting, setSetting, clearSetting } from '../utils/settings.js';
 import { DISCOVERY_ENGINE_SETTING_KEY, isDiscoveryEngine } from '../services/discovery.js';
+import { COMPAT_BASE_URL_SETTING_KEY } from '../services/openaiCompat.js';
 import {
   bustSourceListCaches,
   getVerifiedHosts,
@@ -1366,7 +1367,10 @@ router.get('/llm-comparisons', (req, res) => {
 // DeepSeek and everything else to Anthropic, so a non-deepseek id needs a
 // valid Anthropic key at call time.
 const SUGGESTED_PRIMARY_MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
-const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{1,63}$/;
+// Loose id shape. Allows `:` and `/` so a compat provider id like
+// `compat:google/gemini-2.5-flash` passes, and is long enough for
+// OpenRouter-style nested ids.
+const MODEL_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{1,120}$/;
 
 router.get('/llm-model', (_req, res) => {
   res.json({
@@ -1423,6 +1427,35 @@ router.post('/discovery-engine', (req, res) => {
   }
   setSetting(DISCOVERY_ENGINE_SETTING_KEY, engine);
   res.json({ ok: true, configured: engine });
+});
+
+// ─── OpenAI-compatible provider — base URL for `compat:` models ─────────
+//
+// Lets the operator point a `compat:<model>` primary model at any
+// OpenAI-compatible endpoint (OpenAI, Groq, OpenRouter, local, …) without
+// a redeploy. Only the non-secret base URL lives here; the API key stays
+// in the LLM_COMPAT_API_KEY env var and is NEVER returned — the GET only
+// reports whether it is set, so the admin knows if the provider is usable.
+router.get('/llm-compat', (_req, res) => {
+  res.json({
+    baseUrl: getSetting(COMPAT_BASE_URL_SETTING_KEY),
+    envBaseUrl: process.env.LLM_COMPAT_BASE_URL || null,
+    apiKeySet: !!process.env.LLM_COMPAT_API_KEY,
+  });
+});
+
+router.post('/llm-compat', (req, res) => {
+  const raw = req.body?.baseUrl;
+  if (raw == null || String(raw).trim() === '') {
+    clearSetting(COMPAT_BASE_URL_SETTING_KEY);
+    return res.json({ ok: true, baseUrl: null });
+  }
+  const baseUrl = String(raw).trim();
+  if (!/^https?:\/\/[\w.-]+(:\d+)?(\/[\w./-]*)?$/.test(baseUrl)) {
+    return res.status(400).json({ error: `잘못된 base URL 형식입니다: ${baseUrl}` });
+  }
+  setSetting(COMPAT_BASE_URL_SETTING_KEY, baseUrl);
+  res.json({ ok: true, baseUrl });
 });
 
 // ─── GET /api/admin/spotify/status ────────────────────────────────────

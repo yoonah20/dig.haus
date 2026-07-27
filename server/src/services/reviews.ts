@@ -1,62 +1,55 @@
 import axios from 'axios';
 import { normaliseKoreanTerms } from './claude.js';
-import {
-  callDeepSeekWithRetry,
-  DEEPSEEK_MODEL,
-  isDeepSeekConfigured,
-  logDeepSeekUsage,
-} from './deepseek.js';
+import { DEEPSEEK_MODEL, isDeepSeekConfigured } from './deepseek.js';
 import { resolvePrimaryModel } from './llmRouter.js';
+import { callLlmByModel } from './llmAdapter.js';
 import { execute, queryAll } from '../db/index.js';
 
-// JSON extraction, DeepSeek only. The per-op override (via the llm
-// router) picks the tier: extraction picks the 2-sentence excerpt the
-// summary later synthesises, so its selection quality caps the summary's
-// ceiling — worth its own knob (LLM_PRIMARY_MODEL_SCRAPE_REVIEW). Defaults
-// to the flash alias when no override is set. Anthropic is no longer a
-// fallback: when the resolved tier fails we degrade to flash within
-// DeepSeek (a pro-tier hiccup shouldn't drop extraction), and if flash
-// itself fails we return null rather than reach for Haiku. Logs into
-// claude_usage_log via logDeepSeekUsage keyed by the response model.
-// Returns the raw content string — JSON parsing + schema validation
-// lives at the call site where the expected shape differs per use case.
+// JSON extraction for the review scrape/manual paths. Routes through the
+// shared callLlmByModel adapter (same as invokeLlm) so a compat: / Anthropic
+// primary model works here too, not just DeepSeek — the adapter also does
+// the DeepSeek transient-retry and usage logging. The per-op override (via
+// the llm router) picks the tier: extraction picks the 2-sentence excerpt
+// the summary later synthesises, so its selection quality caps the
+// summary's ceiling — worth its own knob (LLM_PRIMARY_MODEL_SCRAPE_REVIEW).
+// When the resolved tier is a DeepSeek PRO tier and it fails, we degrade to
+// flash within DeepSeek (a pro hiccup shouldn't drop extraction); a compat/
+// Anthropic failure just returns null. Returns the raw content string —
+// JSON parsing + schema validation lives at the call site.
 async function extractJsonWithFallback(
   operation: string,
   prompt: string,
   maxTokens: number
 ): Promise<string | null> {
-  if (!isDeepSeekConfigured()) return null;
-
-  // callDeepSeekWithRetry absorbs the transient failures (empty content
-  // body, timeout, 5xx) that used to drop straight through to
-  // claude-no-text — the default flash tier previously had no retry.
   const model = resolvePrimaryModel(operation, DEEPSEEK_MODEL);
+  // A DeepSeek model with no key configured has nothing to call. compat /
+  // Anthropic ids carry their own credentials, checked in their adapters.
+  if (model.startsWith('deepseek-') && !isDeepSeekConfigured()) return null;
+
   try {
-    const ds = await callDeepSeekWithRetry(
-      [{ role: 'user', content: prompt }],
-      { jsonMode: true, maxTokens, model }
-    );
-    logDeepSeekUsage(operation, ds);
-    return ds.content;
+    const r = await callLlmByModel({ operation, model, prompt, maxTokens, jsonMode: true });
+    return r.text;
   } catch (err) {
     console.warn(
-      `[${operation}] deepseek ${model} failed after retries:`,
+      `[${operation}] ${model} failed:`,
       (err as Error).message
     );
   }
 
-  // Degrade within DeepSeek (pro → flash), not to Anthropic. Nothing to
-  // retry if the resolved tier was already flash.
-  if (model !== DEEPSEEK_MODEL) {
+  // Degrade within DeepSeek (pro → flash), not to Anthropic. Only applies
+  // when the resolved tier was a non-default DeepSeek model.
+  if (model !== DEEPSEEK_MODEL && model.startsWith('deepseek-')) {
     try {
-      const ds = await callDeepSeekWithRetry(
-        [{ role: 'user', content: prompt }],
-        { jsonMode: true, maxTokens, model: DEEPSEEK_MODEL }
-      );
-      logDeepSeekUsage(`${operation}_flash_fallback`, ds);
-      return ds.content;
+      const r = await callLlmByModel({
+        operation: `${operation}_flash_fallback`,
+        model: DEEPSEEK_MODEL,
+        prompt,
+        maxTokens,
+        jsonMode: true,
+      });
+      return r.text;
     } catch (err) {
-      console.error(`[${operation}] deepseek flash fallback also failed after retries:`, (err as Error).message);
+      console.error(`[${operation}] deepseek flash fallback also failed:`, (err as Error).message);
     }
   }
   return null;

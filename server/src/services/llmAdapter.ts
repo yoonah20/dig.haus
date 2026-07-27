@@ -1,6 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { callDeepSeekWithRetry } from './deepseek.js';
+import { callOpenAiCompat } from './openaiCompat.js';
 import { execute } from '../db/index.js';
+
+// Model ids carrying this prefix route to the generic OpenAI-compatible
+// provider (services/openaiCompat.ts) instead of DeepSeek/Anthropic. The
+// real upstream model is the id minus the prefix.
+const COMPAT_PREFIX = 'compat:';
 
 // Unified model-agnostic adapter. Given a model ID string, routes the
 // call to the right provider and returns a normalised result shape so
@@ -54,6 +60,30 @@ export interface CallOpts {
 // handle it there).
 export async function callLlmByModel(opts: CallOpts): Promise<LlmResult> {
   const { operation, model, prompt, maxTokens, jsonMode } = opts;
+
+  if (model.startsWith(COMPAT_PREFIX)) {
+    const realModel = model.slice(COMPAT_PREFIX.length);
+    const t0 = Date.now();
+    const r = await callOpenAiCompat([{ role: 'user', content: prompt }], {
+      model: realModel,
+      maxTokens,
+      jsonMode,
+    });
+    const latencyMs = Date.now() - t0;
+    execute(
+      `INSERT INTO claude_usage_log
+         (operation, model, input_tokens, output_tokens, web_search_count)
+       VALUES (?, ?, ?, ?, 0)`,
+      [operation, r.model, r.inputTokens, r.outputTokens]
+    );
+    return {
+      text: r.content,
+      model: r.model,
+      inputTokens: r.inputTokens,
+      outputTokens: r.outputTokens,
+      latencyMs,
+    };
+  }
 
   if (model.startsWith('deepseek-')) {
     const t0 = Date.now();

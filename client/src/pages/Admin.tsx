@@ -1261,6 +1261,7 @@ export default function Admin() {
           <section className="mb-6 space-y-3">
             <LlmModelPanel />
             <DiscoveryEnginePanel />
+            <CompatProviderPanel />
           </section>
 
           {/* Live usage console (polls /api/admin/api-console every
@@ -1395,7 +1396,8 @@ function LlmModelPanel() {
         </button>
       </div>
       <p className="mt-1 text-[11px] text-gray-600">
-        deepseek-* 는 DeepSeek로, 그 외 이름은 Anthropic로 라우팅됩니다 (해당 키 필요).
+        라우팅: <code>deepseek-*</code> → DeepSeek, <code>compat:&lt;model&gt;</code> → 아래 OpenAI 호환
+        제공자, 그 외 → Anthropic (각 키 필요).
       </p>
 
       {envLocked && (
@@ -1490,6 +1492,109 @@ function DiscoveryEnginePanel() {
         <p className="mt-2 text-xs text-amber-400/80">
           환경변수 DISCOVERY_ENGINE={data.envOverride} 이(가) 설정돼 있어 이 값이
           우선합니다. 드롭다운으로 바꾸려면 Railway에서 해당 변수를 먼저 지워주세요.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// OpenAI-compatible provider config for `compat:<model>` primary models.
+// Base URL is admin-editable (app_settings 'llm_compat_base_url'); the API
+// key stays in the LLM_COMPAT_API_KEY env var and is never shown — the GET
+// only reports whether it is set.
+interface CompatResp {
+  baseUrl: string | null;
+  envBaseUrl: string | null;
+  apiKeySet: boolean;
+}
+
+function CompatProviderPanel() {
+  const qc = useQueryClient();
+  const [url, setUrl] = useState<string | null>(null);
+  const { data, isLoading, isError } = useQuery<CompatResp>({
+    queryKey: ['admin', 'llm-compat'],
+    queryFn: async () => (await axios.get('/api/admin/llm-compat')).data,
+  });
+
+  const save = useMutation({
+    mutationFn: async (baseUrl: string) =>
+      (await axios.post('/api/admin/llm-compat', { baseUrl })).data,
+    onSuccess: () => {
+      setUrl(null);
+      qc.invalidateQueries({ queryKey: ['admin', 'llm-compat'] });
+    },
+    onError: (err: any) => {
+      alert(err?.response?.data?.error ?? 'base URL 저장에 실패했습니다.');
+    },
+  });
+
+  if (isLoading) return <div className="text-sm text-gray-400">제공자 정보 로딩 중…</div>;
+  if (isError || !data)
+    return <div className="text-sm text-red-400">제공자 정보를 불러오지 못했습니다.</div>;
+
+  const envLocked = !!data.envBaseUrl;
+  const effectiveUrl = data.envBaseUrl ?? data.baseUrl ?? '(미설정)';
+  // `url` is the in-progress edit; fall back to the saved value for display.
+  const inputValue = url ?? data.baseUrl ?? '';
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#111] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-200">OpenAI 호환 제공자</h3>
+          <p className="mt-0.5 text-xs text-gray-500">
+            <code>compat:&lt;model&gt;</code> 모델이 쓸 base URL. OpenAI · Groq · OpenRouter ·
+            Together · 로컬 등.
+          </p>
+        </div>
+        <span
+          className={`shrink-0 rounded-md px-2 py-1 text-xs ${
+            data.apiKeySet ? 'bg-emerald-500/15 text-emerald-300' : 'bg-red-500/15 text-red-300'
+          }`}
+          title="LLM_COMPAT_API_KEY 환경변수"
+        >
+          API 키 {data.apiKeySet ? '설정됨' : '없음'}
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save.mutate((url ?? '').trim());
+          }}
+          placeholder="https://openrouter.ai/api/v1"
+          disabled={envLocked || save.isPending}
+          className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/40 px-2 py-1.5 font-mono text-xs text-gray-200 disabled:opacity-50"
+        />
+        <button
+          onClick={() => save.mutate((url ?? data.baseUrl ?? '').trim())}
+          disabled={envLocked || save.isPending || url === null}
+          className="shrink-0 rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-gray-200 hover:border-accent hover:text-accent disabled:opacity-40"
+        >
+          저장
+        </button>
+        {data.baseUrl && !envLocked && (
+          <button
+            onClick={() => save.mutate('')}
+            disabled={save.isPending}
+            className="text-xs text-gray-500 hover:text-accent"
+            title="base URL 설정을 지웁니다."
+          >
+            지우기
+          </button>
+        )}
+      </div>
+      <p className="mt-1 text-[11px] text-gray-600">
+        현재: <span className="font-mono text-gray-400">{effectiveUrl}</span>
+        {'  '}· 키는 Railway 환경변수 <code>LLM_COMPAT_API_KEY</code>로 설정하세요 (여기 노출 안 됨).
+      </p>
+
+      {envLocked && (
+        <p className="mt-2 text-xs text-amber-400/80">
+          환경변수 LLM_COMPAT_BASE_URL 이(가) 설정돼 있어 이 값이 우선합니다.
         </p>
       )}
     </div>
