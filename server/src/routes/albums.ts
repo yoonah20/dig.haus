@@ -338,12 +338,27 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
       });
     }
 
-    // Fill title_meaning if missing (backfill for cached albums)
-    // "_none_" marks albums where meaning was attempted but empty (prevents re-calling)
+    // Backfill Korean transliteration + meaning when missing.
+    // "_none_" marks albums where the meaning was attempted but came back
+    // empty (proper nouns etc.) so we don't re-call for the meaning alone.
     let titleMeaning = cached.title_meaning || null;
     if (titleMeaning === '_none_') titleMeaning = null;
+    let artistKo: string | null = cached.artist_ko || null;
+    let titleKo: string | null = cached.title_ko || null;
 
-    if (!cached.title_meaning && cached.title && cached.artist_name) {
+    // Retry not only when title_meaning is unset, but also when the KO
+    // fields are still empty. A pronunciation call that FAILED entirely
+    // (e.g. during the DeepSeek `deepseek-chat` 400 outage) wrote
+    // title_meaning='_none_' as its "attempted" marker without any KO
+    // fields — and the old `!title_meaning`-only gate then treated that
+    // truthy '_none_' as "done" and locked the album out of ever getting
+    // Korean. Proper-noun albums with a legitimately empty meaning already
+    // carry KO transliterations, so this extra clause doesn't re-run them.
+    const needsPron =
+      !!cached.title &&
+      !!cached.artist_name &&
+      (!cached.title_meaning || (!artistKo && !titleKo));
+    if (needsPron) {
       try {
         const pron = await generatePronunciation(cached.artist_name, cached.title);
         const fields: Record<string, any> = {};
@@ -353,8 +368,14 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
         } else {
           fields.title_meaning = '_none_'; // mark as attempted
         }
-        if (!cached.artist_ko && pron?.artistKo) fields.artist_ko = pron.artistKo;
-        if (!cached.title_ko && pron?.titleKo) fields.title_ko = pron.titleKo;
+        if (!artistKo && pron?.artistKo) {
+          artistKo = pron.artistKo;
+          fields.artist_ko = pron.artistKo;
+        }
+        if (!titleKo && pron?.titleKo) {
+          titleKo = pron.titleKo;
+          fields.title_ko = pron.titleKo;
+        }
         updateAlbumFields(mbid, fields);
       } catch (err) {
         console.warn(`[pronunciation] backfill failed for mbid=${mbid}:`, (err as Error).message);
@@ -397,8 +418,8 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
         genres: resolveDisplayGenres(cached.manual_genres, genres, cached.artist_name),
         coverArtUrl: cached.cover_art_url,
         coverArtFallbacks: cachedFallbacks,
-        artistKo: cached.artist_ko || null,
-        titleKo: cached.title_ko || null,
+        artistKo,
+        titleKo,
         titleMeaning,
         reviewsCrawledAt: cached.reviews_crawled_at || null,
       },
