@@ -86,24 +86,46 @@ titleMeaning 규칙:
 - Love Is Not Enough → {"titleKo":"러브 이즈 낫 이너프","titleMeaning":"사랑은 충분하지 않다"}
 - Coronach → {"titleKo":"코로나크","titleMeaning":"장송곡"}
 - Datalysium → {"titleKo":"데이터리시움","titleMeaning":""}`;
-    const result = await invokeLlm({
-      operation: 'pronunciation',
-      prompt: promptText,
-      // Was 200 — the smallest cap of any op and the only one that broke
-      // while the others (500–2000) worked. Bumped so a slightly longer
-      // JSON body (or a little model overhead) can't truncate the output
-      // into unparseable/empty. Output-cap only; billed on actual tokens.
-      maxTokens: 500,
-      defaultModel: 'deepseek-v4-flash',
-      jsonMode: true,
-      albumTitle: `${artist} - ${album}`,
-    });
-    // LLM / transport errors are NOT caught here — they propagate so the
-    // admin regenerate endpoint can surface the real reason (a per-op env
-    // still pinned to deepseek-chat, auth, balance) instead of a generic
-    // "failed". Only genuinely empty or unparseable output degrades to null.
-    if (!result.text) return null;
-    const match = result.text.match(/\{[\s\S]*\}/);
+    // deepseek-v4-flash returns an empty content body for this short
+    // prompt under json_object mode ("DeepSeek returned no content"),
+    // even though the larger jsonMode ops (scrape, editorial pick) are
+    // fine and the non-jsonMode summary op is fine. So try jsonMode first,
+    // then fall back to a plain call and pull the JSON out of prose with
+    // the regex below. maxTokens 500 (output-cap only, billed on actual
+    // tokens) gives headroom the old 200 cap lacked.
+    //
+    // Errors on the FINAL attempt propagate so the admin regenerate
+    // endpoint surfaces the real reason (auth, balance, a per-op env
+    // still pinned to the retired deepseek-chat) instead of a generic
+    // "failed"; a jsonMode failure just falls through to the plain retry.
+    let text: string | null = null;
+    const modes = [true, false];
+    for (let i = 0; i < modes.length; i++) {
+      try {
+        const result = await invokeLlm({
+          operation: 'pronunciation',
+          prompt: promptText,
+          maxTokens: 500,
+          defaultModel: 'deepseek-v4-flash',
+          jsonMode: modes[i],
+          albumTitle: `${artist} - ${album}`,
+        });
+        if (result.text) {
+          text = result.text;
+          break;
+        }
+      } catch (err) {
+        if (i < modes.length - 1) {
+          console.warn(
+            `[pronunciation] jsonMode call failed, retrying without it: ${(err as Error).message}`
+          );
+          continue;
+        }
+        throw err;
+      }
+    }
+    if (!text) return null;
+    const match = text.match(/\{[\s\S]*\}/);
     if (!match) return null;
     let parsed: any;
     try {
