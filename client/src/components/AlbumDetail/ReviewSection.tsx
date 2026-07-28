@@ -990,7 +990,7 @@ export default function ReviewSection({
     } catch (err: any) {
       alert(
         err?.response?.data?.error ||
-          '요약 재생성에 실패했습니다. 리뷰가 2개 이상 필요합니다.'
+          '요약 재생성에 실패했습니다. 잠시 후 다시 시도해 주세요.'
       );
     }
   };
