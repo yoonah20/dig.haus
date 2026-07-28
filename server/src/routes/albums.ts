@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { adminClaudeLimiter } from '../middleware/adminRateLimit.js';
-import { getRelease, getLabelByName, getArtistReleases, searchAlbums } from '../services/musicbrainz.js';
+import { getRelease, getLabelByName, searchAlbums } from '../services/musicbrainz.js';
 import { searchTrack } from '../services/spotify.js';
 import { searchVideo } from '../services/youtube.js';
 import { searchBandcamp } from '../services/bandcamp.js';
-import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsArtistReleases, getDiscogsMasterMainRelease } from '../services/discogs.js';
+import { searchRelease, searchMasterUrl, getMasterMarketData, getDiscogsReleaseDetail, getDiscogsMasterMainRelease } from '../services/discogs.js';
 import { getAlbumInfo, getSimilarAlbums } from '../services/lastfm.js';
 import { generateSimilarDescriptions, generatePronunciation } from '../services/claude.js';
 import { invokeLlm } from '../services/llmRouter.js';
@@ -354,32 +354,32 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     // truthy '_none_' as "done" and locked the album out of ever getting
     // Korean. Proper-noun albums with a legitimately empty meaning already
     // carry KO transliterations, so this extra clause doesn't re-run them.
+    // Fire-and-forget: an LLM call must never block the album base read.
+    // This used to `await`, which parked the whole page on the
+    // LoadingSkeleton for the full pronunciation round-trip on every
+    // visit — and permanently for albums where the call keeps returning
+    // null (title_meaning stays '_none_' with empty KO, so needsPron
+    // never clears and the blocking call re-fires each load). The fresh
+    // KO now lands on the next visit instead of this one, matching the
+    // release_date / artist_credit / Discogs-price backfills above.
     const needsPron =
       !!cached.title &&
       !!cached.artist_name &&
       (!cached.title_meaning || (!artistKo && !titleKo));
     if (needsPron) {
-      try {
-        const pron = await generatePronunciation(cached.artist_name, cached.title);
+      generatePronunciation(cached.artist_name, cached.title).then((pron) => {
         const fields: Record<string, any> = {};
         if (pron?.titleMeaning) {
-          titleMeaning = pron.titleMeaning;
-          fields.title_meaning = titleMeaning;
+          fields.title_meaning = pron.titleMeaning;
         } else {
           fields.title_meaning = '_none_'; // mark as attempted
         }
-        if (!artistKo && pron?.artistKo) {
-          artistKo = pron.artistKo;
-          fields.artist_ko = pron.artistKo;
-        }
-        if (!titleKo && pron?.titleKo) {
-          titleKo = pron.titleKo;
-          fields.title_ko = pron.titleKo;
-        }
+        if (!artistKo && pron?.artistKo) fields.artist_ko = pron.artistKo;
+        if (!titleKo && pron?.titleKo) fields.title_ko = pron.titleKo;
         updateAlbumFields(mbid, fields);
-      } catch (err) {
+      }).catch((err) => {
         console.warn(`[pronunciation] backfill failed for mbid=${mbid}:`, (err as Error).message);
-      }
+      });
     }
 
     // Parse the multi-artist credit JSON if present. Older cached
@@ -1986,7 +1986,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
   }
 });
 
-// ─── GET /api/albums/:id — fast: base info + discography ─────────────────
+// ─── GET /api/albums/:id — fast: base info ───────────────────────────────
 
 router.get('/:id', async (req, res) => {
   // Anonymous viewers see an album response with userVote=null and no
@@ -2020,41 +2020,15 @@ router.get('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Album not found' });
     }
 
-    // Discography: MusicBrainz first, fallback to Discogs
-    const artistMbid = result.album.artistMbid;
-    if (artistMbid) {
-      try {
-        const releaseGroups = await getArtistReleases(artistMbid);
-        result.discography = releaseGroups
-          .filter((rg: any) => rg.primaryType === 'Album' || rg.primaryType === 'EP' || rg.primaryType === 'Live')
-          .map((rg: any) => ({
-            mbid: rg.mbid,
-            title: rg.title,
-            year: rg.year || '',
-            primaryType: rg.primaryType || '',
-            coverArtUrl: `https://coverartarchive.org/release-group/${rg.mbid}/front-250`,
-          }))
-          .sort((a: any, b: any) => (b.year || '').localeCompare(a.year || ''));
-      } catch (err) {
-        console.warn(`[disco] MusicBrainz discography fetch failed for artistMbid=${artistMbid}:`, (err as Error).message);
-      }
-    }
-
-    // Fallback: Discogs artist discography
-    if (result.discography.length === 0 && result.discogsArtistId) {
-      try {
-        const dcReleases = await getDiscogsArtistReleases(result.discogsArtistId);
-        result.discography = dcReleases.map((r) => ({
-          mbid: r.masterId ? `discogs-master-${r.masterId}` : '',
-          title: r.title,
-          year: r.year || '',
-          primaryType: r.type === 'master' ? 'Album' : r.type,
-          coverArtUrl: r.thumbUrl || '',
-        }));
-      } catch (err) {
-        console.warn(`[disco] Discogs discography fallback failed for artistId=${result.discogsArtistId}:`, (err as Error).message);
-      }
-    }
+    // Discography is intentionally not fetched here. It is never
+    // rendered on the client (the field survives only in the response
+    // type), and the MusicBrainz getArtistReleases call — memoised for
+    // just 60s, so effectively firing on every album load — plus its
+    // Discogs fallback were blocking the base response (the whole page
+    // sits on the LoadingSkeleton until this resolves). Removing them
+    // takes two external round-trips off the critical path for data
+    // nobody displays. Restore from git history if a discography
+    // surface is ever built.
 
     // Vote counts + current user's vote, plus the public crate_count
     // (DISTINCT users with this album in any of their public crates,
