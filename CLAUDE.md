@@ -23,7 +23,9 @@ dig.haus is a **digital record store**, not an algorithmic music feed. The core 
 - Any kind of algorithmic "for you" recommendation carousel
 - Discogs **collection import** — declined. Per-user Discogs linking is identity-only (see Architecture decisions); we never store a user's Discogs collection.
 
-**Scale reality**: one developer, ~350 albums in the catalog, Railway hosting behind Cloudflare, SQLite as the only datastore. Judge every proposal against this scale — no infrastructure for problems we don't have.
+**Scale reality**: one developer, ~350 albums in the catalog, SQLite as the only datastore. Judge every proposal against this scale — no infrastructure for problems we don't have.
+
+**Deployment split**: the frontend (`client/`) and backend (`server/`) deploy to different hosts. The **client is on Vercel** (`client/vercel.json` — SPA rewrites + a `/sitemap.xml` proxy to the API); a merge that touches `client/` triggers a Vercel deploy. The **server is on Railway** (`api.dig.haus`, behind Cloudflare, SQLite on a Railway volume mount); a merge that touches `server/` deploys there. So a client-only change never redeploys the API and vice versa — check which side your change lands on before expecting it live.
 
 ---
 
