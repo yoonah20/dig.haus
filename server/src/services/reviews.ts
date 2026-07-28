@@ -20,39 +20,43 @@ async function extractJsonWithFallback(
   operation: string,
   prompt: string,
   maxTokens: number
-): Promise<string | null> {
+): Promise<{ text: string | null; error: string | null }> {
   const model = resolvePrimaryModel(operation, DEEPSEEK_MODEL);
   // A DeepSeek model with no key configured has nothing to call. compat /
   // Anthropic ids carry their own credentials, checked in their adapters.
-  if (model.startsWith('deepseek-') && !isDeepSeekConfigured()) return null;
-
-  try {
-    const r = await callLlmByModel({ operation, model, prompt, maxTokens, jsonMode: true });
-    return r.text;
-  } catch (err) {
-    console.warn(
-      `[${operation}] ${model} failed:`,
-      (err as Error).message
-    );
+  if (model.startsWith('deepseek-') && !isDeepSeekConfigured()) {
+    return { text: null, error: 'DeepSeek API 키가 설정되지 않았습니다.' };
   }
+
+  // Each tier is tried in jsonMode first, then WITHOUT it: v4-flash
+  // intermittently answers with an empty content body under json_object
+  // mode (the same failure the pronunciation op hit), and the plain retry
+  // recovers it — the call site pulls the JSON out of prose either way. A
+  // failure captures the reason so the caller can surface it instead of a
+  // silent null.
+  let lastError = '';
+  const attempt = async (m: string, jsonMode: boolean, op: string): Promise<string | null> => {
+    try {
+      const r = await callLlmByModel({ operation: op, model: m, prompt, maxTokens, jsonMode });
+      return r.text;
+    } catch (err) {
+      lastError = (err as Error).message;
+      console.warn(`[${op}] ${m} (jsonMode=${jsonMode}) failed:`, lastError);
+      return null;
+    }
+  };
+
+  let text = await attempt(model, true, operation);
+  if (text == null) text = await attempt(model, false, operation);
 
   // Degrade within DeepSeek (pro → flash), not to Anthropic. Only applies
   // when the resolved tier was a non-default DeepSeek model.
-  if (model !== DEEPSEEK_MODEL && model.startsWith('deepseek-')) {
-    try {
-      const r = await callLlmByModel({
-        operation: `${operation}_flash_fallback`,
-        model: DEEPSEEK_MODEL,
-        prompt,
-        maxTokens,
-        jsonMode: true,
-      });
-      return r.text;
-    } catch (err) {
-      console.error(`[${operation}] deepseek flash fallback also failed:`, (err as Error).message);
-    }
+  if (text == null && model !== DEEPSEEK_MODEL && model.startsWith('deepseek-')) {
+    text = await attempt(DEEPSEEK_MODEL, true, `${operation}_flash_fallback`);
+    if (text == null) text = await attempt(DEEPSEEK_MODEL, false, `${operation}_flash_fallback`);
   }
-  return null;
+
+  return { text, error: text == null ? lastError || 'unknown LLM error' : null };
 }
 
 // Append-only log of URL scrapes that didn't yield a review.
@@ -2072,12 +2076,16 @@ Refusal format is STRICT: ONLY the error key, nothing else. Do NOT put the refus
 
   try {
     const llmStart = performance.now();
-    const rawText = await extractJsonWithFallback('scrape_review', prompt, 2000);
+    const { text: rawText, error: llmError } = await extractJsonWithFallback(
+      'scrape_review',
+      prompt,
+      2000
+    );
     llmMs = Math.round(performance.now() - llmStart);
     if (!rawText) {
-      recordScrapeFailure(url, albumMbid, 'claude-no-text');
+      recordScrapeFailure(url, albumMbid, 'claude-no-text', llmError ?? undefined);
       emitTiming('claude-no-text');
-      return { kind: 'fail', reason: 'claude-no-text' };
+      return { kind: 'fail', reason: 'claude-no-text', message: llmError ?? undefined };
     }
 
     let jsonText = rawText.trim();
@@ -2344,10 +2352,19 @@ Score: convert any scale to /100 (X/10→X*10, X/5→X*20, X/4→X*25, letter A+
 Excerpt: pick the most evaluative sentences from the body (exactly 2 sentences).
 If the text is clearly NOT a review (shop listing, track list only, marketing copy), return {"error":"not a review"} instead.`;
 
-  try {
-    const rawText = await extractJsonWithFallback('manual_review', prompt, 2000);
-    if (!rawText) return null;
+  const { text: rawText, error: llmError } = await extractJsonWithFallback(
+    'manual_review',
+    prompt,
+    2000
+  );
+  if (!rawText) {
+    // Real LLM failure (empty body, API error, missing key) — surface it
+    // to the endpoint instead of collapsing to a generic "추출 실패". A
+    // genuine "not a review" verdict below still returns a soft null.
+    throw new Error(llmError ?? 'LLM extraction failed');
+  }
 
+  try {
     let jsonText = rawText.trim();
     const fenceMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (fenceMatch) jsonText = fenceMatch[1].trim();
@@ -2367,7 +2384,7 @@ If the text is clearly NOT a review (shop listing, track list only, marketing co
       excerptKo: normaliseKoreanTerms(parsed.excerptKo),
     };
   } catch (err) {
-    console.error('[reviews] manual-extract failed:', (err as Error).message);
+    console.error('[reviews] manual-extract parse failed:', (err as Error).message);
     return null;
   }
 }

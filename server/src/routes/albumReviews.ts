@@ -485,8 +485,12 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
       },
     });
   } catch (err) {
+    // Surface the underlying LLM reason (empty body + finish_reason, API
+    // status, missing key) so a manual add that fails isn't a dead-end
+    // "Failed to add review".
+    const msg = (err as Error)?.message || 'unknown';
     console.error('Manual review error:', err);
-    res.status(500).json({ error: 'Failed to add review' });
+    res.status(502).json({ error: `리뷰 추출 실패: ${msg}` });
   }
 });
 
