@@ -49,6 +49,10 @@ export interface CallOpts {
   prompt: string;
   maxTokens: number;
   jsonMode?: boolean;
+  // Forwarded to the DeepSeek retry wrapper; ignored by compat/Anthropic.
+  // See callDeepSeek's CallOptions.retryOnEmpty for why the extraction
+  // path sets this false.
+  retryOnEmpty?: boolean;
 }
 
 // Single entry point. Picks the provider from the model ID and logs
@@ -59,7 +63,7 @@ export interface CallOpts {
 // response_format) and silently ignored on Anthropic (prompt has to
 // handle it there).
 export async function callLlmByModel(opts: CallOpts): Promise<LlmResult> {
-  const { operation, model, prompt, maxTokens, jsonMode } = opts;
+  const { operation, model, prompt, maxTokens, jsonMode, retryOnEmpty } = opts;
 
   if (model.startsWith(COMPAT_PREFIX)) {
     const realModel = model.slice(COMPAT_PREFIX.length);
@@ -89,7 +93,7 @@ export async function callLlmByModel(opts: CallOpts): Promise<LlmResult> {
     const t0 = Date.now();
     const ds = await callDeepSeekWithRetry(
       [{ role: 'user', content: prompt }],
-      { maxTokens, jsonMode, model }
+      { maxTokens, jsonMode, model, retryOnEmpty }
     );
     const latencyMs = Date.now() - t0;
     execute(

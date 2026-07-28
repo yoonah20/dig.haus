@@ -37,7 +37,22 @@ async function extractJsonWithFallback(
   let lastError = '';
   const attempt = async (m: string, jsonMode: boolean, op: string): Promise<string | null> => {
     try {
-      const r = await callLlmByModel({ operation: op, model: m, prompt, maxTokens, jsonMode });
+      // On the jsonMode=true attempt, skip the wrapper's own empty-body
+      // retry: an empty content body here is the known v4-flash json_object
+      // quirk, and the very next line already re-tries with jsonMode off —
+      // the real recovery. Letting the wrapper retry the identical
+      // jsonMode=true call first just burns a second (often slow) call
+      // before we get there, which is what dragged the 12-URLs-per-album
+      // scrape path down. The jsonMode=false attempt keeps the retry as a
+      // genuine last resort.
+      const r = await callLlmByModel({
+        operation: op,
+        model: m,
+        prompt,
+        maxTokens,
+        jsonMode,
+        retryOnEmpty: !jsonMode,
+      });
       return r.text;
     } catch (err) {
       lastError = (err as Error).message;

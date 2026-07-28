@@ -46,6 +46,15 @@ interface CallOptions {
   // Pass an explicit id (e.g. 'deepseek-v4-pro') to route a single op to
   // a pricier tier via the llm router's per-op env override.
   model?: string;
+  // Set false when the CALLER already recovers an empty content body by
+  // retrying with different params (e.g. extractJsonWithFallback toggles
+  // json_object mode off). Retrying the identical jsonMode=true call
+  // inside the wrapper almost never recovers a v4-flash empty (it's a
+  // systematic mode quirk, not a transient blip) — it just burns a full
+  // second call, and stacked under the caller's own retry it tripled the
+  // hot scrape path's latency. Default true keeps the recovery for the
+  // callers that have no other fallback (summary, similar, editorial pick).
+  retryOnEmpty?: boolean;
 }
 
 export function isDeepSeekConfigured(): boolean {
@@ -182,7 +191,10 @@ export async function callDeepSeekWithRetry(
       return await callDeepSeek(messages, opts);
     } catch (err) {
       lastErr = err;
-      const transient = isTransientDeepSeekError(err);
+      const emptyContent = !!(err as Error)?.message?.includes('returned no content');
+      const transient =
+        isTransientDeepSeekError(err) &&
+        !(emptyContent && opts.retryOnEmpty === false);
       console.warn(
         `[deepseek] ${opts.model ?? DEEPSEEK_MODEL} attempt ${attempt + 1}/${DEEPSEEK_RETRY_ATTEMPTS} failed${transient ? '' : ' (non-retryable)'}:`,
         (err as Error).message
