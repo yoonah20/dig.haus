@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { memoAsync } from '../utils/memoCache.js';
 import { execute, queryAll } from '../db/index.js';
 import { invokeLlm } from './llmRouter.js';
+import { callLlmByModel, type LlmResult } from './llmAdapter.js';
 
 // maxRetries=5 amplified 429 storms into 5×-call cascades per failed
 // request. 2 absorbs transient blips without turning a rate-limit
@@ -182,13 +183,40 @@ export async function generateKoreanSummary(
     // Railway to flip back. Note: any existing env override that
     // pinned this op to Sonnet/Haiku needs clearing for the new
     // default to take effect in production.
-    const result = await invokeLlm({
+    let result: LlmResult | null = await invokeLlm({
       operation: 'summary_fallback',
       prompt: promptText,
       maxTokens: 700,
       defaultModel: 'deepseek-v4-flash',
       albumTitle: `${artist} - ${albumTitle}`,
+    }).catch((flashErr: unknown) => {
+      // Swallow the primary failure into null so the v4-pro retry below
+      // gets a chance; the retry re-throws if it also fails, so the real
+      // reason still reaches the caller.
+      console.warn(
+        `[claude] summary primary failed, retrying on v4-pro: ${(flashErr as Error).message}`
+      );
+      return null;
     });
+
+    // Unlike the scrape-extraction path, the summary op has no built-in
+    // recovery for v4-flash's intermittent empty content body: json_object
+    // toggling doesn't apply to prose, and invokeLlm's model fallback only
+    // fires when primary != default — here both resolve to flash. So a
+    // flash empty/failure used to hard-fail the whole summary (502 to the
+    // admin). Retry once on v4-pro, which is far less prone to the empty
+    // quirk. callLlmByModel (not invokeLlm) forces pro regardless of the
+    // admin's blanket primary-model setting; it only fires after a primary
+    // failure, so the pricier tier costs nothing on the happy path.
+    if (!result || !result.text) {
+      result = await callLlmByModel({
+        operation: 'summary_fallback_pro',
+        model: 'deepseek-v4-pro',
+        prompt: promptText,
+        maxTokens: 700,
+      });
+    }
+
     const ms = Math.round(performance.now() - start);
     console.log(
       `[reviews/timing] op=summary reviews=${reviews.length} promptLen=${promptText.length} ms=${ms} outcome=${result.text ? 'ok' : 'empty'}`
