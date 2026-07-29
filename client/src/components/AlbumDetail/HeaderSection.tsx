@@ -14,6 +14,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import CopyTitleButton from '../CopyTitleButton';
 
 import ArtistCredit from '../ArtistCredit';
+import { apiErrorMessage } from '../../lib/apiError';
 
 function AdminMenuItem({
   onClick,
@@ -475,10 +476,7 @@ export default function HeaderSection({ album, streaming, buy }: HeaderSectionPr
     try {
       await generateSummary.mutateAsync();
     } catch (err: any) {
-      alert(
-        err?.response?.data?.error ||
-          '요약 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-      );
+      alert(apiErrorMessage(err, '요약 생성'));
     }
   }, [generateSummary]);
 

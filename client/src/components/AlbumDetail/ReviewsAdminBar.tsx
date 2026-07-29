@@ -3,6 +3,7 @@ import {
   useGenerateReviewSummary,
   useMarkNoReviews,
 } from '../../hooks/useAlbum';
+import { apiErrorMessage } from '../../lib/apiError';
 
 // Admin-only action cluster shown above the review section while
 // `reviews_crawled_at IS NULL`. Used to be a 130-line inline block
@@ -66,10 +67,7 @@ export default function ReviewsAdminBar({
     try {
       await generateSummary.mutateAsync();
     } catch (err: any) {
-      alert(
-        err?.response?.data?.error ||
-          '요약 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-      );
+      alert(apiErrorMessage(err, '요약 생성'));
     }
   };
 

@@ -14,6 +14,7 @@ import { MIN_SCORED_FOR_AVG } from '../../lib/reviewThresholds';
 import CardOverlayButton from '../CardOverlayButton';
 import { Field, DigmanEmpty, Button, Popover } from '../ui';
 import { useReportReview, type ReviewReportReason } from '../../hooks/useAlbum';
+import { apiErrorMessage } from '../../lib/apiError';
 
 function ScoreBadge({ review, onSaved }: { review: Review; onSaved: () => void }) {
   const { user } = useAuth();
@@ -988,10 +989,7 @@ export default function ReviewSection({
     try {
       await regenSummary.mutateAsync();
     } catch (err: any) {
-      alert(
-        err?.response?.data?.error ||
-          '요약 재생성에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-      );
+      alert(apiErrorMessage(err, '요약 재생성'));
     }
   };
 
