@@ -80,6 +80,17 @@ export async function callDeepSeek(
     messages,
     max_tokens: opts.maxTokens ?? 2000,
     temperature: opts.temperature ?? 0.3,
+    // Disable thinking mode. The 2026-07-31 v4-flash public-beta build
+    // (DeepSeek-V4-Flash-0731) turned thinking ON by default, so the model
+    // began emitting reasoning_content that counts against max_tokens. Our
+    // budgets (e.g. the 1200-token editorial URL pick) were sized assuming
+    // NO reasoning tokens, so the chain-of-thought ate the whole budget and
+    // the call truncated (finish_reason=length) before writing any content
+    // — surfacing as "returned no content". None of our ops (scrape extract,
+    // editorial pick, summary, pronunciation) need reasoning, and leaving it
+    // on also bills the extra reasoning output tokens. Off restores the
+    // pre-0731 behaviour our budgets assume.
+    thinking: { type: 'disabled' },
   };
   // DeepSeek supports OpenAI-style structured output. Keeps the model
   // from wrapping JSON in prose or Markdown code fences.
