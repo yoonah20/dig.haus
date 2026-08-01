@@ -856,7 +856,12 @@ export default function ReviewSection({
                 if (typeof resp.data?.review?.id === 'number') newIds.push(resp.data.review.id);
               }
             } catch (err: any) {
-              const msg = err?.response?.data?.error || '알 수 없는 오류';
+              const baseMsg = err?.response?.data?.error || '알 수 없는 오류';
+              // Append the server-side detail (e.g. DeepSeek finish_reason)
+              // so the alert names the real cause instead of collapsing
+              // every LLM failure into "AI 분석 응답이 비어있었습니다".
+              const detail = err?.response?.data?.detail;
+              const msg = detail ? `${baseMsg} (${detail})` : baseMsg;
               failures.push({ url, msg });
             } finally {
               completed++;

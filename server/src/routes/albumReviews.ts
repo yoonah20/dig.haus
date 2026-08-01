@@ -313,6 +313,13 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
       return res.status(status).json({
         error: friendly[outcome.reason] ?? 'URL에서 리뷰를 추출하지 못했습니다.',
         reason: outcome.reason,
+        // The underlying reason the friendly label collapses (e.g. the
+        // DeepSeek finish_reason / API status for a claude-no-text, the
+        // bad JSON slice for json-parse-failed). Without this the batch
+        // alert shows only "AI 분석 응답이 비어있었습니다" and the operator
+        // can't tell an empty content body from a content_filter or a
+        // 400 — all three land in the same bucket.
+        detail: outcome.message,
       });
     }
 
