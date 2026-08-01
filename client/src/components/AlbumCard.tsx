@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { AlbumSearchResult } from '../types';
 import CoverArt from './CoverArt';
 import PlayChip from './PlayChip';
+import CartChip from './CartChip';
 import PriceTagStack from './PriceTagSticker';
 import { getScoreColor, getScoreGlowRgb } from '../utils/score';
 import { artistLensTo } from '../utils/lens';
@@ -281,6 +282,7 @@ export default function AlbumCard({
   hidePendingBadge = false,
   bigDateSticker = false,
   showPickSticker = false,
+  showCartChip = false,
   linkSearch,
   topRightChip,
 }: {
@@ -305,6 +307,12 @@ export default function AlbumCard({
    *  reviews backing it). Off by default; the home 새 앨범
    *  grid opts in. */
   showPickSticker?: boolean;
+  /** Render the one-click 바구니(basket) chip beside the ▶ chip on
+   *  the card's back face. Browse grids (home feed, 최근 발매, /dig)
+   *  opt in; detail-adjacent surfaces (similar albums) leave it off
+   *  since the album page has the full 담기 button. Suppressed at
+   *  compact/ultra density where two chips crowd a tiny cover. */
+  showCartChip?: boolean;
   /** Query string (without the leading `?`) appended to the Link's
    *  destination. Used by the home feed to mark "you came from the
    *  registered-order feed" so the album page picks neighbors in
@@ -796,6 +804,12 @@ export default function AlbumCard({
               size={26}
               alwaysVisible
             />
+            {/* 바구니 chip — one-click add to the private default
+                basket, sitting just left of ▶. The chip anchors to
+                the same corner and shifts itself left of the play
+                chip, so it lands correctly whether or not ▶ renders
+                (PlayChip returns null when there's no Spotify id). */}
+            {showCartChip && !compact && <CartChip album={album} size={26} />}
           </div>
         </div>
       </div>

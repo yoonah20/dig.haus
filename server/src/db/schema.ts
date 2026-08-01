@@ -2623,6 +2623,38 @@ export function initializeDatabase(db: Database.Database): void {
     );
   });
 
+  // Seed the per-user default "바구니" — the private staging basket
+  // (shopping-cart-style quick-add from the home grid, reviewed/cleared
+  // from the floating widget). Reuses the is_default lock that went
+  // dormant when 굿굿/별루 were dropped above: one is_default box per
+  // user, private (is_public = 0) so it never surfaces on the mydig
+  // floor or inflates album crate_count. Idempotent — skips any user
+  // who already has an is_default box (routes/crates.ts also lazily
+  // creates it for users who sign up after this runs).
+  runOnce(db, 'seed-default-cart-2026-08-01', () => {
+    const userIds = (
+      db.prepare(`SELECT id FROM users`).all() as Array<{ id: number }>
+    ).map((r) => r.id);
+    const hasCart = db.prepare(
+      `SELECT id FROM crate_boxes WHERE user_id = ? AND is_default = 1 LIMIT 1`
+    );
+    const nextPosStmt = db.prepare(
+      `SELECT COALESCE(MAX(position), -1) + 1 AS p FROM crate_boxes WHERE user_id = ?`
+    );
+    const ins = db.prepare(
+      `INSERT INTO crate_boxes (user_id, position, title, is_public, is_default)
+       VALUES (?, ?, '바구니', 0, 1)`
+    );
+    let created = 0;
+    for (const userId of userIds) {
+      if (hasCart.get(userId)) continue;
+      const pos = (nextPosStmt.get(userId) as { p: number }).p;
+      ins.run(userId, pos);
+      created++;
+    }
+    console.log(`[migration] seeded default cart (바구니): ${created} users`);
+  });
+
   // Purge any Metacritic rows that were ingested before we added it to the
   // exclusion list. Metacritic is an aggregator (re-publishes other sites'
   // scores) so we don't want it competing with primary editorial sources

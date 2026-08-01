@@ -202,7 +202,7 @@ function MobileUnifiedBatch({ albums }: { albums: AlbumSearchResult[] }) {
               : undefined
           }
         >
-          <AlbumCard album={album} showPickSticker />
+          <AlbumCard album={album} showPickSticker showCartChip />
         </div>
       ))}
     </div>
@@ -649,7 +649,7 @@ export default function DigPage() {
                         animationDelay: `${(revealDelays[i] ?? i) * STAGGER_MS}ms`,
                       }}
                     >
-                      <AlbumCard album={album} compact={density === 'ultra'} showPickSticker />
+                      <AlbumCard album={album} compact={density === 'ultra'} showPickSticker showCartChip />
                     </div>
                   ))}
                 </div>

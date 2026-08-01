@@ -167,6 +167,7 @@ function renderFeedCell(item: FeedItem) {
         album={item.album}
         hidePendingBadge
         showPickSticker
+        showCartChip
         linkSearch="n=feed"
         topRightChip={
           item.album.createdAt ? <TimeChip iso={item.album.createdAt} /> : null
@@ -477,6 +478,7 @@ export default function HomeNext() {
                     album={album}
                     hidePendingBadge
                     showPickSticker
+                    showCartChip
                   />
                 ))}
               </div>
