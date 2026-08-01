@@ -7,6 +7,7 @@ import { CurationProgressProvider } from './contexts/CurationProgressContext';
 import TopNav from './components/TopNav';
 import SiteFooter from './components/SiteFooter';
 import PersistentNowPlayingPlayer from './components/PersistentNowPlayingPlayer';
+import FloatingCart from './components/FloatingCart';
 import CurationProgressPanel from './components/CurationProgressPanel';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -229,6 +230,10 @@ export default function App() {
                   what keeps Spotify playback alive through route
                   changes. */}
               <PersistentNowPlayingPlayer />
+              {/* Floating 바구니 — bottom-right basket widget, mounted
+                  once so it persists across routes. Bottom-center player
+                  leaves the right corner free. */}
+              <FloatingCart />
               <CurationProgressPanel />
               {authOutcome === 'pending' && !pendingDismissed && (
                 <PendingApprovalModal

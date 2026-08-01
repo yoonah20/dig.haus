@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { queryAll, queryGet, execute, transaction } from '../db/index.js';
 import { requireAuth } from '../middleware/auth.js';
+import { resolveAlbumPk } from '../utils/slug.js';
 import type { AppUser } from '../auth/passport.js';
 
 // Local copy of the username → user lookup used in routes/mydig.ts.
@@ -31,6 +32,17 @@ const router = Router();
 
 const CRATE_TITLE_MAX = 60;
 const CRATE_DESC_MAX = 240;
+
+// The per-user default "바구니" — a private, undeletable staging box
+// that behaves like a record-shop basket: quick-add from the home
+// grid's cover chip, review/clear from the floating widget, then move
+// keepers into named crates. Reuses the dormant is_default lock (the
+// old 굿굿/별루 defaults were dropped 2026-05-17, leaving is_default
+// unused) so the rename/delete guards already in this file apply for
+// free. Private by default — the "일단 집어둠" bin isn't a public
+// statement and, because crate_count on album cards counts public
+// crates only, a cart add never inflates that social count.
+const CART_TITLE = '바구니';
 
 interface CrateRow {
   id: number;
@@ -659,6 +671,138 @@ router.get('/mydig/crates/album-membership/:albumId', requireAuth, (req, res) =>
     [me.id, albumId]
   ) as Array<{ id: number }>;
   res.json({ crateIds: rows.map((r) => r.id) });
+});
+
+// ─── Cart (바구니) — the per-user default staging basket ────────
+//
+// One private is_default box per user. Seeded for existing users via
+// the schema migration, but lazily find-or-created here too so users
+// who signed up after the migration (and any who somehow lost theirs)
+// always have exactly one. The client never handles the cart's crate
+// id — every cart endpoint keys off is_default for the caller, so the
+// home cover chip can add by slug/mbid alone.
+function ensureDefaultCart(userId: number): CrateRow {
+  const existing = queryGet(
+    `SELECT * FROM crate_boxes WHERE user_id = ? AND is_default = 1 LIMIT 1`,
+    [userId]
+  ) as CrateRow | null;
+  if (existing) return existing;
+  const nextPos = (queryGet(
+    `SELECT COALESCE(MAX(position), -1) + 1 AS p FROM crate_boxes WHERE user_id = ?`,
+    [userId]
+  )?.p as number) ?? 0;
+  const result = execute(
+    `INSERT INTO crate_boxes (user_id, position, title, is_public, is_default)
+     VALUES (?, ?, ?, 0, 1)`,
+    [userId, nextPos, CART_TITLE]
+  );
+  return queryGet(
+    `SELECT * FROM crate_boxes WHERE id = ?`,
+    [result.lastInsertRowid]
+  ) as CrateRow;
+}
+
+// ─── GET /api/mydig/cart — the caller's basket + its contents ──
+//
+// Returns the full item list (no FLOOR_CAP — the basket is a working
+// list, not a display floor) newest-first. spotify_url rides along so
+// the floating widget can offer the same ▶ hand-off as the grid.
+router.get('/mydig/cart', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const cart = ensureDefaultCart(me.id);
+  const items = queryAll(
+    `SELECT a.id, a.mbid, a.slug, a.title, a.artist_name, a.release_year,
+            a.cover_art_url, a.cover_art_fallbacks, a.spotify_url,
+            ci.created_at AS added_at
+     FROM crate_items ci
+     JOIN albums a ON a.id = ci.album_id
+     WHERE ci.crate_id = ?
+     ORDER BY ci.created_at DESC`,
+    [cart.id]
+  ) as Array<{
+    id: number;
+    mbid: string;
+    slug: string | null;
+    title: string;
+    artist_name: string;
+    release_year: number | null;
+    cover_art_url: string | null;
+    cover_art_fallbacks: string | null;
+    spotify_url: string | null;
+    added_at: string;
+  }>;
+  res.json({
+    crate: serialiseCrate(cart),
+    items: items.map((a) => ({
+      id: a.id,
+      mbid: a.mbid,
+      slug: a.slug,
+      title: a.title,
+      artist: a.artist_name,
+      releaseYear: a.release_year,
+      coverArtUrl: a.cover_art_url,
+      coverArtFallbacks: a.cover_art_fallbacks
+        ? (() => {
+            try {
+              return JSON.parse(a.cover_art_fallbacks);
+            } catch {
+              return [];
+            }
+          })()
+        : [],
+      spotifyUrl: a.spotify_url,
+      addedAt: a.added_at,
+    })),
+  });
+});
+
+// ─── POST /api/mydig/cart/items — quick-add by slug/mbid ───────
+//
+// Body: { album: slugOrMbid }. The home cover chip carries the card's
+// mbid (which is the slug when one exists), so we resolve to the pk
+// server-side rather than threading the numeric id through every feed.
+// Idempotent via UNIQUE(crate_id, album_id).
+router.post('/mydig/cart/items', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const ref = String(req.body?.album ?? '').trim();
+  if (!ref) return res.status(400).json({ error: 'album required' });
+  const albumPk = resolveAlbumPk(ref);
+  if (albumPk == null) return res.status(404).json({ error: 'album not found' });
+  const cart = ensureDefaultCart(me.id);
+  execute(
+    `INSERT OR IGNORE INTO crate_items (crate_id, album_id) VALUES (?, ?)`,
+    [cart.id, albumPk]
+  );
+  execute(
+    `UPDATE crate_boxes SET updated_at = datetime('now') WHERE id = ?`,
+    [cart.id]
+  );
+  res.json({ ok: true });
+});
+
+// ─── DELETE /api/mydig/cart/items/:album — remove one ──────────
+router.delete('/mydig/cart/items/:album', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const albumPk = resolveAlbumPk(String(req.params.album || ''));
+  if (albumPk == null) return res.status(404).json({ error: 'album not found' });
+  const cart = ensureDefaultCart(me.id);
+  execute(
+    `DELETE FROM crate_items WHERE crate_id = ? AND album_id = ?`,
+    [cart.id, albumPk]
+  );
+  execute(
+    `UPDATE crate_boxes SET updated_at = datetime('now') WHERE id = ?`,
+    [cart.id]
+  );
+  res.json({ ok: true });
+});
+
+// ─── DELETE /api/mydig/cart — empty the basket ─────────────────
+router.delete('/mydig/cart', requireAuth, (req, res) => {
+  const me = req.user as AppUser;
+  const cart = ensureDefaultCart(me.id);
+  execute(`DELETE FROM crate_items WHERE crate_id = ?`, [cart.id]);
+  res.json({ ok: true });
 });
 
 export default router;
