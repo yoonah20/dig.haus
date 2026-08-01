@@ -803,12 +803,20 @@ export default function AlbumCard({
               artist={album.artist}
               size={26}
               alwaysVisible
+              // When the 바구니 chip shares the corner, ▶ shifts left
+              // of it (own width + gap) so 바구니 owns the bottom-right
+              // corner and play sits to its left.
+              style={
+                showCartChip && !compact
+                  ? { transform: 'translateX(calc(-100% - 8px))' }
+                  : undefined
+              }
             />
             {/* 바구니 chip — one-click add to the private default
-                basket, sitting just left of ▶. The chip anchors to
-                the same corner and shifts itself left of the play
-                chip, so it lands correctly whether or not ▶ renders
-                (PlayChip returns null when there's no Spotify id). */}
+                basket. Owns the bottom-right corner; ▶ is offset left
+                of it above. Rendered whether or not ▶ exists (PlayChip
+                returns null when there's no Spotify id), so the corner
+                always carries the basket. */}
             {showCartChip && !compact && <CartChip album={album} size={26} />}
           </div>
         </div>

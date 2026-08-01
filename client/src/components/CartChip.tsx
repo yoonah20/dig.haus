@@ -79,12 +79,11 @@ export default function CartChip({ album, size = 26, style }: Props) {
       style={{
         width: size,
         height: size,
+        // Sits in the bottom-right corner. The sibling ▶ chip is
+        // shifted left of this one (in AlbumCard) so 바구니 owns the
+        // corner and play sits to its left.
         right: '6%',
         bottom: '6%',
-        // Anchored to the same bottom-right corner as ▶, then shifted
-        // fully left of it (own width + gap) so the two chips sit side
-        // by side without hardcoding a px-vs-% mix.
-        transform: 'translateX(calc(-100% - 8px))',
         ...style,
       }}
       className={`absolute z-20 rounded-full border-2 border-accent flex items-center justify-center shadow-[0_6px_20px_rgba(0,0,0,0.55)] transition-all duration-200 cursor-pointer opacity-100 ${

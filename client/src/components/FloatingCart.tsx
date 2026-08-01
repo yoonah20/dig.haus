@@ -66,9 +66,10 @@ export default function FloatingCart() {
     };
   }, [open]);
 
-  // Nothing to show: logged out, or an empty & closed basket.
+  // Always present for logged-in users, even when empty — the basket
+  // stays docked bottom-right as a persistent affordance. Logged-out
+  // visitors get nothing.
   if (!user) return null;
-  if (count === 0 && !open) return null;
 
   return (
     <div
