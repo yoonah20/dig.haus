@@ -856,12 +856,26 @@ export default function ReviewSection({
                 if (typeof resp.data?.review?.id === 'number') newIds.push(resp.data.review.id);
               }
             } catch (err: any) {
-              const baseMsg = err?.response?.data?.error || '알 수 없는 오류';
-              // Append the server-side detail (e.g. DeepSeek finish_reason)
-              // so the alert names the real cause instead of collapsing
-              // every LLM failure into "AI 분석 응답이 비어있었습니다".
-              const detail = err?.response?.data?.detail;
-              const msg = detail ? `${baseMsg} (${detail})` : baseMsg;
+              let msg: string;
+              if (err?.response) {
+                // Server answered. Prefer its structured {error, detail};
+                // fall back to the HTTP status when the body isn't our JSON
+                // (e.g. a Cloudflare 5xx HTML page), so a gateway timeout
+                // reads as "HTTP 504" instead of "알 수 없는 오류".
+                const baseMsg =
+                  err.response.data?.error || `서버 오류 (HTTP ${err.response.status})`;
+                // detail carries the underlying cause the friendly label
+                // collapses (e.g. DeepSeek finish_reason for claude-no-text).
+                const detail = err.response.data?.detail;
+                msg = detail ? `${baseMsg} (${detail})` : baseMsg;
+              } else if (err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '')) {
+                msg = '요청 시간 초과 — 스크레이프가 제한시간을 넘겼습니다';
+              } else {
+                // No response object at all: gateway timeout with a dropped
+                // connection, CORS, or a network error. Distinct from an
+                // empty LLM response, which arrives as a normal 422.
+                msg = `응답 없음 (게이트웨이/네트워크): ${err?.message || 'unknown'}`;
+              }
               failures.push({ url, msg });
             } finally {
               completed++;
