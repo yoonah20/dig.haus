@@ -26,6 +26,7 @@ import { describeOperationRoutes, PRIMARY_MODEL_SETTING_KEY } from '../services/
 import { getSetting, setSetting, clearSetting } from '../utils/settings.js';
 import { DISCOVERY_ENGINE_SETTING_KEY, isDiscoveryEngine } from '../services/discovery.js';
 import { COMPAT_BASE_URL_SETTING_KEY } from '../services/openaiCompat.js';
+import { runReleaseSync } from '../jobs/releaseSyncJob.js';
 import {
   bustSourceListCaches,
   getVerifiedHosts,
@@ -1456,6 +1457,26 @@ router.post('/llm-compat', (req, res) => {
   }
   setSetting(COMPAT_BASE_URL_SETTING_KEY, baseUrl);
   res.json({ ok: true, baseUrl });
+});
+
+// ─── POST /api/admin/run-release-sync — manual release-day sync ─────────
+//
+// On-demand run of the daily 04:00 KST release-sync job (link refresh for
+// albums out in the last 7 KST days + review enqueue for albums released
+// today KST). The scheduled tick has no boot catch-up, so a server restart
+// / redeploy landing on 04:00 KST silently skips a day — and an album
+// registered after 04:00 on its release day misses the exact-day review
+// gate entirely. This lets the operator run it now and recover both.
+router.post('/run-release-sync', async (_req, res) => {
+  try {
+    const result = await runReleaseSync();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    console.error('[run-release-sync] failed:', err);
+    res
+      .status(500)
+      .json({ error: `릴리스 싱크 실행 실패: ${(err as Error)?.message || 'unknown'}` });
+  }
 });
 
 // ─── GET /api/admin/spotify/status ────────────────────────────────────

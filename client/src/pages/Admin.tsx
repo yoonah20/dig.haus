@@ -1262,6 +1262,7 @@ export default function Admin() {
             <LlmModelPanel />
             <DiscoveryEnginePanel />
             <CompatProviderPanel />
+            <ReleaseSyncPanel />
           </section>
 
           {/* Live usage console (polls /api/admin/api-console every
@@ -1597,6 +1598,47 @@ function CompatProviderPanel() {
           환경변수 LLM_COMPAT_BASE_URL 이(가) 설정돼 있어 이 값이 우선합니다.
         </p>
       )}
+    </div>
+  );
+}
+
+// Manual trigger for the daily 04:00 KST release-sync job. The scheduled
+// tick has no boot catch-up, so a redeploy landing on 04:00 skips the day;
+// this recovers it (and picks up albums registered after 04:00 on their
+// release day, which the exact-day review gate would otherwise miss).
+function ReleaseSyncPanel() {
+  const [result, setResult] = useState<string | null>(null);
+  const run = useMutation({
+    mutationFn: async () => (await axios.post('/api/admin/run-release-sync')).data,
+    onSuccess: (d: any) => {
+      setResult(
+        `완료 — 링크 후보 ${d.linkCandidates}개 중 Discogs ${d.discogsRefreshed} · Spotify ${d.spotifyRefreshed} 갱신, 리뷰 ${d.reviewsQueued}건 수집 시작.`
+      );
+    },
+    onError: (err: any) => {
+      setResult(err?.response?.data?.error ?? '실행에 실패했습니다.');
+    },
+  });
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-[#111] p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-200">릴리스 싱크 수동 실행</h3>
+          <p className="mt-0.5 text-xs text-gray-500">
+            최근 7일(KST) 발매 앨범 링크 재해석 + 오늘 발매 앨범 리뷰 수집. 매일 04:00 KST
+            자동 실행분을 지금 즉시 돌립니다.
+          </p>
+        </div>
+        <button
+          onClick={() => run.mutate()}
+          disabled={run.isPending}
+          className="shrink-0 rounded-md border border-white/10 px-3 py-1.5 text-xs text-gray-200 hover:border-accent hover:text-accent disabled:opacity-40"
+        >
+          {run.isPending ? '실행 중…' : '지금 실행'}
+        </button>
+      </div>
+      {result && <p className="mt-2 text-xs text-gray-400">{result}</p>}
     </div>
   );
 }

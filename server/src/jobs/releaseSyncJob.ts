@@ -183,8 +183,10 @@ export function startReleaseSyncScheduler(): void {
   // (03:00) so the three daily jobs don't overlap. No initial run on
   // boot: link backfill + review crawls burn external quota, and a
   // fresh deploy shouldn't re-scan the whole release window every time
-  // it restarts. The daily tick and the admin manual trigger are the
-  // only entry points.
+  // it restarts. Entry points: this daily tick, the per-album admin
+  // resync (POST /api/albums/:id/sync-release), and the batch admin
+  // trigger (POST /api/admin/run-release-sync) — the batch one recovers a
+  // day whose 04:00 tick was missed because a redeploy landed on it.
   cron.schedule(
     '0 4 * * *',
     () => {
