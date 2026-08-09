@@ -498,7 +498,19 @@ async function getOrFetchAlbumBase(mbid: string, opts: GetOrFetchOpts = {}) {
     // structured credit if/when admin re-fetches via MusicBrainz.
     artistCredit = [{ name: artistName, mbid: null }];
   } else {
-    const mbRelease = await getRelease(mbid);
+    // getRelease throws on a transient MusicBrainz failure (so the
+    // memo cache evicts and a retry re-hits MB) and returns a falsy
+    // value only for a genuinely unknown release. Both collapse to
+    // "not found" here — the album-requests route surfaces the
+    // friendly "외부 소스에서 찾지 못했어요, 다시 검색해 주세요" message,
+    // and because the failure wasn't cached the retry actually works.
+    let mbRelease: Awaited<ReturnType<typeof getRelease>>;
+    try {
+      mbRelease = await getRelease(mbid);
+    } catch (err) {
+      console.warn(`[albums] MB release fetch failed for mbid=${mbid}:`, (err as Error).message);
+      return null;
+    }
     if (!mbRelease) return null;
 
     artistName = mbRelease.artist || '';
