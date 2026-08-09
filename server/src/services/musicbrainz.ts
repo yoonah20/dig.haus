@@ -13,12 +13,46 @@ const httpsAgent = new https.Agent({ family: 4 });
 
 let lastRequestTime = 0;
 
-async function rateLimitedRequest(url: string, params: Record<string, string>) {
-  const now = Date.now();
-  const wait = Math.max(0, 1100 - (now - lastRequestTime));
-  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  lastRequestTime = Date.now();
-  return axios.get(url, { headers, params, httpsAgent });
+// MusicBrainz allows ~1 request/second per IP and 503s on bursts. The
+// throttle has to serialize CONCURRENT callers, not just sequential
+// ones: the search fan-out (main query + Discogs + split queries)
+// fires several MB calls at once, and the previous version had them
+// all read the same `lastRequestTime`, compute the same wait, then
+// fire simultaneously — tripping the rate limit. The 503s that caused
+// surfaced one step later as getRelease returning null, i.e. the
+// "외부 소스에서 이 앨범을 찾지 못했어요" error on the register click.
+// Chaining every request behind a shared gate promise enforces real
+// >=1.1s spacing across concurrent calls.
+let gate: Promise<void> = Promise.resolve();
+
+async function rateLimitedRequest(
+  url: string,
+  params: Record<string, string>,
+  retries = 0
+) {
+  for (let attempt = 0; ; attempt++) {
+    const ready = gate.then(async () => {
+      const wait = Math.max(0, 1100 - (Date.now() - lastRequestTime));
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      lastRequestTime = Date.now();
+    });
+    gate = ready.catch(() => {});
+    await ready;
+    try {
+      return await axios.get(url, { headers, params, httpsAgent });
+    } catch (err) {
+      // Retry only the transient failures worth retrying — a rate
+      // limit (429/503), any 5xx, or a network error (no response).
+      // A 404 (unknown mbid) is final and must not be retried.
+      const status = (err as any)?.response?.status;
+      const retriable =
+        status === undefined || status === 429 || status >= 500;
+      if (attempt >= retries || !retriable) throw err;
+      // Pause beyond the 1.1s gate spacing — a rate-limited MB needs
+      // a beat before it will serve again.
+      await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    }
+  }
 }
 
 async function _searchAlbums(query: string): Promise<
@@ -126,7 +160,7 @@ async function _getRelease(mbid: string): Promise<any | null> {
     const res = await rateLimitedRequest(`${MB_BASE}/release/${mbid}`, {
       inc: 'artists+labels+genres+release-groups',
       fmt: 'json',
-    });
+    }, 2);
 
     const r = res.data;
     // Reissues / remasters get their own MusicBrainz release with the reissue
@@ -268,8 +302,15 @@ async function _getRelease(mbid: string): Promise<any | null> {
       coverArtUrl: `https://coverartarchive.org/release/${r.id}/front-250`,
     };
   } catch (err) {
+    // Re-throw instead of returning null so memoAsync EVICTS this
+    // entry — a returned null would otherwise get memoized for the
+    // 1-minute TTL, and a user hitting "다시 검색" within that window
+    // would keep getting the same cached failure. Throwing lets the
+    // next attempt actually re-hit MusicBrainz. The blocking caller
+    // (getOrFetchAlbumBase submission path) catches this and maps it
+    // to the friendly not-found response.
     console.warn(`[mb] getRelease failed for mbid=${mbid}:`, (err as Error).message);
-    return null;
+    throw err;
   }
 }
 
