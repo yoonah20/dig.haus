@@ -215,7 +215,15 @@ function TagEditor({
           key={g}
           className="group/tag flex items-center gap-1 px-3 py-1 bg-white/5 text-gray-300 text-xs rounded-full"
         >
-          <span>{g}</span>
+          {/* Tag → /dig tag lens. Substring match server-side, so this
+              surfaces the whole subgenre family (death metal → technical
+              / melodic death metal). */}
+          <Link
+            to={`/dig?lens=tag:${encodeURIComponent(g)}`}
+            className="hover:text-accent transition-colors"
+          >
+            {g}
+          </Link>
           {isAdmin && (
             <>
               <button

@@ -787,8 +787,9 @@ router.get('/', async (req, res) => {
     // Lens filter — one active lens at a time, encoded as
     // ?lens=<type>:<value>. Supported types: `label` (a.label_name —
     // the labels-table FK never gets populated in practice, so we
-    // key off the name column the importer actually fills) and
-    // `year` (a.release_year). The UI only ever emits one lens, and
+    // key off the name column the importer actually fills), `year`
+    // (a.release_year), `artist` (a.artist_name), and `tag`
+    // (substring match on the genres JSON). The UI only ever emits one lens, and
     // anything not matching the two known shapes is silently
     // dropped — invalid values fall through to "no lens" rather
     // than erroring, since the typical bad input is a stale shared
@@ -843,6 +844,27 @@ router.get('/', async (req, res) => {
         if (Number.isFinite(yNum) && yNum > 1900 && yNum < 2200) {
           whereParts.push(`a.release_year = ?`);
           filterParams.push(yNum);
+        }
+      } else if (lensType === 'tag') {
+        // Substring match (chosen 2026-08): clicking "death metal"
+        // should surface its whole family — technical / melodic /
+        // progressive death metal — not just the exact string. We LIKE
+        // against the display-source JSON TEXT; for a single tag value
+        // the needle can't cross array-element boundaries in practice,
+        // and SQLite LIKE is ASCII case-insensitive so casing variants
+        // fold together. COALESCE(manual_genres, genres) mirrors
+        // resolveDisplayGenres' source selection (admin override wins),
+        // so the lens result matches the tags the album page shows.
+        // Broad roots ("metal", "rock") deliberately over-match for
+        // now; the admin 태그 page is where that fragmentation is
+        // cleaned up. ESCAPE '\' + escaping %/_/\ keeps a tag with
+        // wildcard chars from turning into a wildcard query.
+        if (lensVal.length > 0 && lensVal.length <= 200) {
+          const needle = `%${lensVal.replace(/[\\%_]/g, '\\$&')}%`;
+          whereParts.push(
+            `COALESCE(a.manual_genres, a.genres) LIKE ? ESCAPE '\\'`
+          );
+          filterParams.push(needle);
         }
       }
     }

@@ -44,12 +44,12 @@ Routes live in `client/src/App.tsx` (React Router, lazy-loaded pages).
 | Route | Page | Notes |
 |---|---|---|
 | `/` | `pages/HomeNext.tsx` (imported as `Home`) | Painted-basement hero with admin-curated LP walls (`home_walls` table, `routes/homeFeatures.ts`), recent-albums feed, 50자 평 feed, snapshot feed, CommentTicker |
-| `/dig` | `pages/DigPage.tsx` | Catalog browse grid: density toggle (comfortable/dense/ultra), lenses — `?lens=artist` shipped; label/genre/curated lenses are open roadmap |
+| `/dig` | `pages/DigPage.tsx` | Catalog browse grid: density toggle (comfortable/dense/ultra), lenses — `label` / `year` / `artist` / `tag` shipped (`?lens=<type>:<value>`); curated lens is open roadmap. `tag` is substring-match (clicking "death metal" surfaces technical/melodic/… death metal) and reached only by clicking a tag on the album page (no picker chip, like `artist`) |
 | `/album/:slug` | `pages/Album.tsx` | Album detail |
 | `/my/:username` | `pages/MyDig.tsx` | 마이딕 (see section below) |
 | `/my/:username/snap/:slug` | redirect | Back-compat only — snapshots now render in-page via `#<slug>` hash |
 | `/profile` | `pages/Profile.tsx` | Own account management |
-| `/admin` (+ `/admin/curation`, `/admin/api`, `/admin/maintenance`) | `pages/Admin.tsx` | One component, four tabs; maintenance tab hosts the 정리 (duplicate-album merge) tools |
+| `/admin` (+ `/admin/curation`, `/admin/api`, `/admin/maintenance`, `/admin/tags`) | `pages/Admin.tsx` | One component, five tabs; maintenance tab hosts the 정리 (duplicate-album merge) tools; 태그 tab (`pages/AdminTags.tsx`, lazy) is the catalog-wide tag cleanup workspace (merge/rename + blacklist) |
 | `/admin/compare` | `pages/LlmCompare.tsx` | Blind shadow-comparison viewer for LLM routing decisions |
 | `/admin/api-console` | `pages/ApiConsole.tsx` | Live LLM + Serper spend monitor, 15s auto-refresh |
 | `*` | `pages/NotFound.tsx` | 404 with dizzy digman |
@@ -70,7 +70,7 @@ There is no `Home.tsx` and no `MyPreview.tsx` — both are gone; don't reference
 - **Parked — do not treat as active plans**:
   - **Phase 4 nightly local-LLM pipeline** (`docs/phase4-nightly-pipeline.md`) — PARKED 2026-04-27. The Pre-L0 spot check failed: no local candidate (Qwen3-14B et al. on RTX 5080 16GB) matched production Korean quality. Bench harness torn down (revivable from commit `c051df8`; `server/scripts/preL0-spot-check.ts` kept). Revival needs a better 14–30B Korean model or 32GB+ VRAM.
   - **Album-page zine visual** (`docs/album-page-zine-vision.md` + mockup PNG) — built end-to-end as `/album-zine/:slug`, then scrapped 2026-05-04: cream-paper texture × Korean text never reached screen readability. Only the mascot + "Every Day I Dig" signature survived onto the live album page. The vision doc stays as the long-term aesthetic reference.
-- **Open items** (per reconciled roadmap): design-system audit; label pages as first-class destinations; remaining `/dig` lenses (label/genre/curated_artist); Phase-3 schema cleanup (`users.mydig_public`, `crate_boxes.position`). Blocked on design: shop-feel visual (plastic wrap, 3D jacket thickness) + Crate magic-cabinet visual. Blocked on vision: right-rail ambient ticker.
+- **Open items** (per reconciled roadmap): design-system audit; label pages as first-class destinations; remaining `/dig` curated lens (label/year/artist/tag now shipped); Phase-3 schema cleanup (`users.mydig_public`, `crate_boxes.position`). Blocked on design: shop-feel visual (plastic wrap, 3D jacket thickness) + Crate magic-cabinet visual. Blocked on vision: right-rail ambient ticker.
 
 ---
 
@@ -198,7 +198,7 @@ Line numbers above drift — treat them as anchors, re-locate with grep before e
 
 ### Client (`client/src/`)
 
-- `pages/` — `HomeNext` (the `/` page), `DigPage`, `Album`, `Admin`, `Profile`, `MyDig`, `ApiConsole`, `LlmCompare`, `NotFound`
+- `pages/` — `HomeNext` (the `/` page), `DigPage`, `Album`, `Admin`, `AdminTags` (태그 tab body, lazy), `Profile`, `MyDig`, `ApiConsole`, `LlmCompare`, `NotFound`
 - `components/` top-level — `AlbumCard` (stickers, PICK, score gate), `TopNav`, `LoginButton`, `SearchBar`, `VoteButtons`, `CoverArt`, `PriceTagSticker`, `PurchaseLinksPanel`, `PersistentNowPlayingPlayer`, `PlayChip`, `FollowButton`, `FollowListModal`, `FollowingDropdown`, `UserHoverCard`, `UsernameModal`, `ArtistCredit`, `CurationProgressPanel`, `ErrorBoundary`, `SiteFooter`, `LoadingSkeleton`, `CardOverlayButton`, `CopyTitleButton`, `ShareLinkButton`, `LoginRequiredTooltip`
 - `components/AlbumDetail/` — `HeaderSection`, `BuySection`, `UserReviewsSection` (50자 평), `ReviewSection`, `ReviewsAdminBar`, `SimilarAlbums`, `CrateButton` (담기 — replaced OwnershipButtons)
 - `components/Home/` — `HomeNextHero` (+ `HomeNextHeroMobile`), `ActivityRail`, `SnapshotFeed`, `SnapshotCard`, `PostItNote`, `CommentTicker`, `HomeFeatureSticker`
@@ -211,7 +211,7 @@ Line numbers above drift — treat them as anchors, re-locate with grep before e
 
 ### Server (`server/src/`)
 
-- `routes/` — `albums` (large: CRUD + feed + HOT + similar + admin), `albumReviews` (review pipeline: discover, scrape, summary, score/excerpt admin), `albumRequests`, `admin` (stats, LLM usage, snapshot dump, duplicates/정리), `crates` (crate CRUD + guestbook + membership), `mydig` (wall + snapshots + candidates + read-only page aggregate), `me` (profile, username, avatar, reviews/upvotes feeds, public card, account delete), `follows`, `userReviews` (50자 평), `purchaseLinks`, `votes`, `reviews` (delete/retranslate), `home`, `homeFeatures` (hero walls admin), `search`, `labels`, `labelFeed`, `cover`, `customCovers`, `avatars`, `discogsAuth` (per-user OAuth 1.0a), `sitemap`, `stats`, `auth` (Google OAuth callback)
+- `routes/` — `albums` (large: CRUD + feed + HOT + similar + admin), `albumReviews` (review pipeline: discover, scrape, summary, score/excerpt admin), `albumRequests`, `admin` (stats, LLM usage, snapshot dump, duplicates/정리, tag cleanup: `GET /admin/tags` + `POST /admin/tags/merge` + `POST /admin/tags/blacklist`), `crates` (crate CRUD + guestbook + membership), `mydig` (wall + snapshots + candidates + read-only page aggregate), `me` (profile, username, avatar, reviews/upvotes feeds, public card, account delete), `follows`, `userReviews` (50자 평), `purchaseLinks`, `votes`, `reviews` (delete/retranslate), `home`, `homeFeatures` (hero walls admin), `search`, `labels`, `labelFeed`, `cover`, `customCovers`, `avatars`, `discogsAuth` (per-user OAuth 1.0a), `sitemap`, `stats`, `auth` (Google OAuth callback)
 - `services/` — `claude` (Anthropic client + pronunciation/summary/similar-descriptions entry points), `deepseek`, `llmRouter` / `llmAdapter` / `llmCompare` / `claudeBudget` (routing + spend), `reviews` (review pipeline incl. Jina Reader fetch), `autoCuration` (server-side pipeline for user submissions), `albumUrlExtract`, `albumDedupe`, `discovery` (engine dispatcher) + `tavilySearch` / `serper` / `jinaSearch`, `musicbrainz`, `lastfm`, `discogs`, `discogsOauth`, `spotify`, `youtube`, `bandcamp`, `exchangeRates`, `toasterRenderer`, `email` (Resend wrapper, lazy-init), `avatarHost`, `customCoverHost`
 - `utils/` — `cache` (album/review DB helpers), `edgeCache`, `slug`, `username`, `albumSearch`, `externalSearch`, `memoCache`, `albumPreview`, `coverColor`, `coverImage`, `heroWalls`
 - `db/` — `index.ts` (init + query helpers), `schema.ts` (all CREATE TABLE + migrations via `runOnce` — check here first for current table shapes)

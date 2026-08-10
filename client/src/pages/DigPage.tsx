@@ -223,7 +223,7 @@ function paginationItems(current: number, total: number): Array<number | 'ellips
   return items;
 }
 
-type LensType = 'label' | 'year' | 'artist';
+type LensType = 'label' | 'year' | 'artist' | 'tag';
 type ActiveLens = { type: LensType; value: string };
 
 interface LensOptions {
@@ -241,7 +241,8 @@ function parseLensParam(raw: string | null): ActiveLens | null {
   if (colon <= 0) return null;
   const type = raw.slice(0, colon);
   const value = raw.slice(colon + 1);
-  if (type !== 'label' && type !== 'year' && type !== 'artist') return null;
+  if (type !== 'label' && type !== 'year' && type !== 'artist' && type !== 'tag')
+    return null;
   if (!value) return null;
   return { type, value };
 }
@@ -515,14 +516,16 @@ export default function DigPage() {
   return (
     <div className="flex-1 flex flex-col px-4 md:px-8 lg:px-12 xl:px-16 pt-4">
       <section className="w-full max-w-[1280px] mx-auto">
-        {/* Artist lens header — the artist lens has no picker chip (it's
-            reached only by clicking an artist name), so this heading is
-            also where the lens is cleared. Label/year keep their own
-            LensTrigger chips in the toolbar below. */}
-        {activeLens?.type === 'artist' && (
+        {/* Artist / tag lens header — neither has a picker chip (both are
+            reached only by clicking: an artist name, or a tag on the
+            album page), so this heading is also where the lens is
+            cleared. Tags render with a leading # to read as a tag rather
+            than a name. Label/year keep their own LensTrigger chips in
+            the toolbar below. */}
+        {(activeLens?.type === 'artist' || activeLens?.type === 'tag') && (
           <div className="mb-4 flex items-baseline gap-2">
             <h1 className="text-lg font-semibold text-gray-200">
-              {activeLens.value}
+              {activeLens.type === 'tag' ? `#${activeLens.value}` : activeLens.value}
             </h1>
             {lensTotal != null && (
               <span className="text-sm text-gray-500">· {lensTotal}장</span>
@@ -530,7 +533,7 @@ export default function DigPage() {
             <button
               onClick={clearLens}
               className="ml-1 text-xs text-gray-500 hover:text-accent cursor-pointer"
-              aria-label="아티스트 필터 해제"
+              aria-label={activeLens.type === 'tag' ? '태그 필터 해제' : '아티스트 필터 해제'}
             >
               ×
             </button>

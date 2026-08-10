@@ -6,6 +6,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 // static imports here defeated that for any visit to /admin.
 const ApiConsole = lazy(() => import('./ApiConsole'));
 const LlmCompare = lazy(() => import('./LlmCompare'));
+const AdminTags = lazy(() => import('./AdminTags'));
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -732,12 +733,13 @@ function MODEL_LABEL(model: string): string {
 // routes /admin/api-console and /admin/compare still exist (see
 // App.tsx) for pinned-tab use; their content is also embedded in the
 // API tab.
-type AdminTab = 'dashboard' | 'curation' | 'api' | 'maintenance';
+type AdminTab = 'dashboard' | 'curation' | 'api' | 'maintenance' | 'tags';
 
 function deriveTabFromPath(pathname: string): AdminTab {
   if (pathname.startsWith('/admin/curation')) return 'curation';
   if (pathname.startsWith('/admin/api')) return 'api';
   if (pathname.startsWith('/admin/maintenance')) return 'maintenance';
+  if (pathname.startsWith('/admin/tags')) return 'tags';
   return 'dashboard';
 }
 
@@ -747,6 +749,7 @@ function AdminTabBar({ active }: { active: AdminTab }) {
     { id: 'curation', to: '/admin/curation', label: '리뷰 큐레이션', icon: '🔖' },
     { id: 'api', to: '/admin/api', label: 'API & LLM', icon: '🪙' },
     { id: 'maintenance', to: '/admin/maintenance', label: '정리', icon: '🧹' },
+    { id: 'tags', to: '/admin/tags', label: '태그', icon: '🏷' },
   ];
   return (
     <nav
@@ -787,7 +790,9 @@ export default function Admin() {
         ? '리뷰 큐레이션 · '
         : activeTab === 'api'
           ? 'API & LLM · '
-          : '';
+          : activeTab === 'tags'
+            ? '태그 · '
+            : '';
     document.title = `${tabLabel}Admin | dig.haus`;
   }, [activeTab]);
 
@@ -1283,6 +1288,12 @@ export default function Admin() {
       )}
 
       {activeTab === 'maintenance' && <DuplicatesPanel />}
+
+      {activeTab === 'tags' && (
+        <Suspense fallback={<div className="text-sm text-gray-400">로딩 중…</div>}>
+          <AdminTags />
+        </Suspense>
+      )}
     </main>
   );
 }

@@ -4,7 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { queryGet, queryAll, execute, getDb } from '../db/index.js';
+import { queryGet, queryAll, execute, getDb, transaction } from '../db/index.js';
 import { requireAdmin } from '../middleware/auth.js';
 import {
   findDuplicates,
@@ -1155,6 +1155,222 @@ router.get('/tags/usage/:tag', requireAdmin, (req, res) => {
   } catch (err) {
     console.error('[tags/usage] query failed:', err);
     res.status(500).json({ error: 'failed to count tag usage' });
+  }
+});
+
+// ─── Tag management workspace (/admin/tags) ────────────────────────────
+//
+// The genre "tags" are a free-text JSON blob per album with no
+// normalisation table (the typed `genres` taxonomy was dropped
+// 2026-05-17), so the catalog fragments — "death metal",
+// "technical death metal", "melodic death metal" live as separate
+// strings. These endpoints power the admin 태그 page where the operator
+// folds those families together (merge/rename) and bans junk
+// (blacklist) across the whole catalog in one pass. All three key off
+// the same display source as the tag lens: the manual_genres override
+// when present, else raw genres.
+
+// Shared helper: rewrite/strip a single album's genres JSON array.
+// Returns the new JSON string (or original when unchanged) so callers
+// can skip a write. `map` receives each lowercase tag and returns the
+// replacement tag, or null to drop it. Dedup is case-insensitive and
+// order-preserving.
+function rewriteTagJson(
+  json: string | null,
+  map: (lower: string, original: string) => string | null
+): { next: string | null; changed: boolean } {
+  if (!json) return { next: json, changed: false };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return { next: json, changed: false };
+  }
+  if (!Array.isArray(parsed)) return { next: json, changed: false };
+  const tags = parsed.filter((t): t is string => typeof t === 'string');
+  const out: string[] = [];
+  const seen = new Set<string>();
+  let changed = false;
+  for (const t of tags) {
+    const mapped = map(t.toLowerCase(), t);
+    if (mapped === null) {
+      changed = true;
+      continue;
+    }
+    if (mapped !== t) changed = true;
+    const key = mapped.toLowerCase();
+    if (seen.has(key)) {
+      changed = true; // collapsed a duplicate the mapping produced
+      continue;
+    }
+    seen.add(key);
+    out.push(mapped);
+  }
+  if (!changed) return { next: json, changed: false };
+  return { next: JSON.stringify(out), changed: true };
+}
+
+// GET /api/admin/tags — every distinct tag with its album count,
+// counted case-insensitively against the display source. The client
+// groups the flat list into substring "families" itself.
+router.get('/tags', requireAdmin, (_req, res) => {
+  try {
+    const rows = queryAll(
+      `SELECT genres, manual_genres FROM albums
+       WHERE genres IS NOT NULL OR manual_genres IS NOT NULL`
+    ) as Array<{ genres: string | null; manual_genres: string | null }>;
+    const counts = new Map<string, { label: string; count: number }>();
+    for (const r of rows) {
+      const src = r.manual_genres ?? r.genres;
+      if (!src) continue;
+      let arr: unknown;
+      try {
+        arr = JSON.parse(src);
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(arr)) continue;
+      const seenInAlbum = new Set<string>();
+      for (const t of arr) {
+        if (typeof t !== 'string') continue;
+        const trimmed = t.trim();
+        if (!trimmed) continue;
+        const key = trimmed.toLowerCase();
+        if (seenInAlbum.has(key)) continue; // one album counts a tag once
+        seenInAlbum.add(key);
+        const existing = counts.get(key);
+        if (existing) existing.count += 1;
+        else counts.set(key, { label: trimmed, count: 1 });
+      }
+    }
+    const tags = [...counts.values()].sort(
+      (a, b) => b.count - a.count || a.label.localeCompare(b.label)
+    );
+    res.json({ tags });
+  } catch (err) {
+    console.error('[admin/tags] query failed:', err);
+    res.status(500).json({ error: 'failed to list tags' });
+  }
+});
+
+// POST /api/admin/tags/merge — fold one or more source tags into a
+// single target across the whole catalog. Rename is just the one-source
+// case. Exact (case-insensitive) match on the source tags — NOT
+// substring — so merging "death metal" never swallows
+// "technical death metal" unless it's listed explicitly. Rewrites both
+// genres and manual_genres so the display + the tag lens stay aligned.
+router.post('/tags/merge', requireAdmin, (req, res) => {
+  const body = req.body ?? {};
+  const to = typeof body.to === 'string' ? body.to.trim() : '';
+  const fromRaw: unknown[] = Array.isArray(body.from) ? body.from : [];
+  if (!to || to.length > 80) {
+    return res.status(400).json({ error: 'to tag required (<=80 chars)' });
+  }
+  const fromLower = new Set(
+    fromRaw
+      .filter((t: unknown): t is string => typeof t === 'string')
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t.length > 0)
+  );
+  if (fromLower.size === 0) {
+    return res.status(400).json({ error: 'from tags required' });
+  }
+  try {
+    // Substring LIKE prefilter narrows candidate rows; the exact
+    // rewriteTagJson pass is authoritative.
+    const likeClauses = [...fromLower]
+      .map(() => `(genres LIKE ? OR manual_genres LIKE ?)`)
+      .join(' OR ');
+    const likeParams: string[] = [];
+    for (const t of fromLower) {
+      const needle = `%${t.replace(/[%_]/g, '')}%`;
+      likeParams.push(needle, needle);
+    }
+    const candidates = queryAll(
+      `SELECT mbid, genres, manual_genres FROM albums
+       WHERE (genres IS NOT NULL OR manual_genres IS NOT NULL) AND (${likeClauses})`,
+      likeParams
+    ) as Array<{ mbid: string; genres: string | null; manual_genres: string | null }>;
+    const mapFn = (lower: string, original: string) =>
+      fromLower.has(lower) ? to : original;
+    let albumsChanged = 0;
+    transaction((): void => {
+      const update = getDb().prepare(
+        `UPDATE albums SET genres = ?, manual_genres = ? WHERE mbid = ?`
+      );
+      for (const c of candidates) {
+        const g = rewriteTagJson(c.genres, mapFn);
+        const m = rewriteTagJson(c.manual_genres, mapFn);
+        if (g.changed || m.changed) {
+          update.run(g.next, m.next, c.mbid);
+          albumsChanged += 1;
+        }
+      }
+    });
+    res.json({ ok: true, to, mergedFrom: [...fromLower], albumsChanged });
+  } catch (err) {
+    console.error('[admin/tags/merge] failed:', err);
+    res.status(500).json({ error: 'merge failed' });
+  }
+});
+
+// POST /api/admin/tags/blacklist — ban one or more tags catalog-wide.
+// Inserts into tag_blacklist (so future imports drop them) and strips
+// them from every album's genres + manual_genres. Same effect as the
+// per-album × in TagEditor, but batched from the overview so junk
+// (years, band names, "best albums 2023") can be swept in one action.
+router.post('/tags/blacklist', requireAdmin, (req, res) => {
+  const body = req.body ?? {};
+  const tags = (Array.isArray(body.tags) ? body.tags : [])
+    .filter((t: unknown): t is string => typeof t === 'string')
+    .map((t: string) => t.trim())
+    .filter((t: string) => t.length > 0 && t.length <= 80);
+  if (tags.length === 0) {
+    return res.status(400).json({ error: 'tags required' });
+  }
+  const lowerSet = new Set(tags.map((t: string) => t.toLowerCase()));
+  try {
+    const adminId = (req.user as { id?: number } | undefined)?.id ?? null;
+    let strippedAlbumCount = 0;
+    transaction((): void => {
+      const db = getDb();
+      const insertBl = db.prepare(
+        `INSERT OR IGNORE INTO tag_blacklist (tag, added_by_user_id) VALUES (?, ?)`
+      );
+      for (const t of lowerSet) insertBl.run(t, adminId);
+
+      const likeClauses = tags
+        .map(() => `(genres LIKE ? OR manual_genres LIKE ?)`)
+        .join(' OR ');
+      const likeParams: string[] = [];
+      for (const t of tags) {
+        const needle = `%${t.replace(/[%_]/g, '')}%`;
+        likeParams.push(needle, needle);
+      }
+      const candidates = queryAll(
+        `SELECT mbid, genres, manual_genres FROM albums
+         WHERE (genres IS NOT NULL OR manual_genres IS NOT NULL) AND (${likeClauses})`,
+        likeParams
+      ) as Array<{ mbid: string; genres: string | null; manual_genres: string | null }>;
+      const update = db.prepare(
+        `UPDATE albums SET genres = ?, manual_genres = ? WHERE mbid = ?`
+      );
+      const mapFn = (lower: string, original: string) =>
+        lowerSet.has(lower) ? null : original;
+      for (const c of candidates) {
+        const g = rewriteTagJson(c.genres, mapFn);
+        const m = rewriteTagJson(c.manual_genres, mapFn);
+        if (g.changed || m.changed) {
+          update.run(g.next, m.next, c.mbid);
+          strippedAlbumCount += 1;
+        }
+      }
+    });
+    invalidateTagBlacklistCache();
+    res.json({ ok: true, blacklisted: [...lowerSet], strippedAlbumCount });
+  } catch (err) {
+    console.error('[admin/tags/blacklist] failed:', err);
+    res.status(500).json({ error: 'blacklist failed' });
   }
 });
 
