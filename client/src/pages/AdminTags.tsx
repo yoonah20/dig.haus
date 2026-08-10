@@ -40,6 +40,7 @@ export default function AdminTags() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mergeTarget, setMergeTarget] = useState('');
   const [busy, setBusy] = useState(false);
+  const [onlyJunk, setOnlyJunk] = useState(false);
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['admin-tags'] });
@@ -51,18 +52,49 @@ export default function AdminTags() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const rows = q
+    let rows = q
       ? tags.filter((t) => t.label.toLowerCase().includes(q))
       : tags.slice();
+    // Junk candidates: any tag containing a digit. Catches the biggest
+    // noise bucket in the raw genres blob — year tags ("2026"),
+    // date-ish scraps ("4-25"), listicle titles ("best albums 2023",
+    // "top 10 2019"). Band names / one-off words can't be pattern-
+    // detected, so those still need manual judgment. Heuristic only —
+    // the blacklist confirm is the real gate before anything commits.
+    if (onlyJunk) rows = rows.filter((t) => /\d/.test(t.label));
     rows.sort((a, b) =>
       sortKey === 'count'
         ? b.count - a.count || a.label.localeCompare(b.label)
         : a.label.localeCompare(b.label)
     );
     return rows;
-  }, [tags, query, sortKey]);
+  }, [tags, query, sortKey, onlyJunk]);
 
   const selectedList = useMemo(() => [...selected], [selected]);
+
+  // Whether every currently-filtered row is selected — drives the
+  // select-all checkbox state (checked / indeterminate / empty).
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((t) => selected.has(t.label));
+  const someFilteredSelected =
+    !allFilteredSelected && filtered.some((t) => selected.has(t.label));
+
+  // Toggle the whole current view: if all filtered rows are already
+  // selected, drop them from the selection; otherwise add them all.
+  // Operates only on the filtered set, so selections made under a
+  // previous search/filter survive (search "2026" → select all → search
+  // "german" → add → blacklist the union in one go).
+  const toggleSelectAllFiltered = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        for (const t of filtered) next.delete(t.label);
+      } else {
+        for (const t of filtered) next.add(t.label);
+      }
+      return next;
+    });
+  };
 
   const toggle = (label: string) => {
     setSelected((prev) => {
@@ -76,6 +108,14 @@ export default function AdminTags() {
   const clearSelection = () => {
     setSelected(new Set());
     setMergeTarget('');
+  };
+
+  // Confirm dialogs can now cover a bulk selection (hundreds of junk
+  // tags). Cap the enumerated preview so the native alert stays legible.
+  const previewList = (items: string[], cap = 25): string => {
+    const shown = items.slice(0, cap).map((t) => `• ${t}`);
+    if (items.length > cap) shown.push(`…외 ${items.length - cap}개`);
+    return shown.join('\n');
   };
 
   // Select every tag that contains this one as a substring (the tag's
@@ -104,7 +144,7 @@ export default function AdminTags() {
     }
     const ok = window.confirm(
       `${from.length}개 태그를 "${to}" 로 병합합니다.\n\n` +
-        from.map((t) => `• ${t}`).join('\n') +
+        previewList(from) +
         `\n\n카탈로그 전체의 해당 태그가 "${to}" 로 치환됩니다. 계속할까요?`
     );
     if (!ok) return;
@@ -128,7 +168,7 @@ export default function AdminTags() {
     if (selectedList.length === 0 || busy) return;
     const ok = window.confirm(
       `${selectedList.length}개 태그를 블랙리스트에 추가합니다.\n\n` +
-        selectedList.map((t) => `• ${t}`).join('\n') +
+        previewList(selectedList) +
         `\n\n향후 자동 import에서 차단되고, 카탈로그 전체에서 제거됩니다. 계속할까요?`
     );
     if (!ok) return;
@@ -199,6 +239,17 @@ export default function AdminTags() {
             이름
           </button>
         </div>
+        <button
+          onClick={() => setOnlyJunk((v) => !v)}
+          className={`rounded-full border px-2.5 py-1 cursor-pointer transition-colors ${
+            onlyJunk
+              ? 'border-red-500/50 bg-red-900/30 text-red-300'
+              : 'border-white/10 text-gray-500 hover:text-gray-200 hover:border-white/20'
+          }`}
+          title="숫자가 포함된 태그(연도·날짜 등 쓰레기 후보)만 표시"
+        >
+          숫자 포함만
+        </button>
         <span className="text-gray-600">{filtered.length}개 표시</span>
       </div>
 
@@ -247,6 +298,28 @@ export default function AdminTags() {
             일치하는 태그가 없습니다.
           </div>
         ) : (
+          <>
+          {/* Select-all header — checks/unchecks every row in the
+              current view at once. Indeterminate when only some are
+              selected. */}
+          <div className="flex items-center gap-3 px-3 py-1.5 text-xs border-b border-white/10 bg-white/[0.02]">
+            <input
+              type="checkbox"
+              ref={(el) => {
+                if (el) el.indeterminate = someFilteredSelected;
+              }}
+              checked={allFilteredSelected}
+              onChange={toggleSelectAllFiltered}
+              className="cursor-pointer accent-[#e8a020]"
+              aria-label="현재 목록 전체 선택"
+            />
+            <button
+              onClick={toggleSelectAllFiltered}
+              className="flex-1 text-left text-gray-400 hover:text-gray-200 cursor-pointer"
+            >
+              {allFilteredSelected ? '전체 해제' : `전체 선택 (${filtered.length})`}
+            </button>
+          </div>
           <ul className="divide-y divide-white/5">
             {filtered.map((t) => {
               const isSel = selected.has(t.label);
@@ -281,6 +354,7 @@ export default function AdminTags() {
               );
             })}
           </ul>
+          </>
         )}
       </div>
     </div>
