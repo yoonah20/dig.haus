@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { apiErrorMessage } from '../lib/apiError';
@@ -95,6 +95,54 @@ export default function AdminTags() {
       return next;
     });
   };
+
+  // Drag-to-select over rows (file-manager style). The row pressed
+  // decides the operation: press an unselected row → the drag selects,
+  // press a selected one → it deselects. Each move recomputes from the
+  // snapshot taken at press time so back-tracking the drag shrinks the
+  // range instead of leaving orphaned selections. Refs (not state) hold
+  // the live drag context so the mouseenter/global-mouseup handlers
+  // never read a stale closure mid-drag.
+  const draggingRef = useRef(false);
+  const dragStartRef = useRef(0);
+  const dragModeRef = useRef<'select' | 'deselect'>('select');
+  const dragBaseRef = useRef<Set<string>>(new Set());
+
+  const applyDragRange = (endIdx: number) => {
+    const start = dragStartRef.current;
+    const [lo, hi] = start <= endIdx ? [start, endIdx] : [endIdx, start];
+    const next = new Set(dragBaseRef.current);
+    for (let k = lo; k <= hi; k++) {
+      const label = filtered[k]?.label;
+      if (!label) continue;
+      if (dragModeRef.current === 'select') next.add(label);
+      else next.delete(label);
+    }
+    setSelected(next);
+  };
+
+  const startDrag = (idx: number, label: string, e: React.MouseEvent) => {
+    e.preventDefault(); // suppress text selection while dragging
+    draggingRef.current = true;
+    dragStartRef.current = idx;
+    dragModeRef.current = selected.has(label) ? 'deselect' : 'select';
+    dragBaseRef.current = new Set(selected);
+    applyDragRange(idx);
+  };
+
+  const onDragEnter = (idx: number) => {
+    if (draggingRef.current) applyDragRange(idx);
+  };
+
+  // End any drag on mouseup anywhere — including releases outside the
+  // list — so a drag that runs off the bottom edge still terminates.
+  useEffect(() => {
+    const up = () => {
+      draggingRef.current = false;
+    };
+    window.addEventListener('mouseup', up);
+    return () => window.removeEventListener('mouseup', up);
+  }, []);
 
   const toggle = (label: string) => {
     setSelected((prev) => {
@@ -320,30 +368,35 @@ export default function AdminTags() {
               {allFilteredSelected ? '전체 해제' : `전체 선택 (${filtered.length})`}
             </button>
           </div>
-          <ul className="divide-y divide-white/5">
-            {filtered.map((t) => {
+          {/* select-none: a drag across rows must not paint a text
+              selection over the labels. */}
+          <ul className="divide-y divide-white/5 select-none">
+            {filtered.map((t, i) => {
               const isSel = selected.has(t.label);
               return (
                 <li
                   key={t.label}
-                  className={`flex items-center gap-3 px-3 py-1.5 text-sm ${isSel ? 'bg-accent/10' : 'hover:bg-white/[0.03]'}`}
+                  onMouseDown={(e) => startDrag(i, t.label, e)}
+                  onMouseEnter={() => onDragEnter(i)}
+                  className={`flex items-center gap-3 px-3 py-1.5 text-sm cursor-pointer ${isSel ? 'bg-accent/10' : 'hover:bg-white/[0.03]'}`}
                 >
                   <input
                     type="checkbox"
                     checked={isSel}
+                    // Let the native checkbox own its own click without
+                    // also starting a row drag.
+                    onMouseDown={(e) => e.stopPropagation()}
                     onChange={() => toggle(t.label)}
                     className="cursor-pointer accent-[#e8a020]"
                   />
-                  <button
-                    onClick={() => toggle(t.label)}
-                    className="flex-1 text-left text-gray-200 cursor-pointer truncate"
-                  >
+                  <span className="flex-1 text-gray-200 truncate">
                     {t.label}
-                  </button>
+                  </span>
                   <span className="text-xs text-gray-500 tabular-nums w-10 text-right">
                     {t.count}
                   </span>
                   <button
+                    onMouseDown={(e) => e.stopPropagation()}
                     onClick={() => selectFamily(t.label)}
                     className="text-[11px] text-gray-500 hover:text-accent cursor-pointer whitespace-nowrap"
                     title={`"${t.label}" 을(를) 포함하는 하위 장르를 모두 선택`}
