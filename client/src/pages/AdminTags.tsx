@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../lib/axios';
 import { apiErrorMessage } from '../lib/apiError';
+import CoverArt from '../components/CoverArt';
 
 // Tag management workspace, embedded in the /admin/tags tab. The genre
 // "tags" are a free-text JSON blob per album with no normalisation
@@ -28,13 +30,34 @@ function useTagList() {
   });
 }
 
+interface UntaggedAlbum {
+  slug: string;
+  title: string;
+  artist: string | null;
+  releaseYear: number | null;
+  coverArtUrl: string | null;
+  coverArtFallbacks: string[];
+}
+
+function useUntaggedAlbums() {
+  return useQuery<{ total: number; albums: UntaggedAlbum[] }>({
+    queryKey: ['admin-untagged-albums'],
+    queryFn: async () =>
+      (await axios.get('/api/admin/albums-without-tags')).data,
+    staleTime: 1000 * 30,
+  });
+}
+
 type SortKey = 'count' | 'name';
+type View = 'tags' | 'untagged';
 
 export default function AdminTags() {
   const qc = useQueryClient();
   const { data, isLoading, isError } = useTagList();
   const tags = data?.tags ?? [];
+  const untagged = useUntaggedAlbums();
 
+  const [view, setView] = useState<View>('tags');
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('count');
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -44,6 +67,11 @@ export default function AdminTags() {
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['admin-tags'] });
+    // Blacklisting from here changes the ban list and can empty an
+    // album's tags, so refresh the sibling blacklist panel + the
+    // untagged worklist too.
+    qc.invalidateQueries({ queryKey: ['admin-tag-blacklist'] });
+    qc.invalidateQueries({ queryKey: ['admin-untagged-albums'] });
     // The catalog's genres changed — album grids and lens results are
     // now stale. Drop the album-list caches so a return to /dig refetches.
     qc.invalidateQueries({ queryKey: ['album-list'] });
@@ -236,23 +264,39 @@ export default function AdminTags() {
     }
   };
 
-  if (isLoading) {
-    return <div className="text-sm text-gray-400">태그를 불러오는 중…</div>;
-  }
-  if (isError) {
-    return (
-      <div className="text-sm text-red-400">태그 목록을 불러오지 못했습니다.</div>
-    );
-  }
+  const untaggedCount = untagged.data?.total;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-baseline gap-3">
-        <h2 className="text-lg font-semibold text-gray-200">태그 정리</h2>
-        <span className="text-sm text-gray-500">
-          distinct {tags.length}개
-        </span>
+      {/* View toggle — the tag-cleanup list vs the no-tag album
+          worklist. Aggressive blacklisting (nuking "metal" etc.) empties
+          some albums, so the second view is where they get re-tagged. */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <ViewTab active={view === 'tags'} onClick={() => setView('tags')}>
+          태그 목록 ({tags.length})
+        </ViewTab>
+        <ViewTab
+          active={view === 'untagged'}
+          onClick={() => setView('untagged')}
+        >
+          태그 없는 앨범{untaggedCount != null ? ` (${untaggedCount})` : ''}
+        </ViewTab>
       </div>
+
+      {view === 'untagged' ? (
+        <UntaggedAlbums
+          isLoading={untagged.isLoading}
+          isError={untagged.isError}
+          albums={untagged.data?.albums ?? []}
+        />
+      ) : isLoading ? (
+        <div className="text-sm text-gray-400">태그를 불러오는 중…</div>
+      ) : isError ? (
+        <div className="text-sm text-red-400">
+          태그 목록을 불러오지 못했습니다.
+        </div>
+      ) : (
+        <>
       <p className="text-xs text-gray-500 leading-relaxed max-w-2xl">
         장르 태그는 앨범마다 자유 문자열로 저장돼 계열이 파편화됩니다
         (death metal / technical death metal / melodic death metal).
@@ -410,6 +454,97 @@ export default function AdminTags() {
           </>
         )}
       </div>
+        </>
+      )}
     </div>
+  );
+}
+
+// Segmented view switcher between the tag list and the untagged-album
+// worklist.
+function ViewTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-md px-3 py-1.5 cursor-pointer transition-colors ${
+        active
+          ? 'bg-accent/20 border border-accent/40 text-accent font-semibold'
+          : 'border border-white/10 text-gray-400 hover:text-gray-200 hover:border-white/20'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Albums whose display tags are empty — the re-tagging worklist. Each
+// row links to the album page, where tags are added via the header
+// TagEditor. Returning here refetches on mount (short staleTime), so
+// re-tagged albums drop off the list.
+function UntaggedAlbums({
+  isLoading,
+  isError,
+  albums,
+}: {
+  isLoading: boolean;
+  isError: boolean;
+  albums: UntaggedAlbum[];
+}) {
+  if (isLoading) {
+    return <div className="text-sm text-gray-400">불러오는 중…</div>;
+  }
+  if (isError) {
+    return (
+      <div className="text-sm text-red-400">
+        태그 없는 앨범을 불러오지 못했습니다.
+      </div>
+    );
+  }
+  if (albums.length === 0) {
+    return (
+      <div className="rounded-lg border border-white/10 px-4 py-8 text-center text-sm text-gray-500">
+        태그 없는 앨범이 없습니다. 전부 태그가 붙어 있어요.
+      </div>
+    );
+  }
+  return (
+    <>
+      <p className="text-xs text-gray-500 leading-relaxed max-w-2xl">
+        표시할 태그가 하나도 없는 앨범입니다. 앨범을 열어 헤더에서 태그를
+        추가하세요. 태그를 붙이면 이 목록에서 사라집니다.
+      </p>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+        {albums.map((a) => (
+          <li key={a.slug}>
+            <Link
+              to={`/album/${a.slug}`}
+              className="flex items-center gap-3 rounded-lg border border-white/10 px-3 py-2 hover:bg-white/[0.03] hover:border-white/20 transition-colors"
+            >
+              <CoverArt
+                src={a.coverArtUrl}
+                fallbacks={a.coverArtFallbacks}
+                alt={a.title}
+                className="w-10 h-10 rounded object-cover shrink-0"
+              />
+              <div className="min-w-0">
+                <div className="text-sm text-gray-200 truncate">{a.title}</div>
+                <div className="text-xs text-gray-500 truncate">
+                  {a.artist}
+                  {a.releaseYear ? ` · ${a.releaseYear}` : ''}
+                </div>
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }

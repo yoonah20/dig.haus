@@ -1374,6 +1374,76 @@ router.post('/tags/blacklist', requireAdmin, (req, res) => {
   }
 });
 
+// GET /api/admin/albums-without-tags — albums whose display tags are
+// empty. Aggressive blacklisting/merging (e.g. nuking "metal") leaves
+// some albums with no tag at all; this is the re-tagging worklist. "No
+// tags" mirrors the tag-list count: the display source (manual_genres
+// override when present, else raw genres) parses to zero non-empty
+// strings. Newest registrations first — those most likely still need
+// attention. Light projection (no review/vote subqueries) since it's
+// just a linked worklist.
+router.get('/albums-without-tags', requireAdmin, (_req, res) => {
+  try {
+    const rows = queryAll(
+      `SELECT slug, mbid, title, artist_name, release_year,
+              cover_art_url, cover_art_fallbacks, genres, manual_genres,
+              created_at
+         FROM albums`
+    ) as Array<{
+      slug: string | null;
+      mbid: string;
+      title: string;
+      artist_name: string | null;
+      release_year: number | null;
+      cover_art_url: string | null;
+      cover_art_fallbacks: string | null;
+      genres: string | null;
+      manual_genres: string | null;
+      created_at: string | null;
+    }>;
+    const hasTags = (src: string | null): boolean => {
+      if (!src) return false;
+      try {
+        const arr = JSON.parse(src);
+        return (
+          Array.isArray(arr) &&
+          arr.some((t) => typeof t === 'string' && t.trim().length > 0)
+        );
+      } catch {
+        return false;
+      }
+    };
+    const parseFallbacks = (json: string | null): string[] => {
+      if (!json) return [];
+      try {
+        const arr = JSON.parse(json);
+        return Array.isArray(arr)
+          ? arr.filter((s): s is string => typeof s === 'string')
+          : [];
+      } catch {
+        return [];
+      }
+    };
+    const untagged = rows
+      .filter((r) => !hasTags(r.manual_genres ?? r.genres))
+      .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    res.json({
+      total: untagged.length,
+      albums: untagged.map((r) => ({
+        slug: r.slug || r.mbid,
+        title: r.title,
+        artist: r.artist_name,
+        releaseYear: r.release_year,
+        coverArtUrl: r.cover_art_url,
+        coverArtFallbacks: parseFallbacks(r.cover_art_fallbacks),
+      })),
+    });
+  } catch (err) {
+    console.error('[admin/albums-without-tags] failed:', err);
+    res.status(500).json({ error: 'failed to list untagged albums' });
+  }
+});
+
 // ─── POST /api/admin/curation-runs ────────────────────────────────────
 // Client (CurationProgressContext) pings this once per album as the
 // pipeline finishes — one row per album per run. Cost_usd is computed

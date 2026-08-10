@@ -1229,10 +1229,10 @@ export default function Admin() {
                 - SourcesPanel stays full-width — it already runs
                   its own 4-col internal layout (success / failure
                   / whitelist / blacklist) that needs the room.
-                - TagBlacklist + TermReplacements stack vertically
-                  on mobile but sit side-by-side at lg+ — both are
-                  list-style "rules I curated" panels with similar
-                  shape, so they pair naturally.
+                - TermReplacements is a list-style "rules I curated"
+                  panel. (The tag blacklist used to sit beside it here;
+                  it moved to the 태그 tab so all tag work lives in one
+                  place.)
                 - ScrapeFailures + CurationRuns also pair at lg+
                   for the same reason — two telemetry tables. */}
           <SubSection
@@ -1240,10 +1240,7 @@ export default function Admin() {
             hint="내가 만든 차단/치환 규칙 — 신규 import 부터 적용됨"
           >
             <SourcesPanel />
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <TagBlacklistPanel />
-              <TermReplacementsPanel />
-            </div>
+            <TermReplacementsPanel />
           </SubSection>
 
           <SubSection
@@ -1291,7 +1288,14 @@ export default function Admin() {
 
       {activeTab === 'tags' && (
         <Suspense fallback={<div className="text-sm text-gray-400">로딩 중…</div>}>
-          <AdminTags />
+          <div className="space-y-8">
+            <AdminTags />
+            {/* Blacklist viewer lives here too so all tag work is in one
+                tab. AdminTags' blacklist action invalidates the
+                'admin-tag-blacklist' query, so this panel refreshes when
+                tags are banned from the workspace above. */}
+            <TagBlacklistPanel />
+          </div>
         </Suspense>
       )}
     </main>
