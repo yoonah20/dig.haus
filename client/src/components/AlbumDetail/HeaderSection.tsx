@@ -1,7 +1,7 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from '../../lib/axios';
 import { useGenerateReviewSummary } from '../../hooks/useAlbum';
 import type { AlbumDetail, StreamingLinks, BuyInfo } from '../../types';
@@ -51,7 +51,40 @@ function TagEditor({
   const [adding, setAdding] = useState(false);
   const [input, setInput] = useState('');
   const [saving, setSaving] = useState(false);
+  // Highlighted suggestion index for keyboard nav; -1 means "none",
+  // in which case Enter commits the raw typed text (free-tagging).
+  const [highlight, setHighlight] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Catalog-wide tag list, reused for autocomplete while the operator
+  // types a new tag. Shares the ['admin-tags'] cache with the /admin/tags
+  // workspace, so it's usually already warm. Admin-only endpoint, but
+  // this add UI is admin-only too. Fetched lazily — only once the input
+  // is open.
+  const { data: tagList } = useQuery<{ tags: { label: string; count: number }[] }>({
+    queryKey: ['admin-tags'],
+    queryFn: async () => {
+      const { data } = await axios.get<{ tags: { label: string; count: number }[] }>(
+        '/api/admin/tags'
+      );
+      return data;
+    },
+    enabled: isAdmin && adding,
+    staleTime: 1000 * 30,
+  });
+
+  // Substring match against the display source (mirrors the /dig tag
+  // lens + the admin workspace's family select), case-insensitive,
+  // excluding tags already on this album. Count-desc order comes from
+  // the endpoint; cap the dropdown so a broad prefix stays scannable.
+  const suggestions = useMemo(() => {
+    const q = input.trim().toLowerCase();
+    if (!q) return [];
+    const existing = new Set(tags.map((t) => t.toLowerCase()));
+    return (tagList?.tags ?? [])
+      .filter((t) => t.label.toLowerCase().includes(q) && !existing.has(t.label.toLowerCase()))
+      .slice(0, 8);
+  }, [input, tagList, tags]);
 
   // Inline confirmation row that surfaces what just happened — most
   // visible when admin is in cleanup mode and clicking × repeatedly.
@@ -162,24 +195,27 @@ function TagEditor({
     void persist(tags.filter((t) => t !== tag), { blacklist: [tag] });
   };
 
-  const commitAdd = () => {
-    const trimmed = input.trim();
+  const commitAdd = (value?: string) => {
+    const trimmed = (value ?? input).trim();
     if (!trimmed) {
       setAdding(false);
       return;
     }
     if (tags.some((t) => t.toLowerCase() === trimmed.toLowerCase())) {
       setInput('');
+      setHighlight(-1);
       setAdding(false);
       return;
     }
     void persist([...tags, trimmed]);
     setInput('');
+    setHighlight(-1);
     setAdding(false);
   };
 
   const cancelAdd = () => {
     setInput('');
+    setHighlight(-1);
     setAdding(false);
   };
 
@@ -250,18 +286,31 @@ function TagEditor({
       ))}
       {isAdmin &&
         (adding ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-white/5 rounded-full">
+          <span className="relative inline-flex items-center gap-1 px-2 py-0.5 bg-white/5 rounded-full">
             <input
               ref={inputRef}
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                setHighlight(-1);
+              }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'ArrowDown') {
+                  if (suggestions.length === 0) return;
                   e.preventDefault();
-                  commitAdd();
-                }
-                if (e.key === 'Escape') {
+                  setHighlight((h) => (h + 1) % suggestions.length);
+                } else if (e.key === 'ArrowUp') {
+                  if (suggestions.length === 0) return;
+                  e.preventDefault();
+                  setHighlight((h) => (h <= 0 ? suggestions.length - 1 : h - 1));
+                } else if (e.key === 'Enter') {
+                  e.preventDefault();
+                  // A highlighted suggestion wins; otherwise commit the
+                  // raw typed text so free-tagging still works.
+                  const picked = highlight >= 0 ? suggestions[highlight]?.label : undefined;
+                  commitAdd(picked);
+                } else if (e.key === 'Escape') {
                   e.preventDefault();
                   cancelAdd();
                 }
@@ -269,10 +318,14 @@ function TagEditor({
               disabled={saving}
               maxLength={80}
               placeholder="태그 이름"
+              autoComplete="off"
+              role="combobox"
+              aria-expanded={suggestions.length > 0}
+              aria-autocomplete="list"
               className="bg-transparent text-gray-200 text-xs px-1 py-0.5 outline-none focus:outline-none w-28"
             />
             <button
-              onClick={commitAdd}
+              onClick={() => commitAdd()}
               disabled={saving}
               className="text-xs text-accent hover:text-white disabled:opacity-40 cursor-pointer"
               aria-label="태그 저장"
@@ -287,6 +340,34 @@ function TagEditor({
             >
               ✕
             </button>
+            {/* Autocomplete dropdown. Anchored to the pill; onMouseDown
+                (not onClick) so the pick fires before the input's blur,
+                and preventDefault keeps focus off the button. */}
+            {suggestions.length > 0 && (
+              <ul
+                role="listbox"
+                className="absolute top-full left-0 mt-1 z-40 min-w-40 max-w-64 max-h-56 overflow-y-auto bg-[#111] border border-white/10 rounded-md shadow-xl py-1"
+              >
+                {suggestions.map((s, i) => (
+                  <li
+                    key={s.label}
+                    role="option"
+                    aria-selected={i === highlight}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      commitAdd(s.label);
+                    }}
+                    onMouseEnter={() => setHighlight(i)}
+                    className={`flex items-center justify-between gap-2 px-3 py-1.5 text-xs cursor-pointer ${
+                      i === highlight ? 'bg-accent/20 text-accent' : 'text-gray-300 hover:bg-white/5'
+                    }`}
+                  >
+                    <span className="truncate">{s.label}</span>
+                    <span className="text-[10px] text-gray-500 tabular-nums">{s.count}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </span>
         ) : (
           <button
