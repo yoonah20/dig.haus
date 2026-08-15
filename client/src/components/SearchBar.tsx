@@ -14,10 +14,12 @@ import { artistLensTo } from '../utils/lens';
 import { DigmanEmpty, Button } from './ui';
 
 // URL paste branch — when the input string looks like an http(s) URL we
-// route through the Discogs / OG-scrape extractor instead of running a
-// normal text search. Discogs URLs come back with a fully-formed mbid
-// the registration endpoint already understands; everything else lands
-// as artist+title and the user is told to fall back to text search.
+// route through the server extractor instead of running a normal text
+// search. Discogs URLs come back with a fully-formed mbid the
+// registration endpoint already understands; Spotify album URLs are
+// re-resolved server-side to an MB/Discogs id and usually carry one too.
+// Anything else (or an unresolvable Spotify album) lands as artist+title
+// and the user is told to fall back to text search.
 const URL_RE = /^https?:\/\/\S+$/i;
 
 // Unified search overlay — one surface for both "find an album that's
@@ -370,13 +372,13 @@ export default function SearchBar({
                 </p>
                 {loggedIn && (
                   <p>
-                    <span className="text-gray-400">Discogs URL</span>
+                    <span className="text-gray-400">Discogs·Spotify 앨범 URL</span>
                     을 그대로 붙여넣어도 앨범 등록이 돼요.
                   </p>
                 )}
                 {!loggedIn && (
                   <p className="text-gray-500">
-                    로그인하면 새 앨범 등록과 Discogs URL 붙여넣기도 가능해요.
+                    로그인하면 새 앨범 등록과 Discogs·Spotify URL 붙여넣기도 가능해요.
                   </p>
                 )}
               </div>

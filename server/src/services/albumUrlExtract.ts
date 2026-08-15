@@ -3,16 +3,20 @@ import {
   getDiscogsReleaseDetail,
   getDiscogsMasterMainRelease,
 } from './discogs.js';
+import { fetchSpotifyAlbumMeta } from './spotify.js';
+import { searchExternalMerged } from '../utils/externalSearch.js';
 
 export interface ExtractResult {
   artist: string;
   title: string;
-  // Discogs URLs only — server has already canonicalised the release
-  // id, so the registration flow can short-circuit straight to
-  // getOrFetchAlbumBaseForSubmission with this MBID instead of asking
-  // the user to pick from a fresh MB search. OG-scraped URLs
-  // (Bandcamp / Spotify / Apple / shop pages) leave these undefined
-  // and the client falls back to the normal artist+title lookup.
+  // Present for Discogs URLs (server canonicalised the release id) and
+  // for Spotify URLs that we managed to re-resolve to a MusicBrainz /
+  // Discogs release — in both cases the registration flow can
+  // short-circuit straight to getOrFetchAlbumBaseForSubmission with
+  // this id instead of asking the user to pick from a fresh MB search.
+  // OG-scraped URLs (Bandcamp / Apple / shop pages) — and Spotify
+  // albums MB + Discogs don't know — leave this undefined, and the
+  // client falls back to the normal artist+title lookup.
   mbid?: string;
   year?: string | null;
   coverArtUrl?: string | null;
@@ -46,6 +50,77 @@ async function extractFromDiscogsUrl(url: URL): Promise<ExtractResult | null> {
     mbid: `discogs-${releaseId}`,
     year: detail.year || null,
     coverArtUrl: detail.coverArtUrl || null,
+  };
+}
+
+// Spotify album URLs (open.spotify.com/album/{id}). Spotify carries no
+// MBID of its own, so — unlike Discogs — we can't hand the registration
+// flow a canonical id directly. Instead we pull the clean artist/title
+// from the Spotify API and re-resolve it against the same MB + Discogs
+// merge the text-search box uses; the best matching candidate's id makes
+// the paste a one-click register row exactly like a Discogs URL. When
+// nothing matches (release MB and Discogs both lack), we still return
+// Spotify's own artist+title so the client can fall back to a manual
+// register — a Spotify paste is never a hard dead-end.
+function normKey(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\s*[([][^)\]]*[)\]]\s*$/, '') // drop trailing "(Deluxe)" etc.
+    .replace(/[^a-z0-9]/g, '');
+}
+
+async function extractFromSpotifyUrl(url: URL): Promise<ExtractResult | null> {
+  if (!/\/album\/[A-Za-z0-9]{22}/.test(url.pathname)) return null;
+  const meta = await fetchSpotifyAlbumMeta(url.href);
+  // No creds / rate-limited / unparseable → let the OG scrape try (it
+  // still yields Spotify's artist+title, just without an mbid).
+  if (!meta) return null;
+
+  // Match Spotify's typical single-artist listing against MB/Discogs,
+  // which often index collabs under the primary artist only.
+  const primaryArtist =
+    meta.artist.split(/\s*[,&]\s*/)[0]?.trim() || meta.artist;
+  let candidates: Awaited<ReturnType<typeof searchExternalMerged>> = [];
+  try {
+    candidates = await searchExternalMerged(`${primaryArtist} ${meta.title}`);
+  } catch (err) {
+    console.warn(
+      '[album-url-extract] spotify resolve search failed:',
+      (err as Error).message
+    );
+  }
+
+  const titleKey = normKey(meta.title);
+  const artistKey = normKey(primaryArtist);
+  // Prefer a candidate whose title matches exactly and whose artist
+  // overlaps; otherwise fall back to the top relevance-ranked hit
+  // (searchExternalMerged already requires the query words to appear in
+  // artist+title, so it's at least on-topic). The user still sees the
+  // cover / title / year in the register row and confirms with the click.
+  const exact = candidates.find((c) => {
+    const cArtist = normKey(c.artist);
+    return (
+      normKey(c.title) === titleKey &&
+      (cArtist.includes(artistKey) || artistKey.includes(cArtist))
+    );
+  });
+  const chosen = exact ?? candidates[0] ?? null;
+
+  if (chosen) {
+    return {
+      artist: chosen.artist,
+      title: chosen.title,
+      mbid: chosen.mbid,
+      year: chosen.year ?? meta.year ?? null,
+      coverArtUrl: chosen.coverArtUrl ?? meta.coverArtUrl ?? null,
+    };
+  }
+
+  return {
+    artist: meta.artist,
+    title: meta.title,
+    year: meta.year,
+    coverArtUrl: meta.coverArtUrl,
   };
 }
 
@@ -199,6 +274,15 @@ export async function extractAlbumFromUrl(
     const result = await extractFromDiscogsUrl(url);
     if (result) return result;
     // Not a /release or /master URL → fall through to OG scrape.
+  }
+
+  // Spotify — resolve the album to a registrable MB/Discogs candidate
+  // via the API + re-search. Falls through to the OG scrape below when
+  // the API is unavailable (no creds / cooldown) so the previous
+  // artist+title-only behaviour still works.
+  if (/(^|\.)spotify\.com$/i.test(url.hostname)) {
+    const result = await extractFromSpotifyUrl(url);
+    if (result) return result;
   }
 
   // Level 2 — fetch + parse OG tags. Tight timeout and size cap so a
