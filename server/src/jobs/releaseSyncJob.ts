@@ -4,6 +4,20 @@ import { updateAlbumFields } from '../utils/cache.js';
 import { getMasterMarketData } from '../services/discogs.js';
 import { searchTrack } from '../services/spotify.js';
 import { enqueueAutoCuration } from '../services/autoCuration.js';
+import { getSetting, setSetting } from '../utils/settings.js';
+
+// app_settings key holding the KST date (YYYY-MM-DD) of the last completed
+// run, used for the boot catch-up guard so we don't re-run twice in a day.
+export const RELEASE_SYNC_LAST_RUN_KEY = 'release_sync_last_run';
+
+// Today's date on the KST calendar (the job's reference day everywhere).
+function kstToday(): string {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export function getReleaseSyncLastRun(): string | null {
+  return getSetting(RELEASE_SYNC_LAST_RUN_KEY);
+}
 
 // Release-day sync. Albums are often registered as pre-orders — before
 // they exist on Discogs/Spotify and before any review is published — so
@@ -166,6 +180,9 @@ export async function runReleaseSync(): Promise<{
     enqueueAutoCuration(a.mbid);
   }
 
+  // Stamp the KST run date so the boot catch-up knows today already ran.
+  setSetting(RELEASE_SYNC_LAST_RUN_KEY, kstToday());
+
   console.log(
     `[release-sync] links: ${discogsRefreshed} discogs + ${spotifyRefreshed} spotify refreshed across ${linkCandidates.length} candidate(s); reviews: ${reviewCandidates.length} enqueued`
   );
@@ -180,13 +197,10 @@ export async function runReleaseSync(): Promise<{
 
 export function startReleaseSyncScheduler(): void {
   // 04:00 KST daily — after rankScheduler (00:00) and labelFeedPoller
-  // (03:00) so the three daily jobs don't overlap. No initial run on
-  // boot: link backfill + review crawls burn external quota, and a
-  // fresh deploy shouldn't re-scan the whole release window every time
-  // it restarts. Entry points: this daily tick, the per-album admin
-  // resync (POST /api/albums/:id/sync-release), and the batch admin
-  // trigger (POST /api/admin/run-release-sync) — the batch one recovers a
-  // day whose 04:00 tick was missed because a redeploy landed on it.
+  // (03:00) so the three daily jobs don't overlap. Entry points: this
+  // daily tick, the boot catch-up below, the per-album admin resync
+  // (POST /api/albums/:id/sync-release), and the batch admin trigger
+  // (POST /api/admin/run-release-sync).
   cron.schedule(
     '0 4 * * *',
     () => {
@@ -198,4 +212,25 @@ export function startReleaseSyncScheduler(): void {
   );
 
   console.log('[release-sync] Scheduler started (04:00 KST daily)');
+
+  // Boot catch-up. In-process cron only fires while the process is alive
+  // at 04:00 KST, and this host restarts/redeploys often enough that the
+  // tick was being missed for days at a time — an album released on the
+  // 14th went un-synced through the 15th and 16th. The last-run-date guard
+  // makes this run AT MOST once per KST day, so frequent redeploys don't
+  // re-scan: if today's run already happened, skip; only catch up when the
+  // scheduled tick was missed and we're already past it (KST hour >= 4, so
+  // a pre-04:00 boot still defers to the same-day scheduled run). The
+  // link pass has a 7-day window, so a late catch-up still repairs the
+  // backlog; only the exact-day review enqueue for a fully-missed day is
+  // unrecoverable (that album can be swept via the manual batch trigger).
+  const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const kstHour = nowKst.getUTCHours();
+  const today = nowKst.toISOString().slice(0, 10);
+  if (kstHour >= 4 && getSetting(RELEASE_SYNC_LAST_RUN_KEY) !== today) {
+    console.log('[release-sync] boot catch-up: today has not run yet, running now');
+    runReleaseSync().catch((err) => {
+      console.error('[release-sync] boot catch-up threw:', err);
+    });
+  }
 }

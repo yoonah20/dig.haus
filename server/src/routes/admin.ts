@@ -26,7 +26,7 @@ import { describeOperationRoutes, PRIMARY_MODEL_SETTING_KEY } from '../services/
 import { getSetting, setSetting, clearSetting } from '../utils/settings.js';
 import { DISCOVERY_ENGINE_SETTING_KEY, isDiscoveryEngine } from '../services/discovery.js';
 import { COMPAT_BASE_URL_SETTING_KEY } from '../services/openaiCompat.js';
-import { runReleaseSync } from '../jobs/releaseSyncJob.js';
+import { runReleaseSync, getReleaseSyncLastRun } from '../jobs/releaseSyncJob.js';
 import {
   bustSourceListCaches,
   getVerifiedHosts,
@@ -1756,13 +1756,22 @@ router.post('/llm-compat', (req, res) => {
 router.post('/run-release-sync', async (_req, res) => {
   try {
     const result = await runReleaseSync();
-    res.json({ ok: true, ...result });
+    res.json({ ok: true, ...result, lastRun: getReleaseSyncLastRun() });
   } catch (err) {
     console.error('[run-release-sync] failed:', err);
     res
       .status(500)
       .json({ error: `릴리스 싱크 실행 실패: ${(err as Error)?.message || 'unknown'}` });
   }
+});
+
+// Last successful run's KST date + today's KST date, so the admin panel can
+// show whether the daily job is actually firing (it silently wasn't).
+router.get('/release-sync-status', (_req, res) => {
+  res.json({
+    lastRun: getReleaseSyncLastRun(),
+    todayKst: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  });
 });
 
 // ─── GET /api/admin/spotify/status ────────────────────────────────────

@@ -1622,18 +1622,27 @@ function CompatProviderPanel() {
 // this recovers it (and picks up albums registered after 04:00 on their
 // release day, which the exact-day review gate would otherwise miss).
 function ReleaseSyncPanel() {
+  const qc = useQueryClient();
   const [result, setResult] = useState<string | null>(null);
+  const { data: status } = useQuery<{ lastRun: string | null; todayKst: string }>({
+    queryKey: ['admin', 'release-sync-status'],
+    queryFn: async () => (await axios.get('/api/admin/release-sync-status')).data,
+  });
   const run = useMutation({
     mutationFn: async () => (await axios.post('/api/admin/run-release-sync')).data,
     onSuccess: (d: any) => {
       setResult(
         `완료 — 링크 후보 ${d.linkCandidates}개 중 Discogs ${d.discogsRefreshed} · Spotify ${d.spotifyRefreshed} 갱신, 리뷰 ${d.reviewsQueued}건 수집 시작.`
       );
+      qc.invalidateQueries({ queryKey: ['admin', 'release-sync-status'] });
     },
     onError: (err: any) => {
       setResult(err?.response?.data?.error ?? '실행에 실패했습니다.');
     },
   });
+
+  // Last-run behind today = the scheduled 04:00 KST tick isn't firing.
+  const stale = !!status && status.lastRun !== status.todayKst;
 
   return (
     <div className="rounded-xl border border-white/10 bg-[#111] p-4">
@@ -1653,6 +1662,12 @@ function ReleaseSyncPanel() {
           {run.isPending ? '실행 중…' : '지금 실행'}
         </button>
       </div>
+      {status && (
+        <p className={`mt-2 text-xs ${stale ? 'text-amber-400/80' : 'text-gray-500'}`}>
+          마지막 실행: {status.lastRun ?? '기록 없음'} · 오늘(KST): {status.todayKst}
+          {stale && ' — 오늘 자동 실행이 아직 안 됨'}
+        </p>
+      )}
       {result && <p className="mt-2 text-xs text-gray-400">{result}</p>}
     </div>
   );
