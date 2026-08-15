@@ -278,7 +278,71 @@ export async function fetchSpotifyAlbumCover(
   }
 }
 
-function extractSpotifyAlbumId(input: string): string | null {
+export interface SpotifyAlbumMeta {
+  artist: string;
+  title: string;
+  year: string | null;
+  coverArtUrl: string | null;
+  label: string | null;
+}
+
+// Canonical artist / title / year / cover for a Spotify album URL or id.
+// Used by the search-box URL-paste flow: Spotify has no MBID of its own,
+// so we pull the clean metadata here and let the caller re-resolve it
+// against MusicBrainz / Discogs to get a registrable id. Returns null
+// when creds are missing, we're in a 429 cooldown, or the id is
+// unparseable — the caller then falls back to OG scraping.
+export async function fetchSpotifyAlbumMeta(
+  albumIdOrUrl: string
+): Promise<SpotifyAlbumMeta | null> {
+  try {
+    const token = await getToken();
+    if (!token) return null;
+    const id = extractSpotifyAlbumId(albumIdOrUrl);
+    if (!id) return null;
+    if (isSpotifyRateLimited()) return null;
+    const res = await axios.get(`${SPOTIFY_API_BASE}/albums/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      httpsAgent,
+    });
+    const data = res.data;
+    const title = String(data?.name ?? '').trim();
+    const artist =
+      Array.isArray(data?.artists) && data.artists.length > 0
+        ? data.artists.map((a: any) => a.name).filter(Boolean).join(', ')
+        : '';
+    if (!title || !artist) return null;
+    const releaseDate = String(data?.release_date ?? '');
+    const year = /^\d{4}/.test(releaseDate) ? releaseDate.slice(0, 4) : null;
+    const images = (data?.images as Array<any>) || [];
+    const coverArtUrl =
+      images.find((i: any) => i.width === 640)?.url ||
+      images.find((i: any) => i.width === 300)?.url ||
+      images[0]?.url ||
+      null;
+    const label = data?.label ? String(data.label).trim() || null : null;
+    return { artist, title, year, coverArtUrl, label };
+  } catch (err: any) {
+    if (err?.response?.status === 401) invalidateToken();
+    else if (err?.response?.status === 429) {
+      const retryAfterRaw = err.response.headers?.['retry-after'];
+      const retryAfterSec =
+        typeof retryAfterRaw === 'string'
+          ? Number.parseInt(retryAfterRaw, 10)
+          : 60;
+      const wait =
+        Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec : 60;
+      spotifyRateLimitedUntil = Date.now() + wait * 1000;
+    }
+    console.warn(
+      '[spotify] fetchSpotifyAlbumMeta failed:',
+      (err as Error).message
+    );
+    return null;
+  }
+}
+
+export function extractSpotifyAlbumId(input: string): string | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
   // Bare id — 22 base62 characters.
