@@ -209,15 +209,21 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
               continue;
             }
             const r = outcome.review;
+            // Keyed on the URL so two reviews from one publication (or
+            // both falling back to the same hostname/'Unknown') each land
+            // as their own row instead of the second overwriting the first.
+            // A conflict here means we re-scraped a URL already on file —
+            // discover() filters those, so it's rare — and we just refresh
+            // it in place.
             execute(
               `INSERT INTO reviews (album_mbid, source_name, score, score_max, excerpt, excerpt_ko, full_review_url)
                VALUES (?, ?, ?, ?, ?, ?, ?)
-               ON CONFLICT(album_mbid, source_name) DO UPDATE SET
+               ON CONFLICT(album_mbid, full_review_url) DO UPDATE SET
+                 source_name = excluded.source_name,
                  score = excluded.score,
                  score_max = excluded.score_max,
                  excerpt = excluded.excerpt,
                  excerpt_ko = excluded.excerpt_ko,
-                 full_review_url = excluded.full_review_url,
                  scraped_at = datetime('now')`,
               [
                 mbid,
@@ -229,12 +235,6 @@ export async function runAutoCuration(mbid: string): Promise<AutoCurationResult>
                 r.fullReviewUrl,
               ]
             );
-            // discover() already filtered URLs we have on file, so a
-            // collision here is the two-URLs-same-source_name edge
-            // case (e.g., two pitchfork pages for the same album).
-            // The UPSERT handles it; we just count saved++ either way
-            // — undercounting saves slightly in that rare case but
-            // matches the client pipeline's behaviour.
             saved++;
             updateProgress(mbid, { urlsSaved: saved });
           } catch (err) {

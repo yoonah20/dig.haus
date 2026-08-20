@@ -277,9 +277,54 @@ export function initializeDatabase(db: Database.Database): void {
       full_review_url TEXT,
       manual_score REAL,
       scraped_at TEXT DEFAULT (datetime('now')),
-      UNIQUE(album_mbid, source_name)
+      UNIQUE(album_mbid, full_review_url)
     )
   `);
+
+  // A review's identity is its URL, not its publication name. The
+  // original UNIQUE was on (album_mbid, source_name), so distinct review
+  // URLs that shared a source_name — or fell back to the same hostname /
+  // 'Unknown' when the name couldn't be derived — collapsed into a single
+  // row via the save-path UPSERTs, leaving only the last one saved. Rebuild
+  // keyed on (album_mbid, full_review_url). Empty URLs (manual paste-ins
+  // with no link) become NULL so they stay distinct instead of colliding
+  // on ''. The CREATE IF NOT EXISTS above lands fresh DBs on the new shape;
+  // this block only rewrites DBs that still carry the old one.
+  runOnce(db, 'reviews-unique-on-url-2026-08-20', () => {
+    const row = db
+      .prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='reviews'`)
+      .get() as { sql?: string } | undefined;
+    if (!row?.sql) return; // no table yet — fresh CREATE already has the new shape
+    if (/UNIQUE\s*\(\s*album_mbid\s*,\s*full_review_url\s*\)/i.test(row.sql)) return;
+    db.exec(`
+      CREATE TABLE reviews_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        album_mbid TEXT NOT NULL,
+        source_name TEXT NOT NULL,
+        score REAL,
+        score_max REAL,
+        excerpt TEXT,
+        excerpt_ko TEXT,
+        full_review_url TEXT,
+        manual_score REAL,
+        scraped_at TEXT DEFAULT (datetime('now')),
+        UNIQUE(album_mbid, full_review_url)
+      )
+    `);
+    // NULLIF drops '' to NULL so empty-URL rows stay distinct. INSERT OR
+    // IGNORE guards the rare legacy case of two rows sharing an album+url
+    // under different source_names — one wins, the extra is dropped.
+    db.exec(`
+      INSERT OR IGNORE INTO reviews_new
+        (id, album_mbid, source_name, score, score_max, excerpt, excerpt_ko, full_review_url, manual_score, scraped_at)
+      SELECT id, album_mbid, source_name, score, score_max, excerpt, excerpt_ko,
+             NULLIF(full_review_url, ''), manual_score, scraped_at
+      FROM reviews
+    `);
+    db.exec(`DROP TABLE reviews`);
+    db.exec(`ALTER TABLE reviews_new RENAME TO reviews`);
+    console.log('[migration] reviews rebuilt with UNIQUE(album_mbid, full_review_url)');
+  });
 
   // Tracks every URL-scrape attempt that didn't yield a usable review.
   // Purpose is diagnostic — grouping by hostname surfaces sites that
