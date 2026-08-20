@@ -324,16 +324,22 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
     }
 
     const scraped = outcome.review;
-    execute(
+    // Keyed on the URL, not source_name: two reviews from the same
+    // publication (or both falling back to the same hostname/'Unknown')
+    // must coexist. Re-scraping the same URL updates in place and refreshes
+    // the derived source_name. RETURNING gives back the affected row on
+    // both the insert and the update path.
+    const saved = queryGet(
       `INSERT INTO reviews (album_mbid, source_name, score, score_max, excerpt, excerpt_ko, full_review_url)
        VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(album_mbid, source_name) DO UPDATE SET
+       ON CONFLICT(album_mbid, full_review_url) DO UPDATE SET
+         source_name = excluded.source_name,
          score = excluded.score,
          score_max = excluded.score_max,
          excerpt = excluded.excerpt,
          excerpt_ko = excluded.excerpt_ko,
-         full_review_url = excluded.full_review_url,
-         scraped_at = datetime('now')`,
+         scraped_at = datetime('now')
+       RETURNING id, source_name, score, manual_score, score_max, excerpt, excerpt_ko, full_review_url`,
       [
         mbid,
         scraped.sourceName,
@@ -343,12 +349,6 @@ router.post('/:id/reviews/add-url', adminClaudeLimiter, requireAdmin, async (req
         scraped.excerptKo,
         scraped.fullReviewUrl,
       ]
-    );
-
-    const saved = queryGet(
-      `SELECT id, source_name, score, manual_score, score_max, excerpt, excerpt_ko, full_review_url
-       FROM reviews WHERE album_mbid = ? AND source_name = ?`,
-      [mbid, scraped.sourceName]
     );
 
     if (!saved) {
@@ -414,7 +414,11 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
   const sourceName = sourceNameRaw.trim().slice(0, 100);
   const bodyText = bodyTextRaw;
 
-  let fullReviewUrl = '';
+  // NULL, not '', when no URL is given — the reviews UNIQUE is on
+  // (album_mbid, full_review_url) and SQLite treats NULLs as distinct, so
+  // several link-less manual reviews for one album each keep their own row
+  // instead of colliding on the empty string.
+  let fullReviewUrl: string | null = null;
   if (typeof urlRaw === 'string' && urlRaw.trim()) {
     const trimmedUrl = urlRaw.trim();
     if (!/^https?:\/\//i.test(trimmedUrl)) {
@@ -447,16 +451,17 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
 
     const finalScore = adminScore !== null ? adminScore : extracted.score;
 
-    execute(
+    const saved = queryGet(
       `INSERT INTO reviews (album_mbid, source_name, score, score_max, excerpt, excerpt_ko, full_review_url)
        VALUES (?, ?, ?, 100, ?, ?, ?)
-       ON CONFLICT(album_mbid, source_name) DO UPDATE SET
+       ON CONFLICT(album_mbid, full_review_url) DO UPDATE SET
+         source_name = excluded.source_name,
          score = excluded.score,
          score_max = excluded.score_max,
          excerpt = excluded.excerpt,
          excerpt_ko = excluded.excerpt_ko,
-         full_review_url = excluded.full_review_url,
-         scraped_at = datetime('now')`,
+         scraped_at = datetime('now')
+       RETURNING id, source_name, score, manual_score, score_max, excerpt, excerpt_ko, full_review_url`,
       [
         mbid,
         sourceName,
@@ -465,12 +470,6 @@ router.post('/:id/reviews/manual', adminClaudeLimiter, requireAdmin, async (req,
         extracted.excerptKo,
         fullReviewUrl,
       ]
-    );
-
-    const saved = queryGet(
-      `SELECT id, source_name, score, manual_score, score_max, excerpt, excerpt_ko, full_review_url
-       FROM reviews WHERE album_mbid = ? AND source_name = ?`,
-      [mbid, sourceName]
     );
     if (!saved) {
       return res.status(500).json({ error: 'Failed to retrieve saved review' });
