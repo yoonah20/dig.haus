@@ -43,7 +43,20 @@ export function searchAlbumsInDb(rawQuery: string, limit = 25): DbSearchResult[]
   const query = normalizeSearchQuery(rawQuery);
   if (!query) return [];
 
-  const like = `%${query}%`;
+  // Match per-token across both columns, not the whole query against a
+  // single column. The natural way to search is "artist album"
+  // ("Immolation Descent"), but the album title and artist name live
+  // in separate columns — a single `%Immolation Descent%` LIKE hits
+  // neither, so a registered album reads as "not found". Requiring
+  // every whitespace-separated token to appear in title OR artist
+  // (combined) makes the combined search resolve while still covering
+  // the single-column phrase case (all tokens land in one column).
+  const tokens = query.split(/\s+/).filter(Boolean);
+  const tokenWhere = tokens
+    .map(() => '(LOWER(title) LIKE LOWER(?) OR LOWER(artist_name) LIKE LOWER(?))')
+    .join(' AND ');
+  const tokenParams = tokens.flatMap((t) => [`%${t}%`, `%${t}%`]);
+
   // Ranking tiers, in priority order:
   //   1. Exact title or artist match
   //   2. Prefix title or artist match
@@ -60,8 +73,7 @@ export function searchAlbumsInDb(rawQuery: string, limit = 25): DbSearchResult[]
     `SELECT id, slug, mbid, title, artist_name, release_date, release_year,
             label_name, cover_art_url, cover_art_fallbacks
      FROM albums
-     WHERE LOWER(title) LIKE LOWER(?)
-        OR LOWER(artist_name) LIKE LOWER(?)
+     WHERE ${tokenWhere}
      ORDER BY
        CASE WHEN LOWER(title) = LOWER(?) OR LOWER(artist_name) = LOWER(?) THEN 0 ELSE 1 END,
        CASE WHEN LOWER(title) LIKE LOWER(?) OR LOWER(artist_name) LIKE LOWER(?) THEN 0 ELSE 1 END,
@@ -70,7 +82,7 @@ export function searchAlbumsInDb(rawQuery: string, limit = 25): DbSearchResult[]
             THEN 0 ELSE 1 END,
        COALESCE(release_date, release_year || '-01-01') DESC
      LIMIT ?`,
-    [like, like, query, query, `${query}%`, `${query}%`, limit]
+    [...tokenParams, query, query, `${query}%`, `${query}%`, limit]
   );
 
   return rows.map((a: any) => ({
