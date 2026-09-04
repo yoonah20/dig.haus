@@ -14,6 +14,25 @@ This is a **roadmap, not a plan**: it locks the direction, the reuse map, the fr
 - **Explicitly NOT building: live co-presence (B)**. No websockets, no "who's online", no real-time position sync, no shared-world server. Deferred indefinitely; revisit only if usage genuinely demands it. Most of the "visit friends" fantasy is satisfied by A.
 - **Assets: free only, CC0-first.** No paid packs (LimeZu full pack etc. are out).
 - **Guardrails carried over from the vision** (hard rules): no rankings / leaderboards / "popular houses" / "for you" sort; street layout is **derived** (recency + light curation), never ranked; no currency / unlocks / streaks; decoration stays record-centric (users arrange **records** and pick a preset house — no user-placed furniture in this scope). These keep the town on the atmosphere-first, anti-algorithm, anti-gamification side of the line.
+- **M1 kickoff approach (locked 2026-08-30)**: engine-first — add PixiJS and render one real house from `crate_items` behind a dev flag using **placeholder procedural pixel tiles**; real CC0 art (Claude-sourced, CC0-first, with a license ledger) swaps in afterward. Covers via option A throughout.
+
+---
+
+## Core loop: 발굴 — digging up buried albums
+
+The town needs a *verb*, not just houses to look at — the Stardew equivalent of farming. For dig.haus the verb is obvious and on-brand: **you dig the ground and unearth a buried album.** It makes the site's whole identity literal — the name (dig.haus), the tagline ("No algorithms needed. Keep digging."), and the shovel-carrying 디거 mascot. Crate-digging becomes something you physically do, and it gives the walkable town a reason to exist beyond visiting.
+
+**Shape (kept firmly on the anti-algorithm / anti-gamification side — that is the whole point):**
+
+- **Serendipity, not recommendation.** A dig surfaces a *random real catalog album*. It is **never personalized**, never modeled on the user's history — random discovery is the anti-algorithm vision made literal, not a "for you" engine in disguise.
+- **Discovery, not loot.** An unearthed album opens the normal album flow (cover / 50자 평 / listen / 담기). **No rarity tiers, no currency, no unlocks, no "dig 50 for a legendary," no collection-completion pressure.** The reward is the album itself. This line is what keeps it off the gacha / possessions path the project explicitly rejects.
+- **Location-flavored, never user-flavored** (optional, post-v1): digging in the 메탈 골목 leans metal, the 재즈 구역 leans jazz — flavored by *where you stand*, not *who you are*, so districts gain meaning with zero personalization. v1 can be uniform-random.
+- **Relaxing, not a grind.** No energy / stamina meter (that is a gamification hook). Unlimited, cozy digging; at most a light per-tile "방금 팠음" cooldown for feel.
+- **Anti-repeat, not a model:** a small "recently dug" dedup so the same album doesn't resurface back-to-back — session memory, not a profile.
+
+**Cost & backend:** $0. `GET /api/dig` → `SELECT * FROM albums [WHERE <district tag>] ORDER BY RANDOM() LIMIT 1` (trivial on ~350 rows) plus a light recently-dug exclusion. No LLM.
+
+**How it fits the loop:** digging is the town's *discovery engine*; houses are *identity / collection expression*; visiting is *social*. The loop — wander → dig up something you'd never have searched for → listen / 담기 → arrange it in your house → visit a friend's — is the whole product in one sentence, and more on-vision than any recommendation carousel. **This is arguably the reason the town should exist**; weight Phase 5 accordingly. Prototype-able as soon as there is walkable ground (M2); its real home is the town hub (M4) — see M-Dig.
 
 ---
 
@@ -106,6 +125,7 @@ Ordered so every rung delivers standalone value and stopping anywhere strands no
 - **M3 — Genre skins + picker** (~1 wk). 3–5 code-defined skins (메탈 지하실 / 재즈 라운지 / 시티팝 로프트 / 앰비언트 / K-인디); `users.house_skin`; skin picker; render the chosen skin around the walk engine.
 - **M4 — Street hub** (~1.5 wk). Walkable outdoor hub; doors; `GET /api/town`; a "동네 둘러보기" nav entry (the site's first-ever cross-user browse surface). Follows float first.
 - **M5 — Visiting friends (solo-instanced)** (~1–1.5 wk). Walk into a followed user's saved house (their skin + records, read-only); guestbook write; visitor-vs-owner gating. *This is the payoff of scope A.*
+- **M-Dig — 발굴 core loop** (~1–1.5 wk). Diggable ground + shovel action + `GET /api/dig` (random catalog album, recently-dug dedup) → an unearthed album opens the normal album flow. Prototype-able from M2; real home is the M4 town. **Treat as core, not polish** — this is the town's central verb, so consider pulling it ahead of M5. Optional district-flavored randomness after v1.
 - **M6 — Polish** (~1–2 wk). Character customization (`avatar_config`); camera scroll for larger rooms if needed; pixel-scene PNG/postcard export (extend `toasterRenderer` or snapshot the Pixi canvas); mobile perf pass; accessibility.
 
 **Deferred / cut:** live co-presence (B); user-placed furniture; seasonal / day-night skins; any ranking surface.
