@@ -126,7 +126,7 @@ Ordered so every rung delivers standalone value and stopping anywhere strands no
 - **M4 — Street hub** (~1.5 wk). Walkable outdoor hub; doors; `GET /api/town`; a "동네 둘러보기" nav entry (the site's first-ever cross-user browse surface). Follows float first.
 - **M5 — Visiting friends (solo-instanced)** (~1–1.5 wk). Walk into a followed user's saved house (their skin + records, read-only); guestbook write; visitor-vs-owner gating. *This is the payoff of scope A.*
 - **M-Dig — 발굴 core loop** (~1–1.5 wk). Diggable ground + shovel action + `GET /api/dig` (random catalog album, recently-dug dedup) → an unearthed album opens the normal album flow. Prototype-able from M2; real home is the M4 town. **Treat as core, not polish** — this is the town's central verb, so consider pulling it ahead of M5. Optional district-flavored randomness after v1.
-- **M6 — Polish** (~1–2 wk). Character customization (`avatar_config`); camera scroll for larger rooms if needed; pixel-scene PNG/postcard export (extend `toasterRenderer` or snapshot the Pixi canvas); mobile perf pass; accessibility.
+- **M6 — Polish** (~1–2 wk). **Avatar picker** (`avatar_config`) — a small set of pixel characters (CC0-derived recolors) the user chooses from, with the **디거/digman sprite as an option and the operator's default**; camera scroll for larger rooms if needed; pixel-scene PNG/postcard export (extend `toasterRenderer` or snapshot the Pixi canvas); mobile perf pass; accessibility.
 
 **Deferred / cut:** live co-presence (B); user-placed furniture; seasonal / day-night skins; any ranking surface.
 
@@ -153,7 +153,7 @@ Ordered so every rung delivers standalone value and stopping anywhere strands no
 **Open decisions for the operator:**
 
 1. **Route shape** — new `/동네` (`/town`) hub with `/my/:username` kept as the interior (recommended), vs. re-skinning `/my/:username` in place.
-2. **Character model** — 디거 as the single recurring NPC everywhere (cheap, M2) vs. per-user avatars as walkable characters (M6). Both feasible; not mutually exclusive.
+2. **Character model** — *resolved (2026-08-30):* avatars **are** selectable (M6 `avatar_config`), and the operator's own avatar is the **디거/digman**. The recurring guide NPC is also a digger, so lean into the "town of diggers" framing (everyone is a crate-digger) and distinguish the guide NPC by pose/name/color rather than avoiding the overlap. Note: this needs a dedicated **pixel digman walk spritesheet** (down/up/left/right × frames) — custom art, since the existing `digman_*.webp` poses are illustrated UI assets, not a walk cycle; the mascot stays custom per the asset rules.
 3. **Fate of the CSS storefront** — `components/MyDig/storefront/` and the current crate-floor CSS scene can be retired once Pixi lands, or kept as a low-end fallback.
 
 ---
